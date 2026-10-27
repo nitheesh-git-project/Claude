@@ -10247,6 +10247,12 @@ begin
     -- named here rather than left to CASCADE; the live display goes with them.
     assessment_live_display,
     assessment_run_events,
+    -- Home exercises (phase 7d, end of this file): the items and the
+    -- teaching events are append-only by trigger and a plan refuses a
+    -- delete, so they are named rather than left to CASCADE.
+    exercise_teaching_events,
+    exercise_plan_items,
+    exercise_plans,
     assessment_runs,
     condition_change_requests,
     condition_access_grants,
@@ -18991,6 +18997,537 @@ revoke insert, update, delete on assessment_live_display from anon, authenticate
 do $$
 begin
   alter publication supabase_realtime add table assessment_live_display;
+exception when duplicate_object then null;
+end $$;
+
+-- ---------------------------------------------------------------------
+-- Health Profile redesign, phase 7d: HOME EXERCISES, taught live in the
+-- guided video session.
+--
+-- Everything happens LIVE and is led by the physiotherapist; nothing here
+-- relies on the patient reporting back. On the session cockpit's Home
+-- exercises step (src/lib/sessionProtocols.ts, just before the summary) the
+-- therapist picks exercises from the clinic's library (src/lib/
+-- exerciseLibrary.ts, code-only for now), sets each dose, shows the patient a
+-- demo on the companion screen (the library's picture and steps only),
+-- WATCHES them do it on camera and marks it. The patient then reads the plan
+-- on their dashboard, read-only.
+--
+-- Vocabulary: "Home exercises". This is NOT a care plan -- care_plans and
+-- care_plan_versions are the programme-purchase recommendation and keep
+-- their own word.
+--
+-- Three tables, each re-runnable on its own:
+--   1. exercise_plans -- one row per version, at most one ACTIVE per patient
+--      (partial unique index); a new version replaces the old one, which
+--      turns 'replaced' (the history is kept) and is never edited or
+--      deleted. Published in ONE transaction by publish_exercise_plan()
+--      below (the publish_care_plan_version pattern): retire the active
+--      version, insert the next, insert its items -- all or nothing.
+--   2. exercise_plan_items -- the exercises and doses of one version,
+--      APPEND-ONLY BY TRIGGER and written only in the transaction that
+--      publishes their plan: a changed plan is a new version, never a
+--      changed row. The dose is a fixed jsonb shape (exercisePlan.ts
+--      doseJson), its note the physiotherapist's own plain words, contact-
+--      scanned at the route (surface 'exercise_plan_note').
+--   3. exercise_teaching_events -- what the therapist SAW on camera, one per
+--      exercise per plan per run: performed correctly, needs practice (one
+--      coaching cue from a fixed list) or not attempted (one reason from a
+--      fixed list). APPEND-ONLY BY TRIGGER, and written only into a guided
+--      run still in progress, by that run's therapist, for an exercise in
+--      the patient's active plan.
+--
+-- Who: the patient reads their own ACTIVE plan and its items, and their own
+-- teaching events (all fixed-list keys, no free text: the plan says
+-- "practised with your physiotherapist on <date>" and the one cue to
+-- remember -- nothing the patient fills in). The clinical-access therapist
+-- (the rule assessment_runs uses) and an admin read all three, history
+-- included. Nobody writes any of them from a browser session (revoked; no
+-- insert policy): /api/therapist/exercise-plans/publish and
+-- /api/therapist/assessment-runs/teach are the writers, with the service
+-- role, after the assigned-therapist and started-session gate. An admin has
+-- no write door.
+--
+-- Foreign keys: the patient cascade on all three, which the guards turn
+-- into a refusal (clinical history: /api/admin/delete-account names these
+-- "clinical"); the session `on delete set null` and the milestone `on
+-- delete set null`, which the guards permit; the run, the author and the
+-- actor no action (a run is never deleted). None is `restrict`, so
+-- scripts/clean-e2e-residue.mjs has nothing to learn. The data reset
+-- truncates all three (newest debug_reset_all_data(), above). Realtime:
+-- exercise_plans is on the publication so the patient's dashboard follows a
+-- new version live.
+--
+-- Also here: the live display grows the demo phase and one `exercise` key
+-- (the library's picture, steps and the "Exercise n of N" counter --
+-- assessmentRun.ts validateLiveDisplay is the whitelist, the CHECK the
+-- storage-layer copy), and the communication-flag surface for the note.
+--
+-- APPLY THIS TO STAGING'S DATABASE BEFORE THE BRANCH MERGES. The routes
+-- answer 503 on a database without these tables, never a 500.
+-- ---------------------------------------------------------------------
+
+-- 0. The note's scanner surface. Restated in full, as before; every
+-- existing row satisfies the wider rule.
+alter table communication_flags drop constraint if exists communication_flags_surface_check;
+alter table communication_flags add constraint communication_flags_surface_check check (surface in (
+  'session_suggestion_note',
+  'care_plan_rationale',
+  'care_plan_instructions',
+  'pain_assessment_answer',
+  'appointment_notes',
+  'condition_answer',
+  'neuro_assessment_note',
+  'session_summary',
+  'outcome_measurement_condition',
+  'care_goal_text',
+  'care_milestone_text',
+  'care_status_reason',
+  'patient_diary_note',
+  'care_status_summary',
+  'peds_assessment_note',
+  'exercise_plan_note'
+));
+
+-- 1. exercise_plans
+create table if not exists exercise_plans (
+  id uuid primary key default gen_random_uuid(),
+  patient_id uuid not null references profiles(id) on delete cascade,
+  version integer not null check (version >= 1),
+  authored_by uuid not null references profiles(id),
+  -- The guided run it was taught in, when it was (most are).
+  run_id uuid references assessment_runs(id),
+  appointment_id uuid references appointments(id) on delete set null,
+  -- The patient's profile kind when it was written (the library is offered
+  -- per kind; a later change of condition type does not rewrite history).
+  profile_kind text not null check (profile_kind in (
+    'ortho', 'neuro', 'neuro_parkinsons', 'pediatrics', 'geriatric', 'cardiopulmonary'
+  )),
+  status text not null default 'active' check (status in ('active', 'replaced')),
+  created_at timestamptz not null default now(),
+  replaced_at timestamptz,
+  constraint exercise_plans_replaced_shape check (
+    (status = 'active' and replaced_at is null) or (status = 'replaced' and replaced_at is not null)
+  ),
+  constraint exercise_plans_patient_version unique (patient_id, version)
+);
+
+-- One active plan per patient: the patient never reads two.
+create unique index if not exists exercise_plans_one_active
+  on exercise_plans (patient_id) where status = 'active';
+create index if not exists exercise_plans_patient_idx
+  on exercise_plans (patient_id, version desc);
+create index if not exists exercise_plans_authored_by_idx
+  on exercise_plans (authored_by);
+create index if not exists exercise_plans_run_idx
+  on exercise_plans (run_id) where run_id is not null;
+create index if not exists exercise_plans_appointment_idx
+  on exercise_plans (appointment_id) where appointment_id is not null;
+
+alter table exercise_plans enable row level security;
+
+drop policy if exists "exercise_plans_select_own_active" on exercise_plans;
+create policy "exercise_plans_select_own_active" on exercise_plans
+  for select using ((select auth.uid()) = patient_id and status = 'active');
+
+drop policy if exists "exercise_plans_select_admin" on exercise_plans;
+create policy "exercise_plans_select_admin" on exercise_plans
+  for select using (is_admin());
+
+drop policy if exists "exercise_plans_select_assigned_therapist" on exercise_plans;
+create policy "exercise_plans_select_assigned_therapist" on exercise_plans
+  for select using (
+    is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = exercise_plans.patient_id
+          and a.therapist_id = (select auth.uid())
+          and a.status in ('requested', 'confirmed', 'completed')
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = exercise_plans.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+          and pp.payment_status = 'paid'
+          and pp.status = 'active'
+          and (pp.expires_at is null or pp.expires_at > now())
+      )
+    )
+  );
+
+revoke insert, update, delete on exercise_plans from anon, authenticated;
+
+-- A version is history: it lands active, is replaced once (the time set
+-- here, not by the caller), and is never edited or deleted. A deleted
+-- session's id may be cleared by `on delete set null`.
+create or replace function public.exercise_plans_guard()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if tg_op = 'INSERT' then
+    if new.status <> 'active' or new.replaced_at is not null then
+      raise exception 'exercise_plans: a version is published active';
+    end if;
+    -- The database's own time: the items' guard reads it as "published in
+    -- this transaction".
+    new.created_at := now();
+    return new;
+  end if;
+  if tg_op = 'DELETE' then
+    raise exception 'exercise_plans is history: a version is replaced, never deleted';
+  end if;
+  if old.appointment_id is not null
+     and new.appointment_id is null
+     and (to_jsonb(new) - 'appointment_id') = (to_jsonb(old) - 'appointment_id') then
+    return new;
+  end if;
+  if old.status = 'active'
+     and new.status = 'replaced'
+     and (to_jsonb(new) - 'status' - 'replaced_at') = (to_jsonb(old) - 'status' - 'replaced_at') then
+    new.replaced_at := now();
+    return new;
+  end if;
+  raise exception 'exercise_plans: the only change is replacing the active version with a new one';
+end;
+$$;
+
+revoke all on function public.exercise_plans_guard() from public, anon, authenticated;
+
+drop trigger if exists exercise_plans_guard on exercise_plans;
+create trigger exercise_plans_guard
+  before insert or update or delete on exercise_plans
+  for each row execute function public.exercise_plans_guard();
+
+-- 2. exercise_plan_items
+create table if not exists exercise_plan_items (
+  id uuid primary key default gen_random_uuid(),
+  plan_id uuid not null references exercise_plans(id) on delete cascade,
+  -- A key of src/lib/exerciseLibrary.ts, validated at the route.
+  exercise_key text not null check (exercise_key ~ '^[a-z][a-z0-9_]{1,47}$'),
+  -- exercisePlan.ts doseJson: exactly these keys; the bounds per dose kind
+  -- are checked at the route, the outer bounds here.
+  dose jsonb not null check (
+    jsonb_typeof(dose) = 'object'
+    and (dose - array['sets', 'reps', 'holdSeconds', 'minutes', 'timesPerDay', 'daysPerWeek', 'note']) = '{}'::jsonb
+    and jsonb_typeof(dose -> 'sets') = 'number'
+    and jsonb_typeof(dose -> 'timesPerDay') = 'number'
+    and jsonb_typeof(dose -> 'daysPerWeek') = 'number'
+    and coalesce(jsonb_typeof(dose -> 'reps'), 'null') in ('null', 'number')
+    and coalesce(jsonb_typeof(dose -> 'holdSeconds'), 'null') in ('null', 'number')
+    and coalesce(jsonb_typeof(dose -> 'minutes'), 'null') in ('null', 'number')
+    and coalesce(jsonb_typeof(dose -> 'note'), 'null') in ('null', 'string')
+    and char_length(coalesce(dose ->> 'note', '')) <= 140
+  ),
+  -- The patient's own milestone this exercise works towards, optionally.
+  milestone_id uuid references care_milestones(id) on delete set null,
+  sort_order integer not null check (sort_order between 0 and 20),
+  created_at timestamptz not null default now(),
+  constraint exercise_plan_items_one_per_plan unique (plan_id, exercise_key),
+  constraint exercise_plan_items_order_unique unique (plan_id, sort_order)
+);
+
+create index if not exists exercise_plan_items_milestone_idx
+  on exercise_plan_items (milestone_id) where milestone_id is not null;
+
+alter table exercise_plan_items enable row level security;
+
+drop policy if exists "exercise_plan_items_select_own_active" on exercise_plan_items;
+create policy "exercise_plan_items_select_own_active" on exercise_plan_items
+  for select using (
+    exists (
+      select 1 from exercise_plans p
+      where p.id = exercise_plan_items.plan_id
+        and p.patient_id = (select auth.uid())
+        and p.status = 'active'
+    )
+  );
+
+drop policy if exists "exercise_plan_items_select_admin" on exercise_plan_items;
+create policy "exercise_plan_items_select_admin" on exercise_plan_items
+  for select using (is_admin());
+
+drop policy if exists "exercise_plan_items_select_assigned_therapist" on exercise_plan_items;
+create policy "exercise_plan_items_select_assigned_therapist" on exercise_plan_items
+  for select using (
+    is_active_therapist()
+    and exists (
+      select 1 from exercise_plans p
+      where p.id = exercise_plan_items.plan_id
+        and (
+          exists (
+            select 1 from appointments a
+            where a.patient_id = p.patient_id
+              and a.therapist_id = (select auth.uid())
+              and a.status in ('requested', 'confirmed', 'completed')
+          )
+          or exists (
+            select 1 from patient_package_purchases pp
+            where pp.patient_id = p.patient_id
+              and pp.locked_therapist_id = (select auth.uid())
+              and pp.payment_status = 'paid'
+              and pp.status = 'active'
+              and (pp.expires_at is null or pp.expires_at > now())
+          )
+        )
+    )
+  );
+
+revoke insert, update, delete on exercise_plan_items from anon, authenticated;
+
+-- Append-only for every caller, the service role included, and written
+-- only with its plan: an item lands only on an active plan created in this
+-- same transaction (`created_at = now()`, the transaction's own time), so an
+-- exercise cannot be slipped onto a version the patient already reads. A
+-- milestone named is the plan's own patient's. The one permitted change is
+-- the milestone link cleared by `on delete set null`.
+create or replace function public.exercise_plan_items_guard()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+declare
+  v_patient uuid;
+  v_status text;
+  v_created timestamptz;
+begin
+  if tg_op = 'INSERT' then
+    select patient_id, status, created_at into v_patient, v_status, v_created
+      from exercise_plans where id = new.plan_id;
+    if v_patient is null or v_status <> 'active' or v_created <> now() then
+      raise exception 'exercise_plan_items: items are written only with their plan, in the transaction that publishes it';
+    end if;
+    if new.milestone_id is not null
+       and not exists (select 1 from care_milestones m where m.id = new.milestone_id and m.patient_id = v_patient) then
+      raise exception 'exercise_plan_items: the milestone is not this patient''s';
+    end if;
+    return new;
+  end if;
+  if tg_op = 'UPDATE'
+     and old.milestone_id is not null
+     and new.milestone_id is null
+     and (to_jsonb(new) - 'milestone_id') = (to_jsonb(old) - 'milestone_id') then
+    return new;
+  end if;
+  raise exception 'exercise_plan_items is append-only: a changed plan is a new version';
+end;
+$$;
+
+revoke all on function public.exercise_plan_items_guard() from public, anon, authenticated;
+
+drop trigger if exists exercise_plan_items_guard on exercise_plan_items;
+create trigger exercise_plan_items_guard
+  before insert or update or delete on exercise_plan_items
+  for each row execute function public.exercise_plan_items_guard();
+
+-- 3. exercise_teaching_events
+create table if not exists exercise_teaching_events (
+  id uuid primary key default gen_random_uuid(),
+  run_id uuid not null references assessment_runs(id) on delete cascade,
+  plan_id uuid not null references exercise_plans(id) on delete cascade,
+  patient_id uuid not null references profiles(id) on delete cascade,
+  exercise_key text not null check (exercise_key ~ '^[a-z][a-z0-9_]{1,47}$'),
+  outcome text not null check (outcome in ('performed_correctly', 'needs_practice', 'not_attempted')),
+  -- The fixed lists of src/lib/exercisePlan.ts (COACHING_CUES,
+  -- NOT_ATTEMPTED_REASONS). No free text: nothing here to scan.
+  cue_key text check (cue_key is null or cue_key in (
+    'slow_down', 'smaller_range', 'stand_tall', 'breathe_out', 'keep_breathing', 'back_flat',
+    'knee_in_line', 'hold_support', 'feet_apart', 'full_hold', 'bigger_movement', 'relax_shoulders'
+  )),
+  reason_key text check (reason_key is null or reason_key in (
+    'too_painful', 'too_tired', 'not_safe', 'no_helper', 'no_space', 'no_equipment', 'patient_declined', 'out_of_time'
+  )),
+  -- The Home exercises step's set-up ticked another adult beside the patient.
+  helper_present boolean not null default false,
+  actor uuid not null references profiles(id),
+  created_at timestamptz not null default now(),
+  constraint exercise_teaching_events_outcome_shape check (
+    (outcome = 'performed_correctly' and cue_key is null and reason_key is null)
+    or (outcome = 'needs_practice' and cue_key is not null and reason_key is null)
+    or (outcome = 'not_attempted' and reason_key is not null and cue_key is null)
+  )
+);
+
+-- One mark per exercise per plan per run: the cockpit's retry and a double
+-- tap cannot both land, and a mark is not changed by a second one.
+create unique index if not exists exercise_teaching_events_one_per_exercise
+  on exercise_teaching_events (run_id, plan_id, exercise_key);
+create index if not exists exercise_teaching_events_plan_idx
+  on exercise_teaching_events (plan_id, created_at);
+create index if not exists exercise_teaching_events_patient_idx
+  on exercise_teaching_events (patient_id, created_at desc);
+create index if not exists exercise_teaching_events_actor_idx
+  on exercise_teaching_events (actor);
+
+alter table exercise_teaching_events enable row level security;
+
+drop policy if exists "exercise_teaching_events_select_own" on exercise_teaching_events;
+create policy "exercise_teaching_events_select_own" on exercise_teaching_events
+  for select using ((select auth.uid()) = patient_id);
+
+drop policy if exists "exercise_teaching_events_select_admin" on exercise_teaching_events;
+create policy "exercise_teaching_events_select_admin" on exercise_teaching_events
+  for select using (is_admin());
+
+drop policy if exists "exercise_teaching_events_select_assigned_therapist" on exercise_teaching_events;
+create policy "exercise_teaching_events_select_assigned_therapist" on exercise_teaching_events
+  for select using (
+    is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = exercise_teaching_events.patient_id
+          and a.therapist_id = (select auth.uid())
+          and a.status in ('requested', 'confirmed', 'completed')
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = exercise_teaching_events.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+          and pp.payment_status = 'paid'
+          and pp.status = 'active'
+          and (pp.expires_at is null or pp.expires_at > now())
+      )
+    )
+  );
+
+revoke insert, update, delete on exercise_teaching_events from anon, authenticated;
+
+-- Append-only for every caller, the service role included. A mark is
+-- written only into a guided run still in progress, by that run's own
+-- therapist, for this patient's ACTIVE plan and an exercise in it -- what
+-- was watched on camera, in the session it was watched in.
+create or replace function public.exercise_teaching_events_guard()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if tg_op = 'INSERT' then
+    if not exists (
+      select 1 from assessment_runs r
+      where r.id = new.run_id and r.status = 'in_progress'
+        and r.patient_id = new.patient_id and r.therapist_id = new.actor
+    ) then
+      raise exception 'exercise_teaching_events: written only into this therapist''s run in progress for this patient';
+    end if;
+    if not exists (
+      select 1 from exercise_plans p
+      join exercise_plan_items i on i.plan_id = p.id
+      where p.id = new.plan_id and p.patient_id = new.patient_id and p.status = 'active'
+        and i.exercise_key = new.exercise_key
+    ) then
+      raise exception 'exercise_teaching_events: the exercise is not in the patient''s active plan';
+    end if;
+    return new;
+  end if;
+  raise exception 'exercise_teaching_events is append-only: what was watched in a session is history';
+end;
+$$;
+
+revoke all on function public.exercise_teaching_events_guard() from public, anon, authenticated;
+
+drop trigger if exists exercise_teaching_events_guard on exercise_teaching_events;
+create trigger exercise_teaching_events_guard
+  before insert or update or delete on exercise_teaching_events
+  for each row execute function public.exercise_teaching_events_guard();
+
+-- 4. Publishing a version is one transaction.
+--
+-- Serialised per patient on an advisory lock, then: the next version
+-- number, the active version retired (its guard stamps replaced_at), the new
+-- version inserted active, its items inserted in order. Any failure -- an
+-- item the guard or a CHECK refuses -- rolls the whole publish back, so the
+-- patient keeps reading the version they had. A run named must be this
+-- therapist's, this patient's, and still in progress.
+create or replace function public.publish_exercise_plan(
+  p_patient_id uuid,
+  p_authored_by uuid,
+  p_run_id uuid,
+  p_appointment_id uuid,
+  p_profile_kind text,
+  p_items jsonb
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_version integer;
+  v_plan_id uuid;
+  v_count integer;
+begin
+  if p_items is null or jsonb_typeof(p_items) <> 'array' then
+    raise exception 'publish_exercise_plan: the items are a list';
+  end if;
+  v_count := jsonb_array_length(p_items);
+  if v_count < 1 or v_count > 12 then
+    raise exception 'publish_exercise_plan: a plan holds 1 to 12 exercises';
+  end if;
+  if p_run_id is not null and not exists (
+    select 1 from assessment_runs r
+    where r.id = p_run_id and r.patient_id = p_patient_id
+      and r.therapist_id = p_authored_by and r.status = 'in_progress'
+  ) then
+    raise exception 'publish_exercise_plan: the run is not this therapist''s run in progress for this patient';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtextextended('exercise_plan:' || p_patient_id::text, 0));
+
+  select coalesce(max(version), 0) + 1 into v_version
+    from exercise_plans where patient_id = p_patient_id;
+
+  update exercise_plans
+     set status = 'replaced'
+   where patient_id = p_patient_id
+     and status = 'active';
+
+  insert into exercise_plans (patient_id, version, authored_by, run_id, appointment_id, profile_kind)
+  values (p_patient_id, v_version, p_authored_by, p_run_id, p_appointment_id, p_profile_kind)
+  returning id into v_plan_id;
+
+  insert into exercise_plan_items (plan_id, exercise_key, dose, milestone_id, sort_order)
+  select v_plan_id,
+         e.value ->> 'exercise_key',
+         e.value -> 'dose',
+         nullif(e.value ->> 'milestone_id', '')::uuid,
+         (e.ordinality - 1)::integer
+    from jsonb_array_elements(p_items) with ordinality as e(value, ordinality);
+
+  return jsonb_build_object('id', v_plan_id, 'version', v_version);
+end;
+$$;
+
+revoke all on function public.publish_exercise_plan(uuid, uuid, uuid, uuid, text, jsonb) from public, anon, authenticated;
+
+-- 5. The live display: the demo phase and one `exercise` key, restated.
+-- Column CHECKs carry Postgres's own names (<table>_<column>_check); every
+-- existing row satisfies the wider rules.
+alter table assessment_live_display drop constraint if exists assessment_live_display_phase_check;
+alter table assessment_live_display add constraint assessment_live_display_phase_check
+  check (phase in ('ready', 'go', 'done', 'rest', 'paused', 'demo'));
+alter table assessment_live_display drop constraint if exists assessment_live_display_display_check;
+alter table assessment_live_display add constraint assessment_live_display_display_check check (
+  jsonb_typeof(display) = 'object'
+  and (display - array['progress', 'title', 'line', 'sub', 'picture', 'clockLabel', 'exercise']) = '{}'::jsonb
+  and (
+    not (display ? 'exercise')
+    or (
+      jsonb_typeof(display -> 'exercise') = 'object'
+      and ((display -> 'exercise') - array['key', 'picture', 'steps', 'counter']) = '{}'::jsonb
+      and jsonb_typeof(display -> 'exercise' -> 'steps') = 'array'
+    )
+  )
+);
+
+-- 6. The patient's dashboard follows a new version live (RLS decides what
+-- the socket delivers: their own active plan).
+do $$
+begin
+  alter publication supabase_realtime add table exercise_plans;
 exception when duplicate_object then null;
 end $$;
 

@@ -651,3 +651,190 @@ begin
   raise notice 'PASS  assessment_runs ends once, assessment_run_events is append-only, assessment_live_display takes patient-safe keys only';
 end $$;
 rollback;
+
+-- Home exercises (Health Profile redesign, phase 7d). Three tables and the
+-- publish function, both halves each:
+--   publish_exercise_plan(): version 1 lands active with its items in
+--     order; version 2 replaces it (the trigger stamps replaced_at) and is
+--     the one active; a publish whose item a CHECK refuses rolls back whole,
+--     leaving version 2 active; a run that is not this therapist's in
+--     progress is refused;
+--   exercise_plans: the one change is active -> replaced; an edit, a second
+--     replace, a delete and a direct insert as 'replaced' all raise;
+--   exercise_plan_items: append-only; an item onto a replaced version
+--     raises;
+--   exercise_teaching_events: a mark lands inside the run in progress for an
+--     exercise in the active plan; a second mark for it, a bad shape, an
+--     unknown cue, an exercise not in the plan, a replaced plan, another
+--     therapist, an edit, a delete and a mark into an ended run all raise;
+--   assessment_live_display: the demo phase with the exercise key lands,
+--     and a key inside `exercise` that is not the library's raises.
+-- (The items' "only in the transaction that publishes the plan" half cannot
+-- be driven from one transaction; it is the same `now()` the plan stamps.)
+begin;
+do $$
+declare
+  v_patient uuid; v_therapist uuid; v_run uuid; v_res jsonb; v_v1 uuid; v_v2 uuid;
+  v_ok boolean; v_n integer; v_event uuid; v_replaced timestamptz;
+  v_items jsonb := '[
+    {"exercise_key": "sit_to_stand", "dose": {"sets": 2, "reps": 10, "holdSeconds": null, "minutes": null, "timesPerDay": 1, "daysPerWeek": 5, "note": null}, "milestone_id": null},
+    {"exercise_key": "heel_raise", "dose": {"sets": 2, "reps": 10, "holdSeconds": null, "minutes": null, "timesPerDay": 1, "daysPerWeek": 3, "note": "Hold the counter."}, "milestone_id": null}
+  ]'::jsonb;
+begin
+  select id into v_patient from profiles where role = 'patient' limit 1;
+  select id into v_therapist from profiles where role = 'therapist' limit 1;
+  if v_patient is null or v_therapist is null then raise exception 'no patient and therapist to attribute the probe rows to'; end if;
+
+  insert into assessment_runs (patient_id, therapist_id, protocol_key, protocol_version, profile_kind)
+  values (v_patient, v_therapist, 'geriatric', 2, 'geriatric') returning id into v_run;
+
+  v_res := publish_exercise_plan(v_patient, v_therapist, v_run, null, 'geriatric', v_items);
+  v_v1 := (v_res ->> 'id')::uuid;
+  if (v_res ->> 'version')::int <> 1 then raise exception 'FAIL: the first version is not version 1'; end if;
+  select count(*) into v_n from exercise_plan_items where plan_id = v_v1;
+  if v_n <> 2 then raise exception 'FAIL: the first version did not take its two items'; end if;
+  if (select exercise_key from exercise_plan_items where plan_id = v_v1 and sort_order = 1) <> 'heel_raise' then
+    raise exception 'FAIL: the items did not keep their order';
+  end if;
+
+  v_res := publish_exercise_plan(v_patient, v_therapist, v_run, null, 'geriatric', v_items);
+  v_v2 := (v_res ->> 'id')::uuid;
+  if (v_res ->> 'version')::int <> 2 then raise exception 'FAIL: the second version is not version 2'; end if;
+  select replaced_at into v_replaced from exercise_plans where id = v_v1 and status = 'replaced';
+  if v_replaced is null then raise exception 'FAIL: version 1 was not replaced, with its time stamped'; end if;
+  select count(*) into v_n from exercise_plans where patient_id = v_patient and status = 'active';
+  if v_n <> 1 then raise exception 'FAIL: % active versions for one patient', v_n; end if;
+
+  v_ok := false;
+  begin
+    perform publish_exercise_plan(v_patient, v_therapist, v_run, null, 'geriatric',
+      '[{"exercise_key": "walking", "dose": {"sets": 1, "minutes": 10, "timesPerDay": 1, "daysPerWeek": 5, "price": 100}}]'::jsonb);
+  exception when check_violation then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: publish_exercise_plan accepted a dose with an unknown key'; end if;
+  if not exists (select 1 from exercise_plans where id = v_v2 and status = 'active') then
+    raise exception 'FAIL: a refused publish took the active version away';
+  end if;
+
+  v_ok := false;
+  begin perform publish_exercise_plan(v_patient, v_patient, v_run, null, 'geriatric', v_items);
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: publish_exercise_plan accepted a run that is not the author''s'; end if;
+
+  v_ok := false;
+  begin update exercise_plans set version = 9 where id = v_v2;
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: exercise_plans accepted an edit'; end if;
+
+  v_ok := false;
+  begin update exercise_plans set status = 'active', replaced_at = null where id = v_v1;
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: exercise_plans brought a replaced version back'; end if;
+
+  v_ok := false;
+  begin delete from exercise_plans where id = v_v1;
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: exercise_plans row was deletable'; end if;
+
+  v_ok := false;
+  begin
+    insert into exercise_plans (patient_id, version, authored_by, profile_kind, status, replaced_at)
+    values (v_patient, 7, v_therapist, 'geriatric', 'replaced', now());
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: exercise_plans accepted a version inserted as replaced'; end if;
+
+  v_ok := false;
+  begin update exercise_plan_items set dose = jsonb_set(dose, '{reps}', '30') where plan_id = v_v2;
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: exercise_plan_items accepted an UPDATE'; end if;
+
+  v_ok := false;
+  begin delete from exercise_plan_items where plan_id = v_v2;
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: exercise_plan_items row was deletable'; end if;
+
+  v_ok := false;
+  begin
+    insert into exercise_plan_items (plan_id, exercise_key, dose, sort_order)
+    values (v_v1, 'walking', '{"sets": 1, "minutes": 10, "timesPerDay": 1, "daysPerWeek": 5}'::jsonb, 5);
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: exercise_plan_items accepted an item on a replaced version'; end if;
+
+  insert into exercise_teaching_events (run_id, plan_id, patient_id, exercise_key, outcome, actor)
+  values (v_run, v_v2, v_patient, 'sit_to_stand', 'performed_correctly', v_therapist) returning id into v_event;
+  insert into exercise_teaching_events (run_id, plan_id, patient_id, exercise_key, outcome, cue_key, actor)
+  values (v_run, v_v2, v_patient, 'heel_raise', 'needs_practice', 'hold_support', v_therapist);
+
+  v_ok := false;
+  begin
+    insert into exercise_teaching_events (run_id, plan_id, patient_id, exercise_key, outcome, actor)
+    values (v_run, v_v2, v_patient, 'sit_to_stand', 'performed_correctly', v_therapist);
+  exception when unique_violation then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: exercise_teaching_events took a second mark for one exercise'; end if;
+
+  v_ok := false;
+  begin
+    insert into exercise_teaching_events (run_id, plan_id, patient_id, exercise_key, outcome, actor)
+    values (v_run, v_v2, v_patient, 'heel_raise', 'needs_practice', v_therapist);
+  exception when check_violation then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: exercise_teaching_events accepted needs practice with no cue'; end if;
+
+  v_ok := false;
+  begin
+    insert into exercise_teaching_events (run_id, plan_id, patient_id, exercise_key, outcome, cue_key, actor)
+    values (v_run, v_v2, v_patient, 'heel_raise', 'needs_practice', 'you_did_great', v_therapist);
+  exception when check_violation then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: exercise_teaching_events accepted a cue that is not on the list'; end if;
+
+  v_ok := false;
+  begin
+    insert into exercise_teaching_events (run_id, plan_id, patient_id, exercise_key, outcome, actor)
+    values (v_run, v_v2, v_patient, 'walking', 'performed_correctly', v_therapist);
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: exercise_teaching_events accepted an exercise not in the plan'; end if;
+
+  v_ok := false;
+  begin
+    insert into exercise_teaching_events (run_id, plan_id, patient_id, exercise_key, outcome, actor)
+    values (v_run, v_v1, v_patient, 'heel_raise', 'performed_correctly', v_therapist);
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: exercise_teaching_events accepted a mark on a replaced version'; end if;
+
+  v_ok := false;
+  begin
+    insert into exercise_teaching_events (run_id, plan_id, patient_id, exercise_key, outcome, reason_key, actor)
+    values (v_run, v_v2, v_patient, 'heel_raise', 'not_attempted', 'too_painful', v_patient);
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: exercise_teaching_events accepted a mark from someone other than the run''s therapist'; end if;
+
+  v_ok := false;
+  begin update exercise_teaching_events set outcome = 'needs_practice', cue_key = 'slow_down' where id = v_event;
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: exercise_teaching_events accepted an UPDATE'; end if;
+
+  v_ok := false;
+  begin delete from exercise_teaching_events where id = v_event;
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: exercise_teaching_events row was deletable'; end if;
+
+  insert into assessment_live_display (run_id, patient_id, therapist_id, protocol_key, current_step_id, phase, display)
+  values (v_run, v_patient, v_therapist, 'geriatric', 'exercises', 'demo',
+          '{"progress": "Step 8 of 9", "title": "Sit to stand", "line": "Watch how it is done.", "picture": "standing",
+            "exercise": {"key": "sit_to_stand", "picture": "sit_to_stand", "steps": ["Sit near the front of a firm chair."], "counter": "Exercise 1 of 2"}}'::jsonb);
+
+  v_ok := false;
+  begin
+    update assessment_live_display set display = jsonb_set(display, '{exercise,note}', '"You did 12"') where run_id = v_run;
+  exception when check_violation then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: assessment_live_display accepted a key inside the exercise that is not the library''s'; end if;
+
+  update assessment_runs set status = 'completed' where id = v_run;
+  v_ok := false;
+  begin
+    insert into exercise_teaching_events (run_id, plan_id, patient_id, exercise_key, outcome, reason_key, actor)
+    values (v_run, v_v2, v_patient, 'heel_raise', 'not_attempted', 'out_of_time', v_therapist);
+  exception when others then v_ok := true; end;
+  if not v_ok then raise exception 'FAIL: exercise_teaching_events accepted a mark into an ended run'; end if;
+
+  raise notice 'PASS  exercise plans publish in one transaction and replace, items and teaching events are append-only, the demo display takes library keys only';
+end $$;
+rollback;
