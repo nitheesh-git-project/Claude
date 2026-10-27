@@ -92,6 +92,9 @@ describe("assessmentSummaryDraft", () => {
 describe("assessmentSummaryDraft: home exercises (phase 7d)", () => {
   const taught = (exerciseKey: string, outcome: TeachingEvent["outcome"], extra: Partial<TeachingEvent> = {}): TeachingEvent => ({
     id: `t-${exerciseKey}`,
+    kind: "mark",
+    correctsEventId: null,
+    correctionReason: null,
     runId: "run-1",
     planId: "plan-1",
     patientId: "p",

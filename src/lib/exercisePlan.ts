@@ -86,6 +86,25 @@ export const NOT_ATTEMPTED_REASONS = {
 } as const;
 export type NotAttemptedReason = keyof typeof NOT_ATTEMPTED_REASONS;
 
+/** Why a mark is corrected (phase 7d-3): the physiotherapist's own words in
+ *  the cockpit, and the chart's. Matches the CHECK on
+ *  exercise_teaching_events.correction_reason. Never shown to the patient. */
+export const CORRECTION_REASONS = {
+  wrong_button: "I tapped the wrong button",
+  tried_again_correctly: "They tried again and did it right",
+  see_summary: "Other: I will explain in the summary",
+} as const;
+export type CorrectionReason = keyof typeof CORRECTION_REASONS;
+
+/** The chart's wording for a correction's reason (third person). */
+export const CORRECTION_REASON_CHART: Record<CorrectionReason, string> = {
+  wrong_button: "the wrong button was tapped",
+  tried_again_correctly: "they tried again and did it right",
+  see_summary: "explained in the session summary",
+};
+
+export type TeachingEventKind = "mark" | "correction";
+
 const has = <T extends string>(table: Record<T, string>, key: unknown): key is T =>
   typeof key === "string" && Object.prototype.hasOwnProperty.call(table, key);
 
@@ -107,6 +126,8 @@ export type ExerciseRefusalCode =
   | "no_active_plan"
   | "not_in_plan"
   | "already_marked"
+  | "correction_needs_mark"
+  | "bad_correction_reason"
   | "no_teach_step"
   | "changed_elsewhere";
 
@@ -131,7 +152,9 @@ export const EXERCISE_REFUSAL_TEXT: Record<ExerciseRefusalCode, { message: strin
   milestone_not_found: { message: "That milestone is not one of this patient's.", fix: "Pick a milestone from their Health Profile, or none." },
   no_active_plan: { message: "There is no home exercise plan to teach yet.", fix: "Save the plan first, then teach it." },
   not_in_plan: { message: "That exercise is not in the current plan.", fix: "Add it to the plan and save it first." },
-  already_marked: { message: "This exercise is already marked for this session.", fix: "Carry on with the next one." },
+  already_marked: { message: "This exercise is already marked for this session.", fix: "If the mark is wrong, tap Fix this mark." },
+  correction_needs_mark: { message: "There is no mark on this exercise yet to fix.", fix: "Mark it with one of the three buttons." },
+  bad_correction_reason: { message: "A fix needs one of the three reasons.", fix: "Pick the reason, then the right mark." },
   no_teach_step: { message: "This assessment has no Home exercises step.", fix: "End it and start a new one." },
   changed_elsewhere: { message: "The plan or the assessment changed while you were saving.", fix: "Reload the page and try again." },
 };
@@ -365,32 +388,20 @@ export function planItemsJson(items: readonly PlanItemInput[]): { exercise_key: 
 
 export type TeachRequest =
   | { kind: "display"; exerciseKey: string; phase: "demo" | "go" }
-  | { kind: "outcome"; exerciseKey: string; outcome: TeachingOutcome; cueKey: CoachingCue | null; reasonKey: NotAttemptedReason | null };
+  | { kind: "outcome"; exerciseKey: string; outcome: TeachingOutcome; cueKey: CoachingCue | null; reasonKey: NotAttemptedReason | null }
+  | {
+      kind: "correction";
+      exerciseKey: string;
+      outcome: TeachingOutcome;
+      cueKey: CoachingCue | null;
+      reasonKey: NotAttemptedReason | null;
+      correctionReason: CorrectionReason;
+    };
 
-/**
- * The teach route's body: `{ runId, exerciseKey, phase: "demo" | "go" }` to
- * show the demo or the patient's turn on the companion, or
- * `{ runId, exerciseKey, outcome, cueKey?, reasonKey? }` to record what the
- * physiotherapist saw -- never both, and never text: a cue and a reason are
- * keys from the fixed lists. "Needs practice" takes exactly one cue, "not
- * attempted" exactly one reason, "performed correctly" neither.
- */
-export function validateTeachRequest(raw: unknown): { ok: true; request: TeachRequest } | { ok: false; refusal: ExerciseRefusal } {
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return { ok: false, refusal: refuse(400, "bad_request", "Nothing to record.") };
-  const b = raw as Record<string, unknown>;
-  const extra = Object.keys(b).filter((k) => !["runId", "exerciseKey", "phase", "outcome", "cueKey", "reasonKey"].includes(k));
-  if (extra.length) return { ok: false, refusal: refuse(400, "bad_request", `The teach step takes keys only (${extra.join(", ")}).`) };
-  if (typeof b.exerciseKey !== "string" || !exerciseByKey(b.exerciseKey)) {
-    return { ok: false, refusal: refuse(400, "unknown_exercise", "That exercise is not in the clinic's library.") };
-  }
-  const hasPhase = b.phase !== undefined;
-  const hasOutcome = b.outcome !== undefined;
-  if (hasPhase === hasOutcome) return { ok: false, refusal: refuse(400, "bad_request", "Send a phase to show, or an outcome to record.") };
-  if (hasPhase) {
-    if (b.phase !== "demo" && b.phase !== "go") return { ok: false, refusal: refuse(400, "bad_request", "The phase is demo or go.") };
-    if (b.cueKey !== undefined || b.reasonKey !== undefined) return { ok: false, refusal: refuse(400, "bad_request", "A cue or a reason goes with an outcome.") };
-    return { ok: true, request: { kind: "display", exerciseKey: b.exerciseKey, phase: b.phase } };
-  }
+type OutcomeShape = { outcome: TeachingOutcome; cueKey: CoachingCue | null; reasonKey: NotAttemptedReason | null };
+
+/** One outcome with its cue or reason, from the fixed lists -- a mark's and a correction's alike. */
+function parseOutcome(b: Record<string, unknown>): { ok: true; value: OutcomeShape } | { ok: false; refusal: ExerciseRefusal } {
   if (!(TEACHING_OUTCOMES as readonly unknown[]).includes(b.outcome)) return { ok: false, refusal: refuse(400, "bad_request", "Unknown outcome.") };
   const outcome = b.outcome as TeachingOutcome;
   const cue = b.cueKey === undefined || b.cueKey === null ? null : b.cueKey;
@@ -406,10 +417,55 @@ export function validateTeachRequest(raw: unknown): { ok: true; request: TeachRe
   if (outcome === "performed_correctly" && (cue !== null || reason !== null)) {
     return { ok: false, refusal: refuse(400, "bad_request", "Performed correctly takes no cue or reason.") };
   }
-  return {
-    ok: true,
-    request: { kind: "outcome", exerciseKey: b.exerciseKey, outcome, cueKey: cue as CoachingCue | null, reasonKey: reason as NotAttemptedReason | null },
-  };
+  return { ok: true, value: { outcome, cueKey: cue as CoachingCue | null, reasonKey: reason as NotAttemptedReason | null } };
+}
+
+/**
+ * The teach route's body, exactly one of:
+ *   `{ runId, exerciseKey, phase: "demo" | "go" }` -- show the demo or the
+ *     patient's turn on the companion;
+ *   `{ runId, exerciseKey, outcome, cueKey?, reasonKey? }` -- record what the
+ *     physiotherapist saw;
+ *   `{ runId, exerciseKey, correct: { outcome, cueKey?, reasonKey?, correctionReason } }`
+ *     -- correct this run's mark on that exercise (phase 7d-3): a new row
+ *     referencing the latest one, the original kept.
+ * Never text: a cue, a reason and a correction reason are keys from the
+ * fixed lists. "Needs practice" takes exactly one cue, "not attempted"
+ * exactly one reason, "performed correctly" neither.
+ */
+export function validateTeachRequest(raw: unknown): { ok: true; request: TeachRequest } | { ok: false; refusal: ExerciseRefusal } {
+  if (!isObj(raw)) return { ok: false, refusal: refuse(400, "bad_request", "Nothing to record.") };
+  const b = raw;
+  const extra = Object.keys(b).filter((k) => !["runId", "exerciseKey", "phase", "outcome", "cueKey", "reasonKey", "correct"].includes(k));
+  if (extra.length) return { ok: false, refusal: refuse(400, "bad_request", `The teach step takes keys only (${extra.join(", ")}).`) };
+  if (typeof b.exerciseKey !== "string" || !exerciseByKey(b.exerciseKey)) {
+    return { ok: false, refusal: refuse(400, "unknown_exercise", "That exercise is not in the clinic's library.") };
+  }
+  const kinds = [b.phase !== undefined, b.outcome !== undefined, b.correct !== undefined].filter(Boolean).length;
+  if (kinds !== 1) return { ok: false, refusal: refuse(400, "bad_request", "Send a phase to show, an outcome to record, or a correction.") };
+  if (b.phase !== undefined) {
+    if (b.phase !== "demo" && b.phase !== "go") return { ok: false, refusal: refuse(400, "bad_request", "The phase is demo or go.") };
+    if (b.cueKey !== undefined || b.reasonKey !== undefined) return { ok: false, refusal: refuse(400, "bad_request", "A cue or a reason goes with an outcome.") };
+    return { ok: true, request: { kind: "display", exerciseKey: b.exerciseKey, phase: b.phase } };
+  }
+  if (b.correct !== undefined) {
+    if (b.cueKey !== undefined || b.reasonKey !== undefined) {
+      return { ok: false, refusal: refuse(400, "bad_request", "A correction carries its cue or reason inside `correct`.") };
+    }
+    if (!isObj(b.correct)) return { ok: false, refusal: refuse(400, "bad_request", "A correction is an object.") };
+    const c = b.correct;
+    const extraC = Object.keys(c).filter((k) => !["outcome", "cueKey", "reasonKey", "correctionReason"].includes(k));
+    if (extraC.length) return { ok: false, refusal: refuse(400, "bad_request", `A correction takes keys only (${extraC.join(", ")}).`) };
+    if (!has(CORRECTION_REASONS, c.correctionReason)) {
+      return { ok: false, refusal: refuse(400, "bad_correction_reason", "A correction needs one of the three reasons.") };
+    }
+    const shape = parseOutcome(c);
+    if (!shape.ok) return shape;
+    return { ok: true, request: { kind: "correction", exerciseKey: b.exerciseKey, ...shape.value, correctionReason: c.correctionReason } };
+  }
+  const shape = parseOutcome(b);
+  if (!shape.ok) return shape;
+  return { ok: true, request: { kind: "outcome", exerciseKey: b.exerciseKey, ...shape.value } };
 }
 
 /**
@@ -430,7 +486,7 @@ export function checkTeachExercise(input: {
   if (!plan) return { ok: false, refusal: refuse(409, "no_active_plan", "Save the home exercise plan before teaching it.") };
   const index = plan.exerciseKeys.indexOf(exercise.key);
   if (index < 0) return { ok: false, refusal: refuse(409, "not_in_plan", `${exercise.name} is not in the current plan.`) };
-  const doing = request.kind === "display" ? request.phase === "go" : request.outcome !== "not_attempted";
+  const doing = teachAction(request) === "doing";
   if (exercise.needsHelper && doing && !input.helperConfirmed) {
     return { ok: false, refusal: refuse(409, "helper_not_confirmed", `${exercise.name} needs another adult beside the patient. Tick that they are, first.`) };
   }
@@ -466,7 +522,34 @@ export function checkTeachStep(input: {
 /** What a teach request does, for the gate above. */
 export function teachAction(request: TeachRequest): "demo" | "doing" | "not_attempted" {
   if (request.kind === "display") return request.phase === "demo" ? "demo" : "doing";
+  // A correction passes the same gate as the mark it now says: on a red-flag
+  // day only "not attempted" goes through, before or after a correction.
   return request.outcome === "not_attempted" ? "not_attempted" : "doing";
+}
+
+/**
+ * What a correction does, decided from this run's events (phase 7d-3):
+ * refused when the exercise has no mark in this run on this plan yet; a
+ * success with nothing written when the latest row already says this (a
+ * retry, or a fix that changes nothing); otherwise a new row referencing
+ * the LATEST row for that exercise -- the one the chain allows.
+ */
+export function planCorrection(
+  events: readonly TeachingEvent[],
+  input: { runId: string; planId: string; exerciseKey: string; outcome: TeachingOutcome; cueKey: CoachingCue | null; reasonKey: NotAttemptedReason | null }
+): { kind: "no_mark" } | { kind: "same"; event: TeachingEvent } | { kind: "write"; correctsEventId: string } {
+  const mine = events.filter((e) => e.runId === input.runId && e.planId === input.planId && e.exerciseKey === input.exerciseKey);
+  if (!mine.some((e) => e.kind === "mark")) return { kind: "no_mark" };
+  const latest = latestTeachingEvents(mine)[0];
+  if (latest.outcome === input.outcome && latest.cueKey === input.cueKey && latest.reasonKey === input.reasonKey) return { kind: "same", event: latest };
+  return { kind: "write", correctsEventId: latest.id };
+}
+
+/** Whether a retried plain mark is the one already recorded (the ORIGINAL
+ *  mark, not a later correction of it). */
+export function sameOriginalMark(events: readonly TeachingEvent[], input: { runId: string; planId: string; exerciseKey: string } & OutcomeShape): TeachingEvent | null {
+  const mark = events.find((e) => e.kind === "mark" && e.runId === input.runId && e.planId === input.planId && e.exerciseKey === input.exerciseKey);
+  return mark && mark.outcome === input.outcome && mark.cueKey === input.cueKey && mark.reasonKey === input.reasonKey ? mark : null;
 }
 
 /** Whether every exercise in the plan has a mark in this run -- what Save
@@ -506,6 +589,11 @@ export type ExercisePlan = {
 
 export type TeachingEvent = {
   id: string;
+  /** "mark" for every row a patient's own client reads (it has no access to the
+   *  correction columns), and for the original mark; "correction" for a fix. */
+  kind: TeachingEventKind;
+  correctsEventId: string | null;
+  correctionReason: CorrectionReason | null;
   runId: string;
   planId: string;
   patientId: string;
@@ -520,8 +608,12 @@ export type TeachingEvent = {
 
 export const EXERCISE_PLAN_SELECT = "id, patient_id, version, authored_by, run_id, appointment_id, profile_kind, status, created_at, replaced_at";
 export const EXERCISE_PLAN_ITEM_SELECT = "id, plan_id, exercise_key, dose, milestone_id, sort_order";
+/** The columns a browser session may read (column privileges): the patient's
+ *  own client uses this one, and never learns that a mark was corrected. */
 export const EXERCISE_TEACHING_EVENT_SELECT =
   "id, run_id, plan_id, patient_id, exercise_key, outcome, cue_key, reason_key, helper_present, actor, created_at";
+/** The clinician's read (service role, after the access checks): with the correction columns. */
+export const EXERCISE_TEACHING_EVENT_CLINICIAN_SELECT = `${EXERCISE_TEACHING_EVENT_SELECT}, kind, corrects_event_id, correction_reason`;
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const str = (v: unknown): string | null => (typeof v === "string" && v.length > 0 ? v : null);
@@ -571,8 +663,16 @@ export function parseTeachingEventRow(raw: unknown): TeachingEvent | null {
   const createdAt = str(raw.created_at);
   if (!id || !runId || !planId || !patientId || !exerciseKey || !actor || !createdAt) return null;
   if (!(TEACHING_OUTCOMES as readonly unknown[]).includes(raw.outcome)) return null;
+  const kind: TeachingEventKind = raw.kind === "correction" ? "correction" : "mark";
+  if (raw.kind !== undefined && raw.kind !== "mark" && raw.kind !== "correction") return null;
+  const correctsEventId = str(raw.corrects_event_id);
+  const correctionReason = has(CORRECTION_REASONS, raw.correction_reason) ? raw.correction_reason : null;
+  if (kind === "correction" && (!correctsEventId || !correctionReason)) return null;
   return {
     id,
+    kind,
+    correctsEventId: kind === "correction" ? correctsEventId : null,
+    correctionReason: kind === "correction" ? correctionReason : null,
     runId,
     planId,
     patientId,
@@ -586,9 +686,37 @@ export function parseTeachingEventRow(raw: unknown): TeachingEvent | null {
   };
 }
 
-/** Oldest first; ties by id. */
+/** Oldest first; in a tie a correction comes after the row it corrects (its
+ *  depth in the chain), then by id. */
 export function orderTeachingEvents(events: readonly TeachingEvent[]): TeachingEvent[] {
-  return [...events].sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const byId = new Map(events.map((e) => [e.id, e]));
+  const depth = (e: TeachingEvent): number => {
+    let d = 0;
+    for (let at: TeachingEvent | undefined = e; at?.correctsEventId && d < events.length; at = byId.get(at.correctsEventId)) d++;
+    return d;
+  };
+  return [...events].sort(
+    (a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt) || depth(a) - depth(b) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+  );
+}
+
+/**
+ * The LATEST row per exercise per plan -- what the patient, the chart's
+ * headline, the summary draft and Save and next read (phase 7d-3). A row a
+ * correction references is superseded whatever the clocks say (the chain is
+ * the truth); among the rest the newest wins, so across runs the latest run's
+ * outcome stands, and a patient's read -- which has no correction columns --
+ * is simply newest-first. Oldest first, like orderTeachingEvents; every
+ * original stays in the input for the history.
+ */
+export function latestTeachingEvents(events: readonly TeachingEvent[]): TeachingEvent[] {
+  const superseded = new Set(events.map((e) => e.correctsEventId).filter((id): id is string => !!id));
+  const latest = new Map<string, TeachingEvent>();
+  for (const e of orderTeachingEvents(events)) {
+    if (superseded.has(e.id)) continue;
+    latest.set(`${e.planId}\u0000${e.exerciseKey}`, e);
+  }
+  return orderTeachingEvents([...latest.values()]);
 }
 
 // --- The patient's plan (read-only) ----------------------------------------------------------
@@ -621,7 +749,7 @@ export const HELPER_LINE = { patient: "Do this with another adult beside you.", 
  */
 export function exercisePlanView(plan: ExercisePlan, events: readonly TeachingEvent[], opts: { parent?: boolean } = {}): PlanView {
   const latest = new Map<string, TeachingEvent>();
-  for (const e of orderTeachingEvents(events.filter((x) => x.planId === plan.id))) latest.set(e.exerciseKey, e);
+  for (const e of latestTeachingEvents(events.filter((x) => x.planId === plan.id))) latest.set(e.exerciseKey, e);
   const items: PlanItemView[] = [];
   for (const item of plan.items) {
     const ex = exerciseByKey(item.exerciseKey);
@@ -682,7 +810,7 @@ function listWords(items: readonly string[]): string {
  */
 export function teachingSummarySentence(events: readonly TeachingEvent[], voice: "patient" | "clinician"): string | null {
   const latest = new Map<string, TeachingEvent>();
-  for (const e of orderTeachingEvents(events)) latest.set(e.exerciseKey, e);
+  for (const e of latestTeachingEvents(events)) latest.set(e.exerciseKey, e);
   if (latest.size === 0) return null;
   const name = (k: string) => lowerFirst(exerciseByKey(k)?.name ?? k);
   const well: string[] = [];
@@ -710,6 +838,9 @@ export function teachingSummarySentence(events: readonly TeachingEvent[], voice:
   if (well.length) parts.push(`performed correctly: ${listWords(well)}`);
   if (practice.length) parts.push(`needs practice: ${listWords(practice)}`);
   if (notYet.length) parts.push(`not attempted: ${listWords(notYet)}`);
+  // The clinician's draft says a mark was corrected (the patient's never does).
+  const corrected = [...new Set(events.filter((e) => e.kind === "correction").map((e) => e.exerciseKey))].filter((k) => latest.has(k));
+  if (corrected.length) parts.push(`mark corrected during the session: ${listWords(corrected.map(name))}`);
   return `${parts.join("; ")}.`;
 }
 

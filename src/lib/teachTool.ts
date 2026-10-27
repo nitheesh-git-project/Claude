@@ -10,12 +10,15 @@ import {
 } from "@/lib/exerciseLibrary";
 import {
   COACHING_CUES,
+  CORRECTION_REASONS,
   DOSE_NOTE_MAX_CHARS,
   contraindicationsHit,
   DOSE_NOTE_MAX_SENTENCES,
   EXERCISE_REFUSAL_TEXT,
   NOT_ATTEMPTED_REASONS,
+  latestTeachingEvents,
   type CoachingCue,
+  type CorrectionReason,
   type ExerciseRefusalCode,
   type NotAttemptedReason,
   type TeachingEvent,
@@ -167,6 +170,39 @@ export function markText(e: Pick<TeachingEvent, "outcome" | "cueKey" | "reasonKe
   if (e.outcome === "performed_correctly") return "Did it correctly";
   if (e.outcome === "needs_practice") return `Needs practice: ${COACHING_CUES[e.cueKey ?? "slow_down"]}`;
   return `Not attempted: ${e.reasonKey ? NOT_ATTEMPTED_REASONS[e.reasonKey] : "no reason given"}`;
+}
+
+// --- Fixing a mark (phase 7d-3) -------------------------------------------------------------------
+
+/** The three reasons, in the order the sheet shows them. */
+export const CORRECTION_REASON_OPTIONS = (Object.entries(CORRECTION_REASONS) as [CorrectionReason, string][]).map(([key, label]) => ({ key, label }));
+
+/** A fix is a NEW record referencing the latest one: the route's `correct` body. */
+export function correctionBody(runId: string, exerciseKey: string, choice: MarkChoice, reason: CorrectionReason): Record<string, unknown> {
+  return { runId, exerciseKey, correct: { ...choice, correctionReason: reason } };
+}
+
+/** Whether a picked mark is just what the exercise already says (nothing to fix). */
+export function fixChangesNothing(current: Pick<TeachingEvent, "outcome" | "cueKey" | "reasonKey">, choice: MarkChoice): boolean {
+  const cue = "cueKey" in choice ? choice.cueKey : null;
+  const reason = "reasonKey" in choice ? choice.reasonKey : null;
+  return current.outcome === choice.outcome && current.cueKey === cue && current.reasonKey === reason;
+}
+
+/** The cockpit's list after a mark or a fix lands: a row already held (same
+ *  id, or a retried plain mark of an exercise that has one) is not added
+ *  twice; a correction is added after the row it corrects. */
+export function addTeachMark(prev: readonly TeachingEvent[], e: TeachingEvent): TeachingEvent[] {
+  if (prev.some((p) => p.id === e.id)) return [...prev];
+  if (e.kind !== "correction" && prev.some((p) => p.kind === "mark" && p.runId === e.runId && p.planId === e.planId && p.exerciseKey === e.exerciseKey)) {
+    return [...prev];
+  }
+  return [...prev, e];
+}
+
+/** The LATEST row per exercise (a mark or its newest fix), by exercise key. */
+export function latestMarksByKey(marks: readonly TeachingEvent[]): Map<string, TeachingEvent> {
+  return new Map(latestTeachingEvents(marks).map((m) => [m.exerciseKey, m]));
 }
 
 /** The first exercise in the plan with no mark, from `from` round the list. */

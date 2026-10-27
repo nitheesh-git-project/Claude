@@ -9,6 +9,7 @@ import type { ContraFlag } from "@/lib/exerciseLibrary";
 import {
   EXERCISE_PLAN_ITEM_SELECT,
   EXERCISE_PLAN_SELECT,
+  EXERCISE_TEACHING_EVENT_CLINICIAN_SELECT,
   EXERCISE_TEACHING_EVENT_SELECT,
   contraFlagsFromIntake,
   homeExerciseNotePrefill,
@@ -40,6 +41,8 @@ type AnyClient = SupabaseClient<any, any, any>;
 type AdminClient = ReturnType<typeof createAdminClient>;
 
 const MISSING = new Set(["42P01", "PGRST205", "42883", "PGRST202"]);
+/** The correction columns (phase 7d-3) not there yet: a column PostgREST or Postgres does not know. */
+const COLUMN_MISSING = new Set(["42703", "PGRST204"]);
 
 /** Past this a plan's history is unreadable rather than judged short. */
 export const TEACHING_EVENTS_MAX_ROWS = 500;
@@ -71,10 +74,20 @@ async function loadItems(client: AnyClient, planIds: readonly string[]) {
   return items as NonNullable<(typeof items)[number]>[];
 }
 
-async function loadEventsWhere(client: AnyClient, column: "plan_id" | "run_id" | "patient_id", value: string): Promise<TeachingEvent[] | null> {
+/**
+ * `select` is the patient-safe column list for a read with the patient's own
+ * client (column privileges keep the correction columns from a browser), and
+ * the clinician's list for the service-role reads after an access check.
+ */
+async function loadEventsWhere(
+  client: AnyClient,
+  column: "plan_id" | "run_id" | "patient_id",
+  value: string,
+  select: string = EXERCISE_TEACHING_EVENT_SELECT
+): Promise<TeachingEvent[] | null> {
   const { data, error } = await client
     .from("exercise_teaching_events")
-    .select(EXERCISE_TEACHING_EVENT_SELECT)
+    .select(select)
     .eq(column, value)
     .order("created_at", { ascending: true })
     .limit(TEACHING_EVENTS_MAX_ROWS + 1);
@@ -142,12 +155,23 @@ export async function loadExercisePlanHistory(client: AnyClient, patientId: stri
 
 export type TeachingRead = { status: "ok"; events: TeachingEvent[] } | { status: "not_migrated" } | { status: "unreadable" };
 
-/** What was marked while teaching in one guided run, oldest first. */
+/** Which column list this database can answer: the clinician's, or -- before
+ *  the 7d-3 columns are applied -- the original one (every row a mark). */
+async function probeClinicianColumns(client: AnyClient): Promise<{ status: "ok"; select: string } | { status: "not_migrated" | "unreadable" }> {
+  const { error } = await client.from("exercise_teaching_events").select(EXERCISE_TEACHING_EVENT_CLINICIAN_SELECT).limit(0);
+  if (!error) return { status: "ok", select: EXERCISE_TEACHING_EVENT_CLINICIAN_SELECT };
+  if (MISSING.has(error.code ?? "")) return { status: "not_migrated" };
+  if (COLUMN_MISSING.has(error.code ?? "")) return { status: "ok", select: EXERCISE_TEACHING_EVENT_SELECT };
+  return { status: "unreadable" };
+}
+
+/** What was marked while teaching in one guided run, oldest first, every
+ *  mark and correction (the service role: the cockpit and the routes). */
 export async function loadTeachingEvents(client: AnyClient, runId: string): Promise<TeachingRead> {
   try {
-    const { error: probe } = await client.from("exercise_teaching_events").select("id").limit(0);
-    if (probe) return MISSING.has(probe.code ?? "") ? { status: "not_migrated" } : { status: "unreadable" };
-    const events = await loadEventsWhere(client, "run_id", runId);
+    const probe = await probeClinicianColumns(client);
+    if (probe.status !== "ok") return { status: probe.status };
+    const events = await loadEventsWhere(client, "run_id", runId, probe.select);
     return events ? { status: "ok", events } : { status: "unreadable" };
   } catch {
     return { status: "unreadable" };
@@ -156,13 +180,14 @@ export async function loadTeachingEvents(client: AnyClient, runId: string): Prom
 
 export type PatientTeachingRead = { status: "ok"; events: TeachingEvent[] } | { status: "not_migrated" } | { status: "unreadable" };
 
-/** Every teaching mark for a patient across all plan versions, oldest first
- *  (the clinician's chart; past the row cap it is unreadable, not short). */
+/** Every teaching mark and correction for a patient across all plan
+ *  versions, oldest first (the clinician's chart, with the service role;
+ *  past the row cap it is unreadable, not short). */
 export async function loadPatientTeachingEvents(client: AnyClient, patientId: string): Promise<PatientTeachingRead> {
   try {
-    const { error: probe } = await client.from("exercise_teaching_events").select("id").limit(0);
-    if (probe) return MISSING.has(probe.code ?? "") ? { status: "not_migrated" } : { status: "unreadable" };
-    const events = await loadEventsWhere(client, "patient_id", patientId);
+    const probe = await probeClinicianColumns(client);
+    if (probe.status !== "ok") return { status: probe.status };
+    const events = await loadEventsWhere(client, "patient_id", patientId, probe.select);
     return events ? { status: "ok", events } : { status: "unreadable" };
   } catch {
     return { status: "unreadable" };
@@ -256,6 +281,9 @@ export type TeachingInsert =
   | { ok: true; event: TeachingEvent }
   | { ok: false; code: "duplicate" | "changed_elsewhere" | "not_migrated" | "failed" };
 
+/** A mark (kind 'mark') or a correction referencing the latest row; a 23505
+ *  is the one-mark index for a mark, or a fork -- another correction of the
+ *  same row landed first -- for a correction. */
 export async function insertTeachingEvent(
   admin: AdminClient,
   input: Omit<TeachingEvent, "id" | "createdAt">
@@ -272,14 +300,17 @@ export async function insertTeachingEvent(
       reason_key: input.reasonKey,
       helper_present: input.helperPresent,
       actor: input.actor,
+      ...(input.kind === "correction"
+        ? { kind: "correction", corrects_event_id: input.correctsEventId, correction_reason: input.correctionReason }
+        : {}),
     })
-    .select(EXERCISE_TEACHING_EVENT_SELECT)
+    .select(input.kind === "correction" ? EXERCISE_TEACHING_EVENT_CLINICIAN_SELECT : EXERCISE_TEACHING_EVENT_SELECT)
     .single();
   if (error) {
     if (error.code === "23505") return { ok: false, code: "duplicate" };
     // The guard: the run ended, or the plan was replaced, between the read and the write.
     if (error.code === "P0001") return { ok: false, code: "changed_elsewhere" };
-    if (MISSING.has(error.code ?? "")) return { ok: false, code: "not_migrated" };
+    if (MISSING.has(error.code ?? "") || COLUMN_MISSING.has(error.code ?? "")) return { ok: false, code: "not_migrated" };
     return { ok: false, code: "failed" };
   }
   const event = parseTeachingEventRow(data);

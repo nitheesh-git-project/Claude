@@ -6,8 +6,14 @@ import { CARDIO_CONDITION_OPEN_HEART } from "@/lib/intakeCardio";
 import { GERI_FALLS_TWO_PLUS } from "@/lib/intakeGeriatric";
 import {
   COACHING_CUES,
+  CORRECTION_REASONS,
   EXERCISE_REFUSAL_TEXT,
+  EXERCISE_TEACHING_EVENT_CLINICIAN_SELECT,
+  EXERCISE_TEACHING_EVENT_SELECT,
   allExercisesMarked,
+  latestTeachingEvents,
+  planCorrection,
+  sameOriginalMark,
   checkTeachExercise,
   checkTeachStep,
   teachAction,
@@ -35,6 +41,9 @@ const ctx = { profileKind: "geriatric" as const, contraFlags: new Set<never>(), 
 function event(over: Partial<TeachingEvent>): TeachingEvent {
   return {
     id: "e1",
+    kind: "mark",
+    correctsEventId: null,
+    correctionReason: null,
     runId: "run-1",
     planId: "plan-1",
     patientId: "p",
@@ -320,5 +329,134 @@ describe("homeExerciseInitialValue", () => {
   it("leaves an existing note's empty field empty, and no prefill gives none", () => {
     expect(homeExerciseInitialValue({ existingText: "", isNewNote: false, prefill })).toBe("");
     expect(homeExerciseInitialValue({ existingText: "", isNewNote: true, prefill: null })).toBe("");
+  });
+});
+
+describe("correcting a mark (phase 7d-3)", () => {
+  const mark = event({ id: "m", exerciseKey: "sit_to_stand", outcome: "performed_correctly", createdAt: "2026-10-27T09:10:00Z" });
+  const fix1 = event({
+    id: "f1", kind: "correction", correctsEventId: "m", correctionReason: "wrong_button",
+    exerciseKey: "sit_to_stand", outcome: "needs_practice", cueKey: "slow_down", createdAt: "2026-10-27T09:11:00Z",
+  });
+  const fix2 = event({
+    id: "f2", kind: "correction", correctsEventId: "f1", correctionReason: "tried_again_correctly",
+    exerciseKey: "sit_to_stand", outcome: "performed_correctly", createdAt: "2026-10-27T09:12:00Z",
+  });
+  const valid = (raw: unknown) => validateTeachRequest(raw);
+  const code = (raw: unknown) => {
+    const v = valid(raw);
+    return v.ok ? null : v.refusal.code;
+  };
+
+  it("takes a correction as `correct` with one of the three reasons, keys only", () => {
+    const v = valid({ runId: "r", exerciseKey: "sit_to_stand", correct: { outcome: "needs_practice", cueKey: "slow_down", correctionReason: "wrong_button" } });
+    expect(v.ok && v.request).toEqual({
+      kind: "correction", exerciseKey: "sit_to_stand", outcome: "needs_practice", cueKey: "slow_down", reasonKey: null, correctionReason: "wrong_button",
+    });
+    expect(Object.keys(CORRECTION_REASONS)).toEqual(["wrong_button", "tried_again_correctly", "see_summary"]);
+    expect(code({ exerciseKey: "sit_to_stand", correct: { outcome: "performed_correctly" } })).toBe("bad_correction_reason");
+    expect(code({ exerciseKey: "sit_to_stand", correct: { outcome: "performed_correctly", correctionReason: "because" } })).toBe("bad_correction_reason");
+    expect(code({ exerciseKey: "sit_to_stand", correct: { outcome: "needs_practice", correctionReason: "wrong_button" } })).toBe("bad_request");
+    expect(code({ exerciseKey: "sit_to_stand", correct: { outcome: "performed_correctly", correctionReason: "see_summary", note: "x" } })).toBe("bad_request");
+    expect(code({ exerciseKey: "sit_to_stand", outcome: "performed_correctly", correct: { outcome: "performed_correctly", correctionReason: "see_summary" } })).toBe("bad_request");
+    expect(code({ exerciseKey: "sit_to_stand", cueKey: "slow_down", correct: { outcome: "needs_practice", cueKey: "slow_down", correctionReason: "see_summary" } })).toBe("bad_request");
+    expect(code({ exerciseKey: "sit_to_stand", correct: "performed_correctly" })).toBe("bad_request");
+    expect(EXERCISE_REFUSAL_TEXT.correction_needs_mark.fix).toBeTruthy();
+    expect(EXERCISE_REFUSAL_TEXT.bad_correction_reason.fix).toBeTruthy();
+  });
+
+  it("passes the same gate as the mark it now says (only not attempted on a red-flag day)", () => {
+    const action = (outcome: string, extra: Record<string, unknown> = {}) => {
+      const v = valid({ exerciseKey: "heel_raise", correct: { outcome, ...extra, correctionReason: "wrong_button" } });
+      if (!v.ok) throw new Error("bad");
+      return teachAction(v.request);
+    };
+    expect(action("performed_correctly")).toBe("doing");
+    expect(action("needs_practice", { cueKey: "slow_down" })).toBe("doing");
+    expect(action("not_attempted", { reasonKey: "out_of_time" })).toBe("not_attempted");
+    // The helper rule: a fix to something done needs the helper ticked, like a mark.
+    const v = valid({ exerciseKey: "heel_to_toe_stand", correct: { outcome: "performed_correctly", correctionReason: "tried_again_correctly" } });
+    if (!v.ok) throw new Error("bad");
+    const ex = exerciseByKey("heel_to_toe_stand")!;
+    const plan = { id: "plan-1", exerciseKeys: ["heel_to_toe_stand"] };
+    if (ex.needsHelper) {
+      expect(checkTeachExercise({ plan, exercise: ex, request: v.request, helperConfirmed: false })).toMatchObject({ ok: false, refusal: { code: "helper_not_confirmed" } });
+    }
+    expect(checkTeachExercise({ plan, exercise: ex, request: v.request, helperConfirmed: true }).ok).toBe(true);
+  });
+
+  it("is refused with no earlier mark in this run, a no-op when it changes nothing, else references the latest", () => {
+    const input = { runId: "run-1", planId: "plan-1", exerciseKey: "sit_to_stand", outcome: "needs_practice" as const, cueKey: "slow_down" as const, reasonKey: null };
+    expect(planCorrection([], input)).toEqual({ kind: "no_mark" });
+    expect(planCorrection([event({ id: "x", runId: "other-run" })], input)).toEqual({ kind: "no_mark" });
+    expect(planCorrection([event({ id: "x", planId: "old-plan" })], input)).toEqual({ kind: "no_mark" });
+    expect(planCorrection([mark], input)).toEqual({ kind: "write", correctsEventId: "m" });
+    // A retry after it landed: nothing new is written.
+    expect(planCorrection([mark, fix1], input)).toEqual({ kind: "same", event: fix1 });
+    // A second fix references the latest row, the first fix.
+    expect(planCorrection([mark, fix1], { ...input, outcome: "performed_correctly", cueKey: null })).toEqual({ kind: "write", correctsEventId: "f1" });
+    expect(planCorrection([fix2, mark, fix1], { ...input, outcome: "not_attempted", cueKey: null, reasonKey: "out_of_time" })).toEqual({
+      kind: "write",
+      correctsEventId: "f2",
+    });
+  });
+
+  it("a retried plain mark matches the ORIGINAL mark; a different one is already_marked", () => {
+    const base = { runId: "run-1", planId: "plan-1", exerciseKey: "sit_to_stand", cueKey: null, reasonKey: null };
+    expect(sameOriginalMark([mark, fix1], { ...base, outcome: "performed_correctly" })).toBe(mark);
+    expect(sameOriginalMark([mark, fix1], { ...base, outcome: "needs_practice", cueKey: "slow_down" })).toBeNull();
+  });
+
+  it("the latest per exercise wins: the chain over the clock, newest otherwise, across runs", () => {
+    expect(latestTeachingEvents([mark, fix1, fix2]).map((e) => e.id)).toEqual(["f2"]);
+    // A correction stamped in the same instant as its original still wins.
+    const tie = { ...fix1, createdAt: mark.createdAt, id: "a-fix" };
+    expect(latestTeachingEvents([mark, { ...tie, correctsEventId: "m" }]).map((e) => e.id)).toEqual(["a-fix"]);
+    const later = event({ id: "n", runId: "run-2", exerciseKey: "sit_to_stand", outcome: "not_attempted", reasonKey: "too_tired", createdAt: "2026-10-28T09:00:00Z" });
+    expect(latestTeachingEvents([mark, fix1, later]).map((e) => e.id)).toEqual(["n"]);
+    const other = event({ id: "o", exerciseKey: "heel_to_toe_stand" });
+    expect(latestTeachingEvents([mark, fix1, other]).map((e) => e.id).sort()).toEqual(["f1", "o"]);
+  });
+
+  it("the patient's plan shows the latest outcome and never that a correction happened", () => {
+    const view = exercisePlanView(PLAN, [mark, fix1]);
+    const item = view.items.find((i) => i.key === "sit_to_stand")!;
+    expect(item.practised).toEqual({ at: fix1.createdAt, outcome: "needs_practice", cue: COACHING_CUES.slow_down });
+    expect(JSON.stringify(view)).not.toMatch(/correct(ion|ed)|wrong_button|wrong button/i);
+    expect(practisedLine(item.practised, "27 Oct")).not.toMatch(/correct|fix|mistake/i);
+    // The patient's own read has no correction columns: newest first gives the same answer.
+    const asPatient = [mark, fix1].map((e) => ({ ...e, kind: "mark" as const, correctsEventId: null, correctionReason: null }));
+    expect(exercisePlanView(PLAN, asPatient).items.find((i) => i.key === "sit_to_stand")!.practised).toEqual(item.practised);
+  });
+
+  it("the summary draft uses the latest; only the clinician's says a mark was corrected", () => {
+    const patient = teachingSummarySentence([mark, fix1], "patient")!;
+    expect(patient).toMatch(/sit to stand needs more practice/);
+    expect(patient).not.toMatch(/went well|correct/i);
+    const clinician = teachingSummarySentence([mark, fix1], "clinician")!;
+    expect(clinician).toMatch(/needs practice: sit to stand/);
+    expect(clinician).toMatch(/mark corrected during the session: sit to stand/);
+    expect(teachingSummarySentence([mark], "clinician")).not.toMatch(/corrected/);
+  });
+
+  it("parses a correction row; the patient-safe select carries no correction column", () => {
+    const row = {
+      id: "f", run_id: "r", plan_id: "p", patient_id: "pt", exercise_key: "heel_raise", outcome: "performed_correctly", cue_key: null, reason_key: null,
+      helper_present: false, actor: "t", created_at: "2026-10-27T09:00:00Z",
+    };
+    expect(parseTeachingEventRow(row)).toMatchObject({ kind: "mark", correctsEventId: null, correctionReason: null });
+    expect(parseTeachingEventRow({ ...row, kind: "correction", corrects_event_id: "m", correction_reason: "see_summary" })).toMatchObject({
+      kind: "correction", correctsEventId: "m", correctionReason: "see_summary",
+    });
+    expect(parseTeachingEventRow({ ...row, kind: "correction", corrects_event_id: null, correction_reason: "see_summary" })).toBeNull();
+    expect(parseTeachingEventRow({ ...row, kind: "correction", corrects_event_id: "m", correction_reason: "because" })).toBeNull();
+    expect(parseTeachingEventRow({ ...row, kind: "edit" })).toBeNull();
+    expect(EXERCISE_TEACHING_EVENT_SELECT).not.toMatch(/kind|corrects_event_id|correction_reason/);
+    expect(EXERCISE_TEACHING_EVENT_CLINICIAN_SELECT).toMatch(/kind, corrects_event_id, correction_reason$/);
+  });
+
+  it("Save and next counts a corrected exercise once, as marked", () => {
+    const plan = { id: "plan-1", exerciseKeys: ["sit_to_stand"] };
+    expect(allExercisesMarked(plan, [mark, fix1, fix2], "run-1")).toBe(true);
   });
 });

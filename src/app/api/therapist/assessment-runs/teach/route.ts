@@ -4,7 +4,7 @@ import { enforceRateLimit } from "@/lib/rateLimitServer";
 import { sessionProtocol, teachExercisesStep } from "@/lib/sessionProtocols";
 import { exerciseByKey } from "@/lib/exerciseLibrary";
 import { buildExerciseDisplay, parseLiveDisplayRow } from "@/lib/assessmentRun";
-import { checkTeachExercise, checkTeachStep, teachAction, validateTeachRequest } from "@/lib/exercisePlan";
+import { checkTeachExercise, checkTeachStep, planCorrection, sameOriginalMark, teachAction, validateTeachRequest } from "@/lib/exercisePlan";
 import { databaseNotReady, preExerciseFor, refusalResponse, requireOpenRun, writeLiveDisplay } from "@/lib/assessmentRunServer";
 import {
   exerciseRefusalResponse,
@@ -15,6 +15,7 @@ import {
   loadTeachingEvents,
 } from "@/lib/exercisePlanServer";
 import { serverError } from "@/lib/apiError";
+import type { TeachingEvent } from "@/lib/exercisePlan";
 
 // Teaching one home exercise on the guided video session's Home exercises
 // step (phase 7d). Two kinds of request, never both:
@@ -32,6 +33,17 @@ import { serverError } from "@/lib/apiError";
 //       one cue from COACHING_CUES, or not_attempted with one reason from
 //       NOT_ATTEMPTED_REASONS (exercisePlan.ts). The patient's screen moves
 //       to "done" for that exercise.
+//   { runId, exerciseKey, correct: { outcome, cueKey?, reasonKey?, correctionReason } }
+//       corrects a mistaken mark (phase 7d-3): a NEW row of kind 'correction'
+//       referencing the LATEST row for that exercise in this run and plan,
+//       with one reason from CORRECTION_REASONS (wrong_button,
+//       tried_again_correctly, see_summary). The original is kept; the
+//       patient, the chart headline, the draft and Save and next read the
+//       latest. Same gates as a mark (a correction to "performed" or "needs
+//       practice" is a "doing" save; on a red-flag day only "not attempted"
+//       goes through). A retry, or a fix to what the latest row already says,
+//       is a success with nothing written (duplicate: true). The patient's
+//       screen is not moved -- they already saw "done".
 //
 // Gates, all on the server: the run is this therapist's, in progress, with
 // the assigned-therapist and started-session gate (requireOpenRun); the red
@@ -45,10 +57,13 @@ import { serverError } from "@/lib/apiError";
 // Response: 200 { success: true, display?: LiveDisplayView, serverNow?: string,
 //                 event?: TeachingEvent, duplicate?: true, displayWritten?: boolean }
 //           400 malformed (text, an unknown exercise, a cue or reason not on its list),
+//               bad_correction_reason (a correction without one of the three reasons),
 //           403 / 404 as the event route,
 //           409 { code } -- red_flags_unanswered, red_flag_present, setup_not_confirmed,
 //               cardio_check_not_recorded, cardio_red_flag, no_active_plan, not_in_plan,
-//               helper_not_confirmed, already_marked, changed_elsewhere, no_teach_step,
+//               helper_not_confirmed, already_marked (a different plain mark: fix it with
+//               `correct`), correction_needs_mark (nothing in this run to correct yet),
+//               changed_elsewhere (incl. two corrections of one row crossing), no_teach_step,
 //               run_not_in_progress, protocol_changed, session_not_started,
 //           429 rate limited, 503 a check that could not be run.
 export async function POST(request: NextRequest) {
@@ -99,7 +114,49 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, display: view, serverNow: new Date().toISOString() });
   }
 
+  if (req.kind === "correction") {
+    const prior = await loadTeachingEvents(gate.admin, gate.run.id);
+    if (prior.status === "not_migrated") return exercisesNotMigrated();
+    if (prior.status !== "ok") return exercisesCouldNotCheck();
+    const decided = planCorrection(prior.events, { runId: gate.run.id, planId: plan!.id, exerciseKey: exercise.key, ...outcomeOf(req) });
+    if (decided.kind === "no_mark") {
+      return NextResponse.json({ error: `${exercise.name} has no mark in this session to fix yet.`, code: "correction_needs_mark" }, { status: 409 });
+    }
+    if (decided.kind === "same") return NextResponse.json({ success: true, event: decided.event, duplicate: true });
+    const fixed = await insertTeachingEvent(gate.admin, {
+      kind: "correction",
+      correctsEventId: decided.correctsEventId,
+      correctionReason: req.correctionReason,
+      runId: gate.run.id,
+      planId: plan!.id,
+      patientId: gate.run.patientId,
+      exerciseKey: exercise.key,
+      ...outcomeOf(req),
+      helperPresent: helperConfirmed,
+      actor: gate.therapistId,
+    });
+    if (fixed.ok) return NextResponse.json({ success: true, event: fixed.event });
+    if (fixed.code === "duplicate" || fixed.code === "changed_elsewhere") {
+      // Another fix of the same row landed first (the one-successor index),
+      // or the run ended: the same fix is a success, anything else a reload.
+      const again = await loadTeachingEvents(gate.admin, gate.run.id);
+      if (again.status === "ok") {
+        const now = planCorrection(again.events, { runId: gate.run.id, planId: plan!.id, exerciseKey: exercise.key, ...outcomeOf(req) });
+        if (now.kind === "same") return NextResponse.json({ success: true, event: now.event, duplicate: true });
+      }
+      return NextResponse.json(
+        { error: "The mark or the assessment changed while you were saving. Reload and try again.", code: "changed_elsewhere" },
+        { status: 409 }
+      );
+    }
+    if (fixed.code === "not_migrated") return exercisesNotMigrated();
+    return serverError("therapist/assessment-runs/teach", new Error("teaching correction insert failed"));
+  }
+
   const written = await insertTeachingEvent(gate.admin, {
+    kind: "mark",
+    correctsEventId: null,
+    correctionReason: null,
     runId: gate.run.id,
     planId: plan!.id,
     patientId: gate.run.patientId,
@@ -116,11 +173,12 @@ export async function POST(request: NextRequest) {
       // -- what was watched is not changed afterwards.
       const prior = await loadTeachingEvents(gate.admin, gate.run.id);
       if (prior.status !== "ok") return exercisesCouldNotCheck();
-      const same = prior.events.find((e) => e.planId === plan!.id && e.exerciseKey === exercise.key);
-      if (same && same.outcome === req.outcome && same.cueKey === req.cueKey && same.reasonKey === req.reasonKey) {
-        return NextResponse.json({ success: true, event: same, duplicate: true });
-      }
-      return NextResponse.json({ error: `${exercise.name} is already marked for this session.`, code: "already_marked" }, { status: 409 });
+      const same = sameOriginalMark(prior.events, { runId: gate.run.id, planId: plan!.id, exerciseKey: exercise.key, ...outcomeOf(req) });
+      if (same) return NextResponse.json({ success: true, event: same, duplicate: true });
+      return NextResponse.json(
+        { error: `${exercise.name} is already marked for this session. To change it, use Fix this mark.`, code: "already_marked" },
+        { status: 409 }
+      );
     }
     if (written.code === "changed_elsewhere") {
       return NextResponse.json(
@@ -135,4 +193,8 @@ export async function POST(request: NextRequest) {
   // Costs the patient's "done" screen if it fails, never the mark.
   const view = await show("done");
   return NextResponse.json({ success: true, event: written.event, displayWritten: !!view });
+}
+
+function outcomeOf(req: { outcome: TeachingEvent["outcome"]; cueKey: TeachingEvent["cueKey"]; reasonKey: TeachingEvent["reasonKey"] }) {
+  return { outcome: req.outcome, cueKey: req.cueKey, reasonKey: req.reasonKey };
 }

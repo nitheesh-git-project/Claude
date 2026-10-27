@@ -10,7 +10,7 @@ const plan = (id: string, version: number, status: "active" | "replaced", keys: 
   items: keys.map((k, i) => ({ id: `${id}-${i}`, planId: id, exerciseKey: k, dose: dose(k), milestoneId: null, sortOrder: i })),
 });
 const ev = (o: Partial<TeachingEvent>): TeachingEvent => ({
-  id: "e", runId: "r", planId: "a", patientId: "p", exerciseKey: "bridge", outcome: "performed_correctly", cueKey: null, reasonKey: null,
+  id: "e", kind: "mark", correctsEventId: null, correctionReason: null, runId: "r", planId: "a", patientId: "p", exerciseKey: "bridge", outcome: "performed_correctly", cueKey: null, reasonKey: null,
   helperPresent: false, actor: "t1", createdAt: "2026-10-12T10:00:00Z", ...o,
 });
 
@@ -44,6 +44,26 @@ describe("exerciseChartView", () => {
   });
   it("words a mark in the clinician's terms", () => {
     expect(chartMarkText({ outcome: "performed_correctly", cueKey: null, reasonKey: null })).toBe("Performed correctly");
+  });
+});
+
+describe("exerciseChartView: corrections (phase 7d-3)", () => {
+  it("keeps the original, lists the fix with its reason, and heads with the latest", () => {
+    const view = exerciseChartView(
+      [plan("a", 1, "active", ["bridge"])],
+      [
+        ev({ id: "m", outcome: "performed_correctly", createdAt: "2026-10-12T10:00:00Z" }),
+        ev({ id: "f", kind: "correction", correctsEventId: "m", correctionReason: "wrong_button", outcome: "not_attempted", reasonKey: "too_tired", createdAt: "2026-10-12T10:00:00Z" }),
+      ],
+      new Map([["t1", "Dr Rao"]])
+    );
+    const item = view[0].items[0];
+    expect(item.marks.map((m) => [m.text, m.correction])).toEqual([
+      ["Performed correctly", null],
+      ["Not attempted: Too tired or breathless today", "Corrected: the wrong button was tapped"],
+    ]);
+    // Same instant: the chain, not the clock, decides the headline.
+    expect(item.latest).toMatchObject({ text: "Not attempted: Too tired or breathless today", correction: "Corrected: the wrong button was tapped" });
   });
 });
 

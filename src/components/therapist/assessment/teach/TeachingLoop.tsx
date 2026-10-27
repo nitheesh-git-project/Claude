@@ -5,7 +5,7 @@ import ExercisePicture from "@/components/exercises/ExercisePicture";
 import Spinner from "@/components/system/Spinner";
 import { buildExerciseDisplay, type LiveDisplayText } from "@/lib/assessmentRun";
 import { exerciseByKey } from "@/lib/exerciseLibrary";
-import { doseText, type TeachingEvent } from "@/lib/exercisePlan";
+import { doseText, type CorrectionReason, type TeachingEvent } from "@/lib/exercisePlan";
 import type { CockpitFailure } from "@/lib/cockpit";
 import type { ProtocolStep, SessionProtocol } from "@/lib/sessionProtocols";
 import { postTeach } from "@/components/therapist/assessment/api";
@@ -13,13 +13,16 @@ import {
   COACHING_CUE_OPTIONS,
   MARK_BUTTONS,
   NOT_ATTEMPTED_OPTIONS,
+  correctionBody,
   exerciseProgress,
+  latestMarksByKey,
   markBody,
   markText,
   nextUnmarked,
   type MarkChoice,
 } from "@/lib/teachTool";
 import type { TeachPlan } from "@/components/therapist/assessment/teach/TeachTool";
+import FixMarkSheet from "@/components/therapist/assessment/teach/FixMarkSheet";
 
 type Message = { tone: "ok" | "refused" | "unchecked" | "offline" | "wait"; text: string; fix?: string | null };
 
@@ -28,7 +31,9 @@ type Message = { tone: "ok" | "refused" | "unchecked" | "offline" | "wait"; text
  * button: Show the demo, then Your turn, then (the physiotherapist watching
  * on camera) ONE row of three marks. A mark that needs a reason or a cue asks
  * for exactly one, from a fixed list. The patient's screen follows; nothing on
- * it can be pressed. A mark, once made, is part of the record.
+ * it can be pressed. A mark, once made, is part of the record; a mistaken one
+ * is fixed with "Fix this mark" (phase 7d-3) -- a new record after it, with a
+ * fixed reason -- and the latest is what counts.
  */
 export default function TeachingLoop({
   runId,
@@ -47,7 +52,7 @@ export default function TeachingLoop({
   protocol: SessionProtocol;
   step: ProtocolStep;
   plan: TeachPlan;
-  /** This run's marks on this plan, one per exercise. */
+  /** This run's marks and fixes on this plan; the latest per exercise counts. */
   marks: TeachingEvent[];
   setupReady: boolean;
   exertionBlocked: string | null;
@@ -58,12 +63,13 @@ export default function TeachingLoop({
   onChangePlan: () => void;
 }) {
   const keys = plan.items.map((i) => i.exerciseKey);
-  const byKey = new Map(marks.map((m) => [m.exerciseKey, m]));
+  const byKey = latestMarksByKey(marks);
   const markedKeys = new Set(byKey.keys());
   const [selected, setSelected] = useState<number>(() => nextUnmarked(keys, markedKeys) ?? 0);
   const [shown, setShown] = useState<Record<string, "demo" | "go">>({});
   const [picking, setPicking] = useState<"needs_practice" | "not_attempted" | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [fixing, setFixing] = useState(false);
   const [message, setMessage] = useState<Message | null>(null);
 
   const key = keys[Math.min(selected, keys.length - 1)];
@@ -110,7 +116,7 @@ export default function TeachingLoop({
     }
   }
 
-  async function record(choice: MarkChoice) {
+  async function record(choice: MarkChoice, fix: CorrectionReason | null = null) {
     if (busy) return;
     setMessage(null);
     const doing = choice.outcome !== "not_attempted";
@@ -124,10 +130,13 @@ export default function TeachingLoop({
         const setup = await ensureSetup();
         if (setup) return fail(setup);
       }
-      const r = await postTeach(markBody(runId, key, choice));
+      const r = await postTeach(fix ? correctionBody(runId, key, choice, fix) : markBody(runId, key, choice));
       if (!r.ok) return fail(r.failure);
       const event: TeachingEvent = r.data.event ?? {
-        id: `local-${key}-${runId}`,
+        id: `local-${key}-${runId}${fix ? `-fix-${Date.now()}` : ""}`,
+        kind: fix ? "correction" : "mark",
+        correctsEventId: fix ? (mark?.id ?? null) : null,
+        correctionReason: fix,
         runId,
         planId: plan.id,
         patientId: "",
@@ -140,8 +149,13 @@ export default function TeachingLoop({
         createdAt: new Date().toISOString(),
       };
       onMark(event);
-      previewDone(key);
       setPicking(null);
+      if (fix) {
+        setFixing(false);
+        setMessage({ tone: "ok", text: `${exercise!.name} fixed: ${markText(event).toLowerCase()}. The first mark stays on the record.` });
+        return;
+      }
+      previewDone(key);
       const after = new Set(markedKeys).add(key);
       const next = nextUnmarked(keys, after, index + 1);
       setMessage({
@@ -189,6 +203,7 @@ export default function TeachingLoop({
                 onClick={() => {
                   setSelected(i);
                   setPicking(null);
+                  setFixing(false);
                   setMessage(null);
                 }}
                 data-testid={`teach-pill-${k}`}
@@ -234,8 +249,35 @@ export default function TeachingLoop({
           <p className="rounded-xl border border-teal-300 bg-teal-50 px-4 py-3 text-base font-semibold text-slate-900">
             Marked: {markText(mark)}
           </p>
-          <p className="text-sm text-slate-700">A mark stays on the record. If it was a mistake, say so in the session summary.</p>
-          {!allDone && (
+          {fixing ? (
+            <FixMarkSheet
+              exerciseName={exercise.name}
+              current={mark}
+              busy={busy === "mark"}
+              onSave={(choice, reason) => void record(choice, reason)}
+              onCancel={() => {
+                setFixing(false);
+                setMessage(null);
+              }}
+            />
+          ) : (
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="min-w-0 flex-1 text-sm text-slate-700">If this mark is wrong, fix it. The first mark stays on the record.</p>
+              <button
+                type="button"
+                data-testid="teach-fix"
+                disabled={!!busy}
+                onClick={() => {
+                  setMessage(null);
+                  setFixing(true);
+                }}
+                className="min-h-[44px] rounded-xl border border-teal-700 bg-white px-4 text-[15px] font-bold text-teal-900 hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 disabled:opacity-50"
+              >
+                Fix this mark
+              </button>
+            </div>
+          )}
+          {!allDone && !fixing && (
             <button
               type="button"
               className={`${big} ${primary} w-full`}

@@ -43,7 +43,7 @@ import type { MeasurementPoint, MeasureSeries } from "@/lib/outcomeSeries";
 import { sessionProtocol } from "@/lib/sessionProtocols";
 import type { ContraFlag } from "@/lib/exerciseLibrary";
 import type { TeachingEvent } from "@/lib/exercisePlan";
-import { teachMissing } from "@/lib/teachTool";
+import { addTeachMark, teachMissing } from "@/lib/teachTool";
 import type { TeachPlan } from "@/components/therapist/assessment/teach/TeachTool";
 import ActionBar from "@/components/therapist/assessment/ActionBar";
 import FinishedPanel from "@/components/therapist/assessment/FinishedPanel";
@@ -586,7 +586,7 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
                     exertionBlocked: blocked,
                     ensureSetup,
                     onPlan: setTeachPlan,
-                    onMark: (e) => setTeachMarks((prev) => (prev.some((p) => p.id === e.id || (p.planId === e.planId && p.exerciseKey === e.exerciseKey)) ? prev : [...prev, e])),
+                    onMark: (e) => setTeachMarks((prev) => addTeachMark(prev, e)),
                     onPreview: setTeachPreview,
                   }}
                   summaryLine={summaryLine}

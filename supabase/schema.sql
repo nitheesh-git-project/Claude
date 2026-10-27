@@ -19548,7 +19548,7 @@ end $$;
 --                      event (the patient cascade is refused by the guard) --
 --                      not `restrict`, so scripts/clean-e2e-residue.mjs has
 --                      nothing to learn.
---   correction_reason  one of three fixed keys (teachTool.ts CORRECTION_REASONS):
+--   correction_reason  one of three fixed keys (exercisePlan.ts CORRECTION_REASONS):
 --                      wrong_button, tried_again_correctly, see_summary. Required
 --                      on a correction and absent on a mark (the shape CHECK).
 --                      No free text: "see_summary" points to the session summary.

@@ -1,12 +1,25 @@
 import { describe, expect, it } from "vitest";
 import { EXERCISE_LIBRARY, exerciseByKey, DOSE_LIMITS, doseShapeProblem, type ContraFlag } from "@/lib/exerciseLibrary";
-import { COACHING_CUES, EXERCISE_REFUSAL_TEXT, NOT_ATTEMPTED_REASONS, validateDose, validateTeachRequest, type ExerciseRefusalCode } from "@/lib/exercisePlan";
+import {
+  COACHING_CUES,
+  EXERCISE_REFUSAL_TEXT,
+  NOT_ATTEMPTED_REASONS,
+  validateDose,
+  validateTeachRequest,
+  type ExerciseRefusalCode,
+  type TeachingEvent,
+} from "@/lib/exercisePlan";
 import {
   COACHING_CUE_OPTIONS,
   NOT_ATTEMPTED_OPTIONS,
   PLAN_PICK_MAX,
+  CORRECTION_REASON_OPTIONS,
+  addTeachMark,
   canStep,
+  correctionBody,
   doseFieldsFor,
+  fixChangesNothing,
+  latestMarksByKey,
   draftProblem,
   exerciseProgress,
   markBody,
@@ -204,5 +217,47 @@ describe("teachFailure", () => {
     expect(teachFailure({ status: 409, code: "setup_not_confirmed" }).message).toMatch(/set-up/);
     expect(teachFailure({ status: 409, code: "exercises_not_marked" }).message).toMatch(/Not every exercise/);
     expect(teachFailure({ status: 409, code: "no_condition_profile" }).fix).toMatch(/Health Profile/);
+  });
+});
+
+describe("Fix this mark (phase 7d-3)", () => {
+  const ev = (o: Partial<TeachingEvent>): TeachingEvent => ({
+    id: "m", kind: "mark", correctsEventId: null, correctionReason: null, runId: "r", planId: "p", patientId: "pt", exerciseKey: "heel_raise",
+    outcome: "performed_correctly", cueKey: null, reasonKey: null, helperPresent: false, actor: "t", createdAt: "2026-10-27T09:00:00Z", ...o,
+  });
+  const mark = ev({});
+  const fix = ev({ id: "f", kind: "correction", correctsEventId: "m", correctionReason: "wrong_button", outcome: "needs_practice", cueKey: "slow_down", createdAt: "2026-10-27T09:01:00Z" });
+
+  it("offers the three reasons in plain words", () => {
+    expect(CORRECTION_REASON_OPTIONS.map((o) => o.label)).toEqual([
+      "I tapped the wrong button",
+      "They tried again and did it right",
+      "Other: I will explain in the summary",
+    ]);
+  });
+  it("sends a body the route accepts", () => {
+    const body = correctionBody("r", "heel_raise", { outcome: "needs_practice", cueKey: "slow_down" }, "wrong_button");
+    expect(body).toEqual({ runId: "r", exerciseKey: "heel_raise", correct: { outcome: "needs_practice", cueKey: "slow_down", correctionReason: "wrong_button" } });
+    expect(validateTeachRequest(body).ok).toBe(true);
+    expect(validateTeachRequest(correctionBody("r", "heel_raise", { outcome: "not_attempted", reasonKey: "out_of_time" }, "see_summary")).ok).toBe(true);
+  });
+  it("knows a fix that changes nothing", () => {
+    expect(fixChangesNothing(mark, { outcome: "performed_correctly" })).toBe(true);
+    expect(fixChangesNothing(fix, { outcome: "needs_practice", cueKey: "slow_down" })).toBe(true);
+    expect(fixChangesNothing(fix, { outcome: "needs_practice", cueKey: "back_flat" })).toBe(false);
+  });
+  it("adds a fix after its mark, never a retried mark twice, and reads the latest", () => {
+    const once = addTeachMark([mark], fix);
+    expect(once.map((e) => e.id)).toEqual(["m", "f"]);
+    expect(addTeachMark(once, fix).map((e) => e.id)).toEqual(["m", "f"]);
+    expect(addTeachMark([mark], ev({ id: "local-heel_raise-r" })).map((e) => e.id)).toEqual(["m"]);
+    expect(latestMarksByKey(once).get("heel_raise")?.id).toBe("f");
+    // Save and next still needs every exercise to have a (latest) mark.
+    expect(teachMissing(true, ["heel_raise", "bridge"], new Set(latestMarksByKey(once).keys()))).toMatch(/Mark 1 more exercise/);
+  });
+  it("says each new refusal in one sentence with one fix", () => {
+    expect(teachFailure({ status: 409, code: "correction_needs_mark" })).toMatchObject({ message: /no mark/i, fix: /three buttons/ } as never);
+    expect(teachFailure({ status: 400, code: "bad_correction_reason" }).fix).toMatch(/reason/);
+    expect(teachFailure({ status: 409, code: "already_marked" }).fix).toMatch(/Fix this mark/);
   });
 });

@@ -31,7 +31,8 @@ function Item({ item, showMarks }: { item: ChartItem; showMarks: boolean }) {
           <ul className="mt-1 list-disc pl-5 text-[13px] text-slate-700">
             {item.marks.map((m) => (
               <li key={m.at + m.text}>
-                {m.text} · {m.by}, {formatClinicDateTime(m.at)}
+                {m.text}
+                {m.correction ? ` (${m.correction})` : ""} · {m.by}, {formatClinicDateTime(m.at)}
               </li>
             ))}
           </ul>

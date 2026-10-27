@@ -3,7 +3,9 @@ import {
   TEACHING_OUTCOME_LABELS,
   COACHING_CUES,
   NOT_ATTEMPTED_REASONS,
+  CORRECTION_REASON_CHART,
   doseText,
+  latestTeachingEvents,
   orderTeachingEvents,
   type ExercisePlan,
   type TeachingEvent,
@@ -13,9 +15,12 @@ import {
 // current plan, and every earlier version read-only, each exercise with its
 // dose and the marks made while it was taught -- who, and when. Pure; the
 // chart page only draws it. The marks are append-only history: the LATEST
-// mark per exercise per version is the headline, and every one is listed.
+// mark per exercise per version is the headline, and every one is listed --
+// a correction (phase 7d-3) as its own line with its reason, the original
+// it corrects kept above it.
 
-export type ChartMark = { at: string; by: string; text: string; helper: boolean };
+/** `correction` is the reason's wording when this row corrects an earlier one. */
+export type ChartMark = { at: string; by: string; text: string; helper: boolean; correction: string | null };
 export type ChartItem = { key: string; name: string; picture: string; dose: string; note: string | null; marks: ChartMark[]; latest: ChartMark | null };
 export type ChartVersion = {
   planId: string;
@@ -38,6 +43,7 @@ export function chartMarkText(e: Pick<TeachingEvent, "outcome" | "cueKey" | "rea
 /** Newest version first (as loaded), the active one flagged by its status. */
 export function exerciseChartView(plans: readonly ExercisePlan[], events: readonly TeachingEvent[], names: ReadonlyMap<string, string>): ChartVersion[] {
   const ordered = orderTeachingEvents(events);
+  const latestIds = new Set(latestTeachingEvents(events).map((e) => e.id));
   return [...plans]
     .sort((a, b) => b.version - a.version)
     .map((plan) => ({
@@ -50,10 +56,17 @@ export function exerciseChartView(plans: readonly ExercisePlan[], events: readon
       items: plan.items.flatMap((item): ChartItem[] => {
         const ex = exerciseByKey(item.exerciseKey);
         if (!ex) return [];
-        const marks = ordered
-          .filter((e) => e.planId === plan.id && e.exerciseKey === item.exerciseKey)
-          .map((e) => ({ at: e.createdAt, by: names.get(e.actor) ?? "A physiotherapist", text: chartMarkText(e), helper: e.helperPresent }));
-        return [{ key: ex.key, name: ex.name, picture: ex.picture, dose: doseText(item.dose), note: item.dose.note, marks, latest: marks[marks.length - 1] ?? null }];
+        const rows = ordered.filter((e) => e.planId === plan.id && e.exerciseKey === item.exerciseKey);
+        const mark = (e: TeachingEvent): ChartMark => ({
+          at: e.createdAt,
+          by: names.get(e.actor) ?? "A physiotherapist",
+          text: chartMarkText(e),
+          helper: e.helperPresent,
+          correction: e.kind === "correction" && e.correctionReason ? `Corrected: ${CORRECTION_REASON_CHART[e.correctionReason]}` : null,
+        });
+        const head = rows.filter((e) => latestIds.has(e.id)).pop();
+        const marks = rows.map(mark);
+        return [{ key: ex.key, name: ex.name, picture: ex.picture, dose: doseText(item.dose), note: item.dose.note, marks, latest: head ? mark(head) : null }];
       }),
     }));
 }
