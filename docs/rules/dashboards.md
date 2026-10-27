@@ -634,3 +634,10 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   bubble when there is a note, struck through when excluded), and
   `RatingManager` shows the average with a bar per star level from
   `computeRatingAggregate().distribution`. `e2e/session-feedback.spec.ts`.
+
+- **Hospital referral list wording.** One word per state: the badge and the
+  filter chip both say **Registered** (`converted`), never "Booked". Overview
+  quick actions use the nav's words (**Earnings**, **Edit Profile**). The
+  Overview "Accepted" cell opens `/hospital/dashboard/referrals?show=accepted`.
+  "Updated" is shown only where the table timestamps a change
+  (`declined_at` / `withdrawn_at`); never invent one.

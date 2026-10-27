@@ -108,7 +108,7 @@ test.describe("Dashboard tutorial", () => {
       await expect(page.getByTestId("tutorial")).toHaveCount(0, { timeout: 10_000 });
 
       // The card's own (i), not the page title's.
-      await page.getByRole("button", { name: "How Your Referrals works" }).last().click();
+      await page.getByRole("button", { name: "How Referral status works" }).last().click();
       await expect(page.getByRole("heading", { name: "Follow each referral" })).toBeVisible();
       await expect(page.getByTestId("tutorial")).toContainText("Registration Link Sent");
     } finally {

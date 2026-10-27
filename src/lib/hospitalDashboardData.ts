@@ -108,10 +108,15 @@ export async function loadHospitalDashboard(screen: HospitalScreen = "overview")
     // reason is the one thing that makes a declined referral actionable for
     // the partner who sent it, so it must not be able to take the note
     // down with it.
-    readAllRowsAsData<{ id: string; decline_reason: string | null }>(() =>
+    readAllRowsAsData<{
+      id: string;
+      decline_reason: string | null;
+      declined_at: string | null;
+      withdrawn_at: string | null;
+    }>(() =>
       supabase
         .from("patient_referrals")
-        .select("id, decline_reason")
+        .select("id, decline_reason, declined_at, withdrawn_at")
         .eq("hospital_id", user.id)
         .order("id", { ascending: true })
     ),
@@ -146,6 +151,15 @@ export async function loadHospitalDashboard(screen: HospitalScreen = "overview")
   const adminSettings = parseAdminSettings(settingsRow);
   const capacityNoteMap = new Map(
     (capacityNoteRows ?? []).map((r) => [r.id, r.capacity_note])
+  );
+  // The one "last changed" moment the table records: when the clinic declined
+  // or the partner withdrew. Other transitions are not timestamped, so the
+  // screen says "updated" only where it can say when.
+  const closedAtMap = new Map(
+    (declineReasonRows ?? []).flatMap((r) => {
+      const at = r.declined_at ?? r.withdrawn_at;
+      return at ? [[r.id, at] as [string, string]] : [];
+    })
   );
   const declineReasonMap = new Map(
     (declineReasonRows ?? []).map((r) => [r.id, r.decline_reason])
@@ -259,7 +273,7 @@ export async function loadHospitalDashboard(screen: HospitalScreen = "overview")
       value: String(acceptedReferrals),
       note: referralRows.length === 0 ? "Send your first referral" : "Patients the clinic took on",
       accent: "bg-emerald-500",
-      href: "/hospital/dashboard/referrals",
+      href: "/hospital/dashboard/referrals?show=accepted",
     },
     {
       label: "Sessions delivered",
@@ -288,6 +302,7 @@ export async function loadHospitalDashboard(screen: HospitalScreen = "overview")
     referrals: referralRows,
     capacityNoteMap,
     declineReasonMap,
+    closedAtMap,
     patientMap,
     // Renamed from `paidSessions`: these are the sessions actually
     // delivered, which is what a partner's commission is earned on.
