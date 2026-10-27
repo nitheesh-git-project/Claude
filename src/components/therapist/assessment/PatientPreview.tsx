@@ -3,49 +3,43 @@
 import { useEffect, useState } from "react";
 import type { LiveDisplayText, LiveDisplayView } from "@/lib/assessmentRun";
 import { clockShown } from "@/lib/companionScreen";
-import type { PatientControl } from "@/lib/cockpit";
 import { useToast } from "@/lib/toast";
 import ExercisePicture from "@/components/exercises/ExercisePicture";
 
 export type PreviewStatus = "idle" | "sending" | "live" | "failed";
 
-/** "Live" is said only once the patient's screen has actually been sent
- *  something; before that it is not live, whatever the preview card shows. */
+/** What the server accepted, never what the patient saw: "Sent" means the
+ *  display route stored it. Whether the patient's screen is actually open is
+ *  a separate line (companion seen, E12). */
 export const PREVIEW_STATUS_LABEL: Record<PreviewStatus, string> = {
   idle: "Not sent yet",
-  sending: "Updating",
-  live: "Live",
-  failed: "Not updated",
+  sending: "Sending",
+  live: "Sent",
+  failed: "Not sent",
 };
 
 const PATIENT_SCREEN_PATH = "/patient/dashboard/session";
 
 /**
- * "What the patient sees": a small live preview of the display-only screen,
- * the four things the physiotherapist can tell it (get ready, go, done, rest;
- * only a phase and whether the clock starts, never words), and how to put the
- * screen in front of the patient: share this one, or have them open the
- * page on a second device. Nothing on the patient's own screen can be pressed.
+ * "What the patient sees": a small preview of the display-only screen and
+ * how to put it in front of the patient (share this one, or have them open
+ * the page on a second device). What it shows is chosen from the sticky
+ * action bar (get ready, go, done, rest: only a phase and whether the clock
+ * starts, never words). Nothing on the patient's own screen can be pressed.
  */
 export default function PatientPreview({
   firstName,
   text,
   view,
   serverOffsetMs,
-  controls,
-  activeControl,
   status,
-  onControl,
   onRetry,
 }: {
   firstName: string;
   text: LiveDisplayText;
   view: LiveDisplayView | null;
   serverOffsetMs: number;
-  controls: PatientControl[];
-  activeControl: string | null;
   status: PreviewStatus;
-  onControl: (control: PatientControl) => void;
   onRetry: () => void;
 }) {
   const { show } = useToast();
@@ -110,22 +104,6 @@ export default function PatientPreview({
         )}
       </div>
 
-      <div role="group" aria-label={`Show on ${firstName}'s screen`} className="mt-3 grid grid-cols-2 gap-2">
-        {controls.map((c) => (
-          <button
-            key={c.key}
-            type="button"
-            data-testid={`patient-${c.key}`}
-            aria-pressed={activeControl === c.key}
-            onClick={() => onControl(c)}
-            className={`min-h-[44px] rounded-lg border px-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0f172a] ${
-              activeControl === c.key ? "border-teal-300 bg-teal-700 text-white" : "border-slate-600 bg-[#334155] text-white hover:border-teal-300"
-            }`}
-          >
-            {c.label}
-          </button>
-        ))}
-      </div>
       {status === "failed" && (
         <p role="alert" className="mt-2 text-sm text-red-200">
           {firstName}{"'"}s screen could not be updated.{" "}

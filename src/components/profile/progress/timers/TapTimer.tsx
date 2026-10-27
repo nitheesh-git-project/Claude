@@ -66,6 +66,7 @@ export default function TapTimer({
   onUse,
   onClock,
   disabled = false,
+  blockedReason = null,
 }: {
   label: string;
   /** How many counted trials the measure asks for. */
@@ -86,6 +87,10 @@ export default function TapTimer({
   /** A trial started, stopped or was thrown away (the cockpit runs the patient's clock from it). */
   onClock?: (event: TimerClockEvent) => void;
   disabled?: boolean;
+  /** Why a trial cannot start yet, said on the button, which stays off
+   *  (the session cockpit: "Tick the helper first"). A running trial can
+   *  always be stopped. */
+  blockedReason?: string | null;
 }) {
   const [watch, setWatch] = useState<StopwatchState>(IDLE_STOPWATCH);
   const [trials, setTrials] = useState<Trial[]>([]);
@@ -118,7 +123,7 @@ export default function TapTimer({
   function press() {
     if (disabled) return;
     if (!running) {
-      if (full) return;
+      if (full || blockedReason) return;
       setInterrupted(false);
       setWatch(startStopwatch(IDLE_STOPWATCH, readClock()));
       return;
@@ -133,7 +138,7 @@ export default function TapTimer({
     setWatch(IDLE_STOPWATCH);
   }
 
-  const buttonText = running ? "Stop" : full ? "All trials done" : nextIsPractice ? "Start practice" : `Start trial ${counted.length + 1}`;
+  const buttonText = running ? "Stop the clock" : full ? "All trials done" : blockedReason ? blockedReason : nextIsPractice ? "Start practice" : `Start trial ${counted.length + 1}`;
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4">
@@ -155,7 +160,7 @@ export default function TapTimer({
       <button
         type="button"
         onClick={press}
-        disabled={disabled || (!running && full)}
+        disabled={disabled || (!running && (full || !!blockedReason))}
         className={`mt-4 min-h-[5rem] w-full rounded-2xl text-xl font-bold text-white transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-600/40 disabled:opacity-50 ${
           running ? "bg-red-700 hover:bg-red-800" : "bg-teal-700 hover:bg-teal-800"
         }`}
@@ -172,7 +177,7 @@ export default function TapTimer({
           }}
           className="mt-2 min-h-[44px] w-full rounded-xl text-sm font-semibold text-slate-700 underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
         >
-          Throw this attempt away
+          Discard this attempt
         </button>
       )}
 

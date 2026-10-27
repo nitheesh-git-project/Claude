@@ -30,6 +30,7 @@ export default function SlotRecorder({
   onRegister,
   onStatus,
   onTimerEvent,
+  startBlocked,
 }: {
   slotKey: string;
   measureKey: string;
@@ -47,6 +48,8 @@ export default function SlotRecorder({
   onRegister: (slotKey: string, handle: EmbeddedHandle | null) => void;
   onStatus: (slotKey: string, status: EmbeddedStatus) => void;
   onTimerEvent: (event: TimerClockEvent) => void;
+  /** Why the step's timer cannot start yet (cockpit.ts timerStartBlock). */
+  startBlocked: string | null;
 }) {
   const register = useCallback((handle: EmbeddedHandle | null) => onRegister(slotKey, handle), [onRegister, slotKey]);
   const status = useCallback((s: EmbeddedStatus) => onStatus(slotKey, s), [onStatus, slotKey]);
@@ -69,6 +72,7 @@ export default function SlotRecorder({
         register,
         onStatus: status,
         onTimerEvent,
+        startBlocked,
       }}
     />
   );

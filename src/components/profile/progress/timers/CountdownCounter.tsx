@@ -50,6 +50,7 @@ export default function CountdownCounter({
   onUse,
   onClock,
   disabled = false,
+  blockedReason = null,
 }: {
   seconds?: number;
   max?: number;
@@ -62,6 +63,9 @@ export default function CountdownCounter({
   /** Started, finished or thrown away (the session cockpit runs the patient's clock from it). */
   onClock?: (event: TimerClockEvent) => void;
   disabled?: boolean;
+  /** Why the count cannot start yet, said on the Start button, which stays
+   *  off (the session cockpit: "Tick the helper first"). */
+  blockedReason?: string | null;
 }) {
   const [countdown, setCountdown] = useState<CountdownState>(() => createCountdown(seconds * 1000));
   const [count, setCount] = useState(0);
@@ -85,7 +89,7 @@ export default function CountdownCounter({
   const remaining = countdownRemainingMs(settled, clock.now);
 
   function start() {
-    if (disabled) return;
+    if (disabled || blockedReason) return;
     setCount(0);
     setArmsUsed(false);
     setInterrupted(false);
@@ -112,10 +116,10 @@ export default function CountdownCounter({
         <button
           type="button"
           onClick={start}
-          disabled={disabled}
-          className="mt-4 min-h-[5rem] w-full rounded-2xl bg-teal-700 text-xl font-bold text-white transition hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-600/40 disabled:opacity-50"
+          disabled={disabled || !!blockedReason}
+          className="mt-4 min-h-[5rem] w-full rounded-2xl bg-teal-700 text-xl font-bold text-white transition hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-600/40 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {settled.status === "aborted" ? "Start again" : `Start the ${seconds} seconds`}
+          {blockedReason ? blockedReason : settled.status === "aborted" ? "Start again" : `Start the ${seconds} seconds`}
         </button>
       ) : running ? (
         <>
@@ -143,7 +147,7 @@ export default function CountdownCounter({
               }}
               className="min-h-[48px] flex-1 rounded-xl border border-red-300 text-sm font-semibold text-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"
             >
-              Stop and discard
+              Discard this attempt
             </button>
           </div>
         </>

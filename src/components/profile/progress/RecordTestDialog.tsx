@@ -107,6 +107,9 @@ export type EmbeddedRecorder = {
   onStatus: (status: EmbeddedStatus) => void;
   /** The timer started, finished or was thrown away (the cockpit runs the patient's clock from it). */
   onTimerEvent?: (event: TimerClockEvent) => void;
+  /** Why the timer cannot start yet ("Tick the helper first"); said on its
+   *  Start button, which stays off. Null when it can (cockpit.ts timerStartBlock). */
+  startBlocked?: string | null;
 };
 
 /** "How it was done": a section in the dialog, and a folded-away one inside a
@@ -656,6 +659,7 @@ export default function RecordTestDialog({
               distanceMetres={timer.distanceMetres}
               requireAll={trialsOnly}
               onClock={embedded?.onTimerEvent}
+              blockedReason={embedded?.startBlocked ?? null}
               onUse={(r) => {
                 flag(r.interrupted);
                 patchEditor({ timer: { value: r.value, items: r.trials } });
@@ -672,6 +676,7 @@ export default function RecordTestDialog({
               description={timer.description}
               armsRule={timer.armsRule}
               onClock={embedded?.onTimerEvent}
+              blockedReason={embedded?.startBlocked ?? null}
               onUse={(r) => {
                 flag(r.interrupted);
                 // The CDC rule: arms used scores 0, and the count with the
@@ -691,6 +696,7 @@ export default function RecordTestDialog({
               key={timerRun}
               helperRequired={cond.setting === "video"}
               onClock={embedded?.onTimerEvent}
+              blockedReason={embedded?.startBlocked ?? null}
               onUse={(r) => {
                 flag(r.interrupted);
                 patchEditor({ timer: { value: r.stage, items: null } });
@@ -706,6 +712,7 @@ export default function RecordTestDialog({
               equationUnreadable={walkEquation?.status === "unreadable"}
               oxygenLimit={oxygenLimit}
               onClock={embedded?.onTimerEvent}
+              blockedReason={embedded?.startBlocked ?? null}
               onUse={(walk) => {
                 flag(walk.interrupted);
                 const next = [...walks, walk];
@@ -793,184 +800,13 @@ export default function RecordTestDialog({
       />
     ) : null;
 
-  const sections = (
-    <>
-            {flow && (
-              <div data-testid="flow-step" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-teal-200 bg-teal-50 px-3 py-2">
-                <p className="text-sm font-bold text-teal-900">
-                  Step {flow.position} of {flow.of}: {flow.title}
-                </p>
-                <button
-                  type="button"
-                  onClick={flow.onSkip}
-                  disabled={saving}
-                  className="min-h-[44px] rounded-lg px-3 text-sm font-semibold text-teal-900 underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
-                >
-                  Leave this one out
-                </button>
-              </div>
-            )}
-            {/* 1. Which test */}
-            <section className="space-y-3">
-              <div className={embedded ? "hidden" : lockedMeasure && measure ? "sr-only" : undefined}>
-                <label htmlFor={`${baseId}-measure`} className="block text-sm font-semibold text-slate-900">
-                  Which test?
-                </label>
-                <select
-                  id={`${baseId}-measure`}
-                  value={measureKey}
-                  onChange={(e) => pickMeasure(e.target.value)}
-                  className={`mt-1 ${FIELD}`}
-                >
-                  <option value="">Choose a test</option>
-                  {choices.map(({ measure: m, selectable, reason }) => (
-                    <option key={m.key} value={m.key} disabled={!selectable}>
-                      {m.label}
-                      {reason ? ` - ${reason}` : ""}
-                    </option>
-                  ))}
-                </select>
-                {ownedNote && <p className="mt-1 text-xs text-slate-600">{ownedNote}</p>}
-                {licenceUnreadable && choices.some((c) => c.measure.licence === "licensed") && (
-                  <p role="status" className="mt-1 text-xs font-semibold text-amber-900">
-                    {"We couldn't check which licensed scales the clinic has switched on, so they can't be chosen just now. Reload to try again."}
-                  </p>
-                )}
-                {measure?.note && <p className="mt-1 text-xs text-slate-600">{measure.note}</p>}
-              </div>
-
-              {measure?.key === "joint_range" ? (
-                <>
-                  {!(embedded && startingChoice.movement) && (
-                  <div>
-                    <label htmlFor={`${baseId}-movement`} className="block text-sm font-semibold text-slate-900">
-                      Which movement?
-                    </label>
-                    <select
-                      id={`${baseId}-movement`}
-                      value={jointMovement}
-                      onChange={(e) => {
-                        touch();
-                        setJointMovement(e.target.value);
-                        setVariant(joinJointVariant(e.target.value, jointMode));
-                        setError(null);
-                      }}
-                      className={`mt-1 ${FIELD}`}
-                    >
-                      <option value="">Choose</option>
-                      {JOINT_MOVEMENTS.map((mv) => (
-                        <option key={mv.key} value={mv.key}>
-                          {mv.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  )}
-                  <fieldset>
-                    <legend className="text-sm font-semibold text-slate-900">Active or passive?</legend>
-                    <div className="mt-1 flex gap-2">
-                      {JOINT_MODES.filter(
-                        (md) => !allowedVariants || allowedVariants.some((v) => splitJointVariant(v)?.mode === md.key)
-                      ).map((md) =>
-                        radio("mode", md.key, jointMode, md.label, () => {
-                          touch();
-                          setJointMode(md.key);
-                          setVariant(joinJointVariant(jointMovement, md.key));
-                          setError(null);
-                        })
-                      )}
-                    </div>
-                    <p className="mt-1 text-xs text-slate-600">
-                      Active and passive are drawn as separate lines and never compared with each other. Keep to the same one each time.
-                    </p>
-                  </fieldset>
-                </>
-              ) : (
-                measure?.variants && !(allowedVariants && allowedVariants.length === 1) && (
-                  <div>
-                    <label htmlFor={`${baseId}-variant`} className="block text-sm font-semibold text-slate-900">
-                      Which one?
-                    </label>
-                    <select
-                      id={`${baseId}-variant`}
-                      value={variant}
-                      onChange={(e) => {
-                        touch();
-                        setVariant(e.target.value);
-                        setError(null);
-                      }}
-                      className={`mt-1 ${FIELD}`}
-                    >
-                      <option value="">Choose</option>
-                      {measure.variants.filter((v) => !allowedVariants || allowedVariants.includes(v.key)).map((v) => (
-                        <option key={v.key} value={v.key}>
-                          {v.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )
-              )}
-
-              {measure?.sided && (
-                <fieldset>
-                  <legend className="text-sm font-semibold text-slate-900">Which side?</legend>
-                  <div className="mt-1 flex gap-2">
-                    {radio("side", "left", side, SIDE_LABEL.left, () => {
-                      touch();
-                      setSide("left");
-                    })}
-                    {radio("side", "right", side, SIDE_LABEL.right, () => {
-                      touch();
-                      setSide("right");
-                    })}
-                  </div>
-                </fieldset>
-              )}
-
-              {landmark && (
-                <details className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800">
-                  <summary className="flex min-h-[44px] cursor-pointer items-center font-semibold text-teal-900">
-                    How to measure {movementLabel(jointMovement)?.toLowerCase()}
-                  </summary>
-                  <dl className="mt-1 grid gap-x-3 gap-y-1.5 pb-2 sm:grid-cols-[8rem_1fr]">
-                    <dt className="font-semibold text-slate-700">Position</dt>
-                    <dd>{landmark.position}</dd>
-                    <dt className="font-semibold text-slate-700">Centre of the goniometer</dt>
-                    <dd>{landmark.centre}</dd>
-                    <dt className="font-semibold text-slate-700">Fixed arm</dt>
-                    <dd>{landmark.fixedArm}</dd>
-                    <dt className="font-semibold text-slate-700">Moving arm</dt>
-                    <dd>{landmark.movingArm}</dd>
-                  </dl>
-                  {landmark.note && <p className="pb-1 text-xs text-slate-700">{landmark.note}</p>}
-                  <p className="pb-2 text-xs text-slate-700">{JOINT_READING_RULE}</p>
-                </details>
-              )}
-
-              {measure?.key === "joint_range" && jointMovement && canMeasureFromImage(jointMovement) && (
-                <div className="rounded-xl border border-teal-200 bg-teal-50/60 p-3">
-                  <button
-                    type="button"
-                    data-testid="measure-from-image"
-                    onClick={() => setAngleOpen(true)}
-                    disabled={!side || !jointMode}
-                    className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-teal-700 bg-white px-4 text-sm font-bold text-teal-900 hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    <i aria-hidden className="fa-solid fa-camera" /> Measure from an image
-                  </button>
-                  <p className="mt-1 text-xs text-slate-700">
-                    {!side || !jointMode
-                      ? "Choose the side and active or passive first."
-                      : "For a video session: tap the joint on a screenshot and the angle is worked out for you. It is an estimate, and the photo is not saved."}
-                  </p>
-                </div>
-              )}
-            </section>
-
-            {measure && fields && (
-              <>
-                {/* 2. How it was done */}
+  // Inside a guided step the set-up is the step's, so the result (the timer,
+  // the score) comes straight under the script and "How it was done" folds
+  // in after it -- unless a detail there is required (ON or OFF), which is
+  // answered first.
+  const resultFirst = !!embedded && !fields?.medication;
+  const howItWasDone =
+    measure && fields ? (
                 <HowItWasDone embedded={!!embedded} openByDefault={!!fields.medication}>
 
                   {!embedded && (
@@ -1184,6 +1020,186 @@ export default function RecordTestDialog({
                     </fieldset>
                   )}
                 </HowItWasDone>
+    ) : null;
+
+  const sections = (
+    <>
+            {flow && (
+              <div data-testid="flow-step" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-teal-200 bg-teal-50 px-3 py-2">
+                <p className="text-sm font-bold text-teal-900">
+                  Step {flow.position} of {flow.of}: {flow.title}
+                </p>
+                <button
+                  type="button"
+                  onClick={flow.onSkip}
+                  disabled={saving}
+                  className="min-h-[44px] rounded-lg px-3 text-sm font-semibold text-teal-900 underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
+                >
+                  Leave this one out
+                </button>
+              </div>
+            )}
+            {/* 1. Which test */}
+            <section className="space-y-3">
+              <div className={embedded ? "hidden" : lockedMeasure && measure ? "sr-only" : undefined}>
+                <label htmlFor={`${baseId}-measure`} className="block text-sm font-semibold text-slate-900">
+                  Which test?
+                </label>
+                <select
+                  id={`${baseId}-measure`}
+                  value={measureKey}
+                  onChange={(e) => pickMeasure(e.target.value)}
+                  className={`mt-1 ${FIELD}`}
+                >
+                  <option value="">Choose a test</option>
+                  {choices.map(({ measure: m, selectable, reason }) => (
+                    <option key={m.key} value={m.key} disabled={!selectable}>
+                      {m.label}
+                      {reason ? ` - ${reason}` : ""}
+                    </option>
+                  ))}
+                </select>
+                {ownedNote && <p className="mt-1 text-xs text-slate-600">{ownedNote}</p>}
+                {licenceUnreadable && choices.some((c) => c.measure.licence === "licensed") && (
+                  <p role="status" className="mt-1 text-xs font-semibold text-amber-900">
+                    {"We couldn't check which licensed scales the clinic has switched on, so they can't be chosen just now. Reload to try again."}
+                  </p>
+                )}
+                {measure?.note && <p className="mt-1 text-xs text-slate-600">{measure.note}</p>}
+              </div>
+
+              {measure?.key === "joint_range" ? (
+                <>
+                  {!(embedded && startingChoice.movement) && (
+                  <div>
+                    <label htmlFor={`${baseId}-movement`} className="block text-sm font-semibold text-slate-900">
+                      Which movement?
+                    </label>
+                    <select
+                      id={`${baseId}-movement`}
+                      value={jointMovement}
+                      onChange={(e) => {
+                        touch();
+                        setJointMovement(e.target.value);
+                        setVariant(joinJointVariant(e.target.value, jointMode));
+                        setError(null);
+                      }}
+                      className={`mt-1 ${FIELD}`}
+                    >
+                      <option value="">Choose</option>
+                      {JOINT_MOVEMENTS.map((mv) => (
+                        <option key={mv.key} value={mv.key}>
+                          {mv.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  )}
+                  <fieldset>
+                    <legend className="text-sm font-semibold text-slate-900">Active or passive?</legend>
+                    <div className="mt-1 flex gap-2">
+                      {JOINT_MODES.filter(
+                        (md) => !allowedVariants || allowedVariants.some((v) => splitJointVariant(v)?.mode === md.key)
+                      ).map((md) =>
+                        radio("mode", md.key, jointMode, md.label, () => {
+                          touch();
+                          setJointMode(md.key);
+                          setVariant(joinJointVariant(jointMovement, md.key));
+                          setError(null);
+                        })
+                      )}
+                    </div>
+                    <p className="mt-1 text-xs text-slate-600">
+                      Active and passive are drawn as separate lines and never compared with each other. Keep to the same one each time.
+                    </p>
+                  </fieldset>
+                </>
+              ) : (
+                measure?.variants && !(allowedVariants && allowedVariants.length === 1) && (
+                  <div>
+                    <label htmlFor={`${baseId}-variant`} className="block text-sm font-semibold text-slate-900">
+                      Which one?
+                    </label>
+                    <select
+                      id={`${baseId}-variant`}
+                      value={variant}
+                      onChange={(e) => {
+                        touch();
+                        setVariant(e.target.value);
+                        setError(null);
+                      }}
+                      className={`mt-1 ${FIELD}`}
+                    >
+                      <option value="">Choose</option>
+                      {measure.variants.filter((v) => !allowedVariants || allowedVariants.includes(v.key)).map((v) => (
+                        <option key={v.key} value={v.key}>
+                          {v.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )
+              )}
+
+              {measure?.sided && (
+                <fieldset>
+                  <legend className="text-sm font-semibold text-slate-900">Which side?</legend>
+                  <div className="mt-1 flex gap-2">
+                    {radio("side", "left", side, SIDE_LABEL.left, () => {
+                      touch();
+                      setSide("left");
+                    })}
+                    {radio("side", "right", side, SIDE_LABEL.right, () => {
+                      touch();
+                      setSide("right");
+                    })}
+                  </div>
+                </fieldset>
+              )}
+
+              {landmark && (
+                <details className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800">
+                  <summary className="flex min-h-[44px] cursor-pointer items-center font-semibold text-teal-900">
+                    How to measure {movementLabel(jointMovement)?.toLowerCase()}
+                  </summary>
+                  <dl className="mt-1 grid gap-x-3 gap-y-1.5 pb-2 sm:grid-cols-[8rem_1fr]">
+                    <dt className="font-semibold text-slate-700">Position</dt>
+                    <dd>{landmark.position}</dd>
+                    <dt className="font-semibold text-slate-700">Centre of the goniometer</dt>
+                    <dd>{landmark.centre}</dd>
+                    <dt className="font-semibold text-slate-700">Fixed arm</dt>
+                    <dd>{landmark.fixedArm}</dd>
+                    <dt className="font-semibold text-slate-700">Moving arm</dt>
+                    <dd>{landmark.movingArm}</dd>
+                  </dl>
+                  {landmark.note && <p className="pb-1 text-xs text-slate-700">{landmark.note}</p>}
+                  <p className="pb-2 text-xs text-slate-700">{JOINT_READING_RULE}</p>
+                </details>
+              )}
+
+              {measure?.key === "joint_range" && jointMovement && canMeasureFromImage(jointMovement) && (
+                <div className="rounded-xl border border-teal-200 bg-teal-50/60 p-3">
+                  <button
+                    type="button"
+                    data-testid="measure-from-image"
+                    onClick={() => setAngleOpen(true)}
+                    disabled={!side || !jointMode}
+                    className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-teal-700 bg-white px-4 text-sm font-bold text-teal-900 hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <i aria-hidden className="fa-solid fa-camera" /> Measure from an image
+                  </button>
+                  <p className="mt-1 text-xs text-slate-700">
+                    {!side || !jointMode
+                      ? "Choose the side and active or passive first."
+                      : "For a video session: tap the joint on a screenshot and the angle is worked out for you. It is an estimate, and the photo is not saved."}
+                  </p>
+                </div>
+              )}
+            </section>
+
+            {measure && fields && (
+              <>
+                {!resultFirst && howItWasDone}
 
                 {/* 3. The result */}
                 <section className="space-y-3">
@@ -1221,6 +1237,8 @@ export default function RecordTestDialog({
                     </p>
                   )}
                 </section>
+
+                {resultFirst && howItWasDone}
 
                 {/* 4. Last time and this time */}
                 <section aria-label="Last reading and this one" className="grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-3">

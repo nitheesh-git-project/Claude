@@ -59,6 +59,8 @@ export default function ToolArea({
     onRegister: (slotKey: string, handle: EmbeddedHandle | null) => void;
     onStatus: (slotKey: string, status: EmbeddedStatus) => void;
     onTimerEvent: (event: TimerClockEvent) => void;
+    /** Why the step's timer cannot start yet; null when it can. */
+    startBlocked: string | null;
   };
   layer: { patientId: string; patientName: string; runStartedAt: string; onRecord: (recordId: string | null, missing: string | null) => void };
   /** The Home exercises step's tool: everything the cockpit holds for it. */
@@ -135,6 +137,7 @@ export default function ToolArea({
               onRegister={measure.onRegister}
               onStatus={measure.onStatus}
               onTimerEvent={measure.onTimerEvent}
+              startBlocked={measure.startBlocked}
             />
           </div>
         );

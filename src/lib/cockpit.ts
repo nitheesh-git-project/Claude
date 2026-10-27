@@ -424,3 +424,24 @@ export function exertionBlock(protocol: SessionProtocol, step: ProtocolStep, che
   if (check === "stop") return "The resting check says not to exercise today. Skip this step and contact the patient's doctor.";
   return "Save the resting check before any exercise.";
 }
+
+/**
+ * Why a guided step's timer cannot start yet, said on its Start button in a
+ * few words; null when it can. The resting check comes first (a heart and
+ * lung exertion step whose check is not clear), then the helper the step
+ * needs. Only these two: they are the ones that make running the test unsafe
+ * or its result unsaveable. The server is still the gate on the save; this
+ * only stops a test being run that the save would refuse.
+ */
+export function timerStartBlock(
+  protocol: SessionProtocol,
+  step: ProtocolStep,
+  check: PreExerciseStatus | null,
+  ticked: ReadonlySet<string>
+): string | null {
+  if (needsPreExerciseCheck(protocol, step) && check !== "clear") {
+    return check === "stop" ? "Resting check: no exercise today" : "Save the resting check first";
+  }
+  if (setupProgress(step, ticked).helperMissing) return "Tick the helper first";
+  return null;
+}

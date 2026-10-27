@@ -42,6 +42,7 @@ export default function BalanceHolds({
   onClock,
   helperRequired = false,
   disabled = false,
+  blockedReason = null,
 }: {
   onUse: (result: BalanceHoldsResult) => void;
   /** A hold started or ended (the cockpit runs the patient's ten-second clock from it). */
@@ -49,6 +50,9 @@ export default function BalanceHolds({
   /** Over video: another adult must be standing beside the patient. */
   helperRequired?: boolean;
   disabled?: boolean;
+  /** Why a hold cannot start yet, said on the Start button, which stays off
+   *  (the session cockpit: "Tick the helper first"). */
+  blockedReason?: string | null;
 }) {
   const [state, setState] = useState<BalanceState>(createBalance);
   const [interrupted, setInterrupted] = useState(false);
@@ -137,14 +141,15 @@ export default function BalanceHolds({
               {isCurrent && s.state === "pending" && (
                 <button
                   type="button"
-                  disabled={disabled}
+                  disabled={disabled || !!blockedReason}
                   onClick={() => {
+                    if (blockedReason) return;
                     setInterrupted(false);
                     setState(startBalanceStage(settled, readClock()));
                   }}
                   className="mt-2 min-h-[56px] w-full rounded-xl bg-teal-700 text-base font-bold text-white hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-600/40 disabled:opacity-50"
                 >
-                  Start the 10-second hold
+                  {blockedReason ?? "Start the 10-second hold"}
                 </button>
               )}
             </li>

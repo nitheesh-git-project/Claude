@@ -15,6 +15,7 @@ import {
   setupProgress,
   stepAvailability,
   stepNav,
+  timerStartBlock,
   toolMode,
   toolSlots,
 } from "@/lib/cockpit";
@@ -254,5 +255,24 @@ describe("the resting check on the heart and lung protocol", () => {
     expect(exertionBlock(cardio, sit, "clear")).toBeNull();
     expect(exertionBlock(cardio, protocolStep(cardio, "breathless_now")!, null)).toBeNull();
     expect(exertionBlock(knee, protocolStep(knee, "chair_stand")!, null)).toBeNull();
+  });
+});
+
+describe("a guided step's timer start (A1)", () => {
+  it("waits for the helper tick where the step needs one, and says so", () => {
+    const stand = protocolStep(knee, "chair_stand")!;
+    expect(timerStartBlock(knee, stand, null, new Set())).toBe("Tick the helper first");
+    expect(timerStartBlock(knee, stand, null, new Set(["helper_beside"]))).toBeNull();
+    // A step with no helper never waits for one.
+    expect(timerStartBlock(knee, protocolStep(knee, "knee_bend")!, null, new Set())).toBeNull();
+  });
+  it("waits for a clear resting check on a heart and lung exertion step, before the helper", () => {
+    const sit = protocolStep(cardio, "sit_to_stand")!;
+    const helper = new Set(["helper_beside"]);
+    expect(timerStartBlock(cardio, sit, "stop", helper)).toBe("Resting check: no exercise today");
+    expect(timerStartBlock(cardio, sit, null, new Set())).toBe("Save the resting check first");
+    expect(timerStartBlock(cardio, sit, "incomplete", helper)).toBe("Save the resting check first");
+    expect(timerStartBlock(cardio, sit, "clear", new Set())).toBe("Tick the helper first");
+    expect(timerStartBlock(cardio, sit, "clear", helper)).toBeNull();
   });
 });

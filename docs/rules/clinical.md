@@ -1485,12 +1485,22 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      patient* in large type, *Set up first* as real checkboxes that must **all**
      be ticked, a red-bordered safety line where another adult has to stand
      beside the patient, then the step's tool - and at the bottom, sticky on
-     every width, exactly **Stop test** (throws this step's reading away and
+     every width, exactly **Stop test** (an emergency stop: the first tap stops
+     the clock and puts Rest on the patient's screen at once, then asks for an
+     optional reason; it throws this step's reading away and
      writes a `stopped` event only), **Skip** (only where the step is
      skippable, with an optional fixed reason from `SKIP_REASONS`) and one big
      **Save and next**, disabled until the set-up (the helper named on its own),
      the safety answers and a result are all in, with the line underneath
-     saying which is missing (`saveReadiness`, `cockpit.ts`). The tool is the
+     saying which is missing (`saveReadiness`, `cockpit.ts`). **Beside Meet
+     (640-800px) the card stays short:** the *Stop at once if* line sits under
+     the step bar at every width, the set-up folds to one line (*3/3 set up ✓ ·
+     Edit*) once ticked, the tool sits directly under the script (the result
+     before *How it was done*, unless ON/OFF is required), and the patient's
+     screen controls are a segmented control in the sticky bar. **A timer's
+     Start stays off, saying why, until the step's helper is ticked and the
+     resting check is clear** (`timerStartBlock`; the server is still the
+     gate on the save). The tool is the
      existing recorder inline (`RecordTestDialog` with `embedded`: the same
      timers, score sheet and angle tool, the test and its variants chosen by
      the step, always over video, the vitals marked *read off the patient's own

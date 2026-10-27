@@ -17,6 +17,7 @@ export default function ReasonDialog({
   options,
   noReasonLabel,
   confirmTone = "neutral",
+  cancelLabel = "Cancel",
   busy,
   onPick,
   onClose,
@@ -27,6 +28,9 @@ export default function ReasonDialog({
   /** When set, a button that carries on with no reason; omit where a reason is required. */
   noReasonLabel?: string;
   confirmTone?: "neutral" | "danger";
+  /** The button that closes without acting. Null: there is nothing to cancel
+   *  (Stop test has already stopped), so closing is the same as no reason. */
+  cancelLabel?: string | null;
   busy: boolean;
   onPick: (key: string | null) => void;
   onClose: () => void;
@@ -67,14 +71,16 @@ export default function ReasonDialog({
                 {noReasonLabel}
               </button>
             )}
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={busy}
-              className="min-h-[48px] rounded-xl px-4 text-sm font-semibold text-slate-700 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 disabled:opacity-60"
-            >
-              Cancel
-            </button>
+            {cancelLabel && (
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={busy}
+                className="min-h-[48px] rounded-xl px-4 text-sm font-semibold text-slate-700 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 disabled:opacity-60"
+              >
+                {cancelLabel}
+              </button>
+            )}
           </div>
         </div>
       </div>

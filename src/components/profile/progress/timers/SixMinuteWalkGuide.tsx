@@ -150,6 +150,7 @@ export default function SixMinuteWalkGuide({
   onUse,
   onClock,
   disabled = false,
+  blockedReason = null,
 }: {
   patient: PatientFacts | null;
   /** The patient's own oxygen stop limit (cardioSafety.ts). Absent means the
@@ -164,6 +165,9 @@ export default function SixMinuteWalkGuide({
   /** The walk started or ended (the cockpit runs the patient's clock from it). */
   onClock?: (event: TimerClockEvent) => void;
   disabled?: boolean;
+  /** Why the walk cannot start yet, said on the Start button, which stays
+   *  off (the session cockpit: "Tick the helper first"). */
+  blockedReason?: string | null;
 }) {
   const [step, setStep] = useState<"check" | "walk" | "after">("check");
   const [ticked, setTicked] = useState<ReadonlySet<string>>(new Set());
@@ -216,7 +220,7 @@ export default function SixMinuteWalkGuide({
   const refused = preCheck.status === "stop";
   const afterOxygen = duringExerciseOxygenCheck({ spo2Lowest: afterVitals.spo2, spo2Rest: beforeVitals.spo2, limit });
   const checklistDone = safetyChecklistComplete(ticked);
-  const canStart = checklistDone && beforeProblems.length === 0 && !refused && !disabled;
+  const canStart = checklistDone && beforeProblems.length === 0 && !refused && !disabled && !blockedReason;
 
   const partMetres = partLap.trim() === "" ? 0 : Number(partLap);
   const distance = sixMinuteWalkDistance({ laps, partLapMetres: partMetres });
@@ -334,7 +338,7 @@ export default function SixMinuteWalkGuide({
             onClick={begin}
             className="min-h-[5rem] w-full rounded-2xl bg-teal-700 text-xl font-bold text-white transition hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-teal-600/40 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Start the 6:00 walk
+            {blockedReason ?? "Start the 6:00 walk"}
           </button>
           {!canStart && (
             <p className="text-xs text-slate-600">

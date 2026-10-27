@@ -34,6 +34,7 @@ import {
   setupProgress,
   stepAvailability,
   stepNav,
+  timerStartBlock,
   toolMode,
   toolSlots,
   type CockpitFailure,
@@ -202,6 +203,10 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
   const [busy, setBusy] = useState<"save" | "stop" | "skip" | "end" | null>(null);
   const [failure, setFailure] = useState<CockpitFailure | null>(null);
   const [dialog, setDialog] = useState<"stop" | "skip" | "end" | null>(null);
+  // Stop test: the step it stopped (the dialog asks why afterwards), and a
+  // stop the server has not recorded yet (the patient already has Rest).
+  const [stoppedStepId, setStoppedStepId] = useState<string | null>(null);
+  const [pendingStop, setPendingStop] = useState<{ stepId: string; reason: string | null; failure: CockpitFailure } | null>(null);
   const [ended, setEnded] = useState<{ outcome: "completed" | "abandoned"; reason: EndReason | null; draft: string | null; readable: boolean } | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -415,25 +420,42 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
     }
   }
 
-  async function stopTest(reasonKey: string | null) {
-    if (busy) return;
-    setBusy("stop");
-    setFailure(null);
-    const r = await postEvent({ runId: run.id, stepId: step.id, kind: "stopped", details: reasonKey ? { reason: reasonKey } : {} });
-    setBusy(null);
-    if (!r.ok) {
-      setDialog(null);
-      return setFailure(r.failure);
-    }
-    addEvent(r.data.event);
-    // Throw the reading away: the tool starts again from nothing.
-    setResetKeys((prev) => ({ ...prev, [step.id]: (prev[step.id] ?? 0) + 1 }));
-    setSlotStatus((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => !k.startsWith(`${step.id}|`))));
+  /**
+   * Stop test is an emergency stop: the first tap stops the clock (the tool
+   * starts again from nothing, so a running timer is gone) and puts Rest on
+   * the patient's screen at once. Only then does it ask why, and the answer
+   * is optional; the `stopped` event is written after. A second tap while the
+   * question is open does nothing.
+   */
+  function stopNow() {
+    if (busy || dialog === "stop") return;
+    const id = step.id;
+    setResetKeys((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + 1 }));
+    setSlotStatus((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => !k.startsWith(`${id}|`))));
     if (mode === "red_flags") setAnswers({});
     setTeachPreview(null);
-    setDialog(null);
+    pushDisplay(id, patientControls(step).find((c) => c.key === "rest")!, true);
+    setFailure(null);
     setNotice("Stopped. Nothing from that attempt was kept.");
-    pushDisplay(step.id, patientControls(step).find((c) => c.key === "rest")!, true);
+    setStoppedStepId(id);
+    setDialog("stop");
+  }
+
+  /** Writes the stop (with its optional reason). A failure keeps the stop
+   *  waiting with a retry: the patient already has Rest either way. */
+  async function recordStop(stepId: string, reasonKey: string | null) {
+    if (busy === "stop") return;
+    setBusy("stop");
+    const r = await postEvent({ runId: run.id, stepId, kind: "stopped", details: reasonKey ? { reason: reasonKey } : {} });
+    setBusy(null);
+    setDialog(null);
+    setStoppedStepId(null);
+    if (!r.ok) {
+      setPendingStop({ stepId, reason: reasonKey, failure: r.failure });
+      return;
+    }
+    setPendingStop(null);
+    addEvent(r.data.event);
     router.refresh();
   }
 
@@ -469,6 +491,7 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
   function onTimerEvent(event: TimerClockEvent) {
     pushDisplay(step.id, displayForTimerEvent(step, event), true);
   }
+  const startBlocked = timerStartBlock(protocol, step, preExercise, tickedSet);
 
   const flagged = redFlagsRaised(state);
   const safetyChip = !state.redFlags
@@ -510,6 +533,12 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
 
       {!ended && <StepBar items={nav} onPick={openStep} />}
 
+      {!ended && (
+        <p data-testid="stop-at-once" className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-[13px] leading-snug text-amber-950 sm:text-sm">
+          <strong>Stop at once if</strong> {protocol.stopAtOnce.map((s) => s.toLowerCase()).join(", ")}.
+        </p>
+      )}
+
       {preExercise === "stop" && (
         <p role="alert" data-testid="no-exercise-banner" className="rounded-xl border-2 border-red-600 bg-red-50 px-4 py-3 text-[15px] font-semibold text-red-950">
           The resting check says not to exercise today. Skip the exercise steps and contact the patient{"'"}s doctor.
@@ -532,7 +561,9 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
           ) : (
             <>
               <StepCard
+                key={step.id}
                 step={step}
+                helperCarried={[...state.helperConfirmed].some((id) => id !== step.id)}
                 number={stepNumber}
                 total={protocol.steps.length}
                 ticked={tickedSet}
@@ -570,6 +601,7 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
                     onRegister: registerSlot,
                     onStatus: statusSlot,
                     onTimerEvent: onTimerEvent,
+                    startBlocked,
                   }}
                   layer={{ patientId: patient.id, patientName: patient.name, runStartedAt: run.startedAt, onRecord: recordLayer }}
                   teach={{
@@ -607,6 +639,23 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
                     {failure.fix && <span className="mt-0.5 block font-bold">{failure.fix}</span>}
                   </p>
                 )}
+                {pendingStop && (
+                  <div role="alert" data-testid="stop-not-recorded" className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-[15px] text-amber-950">
+                    <p className="font-semibold">
+                      {firstName}
+                      {"'"}s screen says Rest, but the stop is not on the record yet. {pendingStop.failure.message}
+                    </p>
+                    <button
+                      type="button"
+                      data-testid="stop-retry"
+                      disabled={busy === "stop"}
+                      onClick={() => void recordStop(pendingStop.stepId, pendingStop.reason)}
+                      className="mt-2 min-h-[44px] rounded-xl border border-amber-500 bg-white px-4 text-sm font-bold text-amber-950 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600 disabled:opacity-60"
+                    >
+                      Record the stop again
+                    </button>
+                  </div>
+                )}
                 {!failure && notice && (
                   <p data-testid="cockpit-notice" className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-[15px] font-semibold text-slate-900">
                     {notice}
@@ -621,9 +670,17 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
                 busy={!!busy}
                 primaryLabel={primaryLabel}
                 note={note}
-                onStop={() => setDialog("stop")}
+                onStop={stopNow}
                 onSkip={() => setDialog("skip")}
                 onSave={() => void save()}
+                screen={{
+                  firstName,
+                  controls: patientControls(step),
+                  active: patientScreen.activeControl,
+                  status: patientScreen.status,
+                  onControl: (c) => pushDisplay(step.id, c, true),
+                  onRetry: patientScreen.retry,
+                }}
               />
             </>
           )}
@@ -646,30 +703,24 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
                 }
                 view={ended ? null : patientScreen.view}
                 serverOffsetMs={patientScreen.offsetMs}
-                controls={patientControls(step)}
-                activeControl={ended ? null : patientScreen.activeControl}
                 status={patientScreen.status}
-                onControl={(c) => pushDisplay(step.id, c, true)}
                 onRetry={patientScreen.retry}
               />
-              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3.5 text-sm leading-relaxed text-amber-950" data-testid="stop-at-once">
-                <strong>Stop at once if</strong> {protocol.stopAtOnce.map((s) => s.toLowerCase()).join(", ")}.
-              </div>
             </div>
           </Disclosure>
         </aside>
       </div>
 
-      {dialog === "stop" && (
+      {dialog === "stop" && stoppedStepId && (
         <ReasonDialog
-          title="Stop this test?"
-          body="The reading from this attempt is thrown away. Nothing from it is saved."
+          title="Test stopped"
+          body={`The clock is stopped and ${firstName}'s screen says Rest. Nothing from this attempt is kept. Why did you stop? (optional)`}
           options={STOP_OPTIONS}
-          noReasonLabel="Stop test, no reason"
-          confirmTone="danger"
+          noReasonLabel="No reason"
+          cancelLabel={null}
           busy={busy === "stop"}
-          onPick={(key) => void stopTest(key)}
-          onClose={() => setDialog(null)}
+          onPick={(key) => void recordStop(stoppedStepId, key)}
+          onClose={() => void recordStop(stoppedStepId, null)}
         />
       )}
       {dialog === "skip" && (
