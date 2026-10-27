@@ -422,6 +422,13 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   user-facing exam figure goes through `formatPainOutOfTen()`
   (`painMap.ts`). Storage is unchanged - this is display only, and new
   surfaces must use the helper rather than printing `pain_percent`.
+  **Entering it is eleven buttons, 0 to 10** (`PainScaleButtons`,
+  `painScale.ts`), each at least 44px, in the Pain Map exam dialog and the
+  guided assessment's pain step alike, stored times ten exactly as the old
+  slider's stops were; an older in-between reading (34) is still shown as
+  3.4/10, never rounded onto a button. Nothing is preselected: the slider
+  sat at 0 and saved "no pain" for an area nobody had scored, so the dialog
+  now asks for the number before it saves.
 - **A permission gate belongs beside the thing it gates.** The therapist's
   "Request access to edit" card sat three sections above the Pain Map, the
   only thing it unlocks; it is now inside that card, stating what is
@@ -1504,7 +1511,12 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      Stop test - never while typing, with a dialog open, on a key repeat or
      with a modifier (`cockpitShortcut`) - and the counter takes the focus
      when it starts, so Space or Enter counts a stand; a one-line hint sits
-     under the bar. **Non-safety facts are asked once and carried:** ON or
+     under the bar. **The pain step is a quick score:** the area starts on the
+     latest exam's, else the worst intake area, else the protocol's joint
+     (`painStepStartArea`), the side where it has two, then the eleven 0-10
+     buttons; Save and next records it as a Pain Map reading and names it in
+     the `saved` event. *Add detail on the Pain Map* (the full exam dialog,
+     opened on that area) is optional. **Non-safety facts are asked once and carried:** ON or
      OFF with the last dose, the side and active or passive start the next
      step's recorder (`CarriedFacts`, `mergeCarried`), the medication shown as
      *ON, last dose 08:30 · Change*; a safety fact never is - the helper item

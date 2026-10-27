@@ -19,6 +19,8 @@ import {
   type PainMapRegionKey,
   type QuestionOverrideRow,
 } from "@/lib/painMap";
+import { painChangeWords, painPercentFromScore } from "@/lib/painScale";
+import PainScaleButtons from "@/components/profile/PainScaleButtons";
 
 const BAND_STYLE: Record<string, string> = {
   low: "bg-emerald-100 text-emerald-700",
@@ -60,7 +62,12 @@ export default function PainExamDialog({
   const [region, setRegion] = useState<PainMapRegionKey | null>(initialRegion ?? null);
   const [side, setSide] = useState<"left" | "right">(initialSide ?? "left");
   const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [painPercent, setPainPercent] = useState(0);
+  // The overall pain, picked on the eleven 0-10 buttons and stored times
+  // ten. Nothing is picked until someone taps: the old slider sat at 0 and
+  // saved "no pain" for an area nobody had scored.
+  const [painScore, setPainScore] = useState<number | null>(null);
+  const painPercent = painScore === null ? null : painPercentFromScore(painScore);
+  const painLabelId = useId();
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
@@ -92,11 +99,15 @@ export default function PainExamDialog({
   function pickRegion(next: PainMapRegionKey) {
     setRegion(next);
     setAnswers({});
-    setPainPercent(0);
+    setPainScore(null);
   }
 
   function submit() {
     if (!region) return;
+    if (painPercent === null) {
+      setError("Choose the overall pain for this area, 0 to 10.");
+      return;
+    }
     setError(null);
     startTransition(async () => {
       const res = await fetch(endpoint, {
@@ -318,42 +329,18 @@ export default function PainExamDialog({
                 ))}
 
                 <section className="rounded-xl border border-slate-200 p-4">
-                  <label className="mb-1 block text-sm font-bold text-slate-800">
-                    Overall pain for this area
-                  </label>
-                  {/* Stored as a percentage, but the patient reports their own
-                      pain out of ten and sees both figures side by side in the
-                      comparison view -- so the /10 equivalent is shown here
-                      rather than leaving the clinician to convert in their
-                      head and the two scales to look like a discrepancy. */}
-                  <p className="mb-3 text-[11px] text-slate-500">
-                    Shown out of ten, the same way the patient rates their own pain. Stored as the
-                    percentage beside it, which is what past readings use.
+                  <p id={painLabelId} className="mb-1 block text-sm font-bold text-slate-800">
+                    Overall pain for this area, 0 to 10
                   </p>
-                  <div className="flex items-center gap-4">
-                    <input
-                      type="range"
-                      min={0}
-                      max={100}
-                      value={painPercent}
-                      onChange={(e) => setPainPercent(Number(e.target.value))}
-                      className="flex-1"
-                    />
-                    <span className="w-28 shrink-0 text-right text-sm font-bold text-slate-800">
-                      {formatPainOutOfTen(painPercent)}
-                      <span className="ml-1.5 font-normal text-slate-500">{painPercent}%</span>
-                    </span>
-                  </div>
-                  <p className="mt-2 text-[11px] font-semibold text-slate-500">
-                    {PAIN_BAND_LABEL[painBand(painPercent)]}
-                    {previous && (
-                      <span className="ml-2 font-normal text-slate-500">
-                        {painPercent === previous.pain_percent
-                          ? "Same as last time"
-                          : painPercent < previous.pain_percent
-                          ? `Down ${previous.pain_percent - painPercent} points from last time`
-                          : `Up ${painPercent - previous.pain_percent} points from last time`}
-                      </span>
+                  {/* The same eleven buttons as the guided assessment's pain
+                      step: out of ten, the way the patient rates their own
+                      pain, and stored times ten as every reading is. */}
+                  <p className="mb-3 text-[13px] text-slate-600">Tap the number the patient gives: 0 is no pain, 10 the worst they can imagine.</p>
+                  <PainScaleButtons value={painScore} onChange={(n) => { setPainScore(n); setError(null); }} labelledBy={painLabelId} />
+                  <p className="mt-2 text-[13px] font-semibold text-slate-600">
+                    {painPercent === null ? "Not scored yet." : `${formatPainOutOfTen(painPercent)} · ${PAIN_BAND_LABEL[painBand(painPercent)]}`}
+                    {previous && painPercent !== null && (
+                      <span className="ml-2 font-normal text-slate-600">{painChangeWords(previous.pain_percent, painPercent)}</span>
                     )}
                   </p>
                 </section>
@@ -382,6 +369,7 @@ export default function PainExamDialog({
                   type="button"
                   onClick={submit}
                   disabled={isPending}
+                  data-testid="pain-exam-save"
                   className="rounded-xl bg-teal-700 px-5 py-2 text-xs font-semibold text-white transition hover:bg-teal-800 disabled:opacity-60"
                 >
                   {isPending ? "Saving…" : "Save exam"}

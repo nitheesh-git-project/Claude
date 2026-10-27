@@ -48,6 +48,7 @@ import type { ProfileKind } from "@/lib/outcomeMeasures";
 import type { MeasurementPoint, MeasureSeries } from "@/lib/outcomeSeries";
 import { sessionProtocol } from "@/lib/sessionProtocols";
 import type { ContraFlag } from "@/lib/exerciseLibrary";
+import type { AreaPainEntry } from "@/lib/conditionIntake";
 import type { TeachingEvent } from "@/lib/exercisePlan";
 import { addTeachMark, teachMissing } from "@/lib/teachTool";
 import type { TeachPlan } from "@/components/therapist/assessment/teach/TeachTool";
@@ -60,6 +61,7 @@ import StepBar from "@/components/therapist/assessment/StepBar";
 import StepCard from "@/components/therapist/assessment/StepCard";
 import ToolArea from "@/components/therapist/assessment/ToolArea";
 import { postEnd, postEvent } from "@/components/therapist/assessment/api";
+import type { QuickPainSave } from "@/components/therapist/assessment/LayerTool";
 import { useDisplaySender } from "@/components/therapist/assessment/useDisplaySender";
 
 function mergeById<T extends { id: string }>(fromServer: readonly T[], local: readonly T[]): T[] {
@@ -102,6 +104,8 @@ export type CockpitProps = {
   enabledLicensed: string[];
   licenceUnreadable: boolean;
   chartHref: string;
+  /** The areas the patient marked in their intake (orthopaedic): the pain step starts on the worst. */
+  intakeAreas?: AreaPainEntry[];
   /** The patient's active home exercise plan and this run's marks (phase 7d). */
   exercises: {
     loadStatus: "ok" | "not_migrated" | "unreadable";
@@ -173,6 +177,10 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
   // --- Where the person is and what they have entered --------------------------------------
   const [currentId, setCurrentId] = useState(() => firstOpenStepId(protocol, state));
   const step = currentStep(protocol, currentId);
+  const currentIdRef = useRef(currentId);
+  useEffect(() => {
+    currentIdRef.current = currentId;
+  });
   const stepNumber = protocol.steps.findIndex((s) => s.id === step.id) + 1;
   const mode = toolMode(step);
   const availability = stepAvailability(protocol, state, step);
@@ -203,6 +211,17 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
   const [carried, setCarried] = useState<CarriedFacts>(NO_CARRIED_FACTS);
   const onCarry = useCallback((facts: CarriedFacts) => setCarried((prev) => mergeCarried(prev, facts)), []);
   const [layerRecord, setLayerRecord] = useState<{ stepId: string; id: string | null; missing: string | null } | null>(null);
+  // The pain step's quick score (B4): its save, run by Save and next, and
+  // which step it belongs to. Null when no number is picked.
+  const quickPain = useRef<{ stepId: string; save: QuickPainSave } | null>(null);
+  const [quickPainStep, setQuickPainStep] = useState<string | null>(null);
+  const onQuickPain = useCallback(
+    (save: QuickPainSave | null) => {
+      quickPain.current = save ? { stepId: currentIdRef.current, save } : null;
+      setQuickPainStep(save ? currentIdRef.current : null);
+    },
+    []
+  );
   function recordLayer(id: string | null, missing: string | null) {
     setLayerRecord((prev) => (prev && prev.stepId === step.id && prev.id === id && prev.missing === missing ? prev : { stepId: step.id, id, missing }));
   }
@@ -270,8 +289,9 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
     }
   } else if (mode === "layer") {
     const rec = layerRecord && layerRecord.stepId === step.id ? layerRecord : null;
-    resultReady = !!rec?.id;
-    resultMissing = rec?.missing ?? null;
+    const quick = quickPainStep === step.id;
+    resultReady = !!rec?.id || quick;
+    resultMissing = quick ? null : rec?.missing ?? null;
   } else if (mode === "teach") {
     const planKeys = teachPlan ? teachPlan.items.map((i) => i.exerciseKey) : [];
     const marked = new Set(teachMarks.filter((m) => teachPlan && m.planId === teachPlan.id && m.runId === run.id).map((m) => m.exerciseKey));
@@ -386,7 +406,14 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
           }
         }
       } else if (mode === "layer") {
-        const recordId = layerRecord?.id;
+        let recordId = layerRecord?.stepId === step.id ? layerRecord.id : null;
+        // A pain score picked on the buttons is recorded on the Pain Map first.
+        const quick = quickPain.current && quickPain.current.stepId === step.id ? quickPain.current.save : null;
+        if (quick) {
+          const q = await quick();
+          if (!q.ok) return setFailure(q.failure);
+          recordId = q.id;
+        }
         if (!recordId) return setFailure({ message: layerRecord?.missing ?? "Record the exam first.", fix: null, kind: "refused" });
         const r = await postEvent({ runId: run.id, stepId: step.id, kind: "saved", details: { recordId } });
         if (!r.ok) return setFailure(r.failure);
@@ -643,7 +670,15 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
                     carry: carried,
                     onCarry,
                   }}
-                  layer={{ patientId: patient.id, patientName: patient.name, runStartedAt: run.startedAt, onRecord: recordLayer }}
+                  layer={{
+                    patientId: patient.id,
+                    patientName: patient.name,
+                    runStartedAt: run.startedAt,
+                    onRecord: recordLayer,
+                    onQuick: onQuickPain,
+                    intakeAreas: props.intakeAreas ?? [],
+                    fallbackRegion: protocol.key === "ortho_knee" ? "knee" : null,
+                  }}
                   teach={{
                     runId: run.id,
                     protocol,

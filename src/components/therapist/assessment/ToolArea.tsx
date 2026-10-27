@@ -7,7 +7,8 @@ import type { MeasureSeries } from "@/lib/outcomeSeries";
 import type { TimerClockEvent } from "@/lib/timerClock";
 import { toolMode, toolSlots, type CarriedFacts } from "@/lib/cockpit";
 import type { ProtocolStep } from "@/lib/sessionProtocols";
-import LayerTool from "@/components/therapist/assessment/LayerTool";
+import LayerTool, { type QuickPainSave } from "@/components/therapist/assessment/LayerTool";
+import type { AreaPainEntry } from "@/lib/conditionIntake";
 import RedFlagsTool from "@/components/therapist/assessment/RedFlagsTool";
 import SlotRecorder from "@/components/therapist/assessment/SlotRecorder";
 import TeachTool from "@/components/therapist/assessment/teach/TeachTool";
@@ -65,7 +66,15 @@ export default function ToolArea({
     carry: CarriedFacts;
     onCarry: (facts: CarriedFacts) => void;
   };
-  layer: { patientId: string; patientName: string; runStartedAt: string; onRecord: (recordId: string | null, missing: string | null) => void };
+  layer: {
+    patientId: string;
+    patientName: string;
+    runStartedAt: string;
+    onRecord: (recordId: string | null, missing: string | null) => void;
+    onQuick: (save: QuickPainSave | null) => void;
+    intakeAreas: AreaPainEntry[];
+    fallbackRegion: string | null;
+  };
   /** The Home exercises step's tool: everything the cockpit holds for it. */
   teach: ComponentProps<typeof TeachTool>;
   summaryLine: string;
@@ -90,6 +99,9 @@ export default function ToolArea({
         runStartedAt={layer.runStartedAt}
         disabled={false}
         onRecord={layer.onRecord}
+        onQuick={step.layer === "pain_map" ? layer.onQuick : undefined}
+        intakeAreas={layer.intakeAreas}
+        fallbackRegion={layer.fallbackRegion}
       />
     );
   }
