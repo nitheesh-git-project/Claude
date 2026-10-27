@@ -123,9 +123,9 @@ export async function POST(request: NextRequest) {
         error:
           active.run.therapistId === therapistId
             ? "An assessment is already in progress for this patient. Carry on with it, or end it first."
-            : "Another physiotherapist has an assessment in progress for this patient.",
+            : "Another physiotherapist has an assessment in progress for this patient. If it was left open, you can end it.",
         code: "run_in_progress",
-        runId: active.run.therapistId === therapistId ? active.run.id : null,
+        runId: active.run.id,
         protocolKey: active.run.protocolKey,
         startedAt: active.run.startedAt,
         yours: active.run.therapistId === therapistId,

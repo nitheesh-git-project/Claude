@@ -5,7 +5,7 @@ import { useState } from "react";
 import Spinner from "@/components/system/Spinner";
 import { useRouter } from "@/lib/useRouter";
 import { failureText, type CockpitFailure } from "@/lib/cockpit";
-import { startRun } from "@/components/therapist/assessment/api";
+import { postEnd, startRun } from "@/components/therapist/assessment/api";
 
 /**
  * Before a run exists: what is about to start, and one big button. The start
@@ -33,6 +33,8 @@ export default function StartPanel({
   const [protocolKey, setProtocolKey] = useState(protocols[0]?.key ?? "");
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<CockpitFailure | null>(null);
+  // Another physiotherapist's run left open: any assigned physiotherapist may end it.
+  const [stuckRunId, setStuckRunId] = useState<string | null>(null);
 
   async function start() {
     if (busy) return;
@@ -42,6 +44,21 @@ export default function StartPanel({
     if (result.ok || ("conflict" in result && result.conflict.yours)) {
       // Started, or already yours and open: either way the page now holds the run.
       router.refresh();
+      return;
+    }
+    setFailure(result.failure);
+    setStuckRunId("conflict" in result ? result.conflict.runId : null);
+    setBusy(false);
+  }
+
+  async function endStuck() {
+    if (busy || !stuckRunId) return;
+    setBusy(true);
+    const result = await postEnd({ runId: stuckRunId, outcome: "abandoned", reason: "other" });
+    if (result.ok) {
+      setStuckRunId(null);
+      setFailure(null);
+      setBusy(false);
       return;
     }
     setFailure(result.failure);
@@ -86,6 +103,17 @@ export default function StartPanel({
         <p role="alert" data-testid="start-failure" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-900">
           {failureText(failure)}
         </p>
+      )}
+      {stuckRunId && (
+        <button
+          type="button"
+          data-testid="end-stuck-assessment"
+          onClick={() => void endStuck()}
+          disabled={busy}
+          className="inline-flex min-h-[48px] w-full items-center justify-center rounded-xl border border-amber-400 bg-amber-50 px-5 text-base font-semibold text-amber-900 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600 disabled:opacity-60"
+        >
+          End the open assessment, then start yours
+        </button>
       )}
       <div className="flex flex-wrap gap-3">
         <button

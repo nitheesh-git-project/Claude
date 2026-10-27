@@ -1449,7 +1449,7 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   6. **Routes.** `/api/therapist/assessment-runs/start` (the protocol from the
      server-derived profile kind; `protocolKey` only chooses among that kind's;
      a linked session must be this therapist's video session; a second start
-     is 409 `run_in_progress` with the open run), `/event`, `/display`, `/end`
+     is 409 `run_in_progress` with the open run; its `runId` goes to any assigned physiotherapist, and the start screen offers "End the open assessment" for another's left open), `/event`, `/display`, `/end`
      (completed, or abandoned with a fixed reason). All take the
      assigned-therapist and started-session gate on the debug clock - except
      **abandoning**, which only asks for the run's owner or a therapist now
