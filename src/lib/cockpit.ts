@@ -476,3 +476,39 @@ export function cockpitShortcut(
   if (event.key === "n" || event.key === "N") return "save";
   return null;
 }
+
+// --- Facts carried from step to step (B6) -------------------------------------------------------------
+
+/** What does not change between one test and the next in a run, so it is
+ *  asked once and carried: ON or OFF and the last dose on a Parkinson's run,
+ *  the side being tested and active or passive. Never a safety fact (the
+ *  helper is ticked again on every step that needs one). */
+export type CarriedFacts = {
+  medicationState: "" | "on" | "off";
+  lastDoseTime: string;
+  side: "" | "left" | "right";
+  jointMode: "" | "active" | "passive";
+};
+
+export const NO_CARRIED_FACTS: CarriedFacts = { medicationState: "", lastDoseTime: "", side: "", jointMode: "" };
+
+/** A step's answers folded into what is carried: a blank never wipes an
+ *  answer given earlier. Returns the same object when nothing changed. */
+export function mergeCarried(prev: CarriedFacts, next: Partial<CarriedFacts>): CarriedFacts {
+  const out = { ...prev };
+  let changed = false;
+  for (const key of Object.keys(NO_CARRIED_FACTS) as (keyof CarriedFacts)[]) {
+    const value = next[key];
+    if (value && value !== prev[key]) {
+      (out as Record<string, string>)[key] = value;
+      changed = true;
+    }
+  }
+  return changed ? out : prev;
+}
+
+/** "ON, last dose 08:30": the carried medication line; null until both are known. */
+export function carriedMedicationLine(facts: Pick<CarriedFacts, "medicationState" | "lastDoseTime">): string | null {
+  if (!facts.medicationState || !facts.lastDoseTime.trim()) return null;
+  return `${facts.medicationState.toUpperCase()}, last dose ${facts.lastDoseTime.trim()}`;
+}

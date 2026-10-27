@@ -2,7 +2,7 @@
 
 import { displayForTimerEvent, type TimerClockEvent } from "@/lib/timerClock";
 import Link from "next/link";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { EmbeddedHandle, EmbeddedSaveResult, EmbeddedStatus } from "@/components/profile/progress/RecordTestDialog";
 import { useRouter } from "@/lib/useRouter";
 import { useToast } from "@/lib/toast";
@@ -24,6 +24,9 @@ import {
   cockpitFailure,
   cockpitShortcut,
   currentStep,
+  mergeCarried,
+  NO_CARRIED_FACTS,
+  type CarriedFacts,
   exertionBlock,
   firstOpenStepId,
   isLastStep,
@@ -196,6 +199,9 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
       return { ...prev, [key]: status };
     });
   }
+  // ON/OFF and the last dose, the side, active or passive: asked once, carried to the next step.
+  const [carried, setCarried] = useState<CarriedFacts>(NO_CARRIED_FACTS);
+  const onCarry = useCallback((facts: CarriedFacts) => setCarried((prev) => mergeCarried(prev, facts)), []);
   const [layerRecord, setLayerRecord] = useState<{ stepId: string; id: string | null; missing: string | null } | null>(null);
   function recordLayer(id: string | null, missing: string | null) {
     setLayerRecord((prev) => (prev && prev.stepId === step.id && prev.id === id && prev.missing === missing ? prev : { stepId: step.id, id, missing }));
@@ -634,6 +640,8 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
                     onStatus: statusSlot,
                     onTimerEvent: onTimerEvent,
                     startBlocked,
+                    carry: carried,
+                    onCarry,
                   }}
                   layer={{ patientId: patient.id, patientName: patient.name, runStartedAt: run.startedAt, onRecord: recordLayer }}
                   teach={{

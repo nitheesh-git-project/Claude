@@ -156,6 +156,7 @@ import AdminCalendarTab from "@/components/admin/AdminCalendarTab";
 import AdminMetricsTab from "@/components/admin/AdminMetricsTab";
 import QuestionBankManager from "@/components/admin/QuestionBankManager";
 import LicensedMeasureSettings from "@/components/admin/LicensedMeasureSettings";
+import ProfileWidgetSettings from "@/components/admin/ProfileWidgetSettings";
 import SixMinuteWalkEquationSettings from "@/components/admin/SixMinuteWalkEquationSettings";
 import ConditionsListFilter from "@/components/admin/ConditionsListFilter";
 import { parseAreaPain } from "@/lib/conditionIntake";
@@ -5763,6 +5764,9 @@ export default async function AdminDashboardPage({
     "settings:offers": settingsOffersTab,
     "settings:programmes": settingsProgrammesTab,
     "settings:clinical": settingsClinicalTab,
+    // Self-fetching; Settings is Master Admin only and its route is
+    // requireAdminScope("settings").
+    "settings:profile-layout": <ProfileWidgetSettings />,
     "settings:access": settingsAccessTab,
     "settings:health": settingsHealthTab,
     "settings:advanced": settingsAdvancedTab,

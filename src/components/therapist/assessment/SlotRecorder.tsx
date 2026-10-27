@@ -2,6 +2,7 @@
 
 import type { TimerClockEvent } from "@/lib/timerClock";
 import { useCallback } from "react";
+import type { CarriedFacts } from "@/lib/cockpit";
 import RecordTestDialog, { type EmbeddedHandle, type EmbeddedStatus } from "@/components/profile/progress/RecordTestDialog";
 import type { ProfileKind } from "@/lib/outcomeMeasures";
 import type { MeasureSeries } from "@/lib/outcomeSeries";
@@ -31,6 +32,8 @@ export default function SlotRecorder({
   onStatus,
   onTimerEvent,
   startBlocked,
+  carry,
+  onCarry,
 }: {
   slotKey: string;
   measureKey: string;
@@ -50,6 +53,8 @@ export default function SlotRecorder({
   onTimerEvent: (event: TimerClockEvent) => void;
   /** Why the step's timer cannot start yet (cockpit.ts timerStartBlock). */
   startBlocked: string | null;
+  carry: CarriedFacts;
+  onCarry: (facts: CarriedFacts) => void;
 }) {
   const register = useCallback((handle: EmbeddedHandle | null) => onRegister(slotKey, handle), [onRegister, slotKey]);
   const status = useCallback((s: EmbeddedStatus) => onStatus(slotKey, s), [onStatus, slotKey]);
@@ -73,6 +78,8 @@ export default function SlotRecorder({
         onStatus: status,
         onTimerEvent,
         startBlocked,
+        carry,
+        onCarry,
       }}
     />
   );

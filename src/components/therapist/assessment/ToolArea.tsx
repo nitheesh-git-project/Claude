@@ -5,7 +5,7 @@ import type { EmbeddedHandle, EmbeddedStatus } from "@/components/profile/progre
 import { outcomeMeasure, READ_FROM_LABELS, type ProfileKind } from "@/lib/outcomeMeasures";
 import type { MeasureSeries } from "@/lib/outcomeSeries";
 import type { TimerClockEvent } from "@/lib/timerClock";
-import { toolMode, toolSlots } from "@/lib/cockpit";
+import { toolMode, toolSlots, type CarriedFacts } from "@/lib/cockpit";
 import type { ProtocolStep } from "@/lib/sessionProtocols";
 import LayerTool from "@/components/therapist/assessment/LayerTool";
 import RedFlagsTool from "@/components/therapist/assessment/RedFlagsTool";
@@ -61,6 +61,9 @@ export default function ToolArea({
     onTimerEvent: (event: TimerClockEvent) => void;
     /** Why the step's timer cannot start yet; null when it can. */
     startBlocked: string | null;
+    /** ON/OFF and the last dose, the side, active or passive, from earlier steps. */
+    carry: CarriedFacts;
+    onCarry: (facts: CarriedFacts) => void;
   };
   layer: { patientId: string; patientName: string; runStartedAt: string; onRecord: (recordId: string | null, missing: string | null) => void };
   /** The Home exercises step's tool: everything the cockpit holds for it. */
@@ -138,6 +141,8 @@ export default function ToolArea({
               onStatus={measure.onStatus}
               onTimerEvent={measure.onTimerEvent}
               startBlocked={measure.startBlocked}
+              carry={measure.carry}
+              onCarry={measure.onCarry}
             />
           </div>
         );

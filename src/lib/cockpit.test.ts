@@ -16,6 +16,9 @@ import {
   stepAvailability,
   stepNav,
   cockpitShortcut,
+  carriedMedicationLine,
+  mergeCarried,
+  NO_CARRIED_FACTS,
   timerStartBlock,
   toolMode,
   toolSlots,
@@ -304,5 +307,20 @@ describe("the cockpit's keys (B7)", () => {
     expect(cockpitShortcut(key("Escape"), button, true)).toBeNull();
     expect(cockpitShortcut(key("Escape", { repeat: true }), button, false)).toBeNull();
     expect(cockpitShortcut(key("n", { metaKey: true }), button, false)).toBeNull();
+  });
+});
+
+describe("facts carried from step to step (B6)", () => {
+  it("keeps what was answered and never wipes it with a blank", () => {
+    const a = mergeCarried(NO_CARRIED_FACTS, { medicationState: "on", lastDoseTime: "08:30" });
+    expect(a).toMatchObject({ medicationState: "on", lastDoseTime: "08:30", side: "" });
+    expect(mergeCarried(a, { medicationState: "", side: "" })).toBe(a);
+    expect(mergeCarried(a, { side: "left" })).toMatchObject({ medicationState: "on", side: "left" });
+    expect(mergeCarried(a, { medicationState: "off" }).medicationState).toBe("off");
+  });
+  it("says the medication line only when both halves are known", () => {
+    expect(carriedMedicationLine({ medicationState: "on", lastDoseTime: "08:30" })).toBe("ON, last dose 08:30");
+    expect(carriedMedicationLine({ medicationState: "off", lastDoseTime: "" })).toBeNull();
+    expect(carriedMedicationLine({ medicationState: "", lastDoseTime: "08:30" })).toBeNull();
   });
 });

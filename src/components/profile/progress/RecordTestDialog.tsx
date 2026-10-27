@@ -21,6 +21,7 @@ import { afterWalkReadings, restingReadings, unsavedBloodPressure } from "@/lib/
 import AngleTool from "@/components/profile/progress/angle/AngleTool";
 import { canMeasureFromImage } from "@/lib/angleMeasure";
 import type { TimerClockEvent } from "@/lib/timerClock";
+import { carriedMedicationLine, type CarriedFacts } from "@/lib/cockpit";
 import TapTimer from "@/components/profile/progress/timers/TapTimer";
 import { useDialogChrome } from "@/lib/useDialogChrome";
 import { useRouter } from "@/lib/useRouter";
@@ -110,6 +111,12 @@ export type EmbeddedRecorder = {
   /** Why the timer cannot start yet ("Tick the helper first"); said on its
    *  Start button, which stays off. Null when it can (cockpit.ts timerStartBlock). */
   startBlocked?: string | null;
+  /** What earlier steps of the run already answered (ON or OFF and the last
+   *  dose, the side, active or passive): the recorder starts on them and the
+   *  medication shows as one line with Change (cockpit.ts CarriedFacts). */
+  carry?: CarriedFacts;
+  /** Hands the cockpit what this step answered, to carry to the next. */
+  onCarry?: (facts: CarriedFacts) => void;
 };
 
 /** "How it was done": a section in the dialog, and a folded-away one inside a
@@ -246,18 +253,30 @@ export default function RecordTestDialog({
   const startingChoice = useMemo(() => startingVariant(startKey, embedded?.variants), [startKey, embedded?.variants]);
   const allowedVariants = embedded?.variants ?? null;
   const [measureKey, setMeasureKey] = useState(startKey);
-  const [variant, setVariant] = useState(startingChoice.variant);
+  // Read once, when the step opens: what this step answers is carried to the
+  // next one, never back into this one's layout while it is being typed.
+  const [carry] = useState(embedded?.carry);
+  // A mode carried from an earlier step, where this step allows it.
+  const carriedMode =
+    !startingChoice.mode && startingChoice.movement && carry?.jointMode && (!embedded?.variants || embedded.variants.includes(joinJointVariant(startingChoice.movement, carry.jointMode)))
+      ? carry.jointMode
+      : "";
+  const [variant, setVariant] = useState(startingChoice.variant || (carriedMode ? joinJointVariant(startingChoice.movement, carriedMode) : ""));
   // Goniometry stores the movement and its mode in one variant string; the
   // screen asks for them as two answers (jointLandmarks.ts joins them).
   const [jointMovement, setJointMovement] = useState(startingChoice.movement);
-  const [jointMode, setJointMode] = useState<JointMode | "">(startingChoice.mode);
-  const [side, setSide] = useState<"" | "left" | "right">("");
+  const [jointMode, setJointMode] = useState<JointMode | "">(startingChoice.mode || carriedMode);
+  const [side, setSide] = useState<"" | "left" | "right">(carry?.side ?? "");
   const [editor, setEditor] = useState<EditorState>(() => emptyEditorState(startKey ? outcomeMeasure(startKey) : null));
   const [useTimer, setUseTimer] = useState(true);
   const [timerRun, setTimerRun] = useState(0);
   const [walks, setWalks] = useState<SixMinuteWalkResult[]>([]);
   const [timerFlag, setTimerFlag] = useState(false);
-  const [condState, setCondState] = useState<ConditionDraft>(initialConditions ?? EMPTY_CONDITION_DRAFT);
+  const [condState, setCondState] = useState<ConditionDraft>(
+    () => initialConditions ?? (carry ? { ...EMPTY_CONDITION_DRAFT, medicationState: carry.medicationState, lastDoseTime: carry.lastDoseTime } : EMPTY_CONDITION_DRAFT)
+  );
+  // ON/OFF carried from an earlier step shows as one line until Change.
+  const [medicationOpen, setMedicationOpen] = useState(() => !carry || !carriedMedicationLine(carry));
   // Inside a run the test is taken over video, at the patient's home, with the
   // step's helper, and the vital signs read off the patient's own device on
   // camera: none of that is a choice.
@@ -545,6 +564,14 @@ export default function RecordTestDialog({
   useEffect(() => {
     onStatus?.({ hasResult: hasResultNow, missing: missingNow, saved: savedOnce });
   }, [onStatus, hasResultNow, missingNow, savedOnce]);
+  // What this step answered goes back to the cockpit to carry to the next
+  // (a half-typed dose time is not carried).
+  const onCarry = embedded?.onCarry;
+  const doseNow = /^[0-2][0-9]:[0-5][0-9]$/.test(cond.lastDoseTime.trim()) ? cond.lastDoseTime.trim() : "";
+  const medNow = cond.medicationState;
+  useEffect(() => {
+    onCarry?.({ medicationState: medNow, lastDoseTime: doseNow, side, jointMode });
+  }, [onCarry, medNow, doseNow, side, jointMode]);
 
   // --- The result section -----------------------------------------------------------------------
 
@@ -804,10 +831,62 @@ export default function RecordTestDialog({
   // the score) comes straight under the script and "How it was done" folds
   // in after it -- unless a detail there is required (ON or OFF), which is
   // answered first.
-  const resultFirst = !!embedded && !fields?.medication;
+  // ON/OFF carried from an earlier step of the run: one line above the
+  // result ("ON, last dose 08:30 · Change"), the fields only after Change.
+  const medicationOutside = !!embedded && !!carry && !!carriedMedicationLine(carry);
+  const medicationFields = (
+                    <div className="space-y-2 rounded-xl border border-violet-200 bg-violet-50/50 p-3">
+                      <fieldset>
+                        <legend className="text-sm font-semibold text-slate-900">Medication state (required)</legend>
+                        <div className="mt-1 flex gap-2">
+                          {radio("med", "on", cond.medicationState, "ON", () => patchCond({ medicationState: "on" }))}
+                          {radio("med", "off", cond.medicationState, "OFF", () => patchCond({ medicationState: "off" }))}
+                        </div>
+                      </fieldset>
+                      <div>
+                        <label htmlFor={`${baseId}-dose`} className="block text-sm font-semibold text-slate-900">
+                          Time of the last dose, 24-hour (clinic time, today)
+                        </label>
+                        <input
+                          id={`${baseId}-dose`}
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="08:30"
+                          maxLength={5}
+                          pattern="[0-2][0-9]:[0-5][0-9]"
+                          value={cond.lastDoseTime}
+                          onChange={(e) => patchCond({ lastDoseTime: e.target.value })}
+                          className={`mt-1 max-w-[10rem] ${FIELD}`}
+                        />
+                        <p className="mt-1 text-xs text-slate-600">
+                          ON and OFF readings are drawn as separate lines, so they are never compared with each other.
+                        </p>
+                      </div>
+                    </div>
+  );
+  const medicationLine = carriedMedicationLine({ medicationState: cond.medicationState, lastDoseTime: cond.lastDoseTime });
+  const carriedMedication =
+    fields?.medication && medicationOutside ? (
+      medicationOpen || !medicationLine ? (
+        medicationFields
+      ) : (
+        <p data-testid="carried-medication" className="flex min-h-[44px] flex-wrap items-center gap-x-2 rounded-xl border border-violet-200 bg-violet-50/50 px-3 text-sm text-slate-900">
+          <span className="font-semibold">{medicationLine}</span>
+          <span aria-hidden="true">·</span>
+          <button
+            type="button"
+            onClick={() => setMedicationOpen(true)}
+            className="min-h-[44px] font-semibold text-teal-800 underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
+          >
+            Change
+          </button>
+        </p>
+      )
+    ) : null;
+  const resultFirst = !!embedded && (!fields?.medication || medicationOutside);
   const howItWasDone =
     measure && fields ? (
-                <HowItWasDone embedded={!!embedded} openByDefault={!!fields.medication}>
+                <HowItWasDone embedded={!!embedded} openByDefault={!!fields.medication && !medicationOutside}>
 
                   {!embedded && (
                   <fieldset>
@@ -888,36 +967,7 @@ export default function RecordTestDialog({
                     <p className="text-xs text-slate-600">Over video, the parent does the activity with the child while you watch.</p>
                   )}
 
-                  {fields.medication && (
-                    <div className="space-y-2 rounded-xl border border-violet-200 bg-violet-50/50 p-3">
-                      <fieldset>
-                        <legend className="text-sm font-semibold text-slate-900">Medication state (required)</legend>
-                        <div className="mt-1 flex gap-2">
-                          {radio("med", "on", cond.medicationState, "ON", () => patchCond({ medicationState: "on" }))}
-                          {radio("med", "off", cond.medicationState, "OFF", () => patchCond({ medicationState: "off" }))}
-                        </div>
-                      </fieldset>
-                      <div>
-                        <label htmlFor={`${baseId}-dose`} className="block text-sm font-semibold text-slate-900">
-                          Time of the last dose, 24-hour (clinic time, today)
-                        </label>
-                        <input
-                          id={`${baseId}-dose`}
-                          type="text"
-                          inputMode="numeric"
-                          placeholder="08:30"
-                          maxLength={5}
-                          pattern="[0-2][0-9]:[0-5][0-9]"
-                          value={cond.lastDoseTime}
-                          onChange={(e) => patchCond({ lastDoseTime: e.target.value })}
-                          className={`mt-1 max-w-[10rem] ${FIELD}`}
-                        />
-                        <p className="mt-1 text-xs text-slate-600">
-                          ON and OFF readings are drawn as separate lines, so they are never compared with each other.
-                        </p>
-                      </div>
-                    </div>
-                  )}
+                  {fields.medication && !medicationOutside && medicationFields}
 
                   <div className="grid gap-3 sm:grid-cols-2">
                     {fields.walkingAid && (
@@ -1199,6 +1249,7 @@ export default function RecordTestDialog({
 
             {measure && fields && (
               <>
+                {carriedMedication}
                 {!resultFirst && howItWasDone}
 
                 {/* 3. The result */}

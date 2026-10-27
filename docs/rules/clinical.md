@@ -1504,7 +1504,12 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      Stop test - never while typing, with a dialog open, on a key repeat or
      with a modifier (`cockpitShortcut`) - and the counter takes the focus
      when it starts, so Space or Enter counts a stand; a one-line hint sits
-     under the bar. The tool is the
+     under the bar. **Non-safety facts are asked once and carried:** ON or
+     OFF with the last dose, the side and active or passive start the next
+     step's recorder (`CarriedFacts`, `mergeCarried`), the medication shown as
+     *ON, last dose 08:30 · Change*; a safety fact never is - the helper item
+     is ticked on every step that has one, worded *Helper still beside them*
+     once a helper was ticked earlier in the run. The tool is the
      existing recorder inline (`RecordTestDialog` with `embedded`: the same
      timers, score sheet and angle tool, the test and its variants chosen by
      the step, always over video, the vitals marked *read off the patient's own

@@ -412,6 +412,15 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
           "The questions a patient answers about their condition, the ones a therapist fills in after an exam, which paid-for assessment scales your therapists may use, and the six-minute walk's predicted-distance formula.",
         example: "Reword the question that asks how long the pain has lasted, or switch on a scale once the clinic holds its licence.",
       },
+      // What a patient's own Health Profile shows, per condition type. One
+      // patient's own choice lives on their record (People), not here.
+      {
+        key: "profile-layout",
+        label: "Health Profile layout",
+        group: "How the clinic runs",
+        blurb: "Which sections a patient sees on their own Health Profile, for each condition type.",
+        example: "Hide the measures table from every orthopaedic patient's page, while their physiotherapist still sees it.",
+      },
       {
         key: "access",
         label: "User Access",
