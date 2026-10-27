@@ -12,7 +12,7 @@ import { DEFAULT_ADMIN_SETTINGS, parseBookingLanguages } from "@/lib/adminSettin
 
 export const metadata: Metadata = {
   title: "Book a Session | MoveRestore",
-  description: "Book your virtual physical therapy session.",
+  description: "Book a video physiotherapy session.",
 };
 
 // createPublicClient() never touches cookies(), so this page ISR-caches the
@@ -34,6 +34,7 @@ export default async function BookPage() {
     { data: cancelRow },
     { data: leadRow },
     { data: triesRow },
+    { data: joinRow },
     defaultServiceRead,
   ] = await Promise.all([
     // `description` and `points` are what the service picker's cards and
@@ -95,6 +96,12 @@ export default async function BookPage() {
     // loses this value (the default stands), not the page.
     supabase.from("site_settings").select("payment_tries_before_access").maybeSingle(),
 
+    // How many minutes before a session the Join button opens, quoted on
+    // the confirmation ("your video link appears on Home 15 minutes
+    // before"). Its own query, like the rest: losing it costs the number
+    // (the default stands), not the page.
+    supabase.from("site_settings").select("join_window_minutes").maybeSingle(),
+
     // The service switched on as "Default on booking" (Catalog ->
     // Conditions). Its own query: on a database without `is_default` yet it
     // fails alone, and the wizard falls back to the general consultation
@@ -132,8 +139,8 @@ export default async function BookPage() {
             Book Your Session
           </h1>
           <p className="text-slate-600 text-sm mt-1.5">
-            A few quick steps - pick a time, tell us what&apos;s going on, and
-            you&apos;re booked.
+            A few quick steps - choose a time to request, tell us what&apos;s
+            going on, and the clinic confirms it.
           </p>
         </Reveal>
         <Suspense fallback={null}>
@@ -161,6 +168,11 @@ export default async function BookPage() {
                 : DEFAULT_ADMIN_SETTINGS.paymentTriesBeforeAccess
             }
             inviteDelivery={inviteDelivery}
+            joinWindowMinutes={
+              typeof joinRow?.join_window_minutes === "number"
+                ? joinRow.join_window_minutes
+                : DEFAULT_ADMIN_SETTINGS.joinWindowMinutes
+            }
           />
         </Suspense>
         {/* Outside the wizard card, bottom-right. /book deliberately hides

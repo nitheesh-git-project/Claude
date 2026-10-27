@@ -9,6 +9,8 @@ import {
   formatDateKeyLong,
 } from "@/lib/bookingSlots";
 import { formatHourRange } from "@/lib/therapistAvailability";
+import { stepOneBlocker } from "@/lib/bookingStepOne";
+import { requestedTimeNotice } from "@/lib/clinicPromises";
 
 // Shared entrance for each section as it becomes relevant. Small and
 // ease-out -- these fire in sequence as the patient makes choices, so
@@ -34,6 +36,7 @@ export default function BookingStepOne({
   onLanguageChange,
   languages,
   autoPicked,
+  confirmationHours,
   onContinue,
 }: {
   /** The service picker, rendered first. Taken as a node rather than as
@@ -63,14 +66,28 @@ export default function BookingStepOne({
   onLanguageChange: (language: string) => void;
   languages: string[];
   // Which fields still hold *our* automatic preselection rather than the
-  // patient's own choice -- drives the one-shot highlight on each.
-  autoPicked: { date: boolean; hour: boolean; language: boolean };
+  // patient's own choice -- drives the one-shot highlight on each. The hour is
+  // never preselected: the date is a starting point on a calendar the patient
+  // can see, but a time is the decision, and a Continue that is lit before it
+  // is made lets a patient move on without ever reading it.
+  autoPicked: { date: boolean; language: boolean };
+  /** The hours the clinic says it takes to confirm a requested time, from
+   *  `src/lib/clinicPromises.ts` (a setting once there is a column for it). */
+  confirmationHours: number;
   onContinue: () => void;
 }) {
   const reduceMotion = useReducedMotion();
   const leadTimeMs = leadTimeMsFromHours(leadTimeHours);
   const hours = dateKey ? bookableHoursForDate(dateKey, nowMs, leadTimeMs) : [];
-  const ready = serviceChosen && Boolean(dateKey) && hour !== "" && Boolean(language);
+  // The first unanswered thing, said next to the disabled Continue. Null
+  // means the patient may go on.
+  const blocker = stepOneBlocker({
+    serviceChosen,
+    dateKey,
+    hour,
+    language,
+    languageCount: languages.length,
+  });
 
   return (
     <>
@@ -81,20 +98,20 @@ export default function BookingStepOne({
           arrived on Step 2. */}
       {serviceSlot}
 
-      <div className="w-full rounded-xl bg-teal-50/70 px-4 py-3.5 text-slate-700">
+      <div className="w-full rounded-xl bg-teal-50/70 px-4 py-3.5 text-sm text-slate-700">
         <i className="fa-solid fa-globe text-teal-600 mr-2.5" aria-hidden="true"></i>
         Times shown in <strong className="font-bold text-slate-900">{timezone || "your"}</strong>{" "}
         timezone - detected automatically
       </div>
 
       <div>
-        <label className="block font-semibold mb-1.5 text-slate-900">
-          Preferred Date
-          <span className="font-normal text-xs text-slate-500">
+        <p id="booking-date-label" className="block font-semibold mb-1.5 text-slate-900">
+          Date
+          <span className="font-normal text-sm text-slate-600">
             {" "}
             (at least {leadTimeHours} hour{leadTimeHours === 1 ? "" : "s"} from now)
           </span>
-        </label>
+        </p>
         <BookingCalendar
           selectedDateKey={dateKey}
           onSelect={onDateChange}
@@ -103,7 +120,7 @@ export default function BookingStepOne({
           autoSelected={autoPicked.date}
         />
         {dateKey && (
-          <p className="text-xs text-teal-800 font-semibold mt-2">
+          <p className="text-sm text-teal-800 font-semibold mt-2">
             <i className="fa-solid fa-calendar-check mr-1" aria-hidden="true"></i>
             {formatDateKeyLong(dateKey)}
           </p>
@@ -117,27 +134,26 @@ export default function BookingStepOne({
         {dateKey && (
           <motion.div key="time" {...(reduceMotion ? {} : REVEAL)} className="space-y-5">
             <div>
-              <label className="block font-semibold mb-1.5 text-slate-900">
-                Preferred Time
-              </label>
+              <p id="booking-time-label" className="block font-semibold mb-1.5 text-slate-900">
+                Time
+              </p>
               <SelectableChipGroup
                 idPrefix="booking-hour"
-                label="Preferred time"
+                label="Time"
                 options={hours.map((h) => ({ value: String(h), label: formatHourRange(h) }))}
                 value={hour === "" ? "" : String(hour)}
                 onChange={(next) => onHourChange(Number(next))}
-                autoSelectedValue={autoPicked.hour && hour !== "" ? String(hour) : null}
                 emptyMessage="No times left on this date - please pick another day."
               />
             </div>
 
             <div>
-              <label className="block font-semibold mb-1.5 text-slate-900">
-                Preferred Language
-              </label>
+              <p id="booking-language-label" className="block font-semibold mb-1.5 text-slate-900">
+                Language
+              </p>
               <SelectableChipGroup
                 idPrefix="booking-language"
-                label="Preferred language"
+                label="Language"
                 options={languages.map((l) => ({ value: l, label: l }))}
                 value={language}
                 onChange={onLanguageChange}
@@ -149,31 +165,43 @@ export default function BookingStepOne({
         )}
       </AnimatePresence>
 
-      <p className="text-xs text-slate-500">
-        This is your preferred time - we&apos;ll confirm the exact slot with you
-        before the session.
+      {/* Said plainly where the time is chosen, and again before paying: the
+          time is a request, and there are two honest ways it can end if the
+          clinic cannot meet it. The figure is the clinic's own promise
+          (src/lib/clinicPromises.ts), never a number typed here. */}
+      <p
+        data-testid="booking-request-notice"
+        className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-relaxed text-slate-700"
+      >
+        <i className="fa-solid fa-circle-info mr-2 text-teal-700" aria-hidden="true"></i>
+        {requestedTimeNotice(confirmationHours)}
       </p>
 
-      <AnimatePresence initial={false}>
-        {ready && (
-          <motion.button
-            key="continue"
-            onClick={onContinue}
-            {...(reduceMotion
-              ? {}
-              : {
-                  initial: { opacity: 0, y: 10 },
-                  animate: { opacity: 1, y: 0 },
-                  exit: { opacity: 0, y: 10 },
-                  transition: { duration: 0.28, ease: "easeOut" as const },
-                })}
-            className="w-full bg-teal-700 hover:bg-teal-800 text-white font-bold py-3.5 rounded-xl text-sm transition-colors shadow-lg flex justify-center items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
+      {/* Always on screen. While something is unanswered it is disabled and
+          the reason sits beside it in words: a button that appears and
+          disappears hides what is left to do, and one that is dead without a
+          reason reads as broken. */}
+      <div className="space-y-2">
+        <button
+          type="button"
+          onClick={onContinue}
+          disabled={blocker !== null}
+          aria-describedby={blocker ? "booking-continue-reason" : undefined}
+          className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-teal-700 py-3.5 text-base font-bold text-white shadow-lg transition-colors hover:bg-teal-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none"
+        >
+          Continue to your details{" "}
+          <i className="fa-solid fa-arrow-right" aria-hidden="true"></i>
+        </button>
+        {blocker && (
+          <p
+            id="booking-continue-reason"
+            data-testid="booking-continue-reason"
+            className="text-center text-sm font-semibold text-slate-600"
           >
-            Continue to Medical Details{" "}
-            <i className="fa-solid fa-arrow-right" aria-hidden="true"></i>
-          </motion.button>
+            {blocker}
+          </p>
         )}
-      </AnimatePresence>
+      </div>
     </>
   );
 }

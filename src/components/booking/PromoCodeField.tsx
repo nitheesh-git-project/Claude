@@ -153,14 +153,14 @@ export default function PromoCodeField({
   if (applied) {
     return (
       <div className="flex items-center justify-between gap-3 rounded-xl border border-teal-200 bg-teal-50 p-3">
-        <p className="text-xs text-teal-900">
+        <p className="text-sm text-teal-900">
           <span className="font-mono font-bold">{applied.code}</span> applied -{" "}
           {applied.pricing ? formatPaiseForCountry(applied.discountPaise, applied.pricing) : formatInr(applied.discountPaise)} off
         </p>
         <button
           type="button"
           onClick={clear}
-          className="text-[11px] font-semibold text-teal-800 underline"
+          className="text-[13px] font-semibold text-teal-800 underline"
         >
           Remove
         </button>
@@ -173,7 +173,7 @@ export default function PromoCodeField({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="text-[11px] font-semibold text-slate-500 underline"
+        className="text-[13px] font-semibold text-slate-500 underline"
       >
         {label}
       </button>
@@ -196,18 +196,18 @@ export default function PromoCodeField({
           autoComplete="off"
           autoCapitalize="characters"
           placeholder="Enter code"
-          className="flex-1 rounded-xl border border-slate-300 p-2.5 text-xs uppercase"
+          className="flex-1 rounded-xl border border-slate-300 p-2.5 text-sm uppercase"
         />
         <button
           type="button"
           onClick={() => void check()}
           disabled={checking}
-          className="rounded-xl bg-slate-800 px-4 py-2.5 text-xs font-semibold text-white disabled:opacity-60"
+          className="rounded-xl bg-slate-800 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
         >
           {checking ? "Checking…" : "Apply"}
         </button>
       </div>
-      {message && <p className="text-[11px] text-amber-700">{message}</p>}
+      {message && <p className="text-[13px] text-amber-700">{message}</p>}
     </div>
   );
 }

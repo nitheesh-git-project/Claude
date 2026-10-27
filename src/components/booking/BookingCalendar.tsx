@@ -144,7 +144,7 @@ export default function BookingCalendar({
             which is otherwise a silent repaint of the grid below. */}
         <span
           aria-live="polite"
-          className={`font-bold text-slate-900 ${compact ? "text-xs" : "text-sm"}`}
+          className={`font-bold text-slate-900 ${compact ? "text-xs" : "text-base"}`}
         >
           {calendar.label}
         </span>
@@ -167,7 +167,7 @@ export default function BookingCalendar({
             key={day}
             aria-hidden="true"
             className={`text-center font-bold uppercase tracking-wide text-slate-500 ${
-              compact ? "text-[9px]" : "text-[10px] py-1"
+              compact ? "text-[9px]" : "text-[13px] py-1"
             }`}
           >
             {day}

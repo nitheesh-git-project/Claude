@@ -612,6 +612,19 @@
       "integration": "local",
       "destructive": false
     },
+    "booking-wizard-clarity.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "catalog-cover-image.spec.ts": {
       "runner": "platform",
       "levels": [
@@ -1774,6 +1787,27 @@
             "create-order rejects a pincode"
           ],
           "level": "api"
+        }
+      ],
+      "rules": [
+        "docs/rules/booking.md"
+      ]
+    },
+    {
+      "id": "patient.booking-wizard-clarity",
+      "runner": "patient",
+      "title": "Step 1 leaves the hour for the patient and says why Continue is disabled, the time is described as a request, Step 2 leads with sign-in, and who the session is for is validated by the server",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "booking-wizard-clarity.spec.ts",
+          "tests": [
+            "BWC-001",
+            "BWC-002",
+            "BWC-003"
+          ],
+          "level": "browser"
         }
       ],
       "rules": [

@@ -168,7 +168,7 @@ The patient portal's Overview is the screen a patient lands on after every sign-
 2. Tap **Book a video session** in the header (or the **Book now** card in the connector grid at the foot of the page).
 3. Observe the URL and the wizard header.
 
-**Expected Result.** The URL is `/book`. The dark header reads **Step 1 of 3** and **Book Virtual Physical Therapy Session**. Because no concern is chosen yet, the subtitle reads *"HD Video Call & Custom Rehab Plan - pricing shown once you pick a concern"*.
+**Expected Result.** The URL is `/book`. The dark header reads **Step 1 of 3** and **Book a video physiotherapy session**. Because no concern is chosen yet, the subtitle reads *"A video call with a physiotherapist - the price is shown once you choose what you need help with"*.
 
 #### `PAT-BOOK-002` - Step 1 auto-picks and the lead-time boundary (scenario TIME-A) · P0
 
@@ -179,21 +179,21 @@ The patient portal's Overview is the screen a patient lands on after every sign-
 1. In the Debug bar set **Simulate now** to `2026-09-10T10:00` and tap **Set**.
 2. After the reload, open `/book`.
 3. Read the calendar: note the month heading, which day is marked as today, and which day cells are greyed.
-4. Read the hour chips: note the first one offered.
-5. Read the language chips: note which one is selected.
+4. Read the **Time** chips: note the first one offered and that **none is selected**; read the line beside the disabled **Continue to your details** button.
+5. Read the **Language** chips: with one configured language it is selected; with several, none is.
 6. Tap the day cell **11**.
 7. Read the hour chips again.
 8. Tap the hour chip **09:00**.
-9. Look for **Continue**, then tap the service picker at the top of the screen - the dashed panel reading *"What would you like help with?"*. In the dialog, tap **View full details →** on `QA Back & Spine Care`, read it, then tap **← Back to all services**, then **Choose this session** on that same card.
-10. Tap **Continue**.
+9. Look at **Continue to your details** (it is on screen but disabled), then tap the service picker at the top of the screen - the dashed panel reading *"What would you like help with?"*. In the dialog, tap **View full details →** on `QA Back & Spine Care`, read it, then tap **← Back to all services**, then **Choose this session** on that same card.
+10. Tap **Continue to your details**.
 
 **Expected Result**
 * Step 3: heading `September 2026`; **10** is today; every cell before 10 is greyed and not tappable.
-* Step 4: the earliest offered hour on 10 September is **22:00** (10:00 + 12h). Hours before 22:00 are absent or disabled. A "we picked this for you" hint marks the auto-chosen date, hour and language.
-* Step 5: the first admin-configured booking language is selected - `English` by default.
-* Step 9: **Continue is not on screen before a service is chosen.** The dialog shows one card per active condition, each with its cover photograph, description, chips and price. *View full details* replaces the dialog's contents rather than opening a second dialog over it - there is only ever **one** dialog on screen - and shows the photograph in 16:9 with nothing laid over it, the heading on its own band beneath. **← Back to all services** returns to the grid. Choosing closes the dialog, turns the panel into a summary card with **Change** and **View details**, and the dark header subtitle changes from *"pricing shown once you pick a concern"* to `₹1,999 INR • 60-Min HD Video Call & Custom Rehab Plan`. **Continue** now appears.
-* Step 7: after moving to 11 September, the **full** hour list is offered (every hour on 11 September clears a 12h lead time from 10:00 on the 10th), and the hour has been **re-preselected to that day's earliest**, not carried over from 22:00.
-* Step 10: the wizard advances to **Step 2 of 3**. **No appointment exists yet, no account is created, and nothing is charged.**
+* Step 4: the earliest offered hour on 10 September is **22:00** (10:00 + 12h). Hours before 22:00 are absent or disabled. A "we picked this for you" hint marks the auto-chosen date (and a sole language). **No hour is chosen**: Continue is disabled and reads *"Pick a time to continue"* beside it until step 8. A note above Continue says *"The time you pick is a request. We confirm within N hours. If we can't meet it, we offer you another time or refund you in full."*
+* Step 5: with only `English` configured it is selected; with several languages none is, and Continue reads *"Pick a language to continue"*.
+* Step 9: **Continue is disabled (*"Choose what you'd like help with to continue"*) before a service is chosen.** The dialog shows one card per active condition, each with its cover photograph, description, chips and price. *View full details* replaces the dialog's contents rather than opening a second dialog over it - there is only ever **one** dialog on screen - and shows the photograph in 16:9 with nothing laid over it, the heading on its own band beneath. **← Back to all services** returns to the grid. Choosing closes the dialog, turns the panel into a summary card with **Change** and **View details**, and the dark header subtitle changes from *"pricing shown once you pick a concern"* to `₹1,999 INR • 60-minute video call with a physiotherapist`. **Continue** is enabled once a time (and, with several languages, a language) is also chosen.
+* Step 7: after moving to 11 September, the **full** hour list is offered (every hour on 11 September clears a 12h lead time from 10:00 on the 10th), and the hour has been **cleared** (22:00 is not offered on the 11th as a carried-over choice, and no earliest hour is chosen for you): the patient taps one.
+* Step 10: the wizard advances to **Step 2 of 3**. At the top, a 44px button reads **I already have an account - sign in**; then Your name, Phone, Email, Create a password (with a show button, no retype box), Referral code, and **Who is this for?** (*Me* is selected). **No appointment exists yet, no account is created, and nothing is charged.**
 
 **Cleanup.** Stay in the wizard for `PAT-BOOK-003`.
 
@@ -204,12 +204,12 @@ The patient portal's Overview is the screen a patient lands on after every sign-
 **Test Data.** Patient A from §8.3. Payment: UPI `success@razorpay`.
 
 **Steps**
-1. Tap **Full Name**. Enter `QA Patient A`.
-2. Tap **Email**. Enter `qa.patient.a@example.test`.
-3. Tap **Create Password**. Enter the `E2E_QA_PASSWORD` value.
-4. Tap the phone field. Enter `+91 98765 43210`.
-5. Tap **Confirm Password**. Enter the `E2E_QA_PASSWORD` value.
-6. Leave **Referral Code** blank.
+1. Tap **Your name**. Enter `QA Patient A`.
+2. Tap the phone field. Enter `+91 98765 43210`.
+3. Tap **Email**. Enter `qa.patient.a@example.test`.
+4. Tap **Create a password**. Enter the `E2E_QA_PASSWORD` value; tap the eye to check it reads as typed.
+5. Leave **Who is this for?** on **Me**.
+6. Leave **Referral code** blank.
 7. Read the teal line naming the service chosen on Step 1 - it must read *"Booking a **QA Back & Spine Care** - ₹1,999, 60 min"* beside its photograph, with a **Change** link. There is no dropdown on this step.
 8. Tap the **Anything else we should know?** box. Enter `Desk job, pain worse after sitting all day. Goal: sit through a full workday.`
 9. Tap the underlined **Consent terms & emergency disclaimer** in the consent line: a dialog shows the terms, naming `QA Back & Spine Care`. Close it - the checkbox is still unticked. Then tick the consent checkbox.
@@ -221,9 +221,9 @@ The patient portal's Overview is the screen a patient lands on after every sign-
 
 **Expected Result**
 * Step 10: the wizard advances to **Step 3 of 3**. The dark header subtitle now reads `₹1,999 INR • 60-Min HD Video Call & Custom Rehab Plan`.
-* Step 11: **Name** `QA Patient A`; **Email** `qa.patient.a@example.test`; **Preferred Time** 11 September 2026, 09:00, in local format; **Language** `English`; **Concern** `QA Back & Spine Care`; **Session Fee** `₹1,999 INR`. Two notices are present: the Razorpay/secure line and the cancellation deadline - *"Free cancellation until \<date\>, \<time\>. After that, cancelling isn't refunded."*, where the date is the chosen slot less the 24-hour window, rendered in clinic time. A slot booked less than 24 hours out reads *"This slot is less than 24 hours away, so cancelling it isn't refunded. Pick a later slot if you would rather keep that option."* instead - **check which of the two applies to the slot you picked before calling this a failure**
+* Step 11: **Name** `QA Patient A`; **Email** `qa.patient.a@example.test`; **Time you asked for** 11 September 2026, 09:00, in local format; **Session for** `You`; **Language** `English`; **Concern** `QA Back & Spine Care`; **Session Fee** `₹1,999 INR`. Three notices are present: the "The time you pick is a request" note, the Razorpay/secure line and the cancellation deadline - *"Free cancellation until \<date\>, \<time\>. After that, cancelling isn't refunded."*, where the date is the chosen slot less the 24-hour window, rendered in clinic time. A slot booked less than 24 hours out reads *"This slot is less than 24 hours away, so cancelling it isn't refunded. Pick a later slot if you would rather keep that option."* instead - **check which of the two applies to the slot you picked before calling this a failure**
 * Step 12: the button shows `Please wait...`; the Supabase account is created and signed in **with no email-confirmation step**; the appointment is created; Razorpay checkout opens.
-* Step 14: Step 3 is replaced by a green tick, **Payment Confirmed**, the sentence about confirming the slot and sending the link, and a **Go to Dashboard** button.
+* Step 14: Step 3 is replaced by a green tick, **Payment Confirmed**, the time restated in clinic time (*"Fri 11 Sep, 9-10 am, with a physiotherapist"*), three numbered next steps (the clinic confirms your time; your video link appears on your Home page 15 minutes before; tap *Join your video call*), an **Add to calendar** button (downloads an `.ics`) and a **Go to Dashboard** button.
 * **Data state:** exactly **one** appointment for Patient A - `status='requested'`, `payment_status='paid'`, `therapist_id=null`, `visit_mode='online'`, `duration_minutes=60`, `concern='QA Back & Spine Care'`, `preferred_language='English'`, timezone recorded. Exactly **one** `payments` row for that Razorpay order. Patient A's `approved` is now **true** (flipped by `create-order`).
 * **Cross-role:** Admin → Sessions → All Sessions lists it as unassigned and raises the badge; Admin → Money → Transactions lists the ₹1,999 payment; **no therapist sees it yet**.
 
@@ -305,11 +305,11 @@ Attempt **Review Booking →** once per row, as a guest:
 
 | # | Missing/invalid | Expected message |
 | --- | --- | --- |
-| 1 | Name blank | `Please fill in your name, email, and a password (min 6 characters).` |
-| 2 | Password `abc12` | same as above |
+| 1 | Name blank | `Please enter your full name.` |
+| 2 | Password `abc12` | `Please choose a password of at least 6 characters.` |
 | 3 | Email `not-an-email` | `Please enter a valid email address.` |
 | 4 | Phone `12345` | `Please enter a valid phone number.` |
-| 5 | Confirm password mismatched | `Passwords do not match. Please re-enter them.` |
+| 5 | **Someone in my family** chosen, name blank | `Please tell us the name of the person this session is for.` (age, relationship and the with-them question each have their own message) |
 | 6 | Referral code `ZZZZZZ` (blurred, shown invalid) | `That referral code isn't recognized. Please double-check it or clear the field to continue without one.` |
 | 7 | No concern selected | `Please select what you'd like help with.` |
 | 8 | Consent unticked | `Please agree to the telehealth consent terms to continue.` |
@@ -335,7 +335,7 @@ Attempt **Review Booking →** once per row, as a guest:
 #### `PAT-BOOK-014` - A stale `?package=` link is answered, not ignored · P0
 
 **Steps.** Open `/book?package=00000000-0000-0000-0000-000000000000`.
-**Expected Result.** Instead of the wizard, a panel headed **"Programmes come from your therapist now"** with the explanation *"A course of treatment is arranged by your therapist after they've seen you… Book a first session and they'll recommend the right programme."* and a **Book a first session** link to `/book`. **The wizard must not silently sell one session to somebody who came to buy six.**
+**Expected Result.** Instead of the wizard, a panel headed **"Programmes come from your physiotherapist now"** with the explanation *"A course of treatment is arranged by your physiotherapist after they've seen you… Book a first session and they'll recommend the right programme."* and a **Book a first session** link to `/book`. **The wizard must not silently sell one session to somebody who came to buy six.**
 
 #### `PAT-BOOK-015` - Refresh mid-wizard loses no money and creates nothing · P2
 
@@ -455,7 +455,7 @@ After the third, that line is replaced by an amber panel: *"Having trouble payin
 #### `PAT-HV-005` - A multi-visit home package cannot be bought directly · P0
 
 **Steps.** Open the Step 1 picker on `/book-home-visit` and look for `QA Home Visit Recovery - 4 Visits`. Open `/book-home-visit?package=<HV2 id>`. Then call the API directly: `POST /api/home-visit/create-order` and `/api/home-visit/book-cash` with `packageId` = HV2's id.
-**Expected Result.** HV2 is **not offered** - the picker lists conditions only. The old link shows *"Courses of visits come from your therapist now"* with **Book a first visit**, never a payment step for one visit. Both routes answer **403** with the programme sentence (*"A course of treatment is arranged by your therapist..."*). An old `?package=` link to the **clinic-wide** price row still opens the wizard (on the general consultation), and one to a condition's own price row opens on that condition. HV2 can only reach a patient through a therapist's care plan.
+**Expected Result.** HV2 is **not offered** - the picker lists conditions only. The old link shows *"Courses of visits come from your therapist now"* with **Book a first visit**, never a payment step for one visit. Both routes answer **403** with the programme sentence (*"A course of treatment is arranged by your physiotherapist..."*). An old `?package=` link to the **clinic-wide** price row still opens the wizard (on the general consultation), and one to a condition's own price row opens on that condition. HV2 can only reach a patient through a therapist's care plan.
 
 #### `PAT-HV-006` - Cash on visit · P1
 

@@ -49,7 +49,7 @@ test.describe("the pay button on Step 3", () => {
     // case below is about the button on Step 3, not about what was picked.
     await chooseAnyServiceOnStepOne(page);
 
-    await page.getByRole("button", { name: /Continue to Medical Details/i }).click();
+    await page.getByRole("button", { name: /Continue to your details/i }).click();
     await page.waitForTimeout(1200);
 
     await page.getByRole("checkbox").first().check();

@@ -43,7 +43,7 @@ async function walkToStepThree(page: Page) {
   // signed-out form.
   await page.waitForLoadState("networkidle");
   await chooseAnyServiceOnStepOne(page);
-  await page.getByRole("button", { name: /Continue to Medical Details/i }).click();
+  await page.getByRole("button", { name: /Continue to your details/i }).click();
   await expect(page.getByText(/Booking as/i)).toBeVisible({ timeout: 30_000 });
   await page.getByRole("checkbox").first().check();
   await page.getByRole("button", { name: /Review Booking/i }).click();
@@ -147,12 +147,13 @@ test.describe("a new patient's payment tries", () => {
     await page.goto(`${BASE}/book`);
     await page.waitForLoadState("networkidle");
     await chooseAnyServiceOnStepOne(page);
-    await page.getByRole("button", { name: /Continue to Medical Details/i }).click();
-    await page.getByLabel("Full Name").fill("E2E New Patient");
-    await page.getByLabel("Email").fill(email);
+    await page.getByRole("button", { name: /Continue to your details/i }).click();
+    // Name, phone, email, password -- there is no retype box (the password
+    // field has a show button instead).
+    await page.getByLabel("Your name").fill("E2E New Patient");
     await page.getByLabel("Phone number", { exact: false }).first().fill("9876543210");
-    await page.getByLabel(/Create Password/).fill(TEST_PASSWORD);
-    await page.getByLabel("Confirm Password").fill(TEST_PASSWORD);
+    await page.getByLabel("Email").fill(email);
+    await page.getByLabel(/Create a password/).fill(TEST_PASSWORD);
     await page.getByRole("checkbox").first().check();
     await page.getByRole("button", { name: /Review Booking/i }).click();
 

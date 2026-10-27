@@ -377,7 +377,7 @@ test.describe("the cancellation notice a patient is shown before paying", () => 
     // which meant a patient picked a slot before seeing what it cost.
     // Continue is only offered once all four are answered.
     await chooseFirstService(page);
-    await page.getByRole("button", { name: /Continue to Medical Details/i }).click();
+    await page.getByRole("button", { name: /Continue to your details/i }).click();
     await page.waitForTimeout(1200);
 
     await page.getByRole("checkbox").first().check();

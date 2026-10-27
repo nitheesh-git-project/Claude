@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { BASE, adminClient, browserCookiesFor, cookieHeaderFor, clinicSlot, openTherapistHour, QA_EMAILS } from "./helpers";
+import { BASE, adminClient, browserCookiesFor, cookieHeaderFor, clinicSlot, openTherapistHour, QA_EMAILS, pickTimeOnStepOne } from "./helpers";
 
 /**
  * Pay later, end to end, in a real browser.
@@ -221,7 +221,8 @@ test("PL-UI-003 booking on terms, with no payment step", async ({ page }) => {
       .click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
   }
-  await page.getByRole("button", { name: /Continue to Medical Details/i }).click();
+  await pickTimeOnStepOne(page);
+  await page.getByRole("button", { name: /Continue to your details/i }).click();
   await page.waitForTimeout(1200);
   await shot(page, "06-book-step2-details");
 

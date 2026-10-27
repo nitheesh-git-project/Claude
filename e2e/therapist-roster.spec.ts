@@ -771,7 +771,7 @@ test.describe("Therapist roster - booking is untouched", () => {
       days: days({ 1: [{ startHour: 9, endHour: 18 }] }),
     });
     await page.goto(`${BASE}/book`);
-    const times = page.getByRole("radiogroup", { name: "Preferred time" }).getByRole("radio");
+    const times = page.getByRole("radiogroup", { name: "Time", exact: true }).getByRole("radio");
     // `count()` is a one-shot read with no auto-waiting, and the picker is
     // rendered by a client component after hydration -- so counting straight
     // after a navigation races the render and returns 0. That failure reads

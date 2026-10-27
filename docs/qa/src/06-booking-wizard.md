@@ -18,10 +18,11 @@ Anyone. A brand-new visitor (creates an account inside Step 2), or a signed-in p
 
 | Step | Collected | Required? |
 | --- | --- | --- |
-| 1 | Preferred **date** | Yes (auto-preselected) |
-| 1 | Preferred **hour** | Yes (auto-preselected) |
-| 1 | Preferred **language** | Yes (auto-preselected to the first admin-configured language) |
-| 2 | Full Name, Email, Create Password, Confirm Password, Phone | Yes - **guests only** |
+| 1 | **Date** | Yes (preselected as a starting point on the calendar) |
+| 1 | **Time** | Yes - **never preselected**; Continue stays disabled, with *"Pick a time to continue"* beside it, until the patient taps one |
+| 1 | **Language** | Yes - preselected only when the clinic offers exactly one; with several, the patient picks (*"Pick a language to continue"*) |
+| 2 | Name, Phone, Email, Password (that order; no retype box - the password field has a show button) | Yes - **guests only** |
+| 2 | "Who is this for?" - *Me* or *Someone in my family* (their name, age, relationship, *Will someone be with them on the call?*) | Yes (defaults to *Me*); the family answer is validated by the server and written into the booking's notes as one line starting *"Booked for a family member:"* |
 | 2 | Referral Code | Optional |
 | 2 | "What would you like help with?" (treatment category) | **Yes** |
 | 2 | "Continue with the same therapist?" | Optional; only shown to a returning patient with previous therapists |
@@ -58,7 +59,7 @@ They do not affect `/book` at all. `/book` books `visit_mode: 'online'` only. Se
 
 | Setting | Where an admin changes it | Effect on `/book` |
 | --- | --- | --- |
-| `online_booking_lead_time_hours` | Settings → Booking Rules → **How far ahead a session must be booked** | Which dates/hours the calendar offers, the note under *Preferred Date* (*"at least N hours from now"*), and the server's own validator. Step 1 used to filter on a hardcoded 12 hours while the route read this column, so widening the window offered a slot checkout then refused - check the note, the greyed-out dates and a boundary booking all move together. |
+| `online_booking_lead_time_hours` | Settings → Booking Rules → **How far ahead a session must be booked** | Which dates/hours the calendar offers, the note under *Date* (*"at least N hours from now"*), and the server's own validator. Step 1 used to filter on a hardcoded 12 hours while the route read this column, so widening the window offered a slot checkout then refused - check the note, the greyed-out dates and a boundary booking all move together. |
 | `online_cancellation_refund_hours` | Settings → Booking Rules → **Free cancellation window** | The sentence on Step 3 and the refund actually paid. The sentence names the **deadline** rather than the rule - *"Free cancellation until 24 Sept 2026, 9:00 am."* - computed from the chosen slot minus this window. A slot nearer than the window reads *"This slot is less than N hours away, so cancelling it isn't refunded. Pick a later slot if you would rather keep that option."* instead, which is the common case whenever this setting is larger than the booking lead time |
 | **Booking Languages** | Settings → Booking Rules → Booking Languages | The chips on Step 1. An empty list degrades to `English` - booking must never present an empty language picker. |
 | Treatment categories | Catalog → Conditions | One card per active condition inside the Step 1 service picker, each showing its cover photograph, description, duration, ticks and price. An **inactive** category disappears, and a booking against it is refused server-side. |
@@ -80,7 +81,7 @@ They do not affect `/book` at all. `/book` books `visit_mode: 'online'` only. Se
 
 | Outcome | What the patient sees | What is created |
 | --- | --- | --- |
-| **Success** | Step 3 is replaced by a **Payment Confirmed** panel with a **Go to Dashboard** link. It promises *a calendar invite with the video call link* **only** when Google is configured and Auto-Create Meet Links is on; otherwise it reads *Your video call link will appear under Sessions on your dashboard before the session.* **Critical check:** with System Health's Google Connection reading *not connected*, no patient screen (this one, `/patient/register`, `/book-home-visit`, an accepted suggestion, the public example chip) promises an invite | Appointment `payment_status='paid'`, still `requested` until an admin assigns; a `payments` row |
+| **Success** | Step 3 is replaced by a **Payment Confirmed** panel that restates the time in the clinic's zone (*"Wed 28 Oct, 6-7 pm, with a physiotherapist"*), three numbered next steps (the clinic confirms your time within N hours / your video link appears on your Home page *join-window* minutes before / tap *Join your video call*), an **Add to calendar** button (downloads a one-event `.ics`, titled as a requested time) and a **Go to Dashboard** link. It adds a line about *a calendar invite with the video call link* **only** when Google is configured and Auto-Create Meet Links is on; otherwise it says nothing about an invite. **Critical check:** with System Health's Google Connection reading *not connected*, no patient screen (this one, `/patient/register`, `/book-home-visit`, an accepted suggestion, the public example chip) promises an invite | Appointment `payment_status='paid'`, still `requested` until an admin assigns; a `payments` row |
 | **Failure** (`failure@razorpay`) | An error message; the primary button now reads **Pay ₹… Now** (not "Request Booking"); attempt counter increments | The appointment already exists and stays `requested` + `unpaid` |
 | **Dismissed** (patient closes the checkout modal) | *"Payment was not completed. You can try again below."* | Same as failure |
 | **Abandoned** (patient closes the tab) | Nothing | Same. The booking sits in their dashboard as an unpaid session with a **Pay ₹… Now** button. If the webhook secret is set and the order was in fact captured, the webhook confirms it server-side anyway. |
@@ -97,7 +98,7 @@ They do not affect `/book` at all. `/book` books `visit_mode: 'online'` only. Se
 | Condition | What renders |
 | --- | --- |
 | Signed in as therapist / hospital / admin | A **wrong account** panel routing each role to what is theirs (hospitals refer; admins use New Booking; a clinician wanting therapy signs out and uses a separate patient account). Checked **before** every other branch. |
-| `?package=<id>` in the URL | *"Programmes come from your therapist now"* plus the explanation and a **Book a first session** link. Ordered **after** the wrong-account branch on purpose. |
+| `?package=<id>` in the URL | *"Programmes come from your physiotherapist now"* plus the explanation and a **Book a first session** link. Ordered **after** the wrong-account branch on purpose. |
 | No treatment categories exist | *"No condition categories are available right now - please contact us directly to book."* in place of the service picker, and no Continue |
 
 ### 10.11 What happens on Back, Refresh and abandonment
@@ -133,23 +134,25 @@ They do not affect `/book` at all. `/book` books `visit_mode: 'online'` only. Se
 * **Once chosen:** the dialog closes and the panel becomes a summary card - photograph, `VIDEO CONSULTATION`, the title, `₹price · N min` - with **Change** and **View details**. The wizard header stops reading *"pricing shown once you pick a concern"* and quotes the figure from here on.
 * **A condition with no cover photograph** draws the same tinted panel at the same height, so the card reads as a photo not yet chosen rather than one that failed to load.
 * **`/book?category=<id>`** opens Step 1 with that service already in the summary card. `/book` with no parameter never guesses one.
-* **Continue is not on screen until all four are answered** - service, date, hour, language. There is no disabled button and no browser tooltip.
-* **Validation on Continue:** a service must be chosen (*"Please choose what you'd like help with."*); date and hour must be set (*"Please select a preferred date and time."*); the slot must clear the lead time (*"Please choose a time at least 12 hours from now."*); a language must be set (*"Please select a preferred language."*).
+* **Continue ("Continue to your details") is always on screen.** While service, date, time or (with several languages) language is unanswered it is **disabled** and the first missing thing is printed beside it in words (*"Choose what you'd like help with to continue"*, *"Pick a date to continue"*, *"Pick a time to continue"*, *"Pick a language to continue"*). The date opens preselected; the **time is never preselected**, and changing the date keeps the chosen time only if the new date still offers it.
+* **The time is described as a request**, in a note above Continue and again on Step 3: *"The time you pick is a request. We confirm within N hours. If we can't meet it, we offer you another time or refund you in full."* N is the clinic's promise (`src/lib/clinicPromises.ts`; a code default of 4 until a setting exists - see the owner questions in `docs/rules/booking.md`).
+* **Validation on Continue** (belt to the disabled button): a service must be chosen (*"Please choose what you'd like help with."*); date and time must be set (*"Please pick a date and a time."*); the slot must clear the lead time (*"Please choose a time at least 12 hours from now."*); a language must be set (*"Please pick a language for your session."*).
 * **Nothing is created.** No appointment, no account, no charge.
 
 #### Step 2 - Your details
 
 * **Means:** who you are and what you need.
-* **Guest:** Full Name, Email, Create Password (min 6), Phone, Confirm Password, Referral Code (optional). A signed-in patient sees only a teal *"Booking as **Name** (email)"* strip.
+* **Guest:** a 44px **I already have an account - sign in** button at the top (to `/patient/login`), then Your name (placeholder *Priya Sharma*), Phone, Email, Create a password (min 6, with a show/hide button; no retype box), Referral code (optional). A signed-in patient sees only a teal *"Booking as **Name** (email)"* strip.
+* **Who is this for?** (everyone): *Me* (default) or *Someone in my family*, which reveals Their name, Their age, How are they related to you? and *Will someone be with them on the call?* (Yes / No). All four are required for a family booking (*"Please tell us the name of the person this session is for."* and its siblings). Step 3's summary has a **Session for** row. The server validates the answer and caps every field; it is never trusted as a finished line.
 * **Everyone:** a read-only teal line naming the service chosen on Step 1 (photograph, *"Booking a **Title** - ₹price, N min"*) with a **Change** link back to Step 1, optional therapist preference, optional notes, and a **required** consent checkbox. Its label reads *"I agree to the **Consent terms & emergency disclaimer** for my **<service>** video session. I understand it is not an emergency service."* - naming the service chosen on Step 1, and never "musculoskeletal" or any other specialty. Tapping the underlined terms opens a dialog with the full terms (what a video session is and cannot do, staying safe, not for emergencies, your information, changing your mind) naming the same service; closing it (Close, Escape or the backdrop) returns focus to the link and leaves the checkbox **unticked** - reading is not agreeing. The terms are draft wording for the owner to review. There is no dropdown here any more; the service is chosen on Step 1.
 * **Referral code** is validated on blur: `Checking code...` → either `Valid - referred by <Hospital>` in teal, or `Code not recognized - double-check it or leave blank` in red. An invalid code **blocks Continue**; a blank one does not.
-* **Validation on Review Booking →**, in this order: name/email/password present and password ≥ 6 (*"Please fill in your name, email, and a password (min 6 characters)."*); email shape (*"Please enter a valid email address."*); phone shape (*"Please enter a valid phone number."*); passwords match (*"Passwords do not match. Please re-enter them."*); referral code not invalid; consent ticked (*"Please agree to the telehealth consent terms to continue."*).
+* **Validation on Review Booking →**, in this order: name/email/password present and password ≥ 6 (*"Please fill in your name, email, and a password (min 6 characters)."*); email shape (*"Please enter a valid email address."*); phone shape (*"Please enter a valid phone number."*); referral code not invalid; family details complete when *Someone in my family* is chosen; consent ticked (*"Please agree to the telehealth consent terms to continue."*).
 * **Nothing is created.**
 
 #### Step 3 - Review and pay
 
 * **Means:** confirm the summary, then pay.
-* **Shows:** Name, Email, Preferred Time, Language, Concern, and Session Fee, plus two notices - the Razorpay/secure-payment line and the cancellation-window line reading the admin's configured hours.
+* **Shows:** Name, Email, Time you asked for, Session for, Language, Concern, and Session Fee (labels 14px, values 16px), plus three notices - the *"The time you pick is a request..."* note, the Razorpay/secure-payment line and the cancellation-window line reading the admin's configured hours.
 * **Controls:** **Back** (⅓ width) and the primary button (⅔ width) reading **Request Booking**, then **Pay ₹… Now** after an appointment exists.
 * **Records created:** on leaving Step 2 - the Supabase auth user (guest only), in the background. On **Request Booking** - the appointment row and, in the same request, the Razorpay order. On payment success - the `payments` row, the appointment's paid/confirmed state, and (when a therapist is already assigned) the Google Calendar/Meet event.
 * **The primary button is tappable the moment the step renders**, including while the price is still being fetched from the server. Arriving at Step 3 and applying a promo code each start a price read, and during one the screen shows *"Checking the latest price for you..."* under the Total - the wait is **stated, never enforced**. Tapping during that read is acknowledged at once (the button reads **Please wait...**) and the booking proceeds on the figure that lands. A button that greys out for a second or two on arriving at this step, or after applying a code, is the regression: the figures are re-resolved server-side at checkout regardless, so there is nothing a disabled button here would protect.

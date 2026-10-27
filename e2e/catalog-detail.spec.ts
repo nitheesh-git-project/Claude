@@ -225,7 +225,7 @@ test.describe("Catalog detail dialogs", () => {
     // Silently selling a single session to somebody who came to buy six is
     // the one outcome a removed checkout must not produce.
     await page.goto(`${BASE}/book?package=${packageId}`);
-    await expect(page.getByText(/Programmes come from your therapist now/i)).toBeVisible();
+    await expect(page.getByText(/Programmes come from your physiotherapist now/i)).toBeVisible();
     await expect(page.getByRole("link", { name: /Book a first session/i })).toBeVisible();
     // No payment control anywhere on that screen.
     await expect(page.getByRole("button", { name: /Pay /i })).toHaveCount(0);

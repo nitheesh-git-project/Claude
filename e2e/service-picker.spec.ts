@@ -21,7 +21,7 @@
 // so a production server serves HTML generated before the fixtures below
 // existed. `catalog-detail.spec.ts` carries the same warning.
 import { test, expect, type Page } from "@playwright/test";
-import { adminClient, BASE, browserCookiesFor, QA_EMAILS } from "./helpers";
+import { adminClient, BASE, browserCookiesFor, QA_EMAILS, pickTimeOnStepOne } from "./helpers";
 
 const WITH_COVER = "QA Picker Covered Condition";
 const NO_COVER = "QA Picker Bare Condition";
@@ -273,7 +273,7 @@ test.describe("Public booking service picker", () => {
       page.getByText("pricing shown once you pick a concern", { exact: false })
     ).toHaveCount(0);
     await expect(
-      page.getByRole("button", { name: /Continue to Medical Details/ })
+      page.getByRole("button", { name: /Continue to your details/ })
     ).toBeVisible();
 
     // A default is only acceptable because it is one tap from being changed.
@@ -299,7 +299,8 @@ test.describe("Public booking service picker", () => {
     // stretched the full width of the row and pushed the text outside the
     // wizard card entirely. Both now render one component.
     await page.goto(`${BASE}/book`);
-    await page.getByRole("button", { name: /Continue to Medical Details/ }).click();
+    await pickTimeOnStepOne(page);
+    await page.getByRole("button", { name: /Continue to your details/ }).click();
 
     const summary = page.getByRole("heading", { name: "General Consultation" });
     await expect(summary).toBeVisible();
@@ -321,7 +322,7 @@ test.describe("Public booking service picker", () => {
     // And Change goes back to the picker rather than nowhere.
     await page.getByRole("button", { name: "Change" }).click();
     await expect(
-      page.getByRole("button", { name: /Continue to Medical Details/ })
+      page.getByRole("button", { name: /Continue to your details/ })
     ).toBeVisible();
   });
 
@@ -333,7 +334,8 @@ test.describe("Public booking service picker", () => {
     // to read, and called every service "musculoskeletal care".
     await page.goto(`${BASE}/book?category=${coveredId}`);
     await expect(page.getByRole("heading", { name: WITH_COVER })).toBeVisible();
-    await page.getByRole("button", { name: /Continue to Medical Details/ }).click();
+    await pickTimeOnStepOne(page);
+    await page.getByRole("button", { name: /Continue to your details/ }).click();
 
     const consent = page.getByRole("checkbox", { name: /I agree to the Consent terms/ });
     await expect(consent).toBeVisible();
@@ -367,7 +369,7 @@ test.describe("Public booking service picker", () => {
     await expect(page.getByRole("heading", { name: WITH_COVER })).toBeVisible();
     await expect(page.getByRole("button", { name: "Change" })).toBeVisible();
     await expect(
-      page.getByRole("button", { name: /Continue to Medical Details/ })
+      page.getByRole("button", { name: /Continue to your details/ })
     ).toBeVisible();
   });
 

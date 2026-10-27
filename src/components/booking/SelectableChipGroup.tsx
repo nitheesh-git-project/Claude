@@ -44,7 +44,7 @@ export default function SelectableChipGroup({
   const reduceMotion = useReducedMotion();
 
   if (options.length === 0) {
-    return <p className="text-xs text-slate-500">{emptyMessage}</p>;
+    return <p className="text-sm text-slate-600">{emptyMessage}</p>;
   }
 
   function focusChip(index: number) {
@@ -77,7 +77,10 @@ export default function SelectableChipGroup({
             type="button"
             role="radio"
             aria-checked={selected}
-            tabIndex={selected ? 0 : -1}
+            // Roving tabindex. With nothing chosen yet (the hour is never
+            // preselected) the first chip is the way in, or a keyboard user
+            // could not reach the group at all.
+            tabIndex={selected || (index === 0 && !options.some((o) => o.value === value)) ? 0 : -1}
             onClick={() => onChange(option.value)}
             onKeyDown={(e) => handleKeyDown(e, index)}
             className={`${bookingCellClass({ selected, disabled: false })} ${BOOKING_OPTION_CELL}`}

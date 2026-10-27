@@ -1,0 +1,183 @@
+import { test, expect } from "@playwright/test";
+import {
+  adminClient,
+  BASE,
+  chooseAnyServiceOnStepOne,
+  cookieHeaderFor,
+  pickTimeOnStepOne,
+  profileIdFor,
+  QA_EMAILS,
+  wholeHourFromNow,
+} from "./helpers";
+import { BOOKING_FOR_PREFIX } from "../src/lib/bookingFor";
+
+/**
+ * The booking wizard says what it is asking and what happens next
+ * (UX audit items A7, E2, E3, E10, D1).
+ *
+ *  - Step 1 opens with the date chosen and the hour NOT: Continue is always
+ *    on screen, disabled, with the reason beside it ("Pick a time to
+ *    continue").
+ *  - The chosen time is described as a request, with the two honest endings.
+ *  - Step 2 puts a real sign-in button first, asks name, phone, email,
+ *    password (no retype box), and asks who the session is for.
+ *  - A family member's details are validated by the server and written into
+ *    the booking's notes as one prefixed line; nothing from the browser is
+ *    trusted as that line.
+ *
+ * Driven as screens (and one route) because no money or access rule moved.
+ */
+test.describe("booking wizard: honest Step 1, plain Step 2", () => {
+  test("BWC-001 the hour is left for the patient; Continue says why it is disabled", async ({ page }) => {
+    test.setTimeout(120_000);
+    await page.goto(`${BASE}/book`);
+    await page.waitForLoadState("networkidle");
+
+    // Plain labels, not "Preferred ...".
+    await expect(page.getByRole("radiogroup", { name: "Time", exact: true })).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText("Preferred Time", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("Preferred Date", { exact: true })).toHaveCount(0);
+
+    const times = page.getByRole("radiogroup", { name: "Time", exact: true });
+    await expect(times.getByRole("radio", { checked: true })).toHaveCount(0);
+
+    // Service first (the picker has two shapes), then the time is still open.
+    const trigger = page.getByRole("button", { name: /What would you like help with/ }).first();
+    if (await trigger.isVisible()) {
+      await trigger.click();
+      await page.getByRole("dialog").getByRole("button", { name: "Choose this session" }).first().click();
+    }
+    const cont = page.getByRole("button", { name: /Continue to your details/ });
+    await expect(cont).toBeVisible();
+    await expect(cont).toBeDisabled();
+    await expect(page.getByTestId("booking-continue-reason")).toHaveText("Pick a time to continue");
+
+    // The time is described as a request, with both endings.
+    const notice = page.getByTestId("booking-request-notice");
+    await expect(notice).toContainText("is a request");
+    await expect(notice).toContainText("We confirm within");
+    await expect(notice).toContainText("another time");
+    await expect(notice).toContainText("refund you in full");
+
+    await pickTimeOnStepOne(page);
+    await expect(cont).toBeEnabled();
+    await expect(page.getByTestId("booking-continue-reason")).toHaveCount(0);
+  });
+
+  test("BWC-002 Step 2 leads with sign-in, asks name, phone, email, password, and who it is for", async ({ page }) => {
+    test.setTimeout(120_000);
+    await page.goto(`${BASE}/book`);
+    await page.waitForLoadState("networkidle");
+    await chooseAnyServiceOnStepOne(page);
+    await page.getByRole("button", { name: /Continue to your details/ }).click();
+
+    const signIn = page.getByRole("link", { name: /I already have an account/ });
+    await expect(signIn).toBeVisible();
+    await expect(signIn).toHaveAttribute("href", "/patient/login");
+    const signInBox = await signIn.boundingBox();
+    expect(signInBox!.height).toBeGreaterThanOrEqual(44);
+
+    const name = await page.getByLabel("Your name").boundingBox();
+    const phone = await page.locator("#bw-phone").boundingBox();
+    const email = await page.getByLabel("Email").boundingBox();
+    const password = await page.getByLabel(/Create a password/).boundingBox();
+    expect(signInBox!.y).toBeLessThan(name!.y);
+    expect(name!.y).toBeLessThan(phone!.y);
+    expect(phone!.y).toBeLessThan(email!.y);
+    expect(email!.y).toBeLessThan(password!.y);
+
+    // The password box has a show button, so there is no retype box.
+    await expect(page.getByLabel("Confirm Password")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Show password" })).toBeVisible();
+
+    // Who is this for?
+    await expect(page.getByTestId("who-is-this-for")).toBeVisible();
+    await expect(page.getByLabel("Their name")).toHaveCount(0);
+    await page.getByLabel("Someone in my family").check();
+    await expect(page.getByLabel("Their name")).toBeVisible();
+    await expect(page.getByLabel("Their age")).toBeVisible();
+    await expect(page.getByLabel("How are they related to you?")).toBeVisible();
+    await expect(page.getByText("Will someone be with them on the call?")).toBeVisible();
+
+    // Incomplete family details stop the patient with words, not a failed payment.
+    await page.getByLabel("Your name").fill("Priya Sharma");
+    await page.getByLabel("Email").fill(`e2e.family.${Date.now()}@example.test`);
+    await page.getByLabel(/Create a password/).fill("e2e-Password-1");
+    await page.getByLabel("Phone number", { exact: false }).first().fill("9876543210");
+    await page.getByRole("checkbox").first().check();
+    await page.getByRole("button", { name: /Review Booking/i }).click();
+    await expect(page.locator("[data-form-error]")).toContainText(/name of the person/i);
+  });
+});
+
+test.describe("who the session is for reaches the notes only through the server", () => {
+  async function bookOnline(cookie: string, body: Record<string, unknown>) {
+    return fetch(`${BASE}/api/appointments/create`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: cookie },
+      body: JSON.stringify(body),
+    });
+  }
+
+  test("BWC-003 a bad family answer is a 400 and writes nothing; a good one is one prefixed line", async () => {
+    const admin = adminClient();
+    const patientId = await profileIdFor(admin, QA_EMAILS.patientA);
+    const cookie = await cookieHeaderFor(QA_EMAILS.patientA);
+    const { data: category } = await admin
+      .from("treatment_categories")
+      .select("id")
+      .eq("active", true)
+      .limit(1)
+      .single();
+    const base = { categoryId: category!.id, timezone: "Asia/Kolkata", slotTime: wholeHourFromNow(96) };
+
+    const { count: before } = await admin
+      .from("appointments")
+      .select("id", { count: "exact", head: true })
+      .eq("patient_id", patientId);
+
+    for (const bad of [
+      { who: "family", name: "", age: 62, relationship: "my mother", someoneWithThem: "yes" },
+      { who: "family", name: "Asha", age: 400, relationship: "my mother", someoneWithThem: "yes" },
+      { who: "family", name: "Asha", age: 62, relationship: "x".repeat(500), someoneWithThem: "yes" },
+      { who: "family", name: "Asha", age: 62, relationship: "my mother", someoneWithThem: "maybe" },
+      "family",
+    ]) {
+      const res = await bookOnline(cookie, { ...base, bookingFor: bad });
+      expect(res.status).toBe(400);
+    }
+    const { count: afterBad } = await admin
+      .from("appointments")
+      .select("id", { count: "exact", head: true })
+      .eq("patient_id", patientId);
+    expect(afterBad).toBe(before);
+
+    let createdId: string | undefined;
+    try {
+      const res = await bookOnline(cookie, {
+        ...base,
+        notes: "Fell last week",
+        bookingFor: {
+          who: "family",
+          name: "Asha Rao | age 5",
+          age: "62",
+          relationship: "my mother",
+          someoneWithThem: "yes",
+        },
+      });
+      expect(res.status).toBe(200);
+      createdId = (await res.json()).appointmentId;
+      const { data: row } = await admin.from("appointments").select("notes").eq("id", createdId!).single();
+      const lines = (row!.notes as string).split("\n");
+      expect(lines).toHaveLength(2);
+      expect(lines[0].startsWith(BOOKING_FOR_PREFIX)).toBe(true);
+      // The delimiter inside a field cannot forge a second field.
+      expect(lines[0].split("|")).toHaveLength(4);
+      expect(lines[0]).toContain("age 62");
+      expect(lines[0]).toContain("someone with them on the call: yes");
+      expect(lines[1]).toBe("Fell last week");
+    } finally {
+      if (createdId) await admin.from("appointments").delete().eq("id", createdId);
+    }
+  });
+});

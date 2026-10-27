@@ -47,7 +47,6 @@ export type BookingForResult =
   | { ok: true; value: BookingFor | null }
   | { ok: false; error: string };
 
-// eslint-disable-next-line no-control-regex
 const CONTROL_CHARS = /[\u0000-\u001f\u007f]/g;
 
 /** One line of plain words: no control characters, no delimiter, no runs of

@@ -109,7 +109,7 @@ export default function ServicePicker({
     return (
       <div>
         <span className="mb-1.5 block font-semibold text-slate-900">{label}</span>
-        <p className="text-xs text-red-600">{emptyMessage}</p>
+        <p className="text-sm text-red-600">{emptyMessage}</p>
       </div>
     );
   }
@@ -170,7 +170,7 @@ export default function ServicePicker({
                   type="button"
                   onClick={openBrowse}
                   aria-haspopup="dialog"
-                  className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700 transition hover:border-teal-400 hover:bg-teal-50 hover:text-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+                  className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-bold text-slate-700 transition hover:border-teal-400 hover:bg-teal-50 hover:text-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
                 >
                   Change
                 </button>
@@ -198,7 +198,7 @@ export default function ServicePicker({
           </span>
           <span className="min-w-0">
             <span className="block font-bold text-slate-900">{browseHeading}</span>
-            <span className="block text-xs text-slate-500">{browseBlurb(options.length)}</span>
+            <span className="block text-sm text-slate-500">{browseBlurb(options.length)}</span>
           </span>
           <span aria-hidden className="ml-auto text-teal-700">
             <i className="fa-solid fa-chevron-right" />
@@ -207,7 +207,7 @@ export default function ServicePicker({
       )}
 
       {only && singleOptionNote && (
-        <p className="mt-1.5 text-xs text-slate-500">{singleOptionNote}</p>
+        <p className="mt-1.5 text-sm text-slate-500">{singleOptionNote}</p>
       )}
 
       <Modal
@@ -270,7 +270,7 @@ export default function ServicePicker({
         ) : (
           <>
             <div className="px-6 pt-7 sm:px-8">
-              <span className="block text-[10px] font-bold uppercase tracking-[0.18em] text-teal-700">
+              <span className="block text-[13px] font-bold uppercase tracking-[0.18em] text-teal-700">
                 Step 1 &middot; your service
               </span>
               <h3
