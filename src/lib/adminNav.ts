@@ -103,6 +103,18 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
       // Approvals used to sit on the patients directory, which made one
       // screen do three jobs -- a queue is not a person.
       { key: "approvals", label: "Approvals" },
+      // The other half of "waiting on a person": a patient's Health Profile
+      // answers waiting to go live, and a therapist asking to edit one. It
+      // sits beside Approvals because it is the same kind of work, and is its
+      // own screen because the people differ (a patient's record, not an
+      // account) and so does the row (who asked, who for, how long).
+      {
+        key: "health-reviews",
+        label: "Health Profile reviews",
+        blurb:
+          "Patient answers waiting to go live on a Health Profile, and therapists asking to edit one.",
+        example: "Approve the answers Dr Meera filled in for Asha, or decline them with a reason.",
+      },
       // What the detectors noticed. Under Today rather than in a section of
       // its own because a signal is a piece of work waiting on somebody,
       // and that is what this section is for.

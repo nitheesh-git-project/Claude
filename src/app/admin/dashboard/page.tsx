@@ -152,13 +152,15 @@ import ProfileChangeRequestActions from "@/components/admin/ProfileChangeRequest
 import AdminPeopleDirectory from "@/components/admin/AdminPeopleDirectory";
 import PagedList from "@/components/dashboard/PagedList";
 import ReadOnlyDeskNote from "@/components/admin/ReadOnlyDeskNote";
+import AdminScreenLink from "@/components/admin/AdminScreenLink";
+import HealthProfileReviewsTab from "@/components/admin/HealthProfileReviewsTab";
+import { loadHealthProfileReviews } from "@/lib/healthProfileReviewsServer";
 import AdminCalendarTab from "@/components/admin/AdminCalendarTab";
 import AdminMetricsTab from "@/components/admin/AdminMetricsTab";
 import QuestionBankManager from "@/components/admin/QuestionBankManager";
 import LicensedMeasureSettings from "@/components/admin/LicensedMeasureSettings";
 import ProfileWidgetSettings from "@/components/admin/ProfileWidgetSettings";
 import SixMinuteWalkEquationSettings from "@/components/admin/SixMinuteWalkEquationSettings";
-import ConditionsListFilter from "@/components/admin/ConditionsListFilter";
 import { parseAreaPain } from "@/lib/conditionIntake";
 import {
   DEFAULT_CONDITION_SPECIALTY,
@@ -346,6 +348,12 @@ export default async function AdminDashboardPage({
   const conditionSpecialtyPromise = admin
     .from("patient_condition_profiles")
     .select("patient_id, specialty");
+
+  // The rows behind Today -> Health Profile reviews, started with the rest of
+  // the early reads and awaited where the screen is built. Every desk can open
+  // People (Finance at view), so this is read for all; the buttons are what
+  // follow people:manage.
+  const healthReviewsPromise = loadHealthProfileReviews(admin);
 
   // The claims count that follows this one at its use site genuinely does
   // depend on the result -- it is narrowed to the ids returned here -- so
@@ -2260,6 +2268,11 @@ export default async function AdminDashboardPage({
     </div>
   );
 
+  const healthReviews = await healthReviewsPromise;
+  const healthReviewsTab = (
+    <HealthProfileReviewsTab reviews={healthReviews} canManage={canManagePeople} nowMs={nowTimestamp()} />
+  );
+
   const b2bPartners = (
     <>
       {partnersSummaryStrip}
@@ -2812,12 +2825,42 @@ export default async function AdminDashboardPage({
 
   const patientsTab = (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-      <h2 className="font-display font-bold text-lg text-slate-800 mb-4">
+      <h2 className="font-display font-bold text-lg text-slate-800 mb-1">
         Patients
         <span className="ml-2 text-xs font-normal text-slate-500">
           {patients.length} total
         </span>
       </h2>
+      <p className="text-xs text-slate-500 mb-4">
+        Each patient&apos;s Health Profile status and condition type is on their card.
+        {(conditionRequestsPendingCount ?? 0) + (conditionAccessPendingCount ?? 0) > 0 && (
+          <>
+            {" "}
+            <AdminScreenLink
+              href={adminScreenHref("today", "health-reviews")}
+              className="font-semibold text-teal-700 hover:underline"
+            >
+              {(conditionRequestsPendingCount ?? 0) + (conditionAccessPendingCount ?? 0)} waiting on review
+            </AdminScreenLink>
+            .
+          </>
+        )}
+        {/* The question wording is a clinic setting, not a patient fact: it
+            lived in a fold-out on this list, which every desk could open and
+            only Master Admin can save. Settings is where it is edited. */}
+        {scopeCanOpen(viewerScope, "settings") && (
+          <>
+            {" "}
+            <AdminScreenLink
+              href={adminScreenHref("settings", "clinical")}
+              className="font-semibold text-teal-700 hover:underline"
+            >
+              Edit questions in Settings → Clinical Questions
+            </AdminScreenLink>
+            .
+          </>
+        )}
+      </p>
       {patients.length === 0 ? (
         <p className="text-xs text-slate-500 py-4 text-center">
           No patients have signed up yet.
@@ -2847,55 +2890,19 @@ export default async function AdminDashboardPage({
               approved: p.approved,
               created_at: p.created_at,
               code: roleCodeMap.get(p.id)?.patient_code ?? null,
-              careStatus: conditionStatusByPatientId.get(p.id) ?? "not_started",
+              // One row per patient: the Health Profile's state rides on the
+              // directory instead of a second list of the same people. A
+              // patient no therapist has written a record for yet is
+              // "awaiting first record" -- the question that list answered.
+              careStatus: onboardedPatientIds.has(p.id)
+                ? conditionStatusByPatientId.get(p.id) ?? "not_started"
+                : "awaiting_onboarding",
+              conditionType: onboardedPatientIds.has(p.id)
+                ? conditionSpecialtyByPatientId.get(p.id) ?? DEFAULT_CONDITION_SPECIALTY
+                : null,
               searchRefs: searchRefsByPatientId.get(p.id),
             };
           })}
-        />
-      )}
-    </div>
-  );
-
-  const conditionUpdatedAtByPatientId = new Map(
-    (conditionProfiles ?? []).map((c) => [c.patient_id, c.updated_at as string])
-  );
-  const conditionsBadgeCount = (conditionRequestsPendingCount ?? 0) + (conditionAccessPendingCount ?? 0);
-
-  const conditionsTab = (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-      <h2 className="font-display font-bold text-lg text-slate-800 mb-1">
-        Patient Conditions
-        {conditionsBadgeCount > 0 && (
-          <span className="ml-2 rounded-full bg-amber-300 px-1.5 py-0.5 text-[11px] font-bold text-amber-900">
-            {conditionsBadgeCount} pending
-          </span>
-        )}
-      </h2>
-      <p className="text-xs text-slate-500 mb-4">
-        Health Profile answers and Pain Map data for every patient. Open a patient to review
-        submissions, therapist access requests, and pain assessments.
-      </p>
-
-      <details className="mb-6 rounded-xl border border-slate-200 p-4">
-        <summary className="text-sm font-bold text-slate-700 cursor-pointer">Manage Questions</summary>
-        <div className="mt-4">
-          <QuestionBankManager />
-        </div>
-      </details>
-
-      {patients.length === 0 ? (
-        <p className="text-xs text-slate-500 py-4 text-center">No patients have signed up yet.</p>
-      ) : (
-        <ConditionsListFilter
-          rows={patients.map((p) => ({
-            id: p.id,
-            full_name: p.full_name,
-            email: p.email,
-            status: conditionStatusByPatientId.get(p.id) ?? "not_started",
-            updatedAt: conditionUpdatedAtByPatientId.get(p.id) ?? null,
-            specialty: conditionSpecialtyByPatientId.get(p.id) ?? DEFAULT_CONDITION_SPECIALTY,
-            onboarded: onboardedPatientIds.has(p.id),
-          }))}
         />
       )}
     </div>
@@ -5162,18 +5169,22 @@ export default async function AdminDashboardPage({
           urgent: true,
         },
         {
-          label: "Care intake submissions to review",
+          label: "Health Profile answers to review",
           count: conditionRequestsPendingCount ?? 0,
-          section: "people",
-          tab: "patients",
-          hint: "Patient history waiting to go live.",
+          // The screen that lists exactly these rows, with Approve and
+          // Decline on each -- the patients directory listed everyone.
+          section: "today",
+          tab: "health-reviews",
+          workSection: "people",
+          hint: "Patient answers waiting to go live on their Health Profile.",
         },
         {
           label: "Therapist access requests",
           count: conditionAccessPendingCount ?? 0,
-          section: "people",
-          tab: "patients",
-          hint: "A therapist wants write access to a patient's records.",
+          section: "today",
+          tab: "health-reviews",
+          workSection: "people",
+          hint: "A therapist wants to edit a patient's Health Profile.",
         },
       ],
     },
@@ -5600,17 +5611,13 @@ export default async function AdminDashboardPage({
   const screens: AdminScreens = {
     "today:overview": adminOverviewTab,
     "today:approvals": approvalsTab,
+    "today:health-reviews": healthReviewsTab,
     "today:risk": todayRiskTab,
     "sessions:schedule": calendarTab,
     "sessions:all": allSessionsTab,
     "sessions:roster": rosterTab,
     "sessions:new": newBookingTab,
-    "people:patients": (
-      <div className="space-y-8">
-        {patientsTab}
-        {conditionsTab}
-      </div>
-    ),
+    "people:patients": patientsTab,
     "people:therapists": therapistsTab,
     "people:partners": b2bPartners,
     "people:declined": (
@@ -5792,7 +5799,7 @@ export default async function AdminDashboardPage({
     "programmes:all": recommendationPulse.counts.paidUnbooked,
     "today:approvals": (pendingAccounts?.length ?? 0) + (pendingProfileChanges?.length ?? 0),
     "today:risk": openRiskCount,
-    "people:patients": conditionsBadgeCount,
+    "today:health-reviews": (conditionRequestsPendingCount ?? 0) + (conditionAccessPendingCount ?? 0),
     "people:partners": b2bBadgeCount,
     "people:abandoned": abandonedCheckouts?.length ?? 0,
     "money:payouts": payoutRequestsBadgeCount + manualRefundsPending,

@@ -142,11 +142,11 @@ test.describe("Suites A/B/C/K: the admin dashboard in a browser", () => {
     // Located by role and name, never by bare text. This page now renders the
     // *real* dashboard behind the overlay (see AdminDetailDashboard), and the
     // dashboard mounts all 34 screens at once behind `hidden` -- so a loose
-    // `getByText("Care Record")` also matches the two scope blurbs reading
-    // "Patients, sessions and care records", and fails on a strict-mode
-    // violation describing a working page.
+    // `getByText("Health Profile")` also matches the scope blurbs and the
+    // Health Profile chips, and fails on a strict-mode violation describing a
+    // working page.
     await expect(
-      page.getByRole("link", { name: /^Care Record/ })
+      page.getByRole("link", { name: /The patient.s answers, who can see the profile/ })
     ).toBeVisible();
     await expect(
       page.getByRole("heading", { name: "Personal Details" })
