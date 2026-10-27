@@ -4,6 +4,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import ConditionRequestActions from "@/components/admin/ConditionRequestActions";
 import ConditionAccessActions from "@/components/admin/ConditionAccessActions";
 import ConditionDirectEditForm from "@/components/admin/ConditionDirectEditForm";
+import ReadOnlyDeskNote from "@/components/admin/ReadOnlyDeskNote";
+import { answerText as readAnswer } from "@/lib/intakeAnswerDiff";
 import SpecialtyExamPanel from "@/components/profile/SpecialtyExamPanel";
 import MedicalDocumentsPanel from "@/components/profile/MedicalDocumentsPanel";
 import type { MedicalDocumentRow } from "@/lib/medicalDocuments";
@@ -12,11 +14,9 @@ import SessionNoteHistory from "@/components/therapist/SessionNoteHistory";
 import type { SessionNoteRow } from "@/lib/sessionNotes";
 import {
   CONDITION_STATUS_LABEL,
-  formatAreaPainForText,
   intakeVersionForSpecialty,
   mergeIntakeQuestionOverrides,
   parseAreaPain,
-  parseMultiSelect,
   questionsForSpecialty,
   visibleQuestions,
   type ConditionProfileStatus,
@@ -61,18 +61,7 @@ const regionLabel = (region: string) =>
  *  pending-request card and the history entries so a re-triaged patient's
  *  older submission never renders as raw JSON. */
 function answerText(question: IntakeQuestion, raw: string | undefined): string | null {
-  const value = (raw ?? "").trim();
-  if (!value) return null;
-  if (question.inputType === "area_pain_list") {
-    const lines = formatAreaPainForText(parseAreaPain(value), regionLabel);
-    return lines.length > 0 ? lines.join(" · ") : null;
-  }
-  if (question.inputType === "multi_select") {
-    const picked = parseMultiSelect(value);
-    return picked.length > 0 ? picked.join(", ") : null;
-  }
-  if (question.inputType === "scale_0_10") return `${value}/10`;
-  return value;
+  return readAnswer(question, raw, regionLabel);
 }
 
 /** The answers of one submission, rendered against ITS OWN specialty's
@@ -82,13 +71,17 @@ function answerText(question: IntakeQuestion, raw: string | undefined): string |
 function AnswerList({
   specialty,
   data,
+  questions,
 }: {
   specialty: ConditionSpecialty;
   data: Record<string, string>;
+  /** The clinic's current wording for this specialty, when the caller has it
+   *  (the live answers); a submission keeps the code defaults. */
+  questions?: IntakeQuestion[];
 }) {
   // Only the questions these answers ask: a Parkinson's follow-up kept on
   // file after the condition group changed is not part of this answer.
-  const rows = visibleQuestions(questionsForSpecialty(specialty), data)
+  const rows = visibleQuestions(questions ?? questionsForSpecialty(specialty), data)
     .map((q) => ({ q, text: answerText(q, data[q.key]) }))
     .filter((r) => r.text);
   if (rows.length === 0) {
@@ -103,6 +96,20 @@ function AnswerList({
         </div>
       ))}
     </dl>
+  );
+}
+
+/** A read that failed, said as such. Never an empty state: "no documents" and
+ *  "the documents did not load" are different facts about a patient. */
+function LoadFailed({ what }: { what: string }) {
+  return (
+    <p
+      role="alert"
+      data-testid="load-failed"
+      className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700"
+    >
+      Couldn&apos;t load {what} - reload the page to try again.
+    </p>
   );
 }
 
@@ -124,7 +131,10 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
   // They go in their own calls and are merged in: this component's main
   // Promise.all is nine deep, and one unknown-column error there would
   // blank the whole review screen rather than one chip.
-  const [{ data: specialtyRow }, { data: proposedSpecialtyRows }] = await Promise.all([
+  const [
+    { data: specialtyRow, error: specialtyError },
+    { data: proposedSpecialtyRows, error: proposedSpecialtyError },
+  ] = await Promise.all([
     admin
       .from("patient_condition_profiles")
       .select("specialty, triage_data")
@@ -135,6 +145,14 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
       .select("id, proposed_specialty, proposed_triage_data")
       .eq("patient_id", id),
   ]);
+  // A failed read is "we couldn't load it", never the default. `specialty`
+  // is the one these two reads decide: a neurological patient whose read
+  // failed would otherwise be drawn as orthopaedic, with an orthopaedic
+  // chart and an orthopaedic question set. 42703 (no such column) is the one
+  // honest default -- a database that predates specialties holds only ortho.
+  const specialtyReadFailed =
+    (!!specialtyError && specialtyError.code !== "42703") ||
+    (!!proposedSpecialtyError && proposedSpecialtyError.code !== "42703");
   const specialty = parseConditionSpecialty(specialtyRow?.specialty);
   const isOrthoProfile = specialty === "ortho";
   const isNeuroProfile = specialty === "neuro";
@@ -156,7 +174,9 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
           .order("created_at", { ascending: false })
           .limit(200)
       : Promise.resolve({ data: [] as NeuroAssessmentRow[], error: null }),
-    isNeuroProfile || isOrthoProfile || isPedsProfile || isGeriatricProfile || isCardioProfile ? getAdminContext() : Promise.resolve(null),
+    // Always read: the page's own controls (answers, decisions) key off the
+    // viewer's scope, not only the chart's.
+    getAdminContext(),
     // The orthopaedic progress record (measurements, goal and steps, phase and
     // status history), each read its own call inside the loader; orthopaedic
     // only, like the Pain Map.
@@ -173,16 +193,20 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
     ])
   );
 
+  // Every one of the nine carries its error. A read that failed used to fall
+  // through `?? []` / `?.status ?? "not_started"` and draw an empty section --
+  // "no documents", "not started", "no therapist has asked" -- which is a
+  // statement about the patient that nobody checked.
   const [
-    { data: patient },
-    { data: profile },
-    { data: changeRequests },
-    { data: grants },
-    { data: assessments },
-    { data: intakeOverrideRows },
-    { data: painMapOverrideRows },
-    { data: sessionNoteRows },
-    { data: medicalDocuments },
+    { data: patient, error: patientError },
+    { data: profile, error: profileError },
+    { data: changeRequests, error: changeRequestsError },
+    { data: grants, error: grantsError },
+    { data: assessments, error: assessmentsError },
+    { data: intakeOverrideRows, error: intakeOverrideError },
+    { data: painMapOverrideRows, error: painMapOverrideError },
+    { data: sessionNoteRows, error: sessionNotesError },
+    { data: medicalDocuments, error: documentsError },
   ] = await Promise.all([
     admin.from("profiles").select("id, full_name, email").eq("id", id).eq("role", "patient").single(),
     admin
@@ -210,7 +234,7 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
           .select("id, region, side, pain_percent, submitted_by_role, created_at")
           .eq("patient_id", id)
           .order("created_at", { ascending: false })
-      : Promise.resolve({ data: [] as PainAssessmentRow[] }),
+      : Promise.resolve({ data: [] as PainAssessmentRow[], error: null }),
     admin.from("intake_question_templates").select("question_key, question_text, required"),
     admin.from("pain_map_question_templates").select("region, question_key, question_text"),
     // Clinician-only session notes. Admins are the second audience for
@@ -230,6 +254,15 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
   ]);
 
   if (!patient) {
+    // PGRST116 is `.single()` finding no such patient; anything else is the
+    // read failing, which is not the same as the patient not existing.
+    if (patientError && patientError.code !== "PGRST116") {
+      return (
+        <div className="space-y-4">
+          <LoadFailed what="this Health Profile" />
+        </div>
+      );
+    }
     notFound();
   }
 
@@ -243,12 +276,26 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
     (painMapOverridesByRegion[row.region] ??= []).push(row);
   }
 
-  const therapistIds = [...new Set((grants ?? []).map((g) => g.therapist_id))];
-  const { data: therapists } =
-    therapistIds.length > 0
-      ? await admin.from("profiles").select("id, full_name").in("id", therapistIds)
-      : { data: [] as { id: string; full_name: string }[] };
-  const therapistNameById = new Map((therapists ?? []).map((t) => [t.id, t.full_name]));
+  // Names for everyone who appears on this page: the therapists holding or
+  // asking for access, the authors of session notes, and whoever submitted
+  // each set of answers. A raw id is never a name.
+  const nameIds = [
+    ...new Set([
+      ...(grants ?? []).map((g) => g.therapist_id),
+      ...(sessionNoteRows ?? []).map((n) => n.therapist_id),
+      ...(changeRequests ?? []).map((r) => r.submitted_by),
+    ]),
+  ].filter((v): v is string => typeof v === "string" && v !== id);
+  const { data: namedPeople, error: namesError } =
+    nameIds.length > 0
+      ? await admin.from("profiles").select("id, full_name").in("id", nameIds)
+      : { data: [] as { id: string; full_name: string }[], error: null };
+  const therapistNameById = new Map((namedPeople ?? []).map((t) => [t.id, t.full_name]));
+  // The patient is one of their own submitters.
+  const personNameById = new Map(therapistNameById);
+  personNameById.set(id, patient.full_name);
+  const nameOf = (personId: string | null | undefined, fallback: string) =>
+    (personId && personNameById.get(personId)) || fallback;
 
   const status = (profile?.status ?? "not_started") as ConditionProfileStatus;
   const currentData = (profile?.data ?? {}) as Record<string, string>;
@@ -351,222 +398,33 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
   const requestedGrants = (grants ?? []).filter((g) => g.status === "requested");
   const approvedGrants = (grants ?? []).filter((g) => g.status === "approved");
 
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-bold text-slate-800">{patient.full_name}</h1>
-        <p className="text-xs text-slate-500">{patient.email}</p>
-      </div>
+  // What the summary header says is waiting, and the one place it is decided.
+  // Unknown (a read failed) is not zero.
+  const pendingKnown = !changeRequestsError && !grantsError;
+  const pendingCount = (pendingRequest ? 1 : 0) + requestedGrants.length;
+  const phase =
+    orthoView?.phase ?? pedsView?.phase ?? neuroView?.phase ?? geriView?.phase ?? cardioView?.phase ?? null;
+  // The chart reads the profile's own answers and, for the orthopaedic body
+  // map, the examination history. Without either it would draw an empty
+  // record, so it says it could not load instead.
+  const chartBlocked =
+    specialtyReadFailed || !!profileError || (isOrthoProfile && !!assessmentsError);
+  // Editing sends the whole answer set back, so it must never be offered on
+  // answers that did not load: it would save blanks over the record.
+  const canEditAnswers =
+    canManagePeople && !specialtyReadFailed && !profileError && !changeRequestsError;
+  const patientName = patient.full_name ?? "this patient";
+  const pendingSubmitter = pendingRequest
+    ? nameOf(pendingRequest.submitted_by, pendingRequest.submitted_by_role === "patient" ? "the patient" : "A therapist")
+    : null;
 
-      <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-display font-bold text-lg text-slate-800">Health Profile</h2>
-          <div className="flex items-center gap-2">
-            {specialtyDef && (
-              <span className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${specialtyDef.chipClass}`}>
-                <i aria-hidden className={`fa-solid ${specialtyDef.icon} mr-1 text-[10px]`} />
-                {specialtyDef.label}
-              </span>
-            )}
-            {status === "active" && (
-              <span
-                className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-500"
-                title="Which version of this condition type's question set the patient answered."
-              >
-                Question set v{profile?.schema_version ?? 1}
-              </span>
-            )}
-            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
-              {CONDITION_STATUS_LABEL[status]}
-            </span>
-          </div>
-        </div>
-
-        {isOutdatedVersion && (
-          <p className="mb-4 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-            Answered under an earlier version of this questionnaire (v{profile?.schema_version} vs current v
-            {currentVersion}) - question wording may have changed since.
-          </p>
-        )}
-
-        {pendingRequest && (
-          <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4">
-            <p className="text-xs font-semibold text-amber-800 mb-2 flex items-center gap-2">
-              <span>
-                Submitted by {pendingRequest.submitted_by_role} -{" "}
-                {formatClinicDateTime(pendingRequest.created_at)}
-              </span>
-              {pendingDaysOld > 3 && (
-                <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700">
-                  Waiting {pendingDaysOld} days
-                </span>
-              )}
-            </p>
-            {/* Against the submission's OWN specialty. A therapist who
-                re-triaged this patient while the submission sat here has
-                left answers for a set the profile no longer uses, and
-                rendering them against the current one would show an empty
-                list -- "they answered nothing" rather than "they answered
-                a different set". The decide route refuses that case; this
-                is what makes it legible. */}
-            <div className="mb-3">
-              <AnswerList
-                specialty={proposedSpecialtyById.get(pendingRequest.id)?.specialty ?? specialty}
-                data={pendingRequest.proposed_data as Record<string, string>}
-              />
-            </div>
-            <ConditionRequestActions requestId={pendingRequest.id} />
-          </div>
-        )}
-
-        {triageAnswers.length > 0 && (
-          <details className="mb-4 rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 py-2.5">
-            <summary className="cursor-pointer text-xs font-semibold text-slate-600">
-              How this patient was triaged
-            </summary>
-            <ul className="mt-1.5 space-y-0.5">
-              {triageAnswers.map((a) => (
-                <li key={a.label} className="text-xs text-slate-600">
-                  <span className="font-semibold">{a.label}:</span> {a.value}
-                </li>
-              ))}
-            </ul>
-          </details>
-        )}
-
-        {/* No specialty selector here, deliberately. Changing a patient's
-            condition type is a clinical decision whose path is the
-            therapist's re-triage; a dropdown buried in an answers form is
-            how it gets changed by accident. */}
-        <p className="text-xs font-semibold text-slate-500 mb-2">
-          Live {specialtyLabel(specialty).toLowerCase()} answers - editing here applies straight
-          away, without going through the review queue above
-        </p>
-        <ConditionDirectEditForm
-          questions={questions}
-          patientId={id}
-          currentData={currentData}
-          disabled={!!pendingRequest}
-        />
-
-        {requestHistory.length > 0 && (
-          <details className="mt-5">
-            <summary className="text-xs font-semibold text-slate-500 cursor-pointer">
-              Review history ({requestHistory.length})
-            </summary>
-            <ul className="mt-2 space-y-2">
-              {requestHistory.map((r, index) => {
-                const proposed = proposedSpecialtyById.get(r.id);
-                // A therapist's onboarding and re-triage write live and
-                // record themselves here as already-approved rows, so this
-                // list is where a specialty change shows up. Naming it is
-                // the single most consequential thing on this screen: two
-                // entries whose answers simply look different are not the
-                // same as one that says the condition type changed.
-                // Against the row BEFORE it in time, not against the
-                // profile's current type. Comparing to current meant the
-                // row that actually moved the patient never said so, while
-                // an older, since-reverted one did -- the one line on this
-                // screen an admin most needs, attached to the wrong entry.
-                // requestHistory is newest-first, so the previous state is
-                // the next index along.
-                const earlier = requestHistory
-                  .slice(index + 1)
-                  .map((older) => proposedSpecialtyById.get(older.id)?.specialty)
-                  .find((sp) => !!sp);
-                const changedSpecialty =
-                  proposed && earlier && proposed.specialty !== earlier ? proposed.specialty : null;
-                const triage = proposed?.triage
-                  ? TRIAGE_QUESTIONS.map((q) => ({
-                      label: q.shortLabel ?? q.label,
-                      value: (proposed.triage?.[q.key] ?? "").split("\n").filter(Boolean).join(", "),
-                    })).filter((a) => a.value)
-                  : [];
-                return (
-                  <li key={r.id} className="text-xs text-slate-600 border-t border-slate-100 pt-2">
-                    {r.status === "approved" ? "Approved" : "Declined"} - submitted by{" "}
-                    {r.submitted_by_role}, {formatClinicDateTime(r.created_at)}
-                    {proposed && (
-                      <span className="ml-1.5 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
-                        {specialtyLabel(proposed.specialty)}
-                      </span>
-                    )}
-                    {changedSpecialty && (
-                      <p className="mt-1 font-semibold text-violet-700">
-                        Condition type set to {specialtyLabel(changedSpecialty)}
-                      </p>
-                    )}
-                    {r.admin_notes && <p className="text-slate-500">Note: {r.admin_notes}</p>}
-                    {triage.length > 0 && (
-                      <details className="mt-1">
-                        <summary className="cursor-pointer text-slate-500">
-                          What the therapist answered at triage
-                        </summary>
-                        <ul className="mt-1 space-y-0.5 pl-3">
-                          {triage.map((a) => (
-                            <li key={a.label} className="text-slate-600">
-                              <span className="font-semibold">{a.label}:</span> {a.value}
-                            </li>
-                          ))}
-                        </ul>
-                      </details>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          </details>
-        )}
-      </section>
-
-      <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h2 className="font-display font-bold text-lg text-slate-800 mb-4">Therapist Access</h2>
-        {requestedGrants.length === 0 && approvedGrants.length === 0 ? (
-          <p className="text-xs text-slate-500">No therapist has requested access to this patient&apos;s condition data.</p>
-        ) : (
-          <ul className="divide-y divide-slate-100">
-            {[...requestedGrants, ...approvedGrants].map((g) => (
-              <li key={g.id} className="flex items-center justify-between gap-3 py-3">
-                <div>
-                  <p className="text-sm font-semibold text-slate-800">
-                    {therapistNameById.get(g.therapist_id) ?? g.therapist_id}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    {g.status === "requested" ? "Requested" : "Approved"} -{" "}
-                    {formatClinicDateTime(g.requested_at)}
-                  </p>
-                </div>
-                <ConditionAccessActions grantId={g.id} status={g.status as "requested" | "approved"} />
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <SurfaceCard
-        title="Test reports and scans"
-        icon="fa-folder-open"
-        subtitle="Uploaded by the patient themselves. Deleting one is the patient's own call, so there is no admin delete here."
-      >
-        <MedicalDocumentsPanel
-          documents={(medicalDocuments ?? []) as MedicalDocumentRow[]}
-          canManage={false}
-          emptyMessage="This patient hasn't uploaded any reports."
-        />
-      </SurfaceCard>
-
-      <SurfaceCard
-        title="Session notes"
-        icon="fa-file-lines"
-        subtitle="Written by the treating therapist after each session. Clinician-only - the patient cannot see these, in the app or in their data export."
-      >
-        <SessionNoteHistory
-          notes={(sessionNoteRows ?? []) as SessionNoteRow[]}
-          therapistNameById={therapistNameById}
-          emptyBody="Nothing recorded yet. Notes appear here as therapists write them up after delivered sessions."
-        />
-      </SurfaceCard>
-
+  const chartSection = chartBlocked ? (
+    <LoadFailed what="the Health Profile chart" />
+  ) : (
+    <>
+      {isOrthoProfile && painMapOverrideError && (
+        <LoadFailed what="the Pain Map question wording" />
+      )}
       {orthoView && isOrthoProfile ? (
         <>
           <OrthoProfileTop
@@ -742,7 +600,371 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
         </section>
       )}
 
-      {exercisesRead && <HomeExercisesChart read={exercisesRead} />}
+    </>
+  );
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-xl font-bold text-slate-800">{patient.full_name}</h1>
+        <p className="text-xs text-slate-500">{patient.email}</p>
+      </div>
+
+      {/* 1. The summary: what this record is, where it stands, and whether
+          anything is waiting on a person -- before any detail. */}
+      <section
+        data-testid="health-profile-summary"
+        aria-label="Health Profile summary"
+        className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5"
+      >
+        <h2 className="font-display font-bold text-lg text-slate-800 mb-3">Health Profile</h2>
+        <div className="flex flex-wrap items-center gap-2">
+          {specialtyReadFailed ? (
+            <span className="rounded-full bg-red-50 px-2.5 py-1 text-[11px] font-semibold text-red-700">
+              Condition type: couldn&apos;t load
+            </span>
+          ) : (
+            specialtyDef && (
+              <span className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${specialtyDef.chipClass}`}>
+                <i aria-hidden className={`fa-solid ${specialtyDef.icon} mr-1 text-[10px]`} />
+                {specialtyDef.label}
+              </span>
+            )
+          )}
+          {profileError ? (
+            <span className="rounded-full bg-red-50 px-2.5 py-1 text-[11px] font-semibold text-red-700">
+              Status: couldn&apos;t load
+            </span>
+          ) : (
+            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+              {CONDITION_STATUS_LABEL[status]}
+            </span>
+          )}
+          {phase && (
+            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+              Phase: {phase}
+            </span>
+          )}
+        </div>
+        <p className="mt-3 text-sm text-slate-700" data-testid="health-profile-pending-line">
+          {!pendingKnown ? (
+            <span className="text-red-700">Couldn&apos;t check what is waiting - reload to try again.</span>
+          ) : pendingCount === 0 ? (
+            "Nothing is waiting for review."
+          ) : (
+            <a href="#pending-review" className="font-semibold text-amber-800 underline">
+              {[
+                pendingRequest ? "1 submission to review" : null,
+                requestedGrants.length > 0
+                  ? `${requestedGrants.length} therapist access request${requestedGrants.length === 1 ? "" : "s"}`
+                  : null,
+              ]
+                .filter(Boolean)
+                .join(" and ")}{" "}
+              waiting
+            </a>
+          )}
+        </p>
+        {!canManagePeople && <ReadOnlyDeskNote className="mt-3" />}
+      </section>
+
+      {/* SLOT: the patient's Health Profile widget controls (added by the
+          profile-widgets change) go here, directly under the summary. */}
+      {/* HEALTH-PROFILE-WIDGET-CONTROLS-SLOT */}
+
+      {/* 2. Pending review: only when there is something to decide, or when
+          we could not tell. */}
+      {(!pendingKnown || pendingCount > 0) && (
+        <section
+          id="pending-review"
+          data-testid="health-profile-pending-review"
+          className="bg-white rounded-2xl border border-amber-200 shadow-sm p-6 scroll-mt-20"
+        >
+          <h2 className="font-display font-bold text-lg text-slate-800 mb-4">Waiting for review</h2>
+          {changeRequestsError && <LoadFailed what="the intake submissions" />}
+          {grantsError && <LoadFailed what="the therapist access requests" />}
+          {pendingRequest && (
+            <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4">
+              <p className="text-xs font-semibold text-amber-800 mb-2 flex flex-wrap items-center gap-2">
+                <span>
+                  Intake answers from {pendingSubmitter} - {formatClinicDateTime(pendingRequest.created_at)}
+                </span>
+                {pendingDaysOld > 3 && (
+                  <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700">
+                    Waiting {pendingDaysOld} days
+                  </span>
+                )}
+              </p>
+              {/* Against the submission's OWN specialty. A therapist who
+                  re-triaged this patient while the submission sat here has
+                  left answers for a set the profile no longer uses, and
+                  rendering them against the current one would show an empty
+                  list -- "they answered nothing" rather than "they answered
+                  a different set". The decide route refuses that case; this
+                  is what makes it legible. */}
+              <div className="mb-3">
+                <AnswerList
+                  specialty={proposedSpecialtyById.get(pendingRequest.id)?.specialty ?? specialty}
+                  data={pendingRequest.proposed_data as Record<string, string>}
+                />
+              </div>
+              {canManagePeople ? (
+                <>
+                  <p className="mb-2 text-[11px] text-amber-900">
+                    Approving puts these answers live on {patientName}&apos;s Health Profile straight away.
+                  </p>
+                  <ConditionRequestActions requestId={pendingRequest.id} patientName={patientName} />
+                </>
+              ) : (
+                <p className="text-[11px] font-semibold text-amber-800">Waiting for a decision</p>
+              )}
+            </div>
+          )}
+          {requestedGrants.length > 0 && (
+            <ul className="divide-y divide-slate-100">
+              {requestedGrants.map((g) => {
+                const therapistName = nameOf(g.therapist_id, "A therapist");
+                return (
+                  <li key={g.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800">{therapistName}</p>
+                      <p className="text-xs text-slate-500">
+                        Asked to edit {patientName}&apos;s Health Profile - {formatClinicDateTime(g.requested_at)} (
+                        {daysSince(g.requested_at) === 0 ? "today" : `waiting ${daysSince(g.requested_at)} day${daysSince(g.requested_at) === 1 ? "" : "s"}`}
+                        )
+                      </p>
+                    </div>
+                    {canManagePeople ? (
+                      <ConditionAccessActions
+                        grantId={g.id}
+                        status="requested"
+                        therapistName={therapistName}
+                        patientName={patientName}
+                      />
+                    ) : (
+                      <p className="text-[11px] font-semibold text-amber-800">Waiting for a decision</p>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      )}
+
+      {/* 3. The Health Profile itself: the chart, as the therapist reads it. */}
+      {chartSection}
+
+      {/* 4. Home exercises. */}
+      {exercisesRead && !chartBlocked && <HomeExercisesChart read={exercisesRead} />}
+
+      {/* 5. Session notes. */}
+      <SurfaceCard
+        title="Session notes"
+        icon="fa-file-lines"
+        subtitle="Written by the treating therapist after each session. Clinician-only - the patient cannot see these, in the app or in their data export."
+      >
+        {sessionNotesError ? (
+          <LoadFailed what="the session notes" />
+        ) : (
+          <SessionNoteHistory
+            notes={(sessionNoteRows ?? []) as SessionNoteRow[]}
+            therapistNameById={therapistNameById}
+            emptyBody="Nothing recorded yet. Notes appear here as therapists write them up after delivered sessions."
+          />
+        )}
+        {namesError && !sessionNotesError && (
+          <p className="mt-2 text-[11px] text-slate-500">Therapist names couldn&apos;t load, so notes show &quot;Therapist&quot;.</p>
+        )}
+      </SurfaceCard>
+
+      {/* 6. Documents. */}
+      <SurfaceCard
+        title="Documents"
+        icon="fa-folder-open"
+        subtitle="Test reports and scans uploaded by the patient themselves. Deleting one is the patient's own call, so there is no admin delete here."
+      >
+        {documentsError ? (
+          <LoadFailed what="the documents" />
+        ) : (
+          <MedicalDocumentsPanel
+            documents={(medicalDocuments ?? []) as MedicalDocumentRow[]}
+            canManage={false}
+            emptyMessage="This patient hasn't uploaded any reports."
+          />
+        )}
+      </SurfaceCard>
+
+      {/* 7. Who can edit this record. Requests waiting a decision are above;
+          this is who holds access now. */}
+      <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6" data-testid="health-profile-therapist-access">
+        <h2 className="font-display font-bold text-lg text-slate-800 mb-4">Therapist access</h2>
+        {grantsError ? (
+          <LoadFailed what="the therapist access list" />
+        ) : approvedGrants.length === 0 ? (
+          <p className="text-xs text-slate-500">
+            No therapist has been given access to edit {patientName}&apos;s Health Profile.
+            {requestedGrants.length > 0 ? " Requests are waiting above." : ""}
+          </p>
+        ) : (
+          <ul className="divide-y divide-slate-100">
+            {approvedGrants.map((g) => {
+              const therapistName = nameOf(g.therapist_id, "A therapist");
+              return (
+                <li key={g.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800">{therapistName}</p>
+                    <p className="text-xs text-slate-500">
+                      Can edit since {formatClinicDateTime(g.decided_at ?? g.requested_at)}
+                    </p>
+                  </div>
+                  {canManagePeople && (
+                    <ConditionAccessActions
+                      grantId={g.id}
+                      status="approved"
+                      therapistName={therapistName}
+                      patientName={patientName}
+                    />
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+
+      {/* 8. The intake answers the profile was built from, folded away: they
+          are the reference, not the first thing a reviewer needs. */}
+      <section className="bg-white rounded-2xl border border-slate-200 shadow-sm" data-testid="health-profile-intake-answers">
+        <details>
+          <summary className="cursor-pointer px-6 py-4 font-display font-bold text-lg text-slate-800">
+            Intake answers
+          </summary>
+          <div className="px-6 pb-6">
+            {profileError ? (
+              <LoadFailed what="the intake answers" />
+            ) : (
+              <>
+                {isOutdatedVersion && (
+                  <p className="mb-4 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                    Answered under an earlier version of this questionnaire - question wording may have changed
+                    since.
+                  </p>
+                )}
+                {intakeOverrideError && <LoadFailed what="the clinic's question wording" />}
+                {triageAnswers.length > 0 && (
+                  <details className="mb-4 rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 py-2.5">
+                    <summary className="cursor-pointer text-xs font-semibold text-slate-600">
+                      How this patient was triaged
+                    </summary>
+                    <ul className="mt-1.5 space-y-0.5">
+                      {triageAnswers.map((a) => (
+                        <li key={a.label} className="text-xs text-slate-600">
+                          <span className="font-semibold">{a.label}:</span> {a.value}
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+                <p className="text-xs font-semibold text-slate-500 mb-2">
+                  Live {specialtyLabel(specialty).toLowerCase()} answers
+                </p>
+                <div className="mb-4">
+                  <AnswerList
+                    specialty={specialty}
+                    data={currentData}
+                    questions={questions}
+                  />
+                </div>
+                {/* No specialty selector here, deliberately. Changing a
+                    patient's condition type is a clinical decision whose
+                    path is the therapist's re-triage; a dropdown buried in an
+                    answers form is how it gets changed by accident. */}
+                {canEditAnswers ? (
+                  <ConditionDirectEditForm
+                    questions={questions}
+                    patientId={id}
+                    patientName={patientName}
+                    currentData={currentData}
+                    disabled={!!pendingRequest}
+                  />
+                ) : !canManagePeople ? (
+                  <p className="text-xs text-slate-500">Answers can be edited by Operations or Clinical.</p>
+                ) : null}
+                {requestHistory.length > 0 && (
+          <details className="mt-5">
+            <summary className="text-xs font-semibold text-slate-500 cursor-pointer">
+              Review history ({requestHistory.length})
+            </summary>
+            <ul className="mt-2 space-y-2">
+              {requestHistory.map((r, index) => {
+                const proposed = proposedSpecialtyById.get(r.id);
+                // A therapist's onboarding and re-triage write live and
+                // record themselves here as already-approved rows, so this
+                // list is where a specialty change shows up. Naming it is
+                // the single most consequential thing on this screen: two
+                // entries whose answers simply look different are not the
+                // same as one that says the condition type changed.
+                // Against the row BEFORE it in time, not against the
+                // profile's current type. Comparing to current meant the
+                // row that actually moved the patient never said so, while
+                // an older, since-reverted one did -- the one line on this
+                // screen an admin most needs, attached to the wrong entry.
+                // requestHistory is newest-first, so the previous state is
+                // the next index along.
+                const earlier = requestHistory
+                  .slice(index + 1)
+                  .map((older) => proposedSpecialtyById.get(older.id)?.specialty)
+                  .find((sp) => !!sp);
+                const changedSpecialty =
+                  proposed && earlier && proposed.specialty !== earlier ? proposed.specialty : null;
+                const triage = proposed?.triage
+                  ? TRIAGE_QUESTIONS.map((q) => ({
+                      label: q.shortLabel ?? q.label,
+                      value: (proposed.triage?.[q.key] ?? "").split("\n").filter(Boolean).join(", "),
+                    })).filter((a) => a.value)
+                  : [];
+                return (
+                  <li key={r.id} className="text-xs text-slate-600 border-t border-slate-100 pt-2">
+                    {r.status === "approved" ? "Approved" : "Declined"} - submitted by{" "}
+                    {nameOf(r.submitted_by, r.submitted_by_role === "patient" ? "the patient" : "a therapist")},{" "}
+                    {formatClinicDateTime(r.created_at)}
+                    {proposed && (
+                      <span className="ml-1.5 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
+                        {specialtyLabel(proposed.specialty)}
+                      </span>
+                    )}
+                    {changedSpecialty && (
+                      <p className="mt-1 font-semibold text-violet-700">
+                        Condition type set to {specialtyLabel(changedSpecialty)}
+                      </p>
+                    )}
+                    {r.admin_notes && <p className="text-slate-500">Note: {r.admin_notes}</p>}
+                    {triage.length > 0 && (
+                      <details className="mt-1">
+                        <summary className="cursor-pointer text-slate-500">
+                          What the therapist answered at triage
+                        </summary>
+                        <ul className="mt-1 space-y-0.5 pl-3">
+                          {triage.map((a) => (
+                            <li key={a.label} className="text-slate-600">
+                              <span className="font-semibold">{a.label}:</span> {a.value}
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </details>
+        )}
+              </>
+            )}
+          </div>
+        </details>
+      </section>
     </div>
   );
 }

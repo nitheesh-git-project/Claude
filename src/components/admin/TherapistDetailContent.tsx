@@ -38,6 +38,7 @@ import { mergeSessionCodes } from "@/lib/sessionCode";
 import { mergeMeetLinks } from "@/lib/meetLink";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { JoinWindowProvider } from "@/lib/joinWindowContext";
+import { CancellationWindowProvider } from "@/lib/cancellationWindowContext";
 
 // A plain module-level helper rather than a bare Date.now() inside a Server
 // Component's render -- the same reasoning as the admin dashboard's and the
@@ -346,6 +347,10 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
       afterMinutes={adminSettings.joinWindowAfterMinutes}
       completedAfterMinutes={adminSettings.sessionCompletedAfterMinutes}
     >
+      <CancellationWindowProvider
+        onlineHours={adminSettings.onlineCancellationRefundHours}
+        homeVisitHours={adminSettings.homeVisitCancellationRefundHours}
+      >
       {/* Above the header, not below the fold: what is missing here is the
           reason an assignment will not happen, so it belongs where somebody
           arriving to assign will read it. It renders nothing at all when
@@ -803,6 +808,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
       <div className="mt-6">
         <ActivityTimeline personId={id} title="Activity log" />
       </div>
+      </CancellationWindowProvider>
     </JoinWindowProvider>
   );
 }

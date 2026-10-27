@@ -218,6 +218,7 @@ import type {
 import { summariseFindings, type LeakFinding } from "@/lib/contactLeakScan";
 import type { RiskSeverity, RiskStatus, RiskSubjectKind } from "@/lib/riskSignals";
 import { JoinWindowProvider } from "@/lib/joinWindowContext";
+import { CancellationWindowProvider } from "@/lib/cancellationWindowContext";
 import { isDebugNavVisible } from "@/lib/debugNavVisible";
 import { readReferralAttributionHealth } from "@/lib/referralAttribution";
 import { readRefundHealth } from "@/lib/refundHealthServer";
@@ -5814,6 +5815,10 @@ export default async function AdminDashboardPage({
       afterMinutes={adminSettings.joinWindowAfterMinutes}
       completedAfterMinutes={adminSettings.sessionCompletedAfterMinutes}
     >
+      <CancellationWindowProvider
+        onlineHours={adminSettings.onlineCancellationRefundHours}
+        homeVisitHours={adminSettings.homeVisitCancellationRefundHours}
+      >
       <AdminShell
         initialSection={sectionParam ?? null}
         initialTab={tabParam ?? null}
@@ -5829,6 +5834,7 @@ export default async function AdminDashboardPage({
         scopeLabel={ADMIN_SCOPE_LABELS[viewerScope]}
         offsetTop={showDebugNav}
       />
+      </CancellationWindowProvider>
     </JoinWindowProvider>
   );
 }

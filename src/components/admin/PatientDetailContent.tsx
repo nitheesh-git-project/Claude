@@ -38,8 +38,9 @@ import { computeRatingAggregate } from "@/lib/ratingAggregate";
 import { computeNoShowRate, computeCancellationRate } from "@/lib/adminMetrics";
 import { mergeSessionCodes } from "@/lib/sessionCode";
 import { mergeMeetLinks } from "@/lib/meetLink";
-import { parseAdminSettings } from "@/lib/adminSettings";
+import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { JoinWindowProvider } from "@/lib/joinWindowContext";
+import { CancellationWindowProvider } from "@/lib/cancellationWindowContext";
 import {
   sessionTherapistCutPaise,
   type PayoutAppointment,
@@ -99,9 +100,10 @@ export default async function PatientDetailContent({ id }: { id: string }) {
   const [{ data: settingsRow }, { data: patient }, { data: patientCodeRow }, { data: conditionProfile }] =
     await Promise.all([
       // Isolated query, same migration-dependent convention as everything
-      // else on this page -- only feeds the Join button's window here, never
-      // blocks the rest of the detail page if the columns aren't migrated yet.
-      admin.from("site_settings").select("join_window_minutes").maybeSingle(),
+      // else on this page -- feeds the Join button's window and the cancel
+      // dialog's refund windows, never blocks the rest of the detail page if
+      // the columns aren't migrated yet.
+      admin.from("site_settings").select(SITE_SETTINGS_SELECT).maybeSingle(),
 
       admin
         .from("profiles")
@@ -407,6 +409,10 @@ export default async function PatientDetailContent({ id }: { id: string }) {
       afterMinutes={adminSettings.joinWindowAfterMinutes}
       completedAfterMinutes={adminSettings.sessionCompletedAfterMinutes}
     >
+      <CancellationWindowProvider
+        onlineHours={adminSettings.onlineCancellationRefundHours}
+        homeVisitHours={adminSettings.homeVisitCancellationRefundHours}
+      >
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="flex min-w-0 items-center gap-4">
@@ -816,6 +822,7 @@ export default async function PatientDetailContent({ id }: { id: string }) {
       <div className="mt-6">
         <ActivityTimeline personId={id} title="Activity log" />
       </div>
+      </CancellationWindowProvider>
     </JoinWindowProvider>
   );
 }
