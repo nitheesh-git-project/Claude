@@ -292,8 +292,21 @@ before.
      version under a per-patient advisory lock (security definer, revoked
      from all three roles, fixed `search_path`). `exercise_teaching_events`
      is append-only and written only into the run's own therapist's run **in
-     progress**, for an exercise in the patient's **active** plan. Same file,
-     same both-halves check, with a negative control.
+     progress**, for an exercise in the patient's **active** plan. A mistaken
+     mark is **corrected by a new row** (phase 7d-3): `kind = 'correction'`,
+     `corrects_event_id` (no action: nothing here is deleted, so
+     `clean-e2e-residue.mjs` has nothing to learn) and `correction_reason`
+     from a fixed list, the shape CHECK requiring both iff it is a correction.
+     The guard admits one only for a row of the same run, plan, exercise,
+     patient and therapist; a partial unique index on `corrects_event_id`
+     makes the fixes one chain (each row one successor, race-safe), and the
+     one-mark index kept its name and became partial (`where kind = 'mark'`)
+     so the earlier `create unique index if not exists` stays a no-op on a
+     re-run. **Column privileges, not RLS, hide the correction columns from
+     a browser session**: `select` on the table is revoked from `anon` and
+     `authenticated` and granted back on the original columns only - RLS
+     chooses rows, never columns. The clinician's reads use the service role.
+     Same file, same both-halves check, with a negative control.
 
      **`user_activity_log` is the same rule for everyone who is not an admin**
      -- patients, therapists, hospitals and the system (All Logs is both

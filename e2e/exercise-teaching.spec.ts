@@ -17,7 +17,9 @@
 // fixture accounts cannot be deleted afterwards; the cleanup says so rather
 // than failing the run.
 //
-// WRITTEN, NOT RUN in the phase that added it (no test project was reachable).
+// WRITTEN, NOT RUN in the phase that added it (no test project was reachable);
+// ET-008 and the correction_needs_mark case in ET-006 (phase 7d-3, correcting
+// a mark) likewise.
 import { test, expect, type APIRequestContext } from "@playwright/test";
 import {
   BASE,
@@ -224,6 +226,15 @@ test("ET-006: the demo is the library's own; each exercise is marked once; Save 
   const noCue = await teachCall(request, { runId, exerciseKey: "heel_to_toe_stand", outcome: "needs_practice" });
   expect(noCue.status()).toBe(400);
 
+  // A fix needs an earlier mark in this run (phase 7d-3).
+  const noMark = await teachCall(request, {
+    runId,
+    exerciseKey: "heel_to_toe_stand",
+    correct: { outcome: "performed_correctly", correctionReason: "wrong_button" },
+  });
+  expect(noMark.status()).toBe(409);
+  expect((await noMark.json()).code).toBe("correction_needs_mark");
+
   const tandem = await teachCall(request, { runId, exerciseKey: "heel_to_toe_stand", outcome: "performed_correctly" });
   expect(tandem.status(), await tandem.text()).toBe(200);
   expect((await tandem.json()).event.helperPresent).toBe(true);
@@ -243,6 +254,67 @@ test("ET-006: the demo is the library's own; each exercise is marked once; Save 
 
   const saved = await event(request, "exercises", "saved");
   expect(saved.status(), await saved.text()).toBe(200);
+});
+
+test("ET-008: a mistaken mark is fixed as a new record; the original stays; the patient sees only the latest", async ({ request }) => {
+  const noReason = await teachCall(request, { runId, exerciseKey: "sit_to_stand", correct: { outcome: "needs_practice", cueKey: "hold_support" } });
+  expect(noReason.status()).toBe(400);
+  expect((await noReason.json()).code).toBe("bad_correction_reason");
+  const freeText = await teachCall(request, {
+    runId,
+    exerciseKey: "sit_to_stand",
+    correct: { outcome: "needs_practice", cueKey: "hold_support", correctionReason: "wrong_button", note: "I misclicked" },
+  });
+  expect(freeText.status()).toBe(400);
+
+  const { data: before } = await db.from("exercise_teaching_events").select("id").eq("run_id", runId).eq("exercise_key", "sit_to_stand");
+  expect(before).toHaveLength(1);
+  const fix = await teachCall(request, {
+    runId,
+    exerciseKey: "sit_to_stand",
+    correct: { outcome: "needs_practice", cueKey: "hold_support", correctionReason: "wrong_button" },
+  });
+  expect(fix.status(), await fix.text()).toBe(200);
+  const fixed = (await fix.json()).event;
+  expect(fixed).toMatchObject({ kind: "correction", correctsEventId: before![0].id, correctionReason: "wrong_button", cueKey: "hold_support" });
+  // A retry writes nothing new.
+  const again = await teachCall(request, {
+    runId,
+    exerciseKey: "sit_to_stand",
+    correct: { outcome: "needs_practice", cueKey: "hold_support", correctionReason: "wrong_button" },
+  });
+  expect((await again.json()).duplicate).toBe(true);
+  // A plain different mark is still already_marked.
+  const plain = await teachCall(request, { runId, exerciseKey: "sit_to_stand", outcome: "performed_correctly" });
+  expect((await plain.json()).code).toBe("already_marked");
+
+  // The original stays, the fix is after it, and neither can be rewritten.
+  const { data: rows } = await db
+    .from("exercise_teaching_events")
+    .select("id, kind, corrects_event_id, correction_reason, cue_key")
+    .eq("run_id", runId)
+    .eq("exercise_key", "sit_to_stand")
+    .order("created_at");
+  expect(rows?.map((r) => [r.kind, r.cue_key])).toEqual([
+    ["mark", "slow_down"],
+    ["correction", "hold_support"],
+  ]);
+  const { error } = await db.from("exercise_teaching_events").delete().eq("id", fixed.id);
+  expect(error).not.toBeNull();
+
+  // The patient's own client reads the original columns only -- never the reason or that it was a fix.
+  const own = await rlsClientFor(teach!.email);
+  const { error: hidden } = await own.from("exercise_teaching_events").select("correction_reason").eq("plan_id", planId);
+  expect(hidden).not.toBeNull();
+  const { error: hiddenKind } = await own.from("exercise_teaching_events").select("kind").eq("plan_id", planId);
+  expect(hiddenKind).not.toBeNull();
+  // Their plan card shows the latest cue, not the mistaken one, and no word of a fix.
+  const page = await request.get(`${BASE}/patient/dashboard/health-profile`, { headers: { cookie: await cookieHeaderFor(teach!.email) } });
+  expect(page.status()).toBe(200);
+  const html = await page.text();
+  expect(html).toContain("Keep a hand on the support.");
+  expect(html).not.toContain("Go slower and keep it smooth.");
+  expect(html).not.toMatch(/wrong button|Fix this mark|corrected/i);
 });
 
 test("ET-007: the end's draft says what was taught; nothing is taught after the end", async ({ request }) => {

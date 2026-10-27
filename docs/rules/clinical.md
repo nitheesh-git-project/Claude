@@ -1518,7 +1518,7 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   exercises is its own word**: `exercise_plans` is not a care plan -
   `care_plans` / `care_plan_versions` are the programme-purchase
   recommendation above and keep that name; a screen never calls one the
-  other. Nine rules:
+  other. Eleven rules:
   1. **The library is code, typed and checked at load.**
      `src/lib/exerciseLibrary.ts`: starter exercises for all six profile
      kinds (at least eight each - knee, back and shoulder basics,
@@ -1576,8 +1576,9 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      only, no free text - into `exercise_teaching_events`, append-only by
      trigger and written only into **that therapist's run in progress** for
      an exercise in the patient's **active** plan (the trigger checks all of
-     it again). A retry of the same mark is a success; a different one is
-     409 `already_marked` - what was watched is not changed afterwards. The
+     it again). A retry of the same mark is a success; a different plain
+     mark is 409 `already_marked` - what was watched is not rewritten; a
+     mistake is **corrected** as a new record (rule 11). The
      gates: the red flags answered (none raised, for a demo or a mark of
      something done), the step's set-up ticked and the pre-exercise check
      clear for the patient's turn and a performed / needs-practice mark, and
@@ -1599,7 +1600,10 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      <date>. Remember: <the cue>* (`exercisePlanView`, `practisedLine`),
      which is coaching rather than a record to defend. The not-attempted
      reason is the clinician's wording and the patient's plan does not show
-     it. The clinical-access therapist and an admin read every version and
+     it. **Column privileges** give a browser session only the original
+     columns (`EXERCISE_TEACHING_EVENT_SELECT`): never `kind`,
+     `corrects_event_id` or `correction_reason` - the patient's plan shows the
+     latest outcome and never that a mark was corrected, or why. The clinical-access therapist and an admin read every version and
      mark. Nothing on the patient's side writes to any of the three tables.
   8. **The run's draft says what was taught, honestly.** The summary draft
      (rule 7 above) adds one sentence from this run's marks - *We practised
@@ -1625,16 +1629,38 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   ticked, never "all items" (the optional helper item counts only when
   ticked). The 36 pictures (`ExercisePicture`) carry no text; the companion
   draws the library's own steps. The patient's card and the chart section
-  say "could not read" and "not set up" apart from "nothing yet". **A mark is
-  not corrected in the app**: `exercise_teaching_events` has one mark per
-  exercise per plan per run and its outcome CHECK has no "correction" kind, so
-  a mistaken mark is said in the session summary until a schema change adds a
-  `correction` event referencing the earlier one (latest wins in
-  `exercisePlanView`, the original kept).
+  say "could not read" and "not set up" apart from "nothing yet".
+  11. **A mistaken mark is corrected as a new record, never rewritten
+  (phase 7d-3, the owner's decision).** The teach route's
+  `{ runId, exerciseKey, correct: { outcome, cueKey?, reasonKey?, correctionReason } }`
+  writes an `exercise_teaching_events` row of `kind = 'correction'` whose
+  `corrects_event_id` is the **latest** row for that exercise in this run and
+  plan, with one reason from `CORRECTION_REASONS` (*I tapped the wrong
+  button*, *They tried again and did it right*, *Other: I will explain in the
+  summary*) - keys only. The original stays. Several fixes are allowed, as
+  **one chain**: a partial unique index on `corrects_event_id` lets each row
+  have one successor, so the only row a fix can reference is the tail (two
+  tabs crossing: the second is `changed_elsewhere`, never a fork); the
+  one-mark index is now partial (`where kind = 'mark'`). The trigger lets a
+  correction in only for a row of the **same run, plan, exercise, patient and
+  therapist**, inside that therapist's run in progress; UPDATE and DELETE stay
+  refused. Refusals: `correction_needs_mark` (no mark in this run yet),
+  `bad_correction_reason`; a retry, or a fix to what the latest already says,
+  is a success with nothing written. **Same gates as a mark**: a fix to
+  *performed* or *needs practice* is a "doing" save (set-up, pre-exercise
+  check, helper), so on a red-flag day only *not attempted* goes through; no
+  contraindication is overridden and nothing else changes. Everything that
+  reads marks uses the latest per exercise (`latestTeachingEvents`: the chain
+  over the clock): the patient's plan, the chart's headline, the summary
+  draft and Save and next; the chart lists every original with the fix and
+  its reason, and only the clinician's draft says a mark was corrected. The
+  teach tool's **Fix this mark** opens a small sheet: the reason, then the
+  right mark (a cue or reason where needed), then *Save the fix*.
   `src/lib/exerciseLibrary.test.ts`, `exercisePlan.test.ts`,
   `assessmentRun.test.ts`, `assessmentSummaryDraft.test.ts`,
   `teachTool.test.ts`, `exerciseChart.test.ts`, `exercisePictureLabels.test.ts`,
-  `homeExercisesCopy.test.ts`; `e2e/exercise-teaching.spec.ts`,
+  `homeExercisesCopy.test.ts`; `e2e/exercise-teaching.spec.ts` (ET-008 the
+  correction),
   `e2e/exercise-screens.spec.ts` (written, not run);
   `scripts/append-only-sql-checks.sql`; QA `THR-HP-005s`, `PAT-HP-007`.
 - **Patient-uploaded reports live in Storage; the database holds only

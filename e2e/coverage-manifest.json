@@ -4354,7 +4354,7 @@
     {
       "id": "therapist.exercise-teaching",
       "runner": "therapist",
-      "title": "Home exercises taught live in the guided video session, server side: the assigned therapist publishes a plan of library exercises with doses (a new version replaces the old, history kept); an exercise from another condition type, one the intake rules out, a bad dose, and a helper exercise outside a run or without the step's helper ticked are refused; teaching happens only inside the therapist's run in progress, behind the red flags; the companion's demo is the library's picture and steps, never request text; each exercise is marked once (performed correctly, needs practice with one fixed cue, not attempted with one fixed reason) and Save and next waits for every mark; the patient reads their own active plan and marks and not another patient's; an unassigned therapist is refused and reads nothing; the end's draft says what was taught",
+      "title": "Home exercises taught live in the guided video session, server side: the assigned therapist publishes a plan of library exercises with doses (a new version replaces the old, history kept); an exercise from another condition type, one the intake rules out, a bad dose, and a helper exercise outside a run or without the step's helper ticked are refused; teaching happens only inside the therapist's run in progress, behind the red flags; the companion's demo is the library's picture and steps, never request text; each exercise is marked once (performed correctly, needs practice with one fixed cue, not attempted with one fixed reason) and Save and next waits for every mark; a mistaken mark is fixed as a new record with one of three fixed reasons (refused with no earlier mark, the original kept, append-only) and the patient reads only the latest, never the reason; the patient reads their own active plan and marks and not another patient's; an unassigned therapist is refused and reads nothing; the end's draft says what was taught",
       "required": true,
       "status": "covered",
       "coverage": [
@@ -4367,12 +4367,13 @@
             "ET-004",
             "ET-005",
             "ET-006",
-            "ET-007"
+            "ET-007",
+            "ET-008"
           ],
           "level": "api"
         }
       ],
-      "limitation": "Written, not run, in phase 7d-1 (no test project reachable). Writes append-only plan items, teaching events and run events, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack. The cockpit's teaching screen and the patient's plan card are phase 7d-2; the realtime delivery of a new version is not driven here. The library, the dose and teach validators, the contraindications, the demo display whitelist and the summary sentence are pure modules unit-tested in src/lib/exerciseLibrary.test.ts, exercisePlan.test.ts, assessmentRun.test.ts and assessmentSummaryDraft.test.ts; the triggers and publish_exercise_plan() in scripts/append-only-sql-checks.sql.",
+      "limitation": "Written, not run, in phase 7d-1 (no test project reachable); ET-008 (correcting a mark, phase 7d-3) likewise. Writes append-only plan items, teaching events and run events, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack. The cockpit's teaching screen and the patient's plan card are phase 7d-2; the realtime delivery of a new version is not driven here. The library, the dose and teach validators, the contraindications, the demo display whitelist and the summary sentence are pure modules unit-tested in src/lib/exerciseLibrary.test.ts, exercisePlan.test.ts, assessmentRun.test.ts and assessmentSummaryDraft.test.ts; the triggers and publish_exercise_plan() in scripts/append-only-sql-checks.sql.",
       "rules": [
         "docs/rules/clinical.md",
         "docs/rules/dashboards.md"

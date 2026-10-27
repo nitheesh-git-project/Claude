@@ -2690,7 +2690,9 @@ everything else.
   companion screen - the library's picture and steps, never typed text -
   watches them do each one on camera and marks it *performed correctly*,
   *needs practice* (with one coaching cue from a fixed list) or *not
-  attempted* (with a reason). The server refuses an exercise not offered for
+  attempted* (with a reason). A mark made by mistake is fixed with *Fix this
+  mark*: a new record with one of three fixed reasons, the first kept on the
+  record; the patient sees only the latest. The server refuses an exercise not offered for
   the patient's condition type, one their Health Profile rules out (a high
   falls risk, the surgeon's precautions after open-heart surgery, not being
   able to stand), and an exercise that needs another adult beside the patient
