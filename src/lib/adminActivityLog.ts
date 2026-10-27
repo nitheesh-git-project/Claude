@@ -172,6 +172,10 @@ export type AdminActivityAction =
   | "outcome_measurement.create"
   | "care_milestone.reopen"
   | "care_status.set"
+  // What a Health Profile shows: for a condition kind (Settings) and for one
+  // patient (People). Details carry the section, from and to.
+  | "profile_widgets.set_kind"
+  | "profile_widgets.set_patient"
   | "clinical_questions.update_intake"
   | "clinical_questions.update_pain_map"
   | "risk.review"
@@ -396,6 +400,8 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
   "outcome_measurement.create": "Recorded a measurement",
   "care_milestone.reopen": "Reopened a milestone marked reached by mistake",
   "care_status.set": "Set a patient's phase, overruled their status or wrote where things stand",
+  "profile_widgets.set_kind": "Changed which Health Profile sections a condition type shows",
+  "profile_widgets.set_patient": "Changed which Health Profile sections one patient sees",
   "clinical_questions.update_intake": "Reworded an intake question",
   "clinical_questions.update_pain_map": "Reworded a Pain Map question",
   "risk.review": "Reviewed a risk signal",
