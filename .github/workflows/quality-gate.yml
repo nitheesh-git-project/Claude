@@ -168,6 +168,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    # packages: read is only for the ghcr.io sign-in below; nothing here can
+    # write to the repository or to a package.
+    permissions:
+      contents: read
+      packages: read
     env:
       ARTIFACTS: e2e-artifacts/${{ matrix.label }}
     steps:
@@ -182,6 +187,17 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
+
+      # Signed-in pulls are counted per account, not per shared runner address,
+      # so 19 jobs starting together no longer trip ghcr.io's anonymous limit
+      # (toomanyrequests, which failed every runner at provisioning). The
+      # short random wait keeps the jobs from all pulling in the same second.
+      # Best effort: a failed sign-in only means pulling anonymously, as before.
+      - name: Sign in to ghcr.io and spread the image pulls
+        run: |
+          sleep $((RANDOM % 20))
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin \
+            || echo "::warning title=ghcr.io sign-in failed::pulling anonymously"
 
       # The image pulls are most of the provisioning time, so they start
       # first and overlap npm ci, the browser and the caches. No secrets

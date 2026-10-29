@@ -379,6 +379,16 @@ Every required failure blocks the merge, whatever its priority.
 `docs/ci/INVESTIGATE.md` is the fix-and-retest procedure and the prompt
 to use with Claude Code. No CI job calls an AI service.
 
+### Every runner red at "Provision the disposable local stack"
+
+If the log says `toomanyrequests` from `ghcr.io`, it is the registry's pull
+limit, not the change: all runners pull the Supabase images at once and share
+a handful of addresses. Each runner now signs in to ghcr.io with the run's own
+`GITHUB_TOKEN` (`packages: read` only) after a short random wait, which counts
+the pulls per account. A failed sign-in only means pulling anonymously, as
+before. Re-run the failed jobs once; a second identical failure is worth
+raising rather than re-running.
+
 ## Before the push
 
 `npm run check:merge-ready` runs the static jobs and lists the specs the
