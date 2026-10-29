@@ -27,3 +27,7 @@ jobs:
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin >/dev/null 2>&1 && echo "PROBE login ghcr.io ok"
           docker rmi ghcr.io/supabase/gotrue:v2.180.0 >/dev/null 2>&1 || true
           try "ghcr.io, Supabase gotrue, signed in   " ghcr.io/supabase/gotrue:v2.180.0
+          # Docker Hub copies of the six images (registry docker.io needs no prefix)
+          for img in supabase/postgres:17.6.1.029 supabase/gotrue:v2.180.0 postgrest/postgrest:v13.0.7 supabase/realtime:v2.57.3 supabase/storage-api:v1.28.2 kong:2.8.1; do
+            try "Docker Hub, Supabase image            " "docker.io/$img"
+          done
