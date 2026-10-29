@@ -1,0 +1,29 @@
+# TEMPORARY: probes which image registries answer GitHub's runners. Deleted
+# once the answer is known.
+name: Registry probe
+on:
+  push:
+    paths: [".github/workflows/registry-probe.yml"]
+    branches: ["claude/fervent-cannon-09m9di"]
+permissions:
+  contents: read
+  packages: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Pull the probes
+        run: |
+          try() { # label image
+            if out=$(docker pull -q "$2" 2>&1); then echo "PROBE OK    $1  $2"; else echo "PROBE FAIL  $1  $2  :: $(echo "$out" | tail -1 | cut -c1-140)"; fi
+          }
+          try "ghcr.io, GitHub's own, anonymous      " ghcr.io/github/github-mcp-server:latest
+          try "ghcr.io, other publisher, anonymous   " ghcr.io/astral-sh/uv:latest
+          try "ghcr.io, Supabase gotrue, anonymous   " ghcr.io/supabase/gotrue:v2.180.0
+          try "Docker Hub, alpine, anonymous         " alpine:3.20
+          try "Amazon, alpine, anonymous             " public.ecr.aws/docker/library/alpine:3.20
+          try "Amazon, Supabase gotrue, anonymous    " public.ecr.aws/supabase/gotrue:v2.180.0
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin >/dev/null 2>&1 && echo "PROBE login ghcr.io ok"
+          docker rmi ghcr.io/supabase/gotrue:v2.180.0 >/dev/null 2>&1 || true
+          try "ghcr.io, Supabase gotrue, signed in   " ghcr.io/supabase/gotrue:v2.180.0
