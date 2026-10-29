@@ -379,17 +379,6 @@ Every required failure blocks the merge, whatever its priority.
 `docs/ci/INVESTIGATE.md` is the fix-and-retest procedure and the prompt
 to use with Claude Code. No CI job calls an AI service.
 
-### Every runner red at "Provision the disposable local stack"
-
-If the log says `toomanyrequests` (from `ghcr.io`, or `Data limit exceeded` from
-`public.ecr.aws`), it is the registry's anonymous pull limit, not the change:
-the runners share a handful of addresses and each used to pull several GB at
-once. The `images` job now pulls the Supabase images once and saves them to the
-Actions cache (key `sb-images-v2-ecr-...`, per CLI version and `supabase/config.toml`);
-every runner restores and loads them instead of pulling. All of it uses `public.ecr.aws` (set through `SUPABASE_INTERNAL_IMAGE_REGISTRY` in the `images` job and the runners), because ghcr.io refused even a single job's pulls; the cached images are tagged with the registry they came from, so both must name the same one. On a cache hit the
-`images` job does nothing. If `images` itself fails the runners do not start,
-and the verdict is red. Bump `v2` in all three places to force a fresh pull.
-
 ## Before the push
 
 `npm run check:merge-ready` runs the static jobs and lists the specs the
