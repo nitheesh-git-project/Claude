@@ -74,6 +74,7 @@ export default function Analytics() {
   const ready = loaded && consent === "granted";
   const [reopened, setReopened] = useState(false);
   const [leaving, setLeaving] = useState(false);
+  const [celebrating, setCelebrating] = useState(false);
   const [thanks, setThanks] = useState<string | null>(null);
   const [splashGone, setSplashGone] = useState(false);
 
@@ -181,13 +182,19 @@ export default function Analytics() {
   function choose(value: AnalyticsConsent) {
     writeConsent(value);
     window.dispatchEvent(new Event(CONSENT_EVENT));
-    setLeaving(true);
+    // A yes gets a beat for the heart before the card slides away.
+    const wait = value === "granted" ? 550 : 0;
+    setCelebrating(value === "granted");
     window.setTimeout(() => {
-      setReopened(false);
-      setLeaving(false);
-    }, 400);
-    setThanks(value === "granted" ? "Thanks, that helps" : "No problem, saved");
-    window.setTimeout(() => setThanks(null), 2600);
+      setLeaving(true);
+      window.setTimeout(() => {
+        setReopened(false);
+        setLeaving(false);
+        setCelebrating(false);
+      }, 400);
+    }, wait);
+    setThanks(value === "granted" ? "Thanks, that really helps" : "No problem, saved");
+    window.setTimeout(() => setThanks(null), 2600 + wait);
   }
 
   return (
@@ -222,41 +229,38 @@ export default function Analytics() {
             className="mr-consent fixed inset-x-0 bottom-0 z-50 rounded-t-3xl border-t border-slate-200 bg-white px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-20px_50px_-20px_rgba(8,40,40,0.45)] sm:inset-x-auto sm:bottom-6 sm:left-1/2 sm:w-[30rem] sm:max-w-[calc(100%-2rem)] sm:rounded-3xl sm:border sm:px-6 sm:pb-5 sm:pt-5 print:hidden"
           >
             <div aria-hidden="true" className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-200 sm:hidden" />
-            <div className="mb-2 flex items-center gap-3.5">
-              <span className="mr-consent-icon relative flex h-11 w-11 flex-none items-center justify-center rounded-2xl bg-teal-50 text-teal-700">
-                <i aria-hidden="true" className="fa-solid fa-chart-simple" />
+            <div className="flex items-end gap-3">
+              <span className="mr-consent-face relative flex h-14 w-14 flex-none items-center justify-center rounded-full bg-gradient-to-br from-teal-200 to-teal-500 text-white">
+                <svg aria-hidden="true" viewBox="0 0 24 24" className="h-8 w-8" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="8" r="4" />
+                  <path d="M4 21c1-4 4-6 8-6s7 2 8 6" />
+                </svg>
+                <svg aria-hidden="true" viewBox="0 0 24 24" className="mr-consent-heart pointer-events-none absolute left-1/2 top-[40%] -ml-3.5 h-7 w-7 text-rose-400 opacity-0" fill="currentColor" data-on={celebrating || undefined}>
+                  <path d="M12 21s-8-5-8-11a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 10c0 6-8 11-8 11z" />
+                </svg>
               </span>
-              <h2 className="font-display text-lg font-bold leading-tight text-slate-900">
-                Help us make MoveRestore better
-              </h2>
+              <div className="mr-consent-bubble rounded-[1.1rem] rounded-bl-sm bg-teal-50 px-3.5 py-3 text-sm leading-snug text-teal-950">
+                <h2 className="inline font-bold">Hi, welcome.</h2>{" "}
+                Can we take a quiet look at which pages help? It never includes your name,
+                contact or health details.
+              </div>
             </div>
-            <p className="text-sm text-slate-600">
-              We count visits and see where booking gets stuck, so we can fix it. That is all.
-            </p>
-            <ul className="mb-4 mt-3 flex flex-wrap gap-1.5">
-              {["No name", "No contact details", "No health information"].map((t) => (
-                <li key={t} className="rounded-full bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-800">
-                  {t}
-                </li>
-              ))}
-            </ul>
-            <div className="grid grid-cols-2 gap-2.5">
-              <button
-                type="button"
-                onClick={() => choose("granted")}
-                className="min-h-12 rounded-2xl border-[1.5px] border-teal-700 bg-teal-700 text-[15px] font-semibold text-white transition hover:-translate-y-px hover:bg-teal-800 active:scale-[0.98]"
-              >
-                Sounds good
-              </button>
-              <button
-                type="button"
-                onClick={() => choose("denied")}
-                className="min-h-12 rounded-2xl border-[1.5px] border-teal-700 bg-white text-[15px] font-semibold text-teal-800 transition hover:-translate-y-px hover:bg-teal-50 active:scale-[0.98]"
-              >
-                Not now
-              </button>
-            </div>
-            <p className="mt-2.5 text-center text-xs text-slate-500">
+            <button
+              type="button"
+              onClick={() => choose("granted")}
+              className="mr-consent-yes mt-4 flex min-h-14 w-full items-center justify-center gap-2.5 rounded-2xl bg-teal-700 text-base font-bold text-white shadow-[0_10px_24px_-10px_rgba(15,118,110,0.8)] transition hover:-translate-y-px hover:bg-teal-800 active:scale-[0.985]"
+            >
+              Yes, happy to help
+              <i aria-hidden="true" className="fa-solid fa-arrow-right text-sm" />
+            </button>
+            <button
+              type="button"
+              onClick={() => choose("denied")}
+              className="mx-auto mt-1 block min-h-11 rounded-lg px-4 text-sm font-medium text-slate-600 underline decoration-slate-300 underline-offset-4 transition hover:text-teal-800 hover:decoration-teal-700"
+            >
+              Not now
+            </button>
+            <p className="text-center text-xs text-slate-500">
               Change your mind anytime from the footer.
             </p>
           </div>

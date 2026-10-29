@@ -26,7 +26,7 @@ async function watchGoogle(page: Page) {
 }
 
 test.describe("analytics consent", () => {
-  test("nothing reaches Google before a choice, and Sounds good loads it", async ({ page }) => {
+  test("nothing reaches Google before a choice, and Yes, happy to help loads it", async ({ page }) => {
     const hits = await watchGoogle(page);
     await page.goto(`${BASE}/faq`);
     const banner = page.getByRole("region", { name: "Analytics" });
@@ -34,10 +34,24 @@ test.describe("analytics consent", () => {
     await page.waitForTimeout(1500);
     expect(hits).toHaveLength(0);
 
-    await banner.getByRole("button", { name: "Sounds good" }).click();
+    await banner.getByRole("button", { name: "Yes, happy to help" }).click();
     await expect(banner).toBeHidden();
     await expect.poll(() => hits.length).toBeGreaterThan(0);
     expect(hits.some((u) => u.includes("gtag/js"))).toBe(true);
+  });
+
+  test("the whole of the green button is tappable, edge to edge", async ({ page }) => {
+    await watchGoogle(page);
+    await page.goto(`${BASE}/faq`);
+    const yes = page.getByRole("button", { name: "Yes, happy to help" });
+    await expect(yes).toBeVisible();
+    const box = await yes.boundingBox();
+    expect(box && box.height >= 44).toBe(true);
+    // A tap near the corner (inside its rounded edge) counts, not only on the label.
+    await yes.click({ position: { x: 8, y: 8 } });
+    await expect
+      .poll(() => page.evaluate(() => localStorage.getItem("mr_analytics_consent")))
+      .toBe("granted");
   });
 
   test("Not now sticks across a reload", async ({ page }) => {

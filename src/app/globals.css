@@ -698,14 +698,20 @@ input::-ms-clear {
 .mr-consent-dim[data-leaving] {
   animation: mr-consent-dim-out 0.4s ease forwards;
 }
-.mr-consent-icon::after {
-  content: "";
-  position: absolute;
-  inset: -4px;
-  border-radius: 1.25rem;
-  border: 2px solid var(--color-teal-700);
+.mr-consent-bubble {
   opacity: 0;
-  animation: mr-consent-ring 1.6s ease-out 0.9s 2;
+  transform-origin: left bottom;
+  animation: mr-consent-pop 0.5s cubic-bezier(0.3, 1.5, 0.5, 1) 0.9s forwards;
+}
+.mr-consent-face {
+  transform-origin: 70% 90%;
+  animation: mr-consent-wave 1.2s ease 1.4s 2;
+}
+.mr-consent-yes {
+  animation: mr-consent-glow 2.4s ease-in-out 2.2s 3;
+}
+.mr-consent-heart[data-on] {
+  animation: mr-consent-heart 0.9s ease forwards;
 }
 .mr-consent-toast {
   animation: mr-consent-toast 2.6s ease both;
@@ -721,9 +727,20 @@ input::-ms-clear {
 }
 @keyframes mr-consent-dim-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes mr-consent-dim-out { to { opacity: 0; } }
-@keyframes mr-consent-ring {
-  0% { opacity: 0.6; transform: scale(0.9); }
-  100% { opacity: 0; transform: scale(1.35); }
+@keyframes mr-consent-pop { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: scale(1); } }
+@keyframes mr-consent-wave {
+  0%, 100% { transform: rotate(0); }
+  25% { transform: rotate(-12deg); }
+  75% { transform: rotate(10deg); }
+}
+@keyframes mr-consent-glow {
+  0%, 100% { box-shadow: 0 10px 24px -10px rgba(15, 118, 110, 0.8), 0 0 0 0 rgba(15, 118, 110, 0.35); }
+  50% { box-shadow: 0 10px 24px -10px rgba(15, 118, 110, 0.8), 0 0 0 9px rgba(15, 118, 110, 0); }
+}
+@keyframes mr-consent-heart {
+  0% { opacity: 0; transform: translateY(0) scale(0.5); }
+  30% { opacity: 1; transform: translateY(-20px) scale(1.2); }
+  100% { opacity: 0; transform: translateY(-64px) scale(1); }
 }
 @keyframes mr-consent-toast {
   0% { opacity: 0; transform: translate(-50%, 24px); }
@@ -734,6 +751,7 @@ input::-ms-clear {
   .mr-consent { --mr-consent-x: -50%; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .mr-consent, .mr-consent-dim, .mr-consent-toast { animation-duration: 0.01s; animation-delay: 0s; }
-  .mr-consent-icon::after { animation: none; }
+  .mr-consent, .mr-consent-dim, .mr-consent-toast, .mr-consent-bubble, .mr-consent-heart { animation-duration: 0.01s; animation-delay: 0s; }
+  .mr-consent-face, .mr-consent-yes { animation: none; }
+  .mr-consent-bubble { opacity: 1; }
 }
