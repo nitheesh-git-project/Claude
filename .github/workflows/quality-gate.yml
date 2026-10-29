@@ -178,13 +178,21 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
+      # ghcr.io refuses the runners' pulls (toomanyrequests, even a single
+      # job's), so the images come from Amazon's public gallery, which carries
+      # the same ones. The images are tagged with the registry they came from,
+      # so the `images` job and the runners must name the same one. Written to
+      # GITHUB_ENV so it overrides what supabase/setup-cli sets.
+      - name: Use Amazon's public registry for the Supabase images
+        run: echo "SUPABASE_INTERNAL_IMAGE_REGISTRY=public.ecr.aws" >> "$GITHUB_ENV"
+
       - name: Look for the cached images
         id: sbimages
         uses: actions/cache/restore@v4
         with:
           path: /tmp/sb-images
           lookup-only: true
-          key: sb-images-v1-${{ runner.os }}-${{ env.SUPABASE_CLI_VERSION }}-${{ hashFiles('supabase/config.toml') }}
+          key: sb-images-v2-ecr-${{ runner.os }}-${{ env.SUPABASE_CLI_VERSION }}-${{ hashFiles('supabase/config.toml') }}
       - name: Pull the images by starting the stack once
         if: steps.sbimages.outputs.cache-hit != 'true'
         run: |
@@ -202,7 +210,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: /tmp/sb-images
-          key: sb-images-v1-${{ runner.os }}-${{ env.SUPABASE_CLI_VERSION }}-${{ hashFiles('supabase/config.toml') }}
+          key: sb-images-v2-ecr-${{ runner.os }}-${{ env.SUPABASE_CLI_VERSION }}-${{ hashFiles('supabase/config.toml') }}
 
   runner:
     name: runner (${{ matrix.label }})
@@ -231,6 +239,14 @@ jobs:
       # first and overlap npm ci, the browser and the caches. No secrets
       # reach this step. The provisioning step below waits for its verdict
       # (stack-start.status) and fails the job if it failed twice.
+      # ghcr.io refuses the runners' pulls (toomanyrequests, even a single
+      # job's), so the images come from Amazon's public gallery, which carries
+      # the same ones. The images are tagged with the registry they came from,
+      # so the `images` job and the runners must name the same one. Written to
+      # GITHUB_ENV so it overrides what supabase/setup-cli sets.
+      - name: Use Amazon's public registry for the Supabase images
+        run: echo "SUPABASE_INTERNAL_IMAGE_REGISTRY=public.ecr.aws" >> "$GITHUB_ENV"
+
       # The stack's images come from the Actions cache that the `images` job
       # filled, not from the internet: 19 jobs each pulling several GB from
       # ghcr.io tripped its anonymous limit (toomanyrequests) and failed every
@@ -241,7 +257,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: /tmp/sb-images
-          key: sb-images-v1-${{ runner.os }}-${{ env.SUPABASE_CLI_VERSION }}-${{ hashFiles('supabase/config.toml') }}
+          key: sb-images-v2-ecr-${{ runner.os }}-${{ env.SUPABASE_CLI_VERSION }}-${{ hashFiles('supabase/config.toml') }}
 
       - name: Start the local Supabase stack (in the background)
         run: |
