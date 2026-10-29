@@ -188,6 +188,13 @@ jobs:
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
 
+      # supabase/setup-cli points the CLI at ghcr.io, which has been refusing
+      # the runners' pulls (toomanyrequests). Amazon's public gallery carries
+      # the same images; provision-local-stack.sh pre-pulls from whichever
+      # registry this names. Written to GITHUB_ENV so it overrides the action's.
+      - name: Pull the Supabase images from Amazon's public registry
+        run: echo "SUPABASE_INTERNAL_IMAGE_REGISTRY=public.ecr.aws" >> "$GITHUB_ENV"
+
       # Signed-in pulls are counted per account, not per shared runner address,
       # so 19 jobs starting together no longer trip ghcr.io's anonymous limit
       # (toomanyrequests, which failed every runner at provisioning). The
