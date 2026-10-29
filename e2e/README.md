@@ -91,7 +91,7 @@ total, which moves with every spec added.
 
 | Spec | Cases | Covers |
 | --- | --- | --- |
-| `analytics-consent` | 8 | the Google Analytics consent gate: nothing reaches Google before a choice, Allow loads it, No thanks sticks across a reload, and the signed-in route trees never show the banner. Browser-only and Supabase-free, but skipped unless `NEXT_PUBLIC_GA_MEASUREMENT_ID` is set on the run (Google is stubbed, so any `G-...` value works) |
+| `analytics-consent` | 9 | the Google Analytics consent gate: nothing reaches Google before a choice, Sounds good loads it, Not now sticks across a reload, the footer link reopens the card and withdrawing switches collection off, and the signed-in route trees never show the card. Browser-only and Supabase-free, but skipped unless `NEXT_PUBLIC_GA_MEASUREMENT_ID` is set on the run (Google is stubbed, so any `G-...` value works) |
 | `admin-money` | 6 | payout and refund arithmetic, the Money figures, the therapist's own pending payout against what admin owes |
 | `admin-session-drawer-money` | 2 | the Session Details drawer prices a session as the row that opened it does (the service's price, never the global fee), and reads one refund state - a failed cancellation refund after partial refunds names what went back and what is still refundable |
 | `concurrency` | 3 | the CAS-guarded races: refund double-fire, therapist reassignment, referral double-assignment |

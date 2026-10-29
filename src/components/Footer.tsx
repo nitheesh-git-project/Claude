@@ -1,5 +1,6 @@
 "use client";
 
+import AnalyticsSettingsLink from "@/components/system/AnalyticsSettingsLink";
 import CountryPicker from "@/components/pricing/CountryPicker";
 import { usePricing } from "@/components/pricing/PricingProvider";
 import Link from "next/link";
@@ -165,6 +166,9 @@ export default function Footer({
           © <span suppressHydrationWarning>{new Date().getFullYear()}</span> {footerCopyrightText}
         </p>
         <CountryPicker />
+        <p className="mt-1">
+          <AnalyticsSettingsLink />
+        </p>
         {devCreditEnabled && (
           <p className="mt-1 px-4">
             Researched, designed and hand-built to make care easier for patients and therapists — by{" "}

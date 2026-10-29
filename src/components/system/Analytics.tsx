@@ -8,6 +8,8 @@ import {
   cleanPageLocation,
   isTrackablePath,
   readConsent,
+  ANALYTICS_REOPEN_EVENT,
+  withdrawGoogle,
   track,
   writeConsent,
   type AnalyticsConsent,
@@ -67,7 +69,13 @@ export default function Analytics() {
     () => "pending"
   );
   const consent = stored === "none" ? null : stored;
-  const [ready, setReady] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  // Off the moment consent is withdrawn, without waiting for a reload.
+  const ready = loaded && consent === "granted";
+  const [reopened, setReopened] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  const [thanks, setThanks] = useState<string | null>(null);
+  const [splashGone, setSplashGone] = useState(false);
 
   // The init snippet runs after hydration; wait for gtag to exist.
   useEffect(() => {
@@ -76,7 +84,7 @@ export default function Analytics() {
     const timer = window.setInterval(() => {
       tries += 1;
       if (window.gtag) {
-        setReady(true);
+        setLoaded(true);
         window.clearInterval(timer);
       } else if (tries > 100) {
         window.clearInterval(timer);
@@ -136,11 +144,50 @@ export default function Analytics() {
     return () => io.disconnect();
   }, [ready, trackable, pathname]);
 
+  // The card waits for the opening greeting to lift, so it arrives as part of
+  // the welcome rather than on top of it.
+  useEffect(() => {
+    let tries = 0;
+    const timer = window.setInterval(() => {
+      tries += 1;
+      if (!document.documentElement.hasAttribute("data-splash") || tries > 60) {
+        setSplashGone(true);
+        window.clearInterval(timer);
+      }
+    }, 150);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  // The footer's "Analytics settings" link asks for the card again.
+  useEffect(() => {
+    const open = () => {
+      setLeaving(false);
+      setReopened(true);
+    };
+    window.addEventListener(ANALYTICS_REOPEN_EVENT, open);
+    return () => window.removeEventListener(ANALYTICS_REOPEN_EVENT, open);
+  }, []);
+
+  // Withdrawn consent stops collection at once and clears Google's cookies.
+  useEffect(() => {
+    if (consent === "pending") return;
+    withdrawGoogle(consent !== "granted");
+  }, [consent]);
+
   if (!GA_MEASUREMENT_ID || consent === "pending") return null;
+
+  const cardOpen = (consent === null || reopened) && trackable && splashGone;
 
   function choose(value: AnalyticsConsent) {
     writeConsent(value);
     window.dispatchEvent(new Event(CONSENT_EVENT));
+    setLeaving(true);
+    window.setTimeout(() => {
+      setReopened(false);
+      setLeaving(false);
+    }, 400);
+    setThanks(value === "granted" ? "Thanks, that helps" : "No problem, saved");
+    window.setTimeout(() => setThanks(null), 2600);
   }
 
   return (
@@ -163,32 +210,65 @@ export default function Analytics() {
           `}</Script>
         </>
       )}
-      {consent === null && trackable && (
-        <div
-          role="region"
-          aria-label="Analytics"
-          className="fixed inset-x-4 bottom-24 z-40 mx-auto max-w-xl rounded-2xl border border-slate-200 bg-white p-4 shadow-lg lg:bottom-4 print:hidden"
-        >
-          <p className="text-sm text-slate-700">
-            We use Google Analytics to see which pages help visitors and where booking gets
-            stuck. It never records your name, contact details or anything about your health.
-          </p>
-          <div className="mt-3 flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => choose("denied")}
-              className="rounded-lg px-3 py-1.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"
-            >
-              No thanks
-            </button>
-            <button
-              type="button"
-              onClick={() => choose("granted")}
-              className="rounded-lg bg-teal-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-teal-800"
-            >
-              Allow
-            </button>
+      {cardOpen && (
+        <>
+          {/* A soft dim on phones so the card is noticed. It never blocks a tap:
+              consent has to be a free choice, so nothing is locked behind it. */}
+          <div aria-hidden="true" className="mr-consent-dim pointer-events-none fixed inset-0 z-40 bg-slate-900/40 sm:hidden" data-leaving={leaving || undefined} />
+          <div
+            role="region"
+            aria-label="Analytics"
+            data-leaving={leaving || undefined}
+            className="mr-consent fixed inset-x-0 bottom-0 z-50 rounded-t-3xl border-t border-slate-200 bg-white px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-20px_50px_-20px_rgba(8,40,40,0.45)] sm:inset-x-auto sm:bottom-6 sm:left-1/2 sm:w-[30rem] sm:max-w-[calc(100%-2rem)] sm:rounded-3xl sm:border sm:px-6 sm:pb-5 sm:pt-5 print:hidden"
+          >
+            <div aria-hidden="true" className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-200 sm:hidden" />
+            <div className="mb-2 flex items-center gap-3.5">
+              <span className="mr-consent-icon relative flex h-11 w-11 flex-none items-center justify-center rounded-2xl bg-teal-50 text-teal-700">
+                <i aria-hidden="true" className="fa-solid fa-chart-simple" />
+              </span>
+              <h2 className="font-display text-lg font-bold leading-tight text-slate-900">
+                Help us make MoveRestore better
+              </h2>
+            </div>
+            <p className="text-sm text-slate-600">
+              We count visits and see where booking gets stuck, so we can fix it. That is all.
+            </p>
+            <ul className="mb-4 mt-3 flex flex-wrap gap-1.5">
+              {["No name", "No contact details", "No health information"].map((t) => (
+                <li key={t} className="rounded-full bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-800">
+                  {t}
+                </li>
+              ))}
+            </ul>
+            <div className="grid grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={() => choose("granted")}
+                className="min-h-12 rounded-2xl border-[1.5px] border-teal-700 bg-teal-700 text-[15px] font-semibold text-white transition hover:-translate-y-px hover:bg-teal-800 active:scale-[0.98]"
+              >
+                Sounds good
+              </button>
+              <button
+                type="button"
+                onClick={() => choose("denied")}
+                className="min-h-12 rounded-2xl border-[1.5px] border-teal-700 bg-white text-[15px] font-semibold text-teal-800 transition hover:-translate-y-px hover:bg-teal-50 active:scale-[0.98]"
+              >
+                Not now
+              </button>
+            </div>
+            <p className="mt-2.5 text-center text-xs text-slate-500">
+              Change your mind anytime from the footer.
+            </p>
           </div>
+        </>
+      )}
+      {thanks && (
+        <div
+          role="status"
+          className="mr-consent-toast pointer-events-none fixed bottom-28 left-1/2 z-50 flex items-center gap-2 whitespace-nowrap rounded-full bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-lg sm:bottom-6"
+        >
+          <i aria-hidden="true" className="fa-solid fa-check text-teal-300" />
+          {thanks}
         </div>
       )}
     </>

@@ -26,7 +26,7 @@ async function watchGoogle(page: Page) {
 }
 
 test.describe("analytics consent", () => {
-  test("nothing reaches Google before a choice, and Allow loads it", async ({ page }) => {
+  test("nothing reaches Google before a choice, and Sounds good loads it", async ({ page }) => {
     const hits = await watchGoogle(page);
     await page.goto(`${BASE}/faq`);
     const banner = page.getByRole("region", { name: "Analytics" });
@@ -34,16 +34,16 @@ test.describe("analytics consent", () => {
     await page.waitForTimeout(1500);
     expect(hits).toHaveLength(0);
 
-    await banner.getByRole("button", { name: "Allow" }).click();
+    await banner.getByRole("button", { name: "Sounds good" }).click();
     await expect(banner).toBeHidden();
     await expect.poll(() => hits.length).toBeGreaterThan(0);
     expect(hits.some((u) => u.includes("gtag/js"))).toBe(true);
   });
 
-  test("No thanks sticks across a reload", async ({ page }) => {
+  test("Not now sticks across a reload", async ({ page }) => {
     const hits = await watchGoogle(page);
     await page.goto(`${BASE}/faq`);
-    await page.getByRole("button", { name: "No thanks" }).click();
+    await page.getByRole("button", { name: "Not now" }).click();
     await expect(page.getByRole("region", { name: "Analytics" })).toBeHidden();
     await page.reload();
     await page.waitForTimeout(1500);
@@ -67,6 +67,24 @@ test.describe("analytics consent", () => {
         )
       )
       .toBe(true);
+  });
+
+  test("the footer link reopens the card and withdrawing stops tracking", async ({ page }) => {
+    await watchGoogle(page);
+    await page.addInitScript(() => localStorage.setItem("mr_analytics_consent", "granted"));
+    await page.goto(`${BASE}/faq`);
+    await page.getByRole("button", { name: "Analytics settings" }).click();
+    const banner = page.getByRole("region", { name: "Analytics" });
+    await expect(banner).toBeVisible();
+    await banner.getByRole("button", { name: "Not now" }).click();
+    await expect(banner).toBeHidden();
+    expect(await page.evaluate(() => localStorage.getItem("mr_analytics_consent"))).toBe("denied");
+    expect(
+      await page.evaluate(
+        (id) => (window as unknown as Record<string, unknown>)[`ga-disable-${id}`],
+        process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID
+      )
+    ).toBe(true);
   });
 
   for (const path of ["/admin/login", "/patient", "/therapist", "/hospital", "/dashboard"]) {

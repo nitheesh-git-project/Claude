@@ -14,6 +14,9 @@ export const GA_MEASUREMENT_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID ?? ""
 
 export const ANALYTICS_CONSENT_KEY = "mr_analytics_consent";
 
+/** Dispatched by the footer link to ask for the consent card again. */
+export const ANALYTICS_REOPEN_EVENT = "mr-analytics-reopen";
+
 export type AnalyticsConsent = "granted" | "denied";
 
 /** Route trees nothing is ever recorded on. `/hospital` is the referral
@@ -160,6 +163,7 @@ export function writeConsent(value: AnalyticsConsent): void {
 export function track(name: string, params?: Record<string, unknown>): void {
   try {
     if (typeof window === "undefined" || !window.gtag) return;
+    if (readConsent() !== "granted") return;
     if (!isTrackablePath(window.location.pathname)) return;
     const event = sanitizeEvent(name, params);
     if (!event) return;
@@ -209,5 +213,23 @@ export async function trackPurchase(
     });
   } catch {
     // See track().
+  }
+}
+
+/** Switches Google's collection off (or back on) for this page load and, when
+ *  off, removes the cookies it set. Google's own documented kill switch. */
+export function withdrawGoogle(off: boolean): void {
+  try {
+    if (!GA_MEASUREMENT_ID) return;
+    (window as unknown as Record<string, unknown>)[`ga-disable-${GA_MEASUREMENT_ID}`] = off;
+    if (!off) return;
+    for (const part of document.cookie.split(";")) {
+      const name = part.split("=")[0].trim();
+      if (name === "_ga" || name.startsWith("_ga_")) {
+        document.cookie = `${name}=; Max-Age=0; path=/`;
+      }
+    }
+  } catch {
+    // Nothing to withdraw.
   }
 }

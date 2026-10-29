@@ -682,3 +682,58 @@ input::-ms-clear {
     animation: none;
   }
 }
+
+/* The analytics consent card (src/components/system/Analytics.tsx): a gentle
+   rise with a settle, a soft ring on the icon, a slide away, and a thank-you
+   toast. Reduced motion shows and hides it without moving. */
+.mr-consent {
+  animation: mr-consent-rise 0.7s cubic-bezier(0.2, 1.1, 0.3, 1) both;
+}
+.mr-consent[data-leaving] {
+  animation: mr-consent-fall 0.4s cubic-bezier(0.5, 0, 0.9, 0.4) forwards;
+}
+.mr-consent-dim {
+  animation: mr-consent-dim-in 0.5s ease both;
+}
+.mr-consent-dim[data-leaving] {
+  animation: mr-consent-dim-out 0.4s ease forwards;
+}
+.mr-consent-icon::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 1.25rem;
+  border: 2px solid var(--color-teal-700);
+  opacity: 0;
+  animation: mr-consent-ring 1.6s ease-out 0.9s 2;
+}
+.mr-consent-toast {
+  animation: mr-consent-toast 2.6s ease both;
+  transform: translateX(-50%);
+}
+@keyframes mr-consent-rise {
+  from { transform: translate(var(--mr-consent-x, 0), 110%); }
+  to { transform: translate(var(--mr-consent-x, 0), 0); }
+}
+@keyframes mr-consent-fall {
+  from { transform: translate(var(--mr-consent-x, 0), 0); }
+  to { transform: translate(var(--mr-consent-x, 0), 120%); }
+}
+@keyframes mr-consent-dim-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes mr-consent-dim-out { to { opacity: 0; } }
+@keyframes mr-consent-ring {
+  0% { opacity: 0.6; transform: scale(0.9); }
+  100% { opacity: 0; transform: scale(1.35); }
+}
+@keyframes mr-consent-toast {
+  0% { opacity: 0; transform: translate(-50%, 24px); }
+  12%, 82% { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; transform: translate(-50%, 0); }
+}
+@media (min-width: 40rem) {
+  .mr-consent { --mr-consent-x: -50%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mr-consent, .mr-consent-dim, .mr-consent-toast { animation-duration: 0.01s; animation-delay: 0s; }
+  .mr-consent-icon::after { animation: none; }
+}
