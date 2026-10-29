@@ -691,3 +691,21 @@ Eight pages from one design system, the word budgets, why every photograph carri
   `isAuthCtaSignedOutRoute` pins it there whatever the session says, which
   still stops "Go to Dashboard" flashing mid-login; only registration and
   the holding pages drop the cluster (`isAuthCtaHiddenRoute`).
+
+## Analytics
+
+- **Google Analytics sees the public pages and the booking widget, after consent, and nothing else.**
+  `src/components/system/Analytics.tsx` loads nothing until a visitor accepts;
+  `isTrackablePath` in `src/lib/analytics.ts` blocks the admin, dashboard,
+  patient, therapist and hospital trees, so no route there is ever recorded
+  and the banner never shows on one.
+- **An event can only carry what its allowlist entry names.** Add an event
+  and its parameters in `EVENTS` in `src/lib/analytics.ts`; `sanitizeEvent`
+  drops everything else. Never add a name, phone, email, address, condition,
+  therapist, exact time or promo code as a parameter -- health information
+  breaches Google's terms, and a price is sent as a band (`priceBand`).
+- **`purchase` fires only after the server has confirmed the payment**, from
+  `trackPurchase`, with a hashed id and the amount converted from paise once.
+  Analytics calls never throw and never wait: a blocked script must not break
+  checkout.
+- GA is for funnels. Revenue, utilisation and no-shows come from Supabase.
