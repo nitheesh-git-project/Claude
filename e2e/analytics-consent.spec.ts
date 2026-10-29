@@ -26,7 +26,7 @@ async function watchGoogle(page: Page) {
 }
 
 test.describe("analytics consent", () => {
-  test("nothing reaches Google before a choice, and Yes, happy to help loads it", async ({ page }) => {
+  test("AC-001: nothing reaches Google before a choice, and Yes, happy to help loads it", async ({ page }) => {
     const hits = await watchGoogle(page);
     await page.goto(`${BASE}/faq`);
     const banner = page.getByRole("region", { name: "Analytics" });
@@ -40,7 +40,7 @@ test.describe("analytics consent", () => {
     expect(hits.some((u) => u.includes("gtag/js"))).toBe(true);
   });
 
-  test("the whole of the green button is tappable, edge to edge", async ({ page }) => {
+  test("AC-002: the whole of the green button is tappable, edge to edge", async ({ page }) => {
     await watchGoogle(page);
     await page.goto(`${BASE}/faq`);
     const yes = page.getByRole("button", { name: "Yes, happy to help" });
@@ -54,7 +54,7 @@ test.describe("analytics consent", () => {
       .toBe("granted");
   });
 
-  test("Not now sticks across a reload", async ({ page }) => {
+  test("AC-003: Not now sticks across a reload", async ({ page }) => {
     const hits = await watchGoogle(page);
     await page.goto(`${BASE}/faq`);
     await page.getByRole("button", { name: "Not now" }).click();
@@ -65,7 +65,7 @@ test.describe("analytics consent", () => {
     expect(hits).toHaveLength(0);
   });
 
-  test("an accepted visitor sends page views from public pages only", async ({ page }) => {
+  test("AC-004: an accepted visitor sends page views from public pages only", async ({ page }) => {
     const hits = await watchGoogle(page);
     await page.addInitScript(() => localStorage.setItem("mr_analytics_consent", "granted"));
     await page.goto(`${BASE}/faq`);
@@ -83,7 +83,7 @@ test.describe("analytics consent", () => {
       .toBe(true);
   });
 
-  test("the footer link reopens the card and withdrawing stops tracking", async ({ page }) => {
+  test("AC-005: the footer link reopens the card and withdrawing stops tracking", async ({ page }) => {
     await watchGoogle(page);
     await page.addInitScript(() => localStorage.setItem("mr_analytics_consent", "granted"));
     await page.goto(`${BASE}/faq`);
@@ -102,7 +102,7 @@ test.describe("analytics consent", () => {
   });
 
   for (const path of ["/admin/login", "/patient", "/therapist", "/hospital", "/dashboard"]) {
-    test(`${path} never shows the banner`, async ({ page }) => {
+    test(`AC-006: ${path} never shows the banner`, async ({ page }) => {
       await watchGoogle(page);
       await page.goto(`${BASE}${path}`);
       await page.waitForTimeout(1000);

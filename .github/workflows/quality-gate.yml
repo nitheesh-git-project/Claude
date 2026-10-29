@@ -62,6 +62,9 @@ env:
   NODE_VERSION: "22"
   SUPABASE_CLI_VERSION: "2.54.11"
   NEXT_TELEMETRY_DISABLED: "1"
+  # Any "G-..." value: the analytics-consent spec stubs Google, so nothing
+  # leaves the runner. It has to be set at build time (it is inlined).
+  NEXT_PUBLIC_GA_MEASUREMENT_ID: "G-GATE000000"
   # The QA fixture accounts' shared password on each runner's disposable
   # stack: generated per run, so no password lives in this public repo.
   E2E_QA_PASSWORD: "Gate-${{ github.run_id }}-${{ github.run_attempt }}!Qa"

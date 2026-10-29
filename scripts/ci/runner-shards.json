@@ -51,6 +51,7 @@
       "admin-scoped-dashboard.spec.ts": 49,
       "admin-settings-ia.spec.ts": 40,
       "admin-validation.spec.ts": 4,
+      "analytics-consent.spec.ts": 40,
       "assign-availability.spec.ts": 17,
       "booking-account-role.spec.ts": 34,
       "booking-exit-link.spec.ts": 6,
