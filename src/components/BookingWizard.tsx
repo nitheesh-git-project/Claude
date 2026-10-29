@@ -364,29 +364,34 @@ export default function BookingWizard({
     stepRef.current = step;
   }, [step]);
   useEffect(() => {
-    track("booking_start", {
+    track("booking_start", { visit_mode: "video", 
       entry_source: document.referrer ? "referral" : "direct",
       service_preselected: Boolean(searchParams.get("category")),
     });
     // The last step reached, for the funnel's drop-off, when the tab is left.
-    const onHide = () => track("booking_exit", { last_step: stepRef.current });
+    const onHide = () => track("booking_exit", { visit_mode: "video", last_step: stepRef.current });
     window.addEventListener("pagehide", onHide);
     return () => window.removeEventListener("pagehide", onHide);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => {
-    track("booking_step_view", { step_name: ["service", "details", "payment"][step - 1], step_index: step });
+    track("booking_step_view", { visit_mode: "video", step_name: ["service", "details", "payment"][step - 1], step_index: step });
   }, [step]);
   useEffect(() => {
-    if (categoryId) track("service_selected", { service_id: String(categoryId) });
+    if (categoryId) track("service_selected", {
+        visit_mode: "video",
+        service_id: String(categoryId),
+        service_name: initialCategories.find((c) => c.id === categoryId)?.title,
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [categoryId]);
   useEffect(() => {
     if (!bookDate || bookHour === "") return;
     const days = Math.round((Date.parse(`${bookDate}T00:00:00Z`) - Date.now()) / 86_400_000);
-    track("slot_picked", { days_ahead_bucket: daysAheadBucket(days), time_of_day: timeOfDay(bookHour) });
+    track("slot_picked", { visit_mode: "video", days_ahead_bucket: daysAheadBucket(days), time_of_day: timeOfDay(bookHour) });
   }, [bookDate, bookHour]);
   useEffect(() => {
-    if (error) track("booking_error", { step });
+    if (error) track("booking_error", { visit_mode: "video", step });
     // Only a new message is an event; a step change is not.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [error]);
@@ -919,7 +924,7 @@ export default function BookingWizard({
         return;
       }
       setLoading(false);
-      track("booking_confirmed", { settlement: "free" });
+      track("booking_confirmed", { visit_mode: "video", settlement: "free" });
       setDone(true);
     } catch {
       setLoading(false);
@@ -968,7 +973,7 @@ export default function BookingWizard({
           discountLabel: quote?.discountLabel ?? null,
         });
       }
-      track("booking_confirmed", { settlement: "pay_later" });
+      track("booking_confirmed", { visit_mode: "video", settlement: "pay_later" });
       setDone(true);
     } catch {
       setLoading(false);
@@ -1144,7 +1149,7 @@ export default function BookingWizard({
   async function submitFromPaymentStep(intent: "default" | "pay_now" = "default") {
     setError(null);
     setLoading(true);
-    track("begin_checkout", { price_band: priceBand(quote?.totalPaise ?? 0), currency: "inr" });
+    track("begin_checkout", { visit_mode: "video", price_band: priceBand(quote?.totalPaise ?? 0), currency: "inr" });
     const needsAccount = !isLoggedIn;
     setPayIncludesAccount(needsAccount);
     setPayStage(appointmentId ? "opening" : needsAccount ? "account" : "slot");
@@ -1161,7 +1166,7 @@ export default function BookingWizard({
   }
 
   useEffect(() => {
-    if (payStage) track("checkout_stage", { stage: payStage });
+    if (payStage) track("checkout_stage", { visit_mode: "video", stage: payStage });
   }, [payStage]);
 
   function endTiming(outcome: CheckoutOutcome) {
@@ -1235,18 +1240,18 @@ export default function BookingWizard({
       email,
       description: selectedCategory?.title ?? "Virtual Physical Therapy Session",
       onSuccess: () => {
-        void trackPurchase(id, quote?.totalPaise ?? 0);
+        void trackPurchase(id, quote?.totalPaise ?? 0, "video");
         setLoading(false);
         setDone(true);
       },
       onError: (message) => {
-        track("payment_failed", { price_band: priceBand(quote?.totalPaise ?? 0) });
+        track("payment_failed", { visit_mode: "video", price_band: priceBand(quote?.totalPaise ?? 0) });
         setLoading(false);
         setError(message);
         void noteFailedTry("failed", id);
       },
       onDismiss: () => {
-        track("payment_dismissed", { price_band: priceBand(quote?.totalPaise ?? 0) });
+        track("payment_dismissed", { visit_mode: "video", price_band: priceBand(quote?.totalPaise ?? 0) });
         setLoading(false);
         setError("Payment was not completed. You can try again below.");
         void noteFailedTry("dismissed", id);
@@ -1862,7 +1867,6 @@ export default function BookingWizard({
                 initialCode={resumedPromoCode}
                 onApplied={(code) => {
                   setPromoCode(code);
-                  if (code) track("promo_attempt", { success: true });
                   // Re-quoted rather than adjusted here: the code may not be
                   // the largest discount this patient qualifies for, and the
                   // total has to be the one the order route will resolve.

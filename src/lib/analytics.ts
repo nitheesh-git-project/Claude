@@ -49,19 +49,20 @@ const EVENTS: Record<string, Record<string, ParamKind>> = {
   contact_click: { channel: STR, location: STR },
   section_view: { section: STR },
   // Booking widget
-  booking_start: { entry_source: STR, service_preselected: BOOL },
-  booking_step_view: { step_name: STR, step_index: NUM },
-  service_selected: { service_id: STR },
-  slot_picked: { days_ahead_bucket: STR, time_of_day: STR },
-  promo_attempt: { success: BOOL },
-  begin_checkout: { price_band: STR, currency: STR },
-  checkout_stage: { stage: STR },
-  payment_dismissed: { price_band: STR },
-  payment_failed: { price_band: STR },
-  booking_error: { step: NUM },
-  booking_confirmed: { settlement: STR },
-  booking_exit: { last_step: NUM },
-  purchase: { transaction_id: STR, value: NUM, currency: STR },
+  booking_start: { visit_mode: STR, entry_source: STR, service_preselected: BOOL },
+  booking_step_view: { visit_mode: STR, step_name: STR, step_index: NUM },
+  service_selected: { visit_mode: STR, service_id: STR, service_name: STR },
+  slot_picked: { visit_mode: STR, days_ahead_bucket: STR, time_of_day: STR },
+  promo_attempt: { visit_mode: STR, success: BOOL },
+  service_area_check: { result: STR },
+  begin_checkout: { visit_mode: STR, price_band: STR, currency: STR },
+  checkout_stage: { visit_mode: STR, stage: STR },
+  payment_dismissed: { visit_mode: STR, price_band: STR },
+  payment_failed: { visit_mode: STR, price_band: STR },
+  booking_error: { visit_mode: STR, step: NUM },
+  booking_confirmed: { visit_mode: STR, settlement: STR },
+  booking_exit: { visit_mode: STR, last_step: NUM },
+  purchase: { visit_mode: STR, transaction_id: STR, value: NUM, currency: STR },
 };
 
 const TOKEN = /[^a-z0-9_.\-: ]/g;
@@ -181,7 +182,11 @@ async function opaqueId(raw: string): Promise<string> {
 
 /** A paid booking, reported once per appointment per tab session. Call it
  *  only after the server has confirmed the payment. */
-export async function trackPurchase(appointmentId: string, totalPaise: number): Promise<void> {
+export async function trackPurchase(
+  appointmentId: string,
+  totalPaise: number,
+  visitMode: "video" | "home" = "video"
+): Promise<void> {
   try {
     const id = await opaqueId(appointmentId);
     let sent: string[] = [];
@@ -197,6 +202,7 @@ export async function trackPurchase(appointmentId: string, totalPaise: number): 
       // Without storage a refresh could repeat it; better than losing it.
     }
     track("purchase", {
+      visit_mode: visitMode,
       transaction_id: id,
       value: paiseToAmount(totalPaise),
       currency: "INR",

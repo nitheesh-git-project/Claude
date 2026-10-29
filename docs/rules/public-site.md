@@ -701,9 +701,12 @@ Eight pages from one design system, the word budgets, why every photograph carri
   and the banner never shows on one.
 - **An event can only carry what its allowlist entry names.** Add an event
   and its parameters in `EVENTS` in `src/lib/analytics.ts`; `sanitizeEvent`
-  drops everything else. Never add a name, phone, email, address, condition,
-  therapist, exact time or promo code as a parameter -- health information
-  breaches Google's terms, and a price is sent as a band (`priceBand`).
+  drops everything else. A catalog service's title is sent (`service_name`) --
+  the owner chose that. Never add a name, phone, email, address, pincode,
+  anything the patient typed (concern, notes), therapist, exact time or promo
+  code as a parameter; health information breaches Google's terms, and a price
+  is sent as a band (`priceBand`). Every booking event carries `visit_mode`
+  (`video` or `home`).
 - **`purchase` fires only after the server has confirmed the payment**, from
   `trackPurchase`, with a hashed id and the amount converted from paise once.
   Analytics calls never throw and never wait: a blocked script must not break

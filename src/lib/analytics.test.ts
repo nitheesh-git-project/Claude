@@ -51,6 +51,19 @@ describe("sanitizeEvent", () => {
     const e = sanitizeEvent("booking_step_view", { step_name: "slot", step_index: "2" });
     expect(e?.params).toEqual({ step_name: "slot" });
   });
+  it("sends the service name and visit mode on service_selected", () => {
+    const e = sanitizeEvent("service_selected", {
+      visit_mode: "home",
+      service_id: "abc",
+      service_name: "Lower Back Pain",
+      pincode: "560001",
+    });
+    expect(e?.params).toEqual({ visit_mode: "home", service_id: "abc", service_name: "lower back pain" });
+  });
+  it("records a failed promo attempt without the code", () => {
+    const e = sanitizeEvent("promo_attempt", { visit_mode: "video", success: false, code: "SAVE50" });
+    expect(e?.params).toEqual({ visit_mode: "video", success: false });
+  });
   it("carries purchase value as a number", () => {
     const e = sanitizeEvent("purchase", { transaction_id: "ab12", value: 799, currency: "INR" });
     expect(e?.params).toEqual({ transaction_id: "ab12", value: 799, currency: "inr" });
