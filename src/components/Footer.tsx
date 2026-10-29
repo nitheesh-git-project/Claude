@@ -164,11 +164,13 @@ export default function Footer({
               year's (ISR) or UTC's (the server) on New Year's morning in
               India -- deliberately client-specific, so this one node only. */}
           © <span suppressHydrationWarning>{new Date().getFullYear()}</span> {footerCopyrightText}
-        </p>
-        <CountryPicker />
-        <p className="mt-1">
+          {/* On the copyright's own line: a line of its own made the footer
+              taller, which pushed the last section clear of the viewport's
+              centre at the bottom of the page and left the section rail with
+              nothing active (SN-003). */}
           <AnalyticsSettingsLink />
         </p>
+        <CountryPicker />
         {devCreditEnabled && (
           <p className="mt-1 px-4">
             Researched, designed and hand-built to make care easier for patients and therapists — by{" "}

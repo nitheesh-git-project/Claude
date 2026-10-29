@@ -101,7 +101,9 @@ test.describe("analytics consent", () => {
     ).toBe(true);
   });
 
-  for (const path of ["/admin/login", "/patient", "/therapist", "/hospital", "/dashboard"]) {
+  // Login pages of the signed-in trees: an anonymous visit to /dashboard or
+  // /patient is sent to /get-started, a public page where the card belongs.
+  for (const path of ["/admin/login", "/patient/login", "/therapist/login", "/hospital/login"]) {
     test(`AC-006: ${path} never shows the banner`, async ({ page }) => {
       await watchGoogle(page);
       await page.goto(`${BASE}${path}`);

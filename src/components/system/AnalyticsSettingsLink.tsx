@@ -7,12 +7,15 @@ import { ANALYTICS_REOPEN_EVENT, GA_MEASUREMENT_ID } from "@/lib/analytics";
 export default function AnalyticsSettingsLink() {
   if (!GA_MEASUREMENT_ID) return null;
   return (
-    <button
-      type="button"
-      onClick={() => window.dispatchEvent(new Event(ANALYTICS_REOPEN_EVENT))}
-      className="inline-block py-1 underline-offset-2 transition hover:text-teal-400 hover:underline"
-    >
-      Analytics settings
-    </button>
+    <>
+      <span aria-hidden="true"> · </span>
+      <button
+        type="button"
+        onClick={() => window.dispatchEvent(new Event(ANALYTICS_REOPEN_EVENT))}
+        className="inline underline-offset-2 transition hover:text-teal-400 hover:underline"
+      >
+        Analytics settings
+      </button>
+    </>
   );
 }
