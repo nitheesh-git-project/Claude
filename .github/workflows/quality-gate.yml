@@ -160,19 +160,58 @@ jobs:
         id: plan
         run: node scripts/ci/plan-shards.mjs
 
+  # Pulls the Supabase images once, from one machine, and saves them to the
+  # Actions cache for the runners below. On a cache hit it does nothing.
+  # Without this every runner pulled the same several GB from ghcr.io at the
+  # same moment and the registry refused them (toomanyrequests).
+  images:
+    name: supabase images
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      ARTIFACT_DIR: e2e-artifacts/images
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - uses: supabase/setup-cli@v1
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+      - name: Look for the cached images
+        id: sbimages
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/sb-images
+          lookup-only: true
+          key: sb-images-v1-${{ runner.os }}-${{ env.SUPABASE_CLI_VERSION }}-${{ hashFiles('supabase/config.toml') }}
+      - name: Pull the images by starting the stack once
+        if: steps.sbimages.outputs.cache-hit != 'true'
+        run: |
+          scripts/ci/provision-local-stack.sh --start-only || true
+          cat "$ARTIFACT_DIR/stack-start.log" 2>/dev/null || true
+          [ "$(cat "$ARTIFACT_DIR/stack-start.status" 2>/dev/null)" = "0" ] || { echo "::error title=Image pull failed::see the log above"; exit 1; }
+      - name: Pack the images
+        if: steps.sbimages.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p /tmp/sb-images
+          docker save -o /tmp/sb-images/images.tar $(docker ps --format '{{.Image}}' | sort -u)
+          ls -lh /tmp/sb-images
+      - name: Save the images
+        if: steps.sbimages.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/sb-images
+          key: sb-images-v1-${{ runner.os }}-${{ env.SUPABASE_CLI_VERSION }}-${{ hashFiles('supabase/config.toml') }}
+
   runner:
     name: runner (${{ matrix.label }})
-    needs: [plan]
+    needs: [plan, images]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
-    # packages: read is only for the ghcr.io sign-in below; nothing here can
-    # write to the repository or to a package.
-    permissions:
-      contents: read
-      packages: read
     env:
       ARTIFACTS: e2e-artifacts/${{ matrix.label }}
     steps:
@@ -188,30 +227,25 @@ jobs:
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
 
-      # supabase/setup-cli points the CLI at ghcr.io, which has been refusing
-      # the runners' pulls (toomanyrequests). Amazon's public gallery carries
-      # the same images; provision-local-stack.sh pre-pulls from whichever
-      # registry this names. Written to GITHUB_ENV so it overrides the action's.
-      - name: Pull the Supabase images from Amazon's public registry
-        run: echo "SUPABASE_INTERNAL_IMAGE_REGISTRY=public.ecr.aws" >> "$GITHUB_ENV"
-
-      # Signed-in pulls are counted per account, not per shared runner address,
-      # so 19 jobs starting together no longer trip ghcr.io's anonymous limit
-      # (toomanyrequests, which failed every runner at provisioning). The
-      # short random wait keeps the jobs from all pulling in the same second.
-      # Best effort: a failed sign-in only means pulling anonymously, as before.
-      - name: Sign in to ghcr.io and spread the image pulls
-        run: |
-          sleep $((RANDOM % 20))
-          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin \
-            || echo "::warning title=ghcr.io sign-in failed::pulling anonymously"
-
       # The image pulls are most of the provisioning time, so they start
       # first and overlap npm ci, the browser and the caches. No secrets
       # reach this step. The provisioning step below waits for its verdict
       # (stack-start.status) and fails the job if it failed twice.
+      # The stack's images come from the Actions cache that the `images` job
+      # filled, not from the internet: 19 jobs each pulling several GB from
+      # ghcr.io tripped its anonymous limit (toomanyrequests) and failed every
+      # runner before a test ran. The load runs in the background ahead of the
+      # stack start; a miss just pulls as before.
+      - name: Restore the Supabase images
+        id: sbimages
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/sb-images
+          key: sb-images-v1-${{ runner.os }}-${{ env.SUPABASE_CLI_VERSION }}-${{ hashFiles('supabase/config.toml') }}
+
       - name: Start the local Supabase stack (in the background)
-        run: nohup scripts/ci/provision-local-stack.sh --start-only > /dev/null 2>&1 &
+        run: |
+          nohup sh -c '[ -f /tmp/sb-images/images.tar ] && docker load -q -i /tmp/sb-images/images.tar; scripts/ci/provision-local-stack.sh --start-only' > /dev/null 2>&1 &
         env:
           ARTIFACT_DIR: ${{ env.ARTIFACTS }}/provision
 
@@ -336,7 +370,7 @@ jobs:
           retention-days: 14
 
   quality-gate:
-    needs: [context-budget, coverage-manifest, verify, plan, runner]
+    needs: [context-budget, coverage-manifest, verify, plan, images, runner]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
