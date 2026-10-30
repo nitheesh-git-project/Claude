@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { track } from "@/lib/analytics";
 import { isWellFormedPromoCode, normalizePromoCode } from "@/lib/promoCodes";
 import { formatRupees } from "@/lib/formatMoney";
 import { formatPaiseForCountry, type CountryPricing } from "@/lib/countryPricing";
@@ -82,6 +83,7 @@ export default function PromoCodeField({
     if (inFlight.current) return;
     const normalized = normalizePromoCode(typed);
     if (!isWellFormedPromoCode(normalized)) {
+      if (!fromEarlierTry) track("promo_attempt", { visit_mode: "video", success: false });
       setMessage("That code isn't recognised.");
       return;
     }
@@ -91,9 +93,11 @@ export default function PromoCodeField({
     try {
       const answer = preview ? await preview(normalized) : await previewSessionCode(normalized);
       if ("error" in answer) {
+        if (!fromEarlierTry) track("promo_attempt", { visit_mode: "video", success: false });
         setMessage(answer.error);
         return;
       }
+      if (!fromEarlierTry) track("promo_attempt", { visit_mode: "video", success: answer.applies });
       if (!answer.applies) {
         setApplied(null);
         onApplied(null);

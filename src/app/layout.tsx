@@ -23,6 +23,7 @@ import FormValidationChrome from "@/components/system/FormValidationChrome";
 import ErrorAutoScroll from "@/components/system/ErrorAutoScroll";
 import LinkProgress from "@/components/system/LinkProgress";
 import NumericInputGuard from "@/components/system/NumericInputGuard";
+import Analytics from "@/components/system/Analytics";
 import ToastViewport from "@/components/system/ToastViewport";
 import { ToastProvider } from "@/lib/toast";
 import { PendingWorkProvider } from "@/lib/pendingWork";
@@ -227,6 +228,8 @@ export default async function RootLayout({
             <LinkProgress />
           </Suspense>
           <ToastViewport />
+          {/* Google Analytics, after consent, public pages only. */}
+          <Analytics />
           {/* Replaces the browser's own grey validation bubble everywhere at
               once. One listener at the root rather than a change to every
               form, because `invalid` is fired by the browser on every

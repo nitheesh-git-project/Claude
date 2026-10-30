@@ -48,6 +48,31 @@ async function readSetting<T>(column: string): Promise<T> {
   return (data as Record<string, T> | null)?.[column] as T;
 }
 
+
+// The day buttons are drawn on the client after the page's own text, so a read
+// right after "at least N hours" shows can catch the calendar half-drawn (two
+// days against twenty-nine). Reads the count once it has stopped changing.
+async function settledOpenDays(page: Page): Promise<number> {
+  const days = () =>
+    page.locator("button:not([disabled])").filter({ hasText: /^\d{1,2}$/ }).count();
+  let last = await days();
+  let since = Date.now();
+  await expect
+    .poll(
+      async () => {
+        const now = await days();
+        if (now !== last) {
+          last = now;
+          since = Date.now();
+        }
+        return last > 0 && Date.now() - since > 1500;
+      },
+      { timeout: 30_000 }
+    )
+    .toBe(true);
+  return last;
+}
+
 test.describe("CFG -- Settings information architecture", () => {
   test.beforeEach(async ({ context }) => {
     await context.addCookies(await browserCookiesFor(QA_EMAILS.admin));
@@ -165,18 +190,12 @@ test.describe("CFG -- Settings information architecture", () => {
       // calendar filters on the same value -- it printed the constant and
       // filtered on the constant before this.
       await expect(book.getByText(/at least 72 hours from now/)).toBeVisible({ timeout: 60_000 });
-      const openDays = await book
-        .locator("button:not([disabled])")
-        .filter({ hasText: /^\d{1,2}$/ })
-        .allInnerTexts();
+      const openDays = { length: await settledOpenDays(book) };
 
       await db.from("site_settings").update({ online_booking_lead_time_hours: 12 }).eq("id", true);
       await book.reload({ waitUntil: "domcontentloaded" });
       await expect(book.getByText(/at least 12 hours from now/)).toBeVisible({ timeout: 60_000 });
-      const nearerDays = await book
-        .locator("button:not([disabled])")
-        .filter({ hasText: /^\d{1,2}$/ })
-        .allInnerTexts();
+      const nearerDays = { length: await settledOpenDays(book) };
 
       expect(nearerDays.length).toBeGreaterThan(openDays.length);
       await patient.close();
