@@ -107,6 +107,7 @@ Copy `.env.example` to `.env.local`. Server-only values must **never** take a `N
 | `SUPABASE_ACCESS_TOKEN` | Optional | Personal access token, only for `scripts/run-schema.mjs` |
 | `E2E_QA_PASSWORD` | For tests | Shared password of the QA fixture accounts (`seed:qa`, the e2e suite). Test projects only; never committed - CI generates its own per run |
 | `NEXT_PUBLIC_SHOW_DEBUG_NAV` | Optional | Exactly `false` hides the pre-launch debug bar |
+| `NEXT_PUBLIC_GA_MEASUREMENT_ID` | Optional | Google Analytics 4 ID (`G-...`, public). Blank switches analytics off |
 | `ALLOW_DEBUG_DATA_RESET` | **Keep unset** | Arms a button that empties every table. Never set it where real data lives |
 | `SUPABASE_MAX_IN_FLIGHT` / `SUPABASE_REQUEST_TIMEOUT_MS` | Optional | Per-instance cap and deadline for Supabase requests (defaults 96 / 20000 ms) |
 | `WEB_CONCURRENCY` | Optional | Worker processes for `npm run start:cluster` (default: cores, max 4) |

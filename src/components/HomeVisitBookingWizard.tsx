@@ -44,6 +44,13 @@ import ChosenServiceSummary from "@/components/booking/ChosenServiceSummary";
 import { homeVisitConditionOption, type HomeVisitConditionRow } from "@/lib/serviceOptions";
 import { formatRupees } from "@/lib/formatMoney";
 import PasswordInput from "@/components/auth/PasswordInput";
+import {
+  daysAheadBucket,
+  priceBand,
+  timeOfDay,
+  track,
+  trackPurchase,
+} from "@/lib/analytics";
 
 // What the picker lists: each condition the clinic treats, as one visit at
 // its home-visit price (src/lib/homeVisitRates.ts). The price is a quote;
@@ -362,6 +369,64 @@ export default function HomeVisitBookingWizard({
       })
     : null;
 
+  // Funnel analytics -- see src/lib/analytics.ts. Buckets and catalog ids
+  // only: no pincode, address, name, contact or free text ever goes out.
+  const stepRef = useRef(1);
+  useEffect(() => {
+    stepRef.current = step;
+  }, [step]);
+  useEffect(() => {
+    track("booking_start", {
+      visit_mode: "home",
+      entry_source: document.referrer ? "referral" : "direct",
+      service_preselected: Boolean(initialCategoryId),
+    });
+    const onHide = () => track("booking_exit", { visit_mode: "home", last_step: stepRef.current });
+    window.addEventListener("pagehide", onHide);
+    return () => window.removeEventListener("pagehide", onHide);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    track("booking_step_view", {
+      visit_mode: "home",
+      step_name: ["service", "area", "slot", "payment"][step - 1],
+      step_index: step,
+    });
+  }, [step]);
+  useEffect(() => {
+    if (!categoryId) return;
+    track("service_selected", {
+      visit_mode: "home",
+      service_id: categoryId,
+      service_name: conditions.find((c) => c.id === categoryId)?.title,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categoryId]);
+  useEffect(() => {
+    if (areaCheck.state === "serviceable" || areaCheck.state === "unserviceable") {
+      track("service_area_check", {
+        result: areaCheck.state === "serviceable" ? "covered" : "not_covered",
+      });
+    }
+  }, [areaCheck.state]);
+  useEffect(() => {
+    if (!bookDate || bookHour === "") return;
+    const days = Math.round((Date.parse(`${bookDate}T00:00:00Z`) - Date.now()) / 86_400_000);
+    track("slot_picked", {
+      visit_mode: "home",
+      days_ahead_bucket: daysAheadBucket(days),
+      time_of_day: timeOfDay(bookHour),
+    });
+  }, [bookDate, bookHour]);
+  useEffect(() => {
+    if (error) track("booking_error", { visit_mode: "home", step });
+    // Only a new message is an event; a step change is not.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [error]);
+  useEffect(() => {
+    if (payStage) track("checkout_stage", { visit_mode: "home", stage: payStage });
+  }, [payStage]);
+
   /** A failed rule, said once and shown where it is: the message, and the
    *  page taken to the field that needs attention. */
   function failField(message: string, fieldId: string) {
@@ -430,6 +495,11 @@ export default function HomeVisitBookingWizard({
     // Timed and staged only on the gateway path: cash at the door opens no
     // sheet, so there is nothing to measure against and nothing to wait for.
     const viaGateway = paymentMode !== "cash";
+    track("begin_checkout", {
+      visit_mode: "home",
+      price_band: priceBand(total?.totalPaise ?? 0),
+      currency: "inr",
+    });
     const needsAccount = !isLoggedIn;
     timerRef.current = viaGateway
       ? startCheckoutTimer({ flow: "home_visit", newAccount: needsAccount })
@@ -522,6 +592,7 @@ export default function HomeVisitBookingWizard({
           if (res.status >= 500) void noteFailedTry("server_error");
           return;
         }
+        track("booking_confirmed", { visit_mode: "home", settlement: "cash_at_door" });
         setPaymentResult({
           visitBooked: !!data.visitBooked,
           appointmentId: data.appointmentId,
@@ -555,16 +626,21 @@ export default function HomeVisitBookingWizard({
       notes,
       concern: concern || undefined,
       onSuccess: (result) => {
+        if (result.appointmentId) {
+          void trackPurchase(result.appointmentId, total?.totalPaise ?? 0, "home");
+        }
         setLoading(false);
         setPaymentResult(result);
         setDone(true);
       },
       onError: (message) => {
+        track("payment_failed", { visit_mode: "home", price_band: priceBand(total?.totalPaise ?? 0) });
         setLoading(false);
         setError(message);
         void noteFailedTry("failed");
       },
       onDismiss: () => {
+        track("payment_dismissed", { visit_mode: "home", price_band: priceBand(total?.totalPaise ?? 0) });
         setLoading(false);
         setError("Payment was not completed. You can try again below.");
         void noteFailedTry("dismissed");

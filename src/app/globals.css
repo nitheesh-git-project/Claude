@@ -682,3 +682,69 @@ input::-ms-clear {
     animation: none;
   }
 }
+
+/* The analytics consent card (src/components/system/Analytics.tsx): a gentle
+   rise with a settle, a soft ring on the icon, a slide away, and a thank-you
+   toast. Reduced motion shows and hides it without moving. */
+.mr-consent {
+  animation: mr-consent-rise 0.7s cubic-bezier(0.2, 1.1, 0.3, 1) both;
+}
+.mr-consent[data-leaving] {
+  animation: mr-consent-fall 0.4s cubic-bezier(0.5, 0, 0.9, 0.4) forwards;
+}
+.mr-consent-dim {
+  animation: mr-consent-dim-in 0.5s ease both;
+}
+.mr-consent-dim[data-leaving] {
+  animation: mr-consent-dim-out 0.4s ease forwards;
+}
+.mr-consent-face {
+  transform-origin: 70% 90%;
+  animation: mr-consent-wave 1.2s ease 0.9s 2;
+}
+.mr-consent-yes {
+  animation: mr-consent-glow 2.4s ease-in-out 2.2s 3;
+}
+.mr-consent-heart[data-on] {
+  animation: mr-consent-heart 0.9s ease forwards;
+}
+.mr-consent-toast {
+  animation: mr-consent-toast 2.6s ease both;
+  transform: translateX(-50%);
+}
+@keyframes mr-consent-rise {
+  from { transform: translate(var(--mr-consent-x, 0), 110%); }
+  to { transform: translate(var(--mr-consent-x, 0), 0); }
+}
+@keyframes mr-consent-fall {
+  from { transform: translate(var(--mr-consent-x, 0), 0); }
+  to { transform: translate(var(--mr-consent-x, 0), 120%); }
+}
+@keyframes mr-consent-dim-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes mr-consent-dim-out { to { opacity: 0; } }
+@keyframes mr-consent-wave {
+  0%, 100% { transform: rotate(0); }
+  25% { transform: rotate(-12deg); }
+  75% { transform: rotate(10deg); }
+}
+@keyframes mr-consent-glow {
+  0%, 100% { box-shadow: 0 10px 24px -10px rgba(15, 118, 110, 0.8), 0 0 0 0 rgba(15, 118, 110, 0.35); }
+  50% { box-shadow: 0 10px 24px -10px rgba(15, 118, 110, 0.8), 0 0 0 9px rgba(15, 118, 110, 0); }
+}
+@keyframes mr-consent-heart {
+  0% { opacity: 0; transform: translateY(0) scale(0.5); }
+  30% { opacity: 1; transform: translateY(-20px) scale(1.2); }
+  100% { opacity: 0; transform: translateY(-64px) scale(1); }
+}
+@keyframes mr-consent-toast {
+  0% { opacity: 0; transform: translate(-50%, 24px); }
+  12%, 82% { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; transform: translate(-50%, 0); }
+}
+@media (min-width: 40rem) {
+  .mr-consent { --mr-consent-x: -50%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mr-consent, .mr-consent-dim, .mr-consent-toast, .mr-consent-heart { animation-duration: 0.01s; animation-delay: 0s; }
+  .mr-consent-face, .mr-consent-yes { animation: none; }
+}
