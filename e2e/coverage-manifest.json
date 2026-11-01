@@ -358,6 +358,17 @@
       "integration": "local",
       "destructive": false
     },
+    "analytics-consent.spec.ts": {
+      "runner": "platform",
+      "levels": [
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "chrome-and-loader.spec.ts": {
       "runner": "platform",
       "levels": [
@@ -3929,6 +3940,30 @@
         }
       ],
       "limitation": "Writes append-only neurological exams, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack; the scales, validation, asymmetry, Berg bands and change-since-last are unit-tested in src/lib/neuroExam.test.ts."
+    },
+    {
+      "id": "platform.analytics-consent",
+      "runner": "platform",
+      "title": "Google Analytics loads only after consent, a refusal sticks, the footer link withdraws it, and the signed-in route trees never show the card",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "analytics-consent.spec.ts",
+          "tests": [
+            "AC-001",
+            "AC-002",
+            "AC-003",
+            "AC-004",
+            "AC-005",
+            "AC-006"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/public-site.md"
+      ]
     }
   ],
   "removed": [

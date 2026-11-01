@@ -62,6 +62,9 @@ env:
   NODE_VERSION: "22"
   SUPABASE_CLI_VERSION: "2.54.11"
   NEXT_TELEMETRY_DISABLED: "1"
+  # Any "G-..." value: the analytics-consent spec stubs Google, so nothing
+  # leaves the runner. It has to be set at build time (it is inlined).
+  NEXT_PUBLIC_GA_MEASUREMENT_ID: "G-GATE000000"
   # The QA fixture accounts' shared password on each runner's disposable
   # stack: generated per run, so no password lives in this public repo.
   E2E_QA_PASSWORD: "Gate-${{ github.run_id }}-${{ github.run_attempt }}!Qa"
@@ -179,6 +182,15 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
+
+      # supabase/setup-cli points the CLI at ghcr.io, and Supabase's packages
+      # there (and on public.ecr.aws) refuse the runners with toomanyrequests,
+      # which failed every runner at provisioning. Docker Hub carries the same
+      # six images (supabase/*, postgrest/postgrest, kong) and answers; for
+      # docker.io the CLI uses the names as they are, with no registry prefix.
+      # Written to GITHUB_ENV so it overrides the action's setting.
+      - name: Pull the Supabase images from Docker Hub
+        run: echo "SUPABASE_INTERNAL_IMAGE_REGISTRY=docker.io" >> "$GITHUB_ENV"
 
       # The image pulls are most of the provisioning time, so they start
       # first and overlap npm ci, the browser and the caches. No secrets
