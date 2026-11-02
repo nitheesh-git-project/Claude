@@ -1,4 +1,5 @@
-// "Are you getting better?" draws one point per exam. It used to be one
+// "Are you getting better?" draws one point per exam (the ortho layout's
+// progress graph, a dot per review). It used to be one
 // point per calendar day, so a second exam on the same day replaced the
 // first on the line and the patient could not see the change.
 //
@@ -42,18 +43,26 @@ test("PT-001: two exams on the same day are two points, the older one kept", asy
   await page.goto(`${BASE}/patient/dashboard/health-profile`);
   await openProfileBlocks(page);
   await waitForSplashToClear(page);
-  const section = page.locator("section", { has: page.getByRole("heading", { name: "Are you getting better?" }) });
-  await expect(section).toBeVisible();
-  const chart = section.getByRole("img", { name: /Pain recorded at each exam/ });
+  // The ortho layout's progress graph (ProfileProgressSection): one dot per
+  // review, the Pain Map's 0-10 score among its lines. The old
+  // PainTrendChart is only the fallback for a database without the Health
+  // Profile tables, which is not what a patient here sees.
+  const section = page.getByRole("region", { name: "Progress" });
+  await expect(section).toContainText("Are you getting better?");
+  const chart = section.getByRole("img", { name: /^Pain score: / });
   const label = (await chart.getAttribute("aria-label")) ?? "";
-  const entries = label.replace(/^Pain recorded at each exam: /, "").split(", ");
-  // Both of today's exams are on the line, the earlier one still there.
-  expect(entries.length).toBeGreaterThanOrEqual(2);
-  expect(await chart.locator("circle").count()).toBe(entries.length);
-  // Neither today's 80 nor its re-score was swallowed into a daily average:
-  // the line moves between the last two points.
-  const [prev, last] = entries.slice(-2).map((e) => Number(e.split(" ").at(-1)!.replace("/10", "")));
-  expect(last).toBeLessThan(prev);
+  const reviews = Number(/over (\d+) reviews/.exec(label)?.[1] ?? "0");
+  // Both of today's exams are on the line, one dot each.
+  expect(reviews, label).toBeGreaterThanOrEqual(2);
+  const dots = chart.locator("circle");
+  expect(await dots.count()).toBe(reviews);
+  // The latest is the re-score (30% -> 3/10)...
+  expect(label, label).toMatch(/, 3 on [^,]+, over \d+ reviews/);
+  // ...and today's 80 was not swallowed into a daily average: it is still
+  // its own dot, drawn higher than the 3 after it (higher pain is higher up).
+  const ys = await dots.evaluateAll((els) => els.map((el) => Number(el.getAttribute("cy"))));
+  const [prevY, lastY] = ys.slice(-2);
+  expect(prevY).toBeLessThan(lastY);
   await section.scrollIntoViewIfNeeded();
   await section.screenshot({ path: "test-results/pain-trend.png" });
 });
