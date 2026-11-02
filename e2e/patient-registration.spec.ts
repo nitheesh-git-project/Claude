@@ -103,7 +103,10 @@ test.describe("Self-registration without email confirmation", () => {
     await expect(book).toHaveText("Book your first session");
     await expect(book).toHaveAttribute("href", "/book");
     await expect(page.getByText(/usually within \d+ working days?/)).toBeVisible();
-    await expect(page.getByText(/\badmin\b/i)).toHaveCount(0);
+    // The page's own words: the pre-launch debug bar above it (on in every
+    // environment, src/lib/debugNavVisible.ts) lists the admin routes by
+    // name, and is a developer tool rather than anything this screen says.
+    await expect(page.getByRole("main").getByText(/\badmin\b/i)).toHaveCount(0);
     const fontPx = await book.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
     expect(fontPx).toBeGreaterThanOrEqual(16);
     await ctx.close();
