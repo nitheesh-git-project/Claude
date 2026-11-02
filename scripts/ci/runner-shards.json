@@ -36,6 +36,7 @@
       "admin-degraded-schema.spec.ts": 33,
       "admin-detail-overlay.spec.ts": 53,
       "admin-exposure.spec.ts": 26,
+      "admin-health-profile-reviews.spec.ts": 30,
       "admin-impersonation.spec.ts": 25,
       "admin-login.spec.ts": 17,
       "admin-maintenance-sweep.spec.ts": 8,

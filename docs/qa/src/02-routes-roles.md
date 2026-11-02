@@ -16,7 +16,7 @@ Every route below is covered by at least one test. The rightmost column names th
 | `/mission` | Mission, vision, four promises, testimonials | Public | `PUB-NAV-001` |
 | `/faq` | Admin-managed FAQ accordion | Public | `PUB-FAQ-001` |
 | `/hospitals` | Partner pitch plus the hospital enquiry form | Public | `HOS-LEAD-001` |
-| `/developer` | "Say hello!" - the developer credit's landing card. Reached only from the footer's "Contact me" link; not in the nav. **404s while Settings → Dev Reachouts has the credit switched off** | Public | `PUB-DEV-001` |
+| `/developer` | "Say hello!" - the developer credit's landing card. Reached only from the footer's "Contact me" link; not in the nav. **404s while Settings → Developer messages has the credit switched off** | Public | `PUB-DEV-001` |
 | `/developer/lets-talk` | "Let's talk" - the contact form (name, email, optional number, message). **404s while the credit is switched off** | Public | `PUB-DEV-001`, `PUB-DEV-002` |
 | `/get-started` | Role hub - where a signed-in user of the wrong role is sent | Public | `SEC-ROUTE-003` |
 
@@ -77,6 +77,7 @@ Every route below is covered by at least one test. The rightmost column names th
 | --- | --- | --- | --- |
 | Today | `overview` | Today | `ADM-TODAY-001` |
 | Today | `approvals` | Approvals | `ADM-APPR-001` |
+| Today | `health-reviews` | Health Profile reviews | `ADM-PEOP-004` |
 | Today | `risk` | Risk | `ADM-RISK-001` |
 | Sessions | `schedule` | Schedule (calendar) | `ADM-SCHED-001` |
 | Sessions | `all` | All Sessions | `ADM-SESS-001` |
@@ -111,7 +112,7 @@ Every route below is covered by at least one test. The rightmost column names th
 | Settings | `health` | System Health | `ADM-SET-030` |
 | Settings | `security` | Sign-in & Security | `ADM-SET-035` |
 | Settings | `advanced` | Advanced | `ADM-SET-019` |
-| Settings | `reachouts` | Dev Reachouts (Master Admin only) | `ADM-SET-038` |
+| Settings | `reachouts` | Developer messages (Master Admin only) | `ADM-SET-038` |
 
 Detail routes (open as an overlay from the dashboard, and as a full page on direct navigation):
 
@@ -119,7 +120,7 @@ Detail routes (open as an overlay from the dashboard, and as a full page on dire
 | --- | --- |
 | `/admin/dashboard/patients/[id]` | `ADM-PEOP-003` |
 | `/admin/dashboard/therapists/[id]` | `ADM-PEOP-006` |
-| `/admin/dashboard/conditions/[id]` | `ADM-PEOP-004` |
+| `/admin/dashboard/conditions/[id]` (the patient's Health Profile) | `ADM-PEOP-004` |
 
 ### 3.7 System routes
 

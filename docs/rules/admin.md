@@ -248,7 +248,7 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   than what it sells -- the test the ledger switch fails on both counts
   elsewhere, since its own help text sends the reader to System Health.
   Settings is `full` scope only, so Advanced needs no further gate.
-  **Dev Reachouts is the one screen under Settings that is not about the
+  **Developer messages is the one screen under Settings that is not about the
   clinic.** It is the developer's own inbox -- messages left through the
   "Contact me" link in the footer's credit line (`/developer/lets-talk` ->
   `/api/developer/reachout` -> `dev_reachouts`) -- plus the two switches that
@@ -719,6 +719,96 @@ The eight sections, scopes and levels, User Access, the Settings information arc
 - **Approvals are a queue, not a person.** Pending signups and profile
   change requests live under Today, beside the inbox that counts them, not
   on the patients directory.
+- **A desk that can only read a page is told so, and shown no button.**
+  Finance holds People (and Sessions, Programmes) at `view`
+  (`adminScope.ts`), and every control that changes a person, an
+  application or a partner is `requireAdminScope("people")`. So the patient
+  and therapist pages, Today -> Approvals, People -> Partners and the
+  Health Profile screen key every such control off
+  `scopeCanManage(scope, "people")` (sessions controls off
+  `scopeCanManage(scope, "sessions")` -- the person pages used
+  `scopeCanOpen`, which offered Finance four buttons that answered 403),
+  show the status as text, and print `ReadOnlyDeskNote`: "Your desk can read
+  this page. Operations or Clinical make changes." Presentation only; the
+  routes are the rule. An inbox row carries `workSection` when the section
+  that works it differs from the one it opens (Approvals open on Today and
+  are worked with `people:manage`), and `visibleQueueTotal`, the queue list
+  and the Today figures all count by it -- Finance is not told two accounts
+  are waiting on it.
+- **Today -> Health Profile reviews lists the rows the Today counts
+  counted.** Pending intake answers (`condition_change_requests`) and
+  therapist access requests (`condition_access_grants`) are rows -- patient,
+  who filled it in or asked, how long it has waited, overdue after
+  `REVIEW_OVERDUE_AFTER_DAYS` -- with Approve and Decline on the row
+  (`ConditionRequestActions` / `ConditionAccessActions`, the same routes the
+  patient's own screen uses, `people`). Both Today inbox rows link there
+  (`healthProfileReviews.ts`, `healthProfileReviewsServer.ts`). Each read
+  carries its own verdict: unreadable is "couldn't load", never an empty
+  list. Approving intake answers says it puts them live on the patient's
+  Health Profile; granting a therapist access and removing it each ask first
+  in both names ("Remove Dr X's access to Y's Health Profile? They stop
+  seeing it immediately; their notes stay.") and the toast afterwards names
+  them. `await confirm()` happens before the transition, never inside it.
+- **The admin's Health Profile record reads in a fixed order**
+  (`ConditionDetailContent`): summary (type, status, phase, anything
+  waiting) -> `HEALTH-PROFILE-WIDGET-CONTROLS-SLOT` (the patient's widget
+  controls, added by the widgets change) -> waiting for review -> the chart
+  -> Home exercises -> Session notes -> Documents -> Therapist access ->
+  **Intake answers**, folded. The answers are the reference, not the first
+  thing a reviewer needs; they are editable only after an explicit **Edit
+  answers**, and Save shows exactly what will change (before -> after,
+  `intakeAnswerDiff.ts`) and asks first. All nine reads (and the two
+  specialty reads) carry their error: a failed read says "Couldn't load
+  <thing> - reload the page to try again" and **never** draws the empty
+  state, and editing is not offered on answers that did not load (it sends
+  the whole set back and would save blanks over the record). A neurological
+  patient whose condition-type read failed is not drawn as orthopaedic.
+  Names come from `profiles`; a raw id is never a name.
+- **People -> Patients lists each patient once.** The Health Profile state
+  and condition type are a column and two filters on the directory
+  (`AdminPeopleDirectory`: Waiting on review, Awaiting first record, Draft,
+  Complete; condition type), not a second "Patient Conditions" list, which is
+  gone along with its fold-out question editor. The question wording is
+  Settings -> Clinical Questions; Master Admin sees a link to it from the
+  directory.
+- **Partner referrals filter by status, and a count opens what it
+  counted.** Each referral row carries `group = status`, so the chips
+  (Needs triage, Therapist assigned, Invite sent, Booked, Declined,
+  Withdrawn) show. `PagedList` takes `viewPresets` (a `?view=` value ->
+  chip) and `focusPrefix` (`?view=partner:<id>` shows that one item with a
+  way back to the list); Today's "Referrals waiting on triage" links with
+  `view=triage` and "New hospital enquiries" with `view=new_leads`. The
+  screen opens on a three-figure strip (referrals to triage, new leads,
+  partners).
+- **The cancel dialog names the outcome and the amount.**
+  `describeCancelOutcome` (`cancelOutcome.ts`) mirrors the branches of
+  `cancelAppointmentAndRefund` -- the clinic's own online or home-visit
+  refund window (`CancellationWindowProvider`, from site settings; never
+  `CANCELLATION_FULL_REFUND_HOURS` in the copy), then card refund (the
+  amount still refundable), programme session back, cash to hand back, or no
+  refund -- so "₹1,200 goes back to the patient's card" or "No refund -
+  within 48 h of the slot" is said before the admin confirms. It explains the
+  rule; the route stays the rule.
+- **Phone order, and the screens that put work first.** On a phone Today
+  reads: banner, headline, figures, **queues**, then the activity feed
+  (`DashboardOverview`'s `queues` block; from a laptop up the queues sit
+  under the quick actions as before). Money -> Payouts opens on the open
+  payout requests with **Pay** on the row
+  (`TherapistPayoutButton`, `money`), then the balances table, then the
+  completed requests; the long how-it-is-worked-out paragraph is behind an
+  (i) (`InfoNote`). Global search opens the exact item:
+  `view=session:<code>` filters All Sessions to it and opens its drawer,
+  `view=partner:<id>` shows that partner alone.
+- **All Sessions has one search box.** A patient, a therapist, a session ID
+  or a programme ID (new, old SP/HS, or pasted with progress) in the same
+  type-to-search field; the patient filter lists patients only (the screen
+  still receives everyone, to name rows); below `sm` each session is a card.
+- **No internal terms on a back-office screen.** Health Profile, not Care
+  Record / Patient Conditions / care intake / condition data; the person's
+  name, not "Submitted by therapist"; no "People scope", "append-only",
+  "Question set v2" or raw ids; "Tell your developer: ..." instead of
+  "Apply supabase/schema.sql"; **Developer messages** (was Dev Reachouts)
+  and **Hospital enquiries** (was B2B Leads) are the plain names.
 - **Approving and declining a signup cannot both land.** Decline deletes the
   account, so it must not read "still pending?" and delete in two steps: an
   approval between them was erased. `decline_pending_account()` locks the

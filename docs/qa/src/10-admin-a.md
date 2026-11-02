@@ -23,7 +23,7 @@ The whole back office is **one page** at `/admin/dashboard` making roughly forty
 **Feature.** "Everything waiting on you, in one list." Figures, queues and the activity feed on **one** screen, because splitting them meant an admin checked one and missed the other.
 
 **Steps.** Sign in as Admin Full. The dashboard opens on **Today → Today**.
-**Expected Result.** A strip of four figures, the inbox queues, and the activity feed - in that order. Each inbox row shows a **count**, a **one-line hint** saying why it matters, and links to the section/tab where that work is actually done. Rows representing **money at stake** render in red as urgent. The **Today** badge equals the sum of the inbox counts. Every row's destination must exist: tapping each row must land on a real screen, never on a section's first tab by accident.
+**Expected Result.** A strip of four figures, the inbox queues, and the activity feed - in that order **on a phone** (on a laptop the feed and quick actions sit side by side and the queues sit under the quick actions). Each inbox row shows a **count**, a **one-line hint** saying why it matters, and links to the section/tab where that work is actually done. Rows representing **money at stake** render in red as urgent. The **Today** badge equals the sum of the inbox counts. Every row's destination must exist: tapping each row must land on a real screen, never on a section's first tab by accident.
 
 #### `ADM-TODAY-005` - A count opens the rows it counted · P1
 
@@ -43,6 +43,8 @@ The whole back office is **one page** at `/admin/dashboard` making roughly forty
 * The preset is **one-shot**. Returning through the sidebar drops `view` from the URL, and re-opening All Sessions shows the filters as the admin last left them, not the preset again.
 * On All Sessions itself, the **No therapist**, **Today** and **Home visits** figures filter the list **in place** (no page navigation) and tapping the applied one clears it.
 * An admin whose scope cannot open the target section sees the figure **without a link** - never a link into a 403.
+* **Referrals waiting on triage** opens People → Partners with the referral list already on *Needs triage*; **New hospital enquiries** opens the lead list on *New*. The two Health Profile rows open Today → Health Profile reviews.
+* A desk that can only read People (finance) is **not** counted among those who must clear Approvals or Health Profile reviews: neither row is in its queues.
 
 #### `ADM-TODAY-006` - A queue's age is real, and survives a refresh · P0
 
@@ -218,7 +220,7 @@ Same as above for `QA Therapist A`. **Expected Result.** The therapist can sign 
 | Action | Expected |
 | --- | --- |
 | Edit a booking's time/therapist | Saves, re-checks conflicts, audits. A session already over: `This session is already over and can't be modified` |
-| Cancel with refund | The session is cancelled, the refund is processed, Money → Summary's Net Revenue drops while Gross is unchanged |
+| Cancel with refund | The dialog first says what will happen to the money - *₹1,200 goes back to the patient's card*, *No money moves. The session goes back to the patient's programme.*, *₹800 collected in cash has to be handed back*, or *No refund - within 48 h of the slot* - using the **window set in Settings** for that kind of session (video or home visit), never a fixed 24 h. The session is then cancelled, the refund is processed, Money → Summary's Net Revenue drops while Gross is unchanged |
 | Reopen a completed session | Only a completed session can be reopened (`Only completed sessions can be reopened.`); audited |
 | Restore a cancelled/no-show session | Allowed only from those two states (`Only a cancelled or completed (no-show) session can be restored.`); a second attempt: `This session has already been restored.` |
 | Mark paid by cash | A session already paid: `This session is already marked as paid` |
@@ -514,12 +516,12 @@ Withdrawal also covers a plan **still waiting for approval** - refusing would le
 
 #### `ADM-PEOP-001` - Patients directory · P1
 **Steps.** Open **People → Patients**. Filter, page, and export.
-**Expected Result.** A paged list ending in the standard pager. **Approvals are not here** - they are under Today. Below the directory sits the **condition requests** area, whose badge counts what is waiting.
+**Expected Result.** A paged list ending in the standard pager, **each patient once**: the card (and a **Health Profile** column in the list view) carries the Health Profile's state - *Awaiting first record*, *Draft*, *Waiting on review*, *Complete* - and its condition type, and two filters narrow by them. **Approvals are not here** - they are under Today, and so are the Health Profile answers and therapist access requests waiting on a decision (**Today → Health Profile reviews**, `ADM-PEOP-004`). There is no second "Patient Conditions" list and no question editor on this screen: as Master Admin a link reads **Edit questions in Settings → Clinical Questions**; other desks do not see it.
 **Exports:** every admin export offers **CSV and PDF** from one column definition, so the spreadsheet and the printable document cannot describe different tables. Both cover the **whole filtered set**, not the current page. Every export carries a **subtitle naming what the rows are scoped to** - a printed table nobody can date is worthless. **Nothing in the admin dashboard exports JSON.**
 
 #### `ADM-PEOP-002` - Global search · P2
 **Steps.** Use the admin search to find `QA Patient A` and `QA Sunrise Hospital`.
-**Expected Result.** Results are grouped by entity type and link to the right detail surface.
+**Expected Result.** Results are grouped by entity type and link to the right detail surface - a session result opens **All Sessions on that session, with its drawer open**, and a partner result shows **that partner alone**.
 
 #### `ADM-PEOP-010` - Opening somebody's dashboard · P0
 
@@ -562,17 +564,17 @@ Withdrawal also covers a plan **still waiting for approval** - refusing would le
 
 **Expected Result.** Tapping opens an **overlay modal**; the direct URL at step 7 renders the **same content as a full page** (a real route, not only an intercepted one). The panel carries **Personal Details**, **Contact Info**, **Admin Notes**, **Therapist Ratings of This Patient**, **Session Performance**, **Booking History**, **Payment History**, **Profit Breakdown** and **Profile Change Request History**, plus contact edit and password reset.
 The notes box is placeheld `Private notes about this patient - never shown to them.` and reads `No notes saved yet.` when empty; the button reads `Saving...` then `Save Notes`. **The note must never appear on any patient-facing screen** - check the patient's own dashboard and their exported PDF.
-`ProfileSessionList` and the purchase modals take `canSeeMoney` / `canManageSessions` - **a control an admin's scope cannot call must not render**, or they get a 403 with nothing to explain it. At step 8 the finance admin reads the money sections and has **no** control that changes a session.
+`ProfileSessionList` and the purchase modals take `canSeeMoney` / `canManageSessions` - **a control an admin's scope cannot call must not render**, or they get a 403 with nothing to explain it. At step 8 the finance admin reads the money sections and has **no** control that changes a session **and none that changes the patient**: Approve / Suspend, contact edit, password link and notes box are replaced by the status as text, the notes as read-only text, and the line *Your desk can read this page. Operations or Clinical make changes.* The same holds on a therapist's page (leave, /team visibility, public display text, rating visibility). Their routes answer 403 regardless.
 At step 6 **Booking History runs by the session's own date and time, newest first** - the session furthest in the future at the top, then today, then the past, with any session whose slot is not yet agreed (**Slot to be confirmed**) **last**. It is deliberately **not** ordered by when the booking was made, which is also session-code order: a session rescheduled to another month must move in this list. **Payment History** is unchanged and still runs by when the money moved.
 The same shape holds for a therapist at `/admin/dashboard/therapists/<id>` (**Save Notes** there posts `update-therapist-notes`), and **Assigned Sessions** there is ordered the same way as Booking History, with **Payout History** left on when the money moved.
 
-#### `ADM-PEOP-004` - Condition access grants and change requests · P0
-**Steps.** Approve a therapist's access-grant request. Then approve a patient's condition change request. Then approve a **therapist-submitted** edit for a re-triaged patient.
-**Expected Result.** The grant lets the therapist edit that patient's record. **Approving a change MERGES; it never replaces** - see `THR-HP-004`. Revoking a grant that is not approved is refused with `Only an approved grant can be revoked`. A stale decision returns `Someone else reviewed this. Refresh to see what they said.`
+#### `ADM-PEOP-004` - Health Profile reviews: access grants and answers · P0
+**Steps.** Open **Today → Health Profile reviews**. Approve a therapist's access request (note the question first, then cancel it, then approve). Then approve a patient's submitted answers. Then approve a **therapist-submitted** edit for a re-triaged patient. Open the patient's Health Profile (`/admin/dashboard/conditions/<id>`) and read it top to bottom; open **Intake answers**, press **Edit answers**, change one answer and press **Save changes**.
+**Expected Result.** The screen lists the rows the Today counts counted - patient, who filled the answers in or asked, and *Waiting since today / Waiting N days* (red past three) - with **Approve** and **Decline** on each. Both Today queue rows (*Health Profile answers to review*, *Therapist access requests*) open this screen. Approving an access request first asks *Let Dr X edit Y's Health Profile? ...*; removing one asks *Remove Dr X's access to Y's Health Profile? They stop seeing it immediately; their notes stay.*; every outcome raises a toast naming the people. Approving answers says they go live straight away. A desk that can only read People (finance) sees the rows and *Waiting for a decision*, no buttons, and does not count them in Today's queues. The record reads in this order: **summary** (type, status, phase, what is waiting) → **Waiting for review** (only when there is something) → the chart → Home exercises → Session notes → **Documents** → **Therapist access** → **Intake answers**, folded; the answers are not editable until **Edit answers**, and Save lists *before → after* for each changed answer and asks. A read that fails says *Couldn't load the ...* in place of that section - never *No documents* or *Not started*. The grant lets the therapist edit that patient's record. **Approving a change MERGES; it never replaces** - see `THR-HP-004`. Revoking a grant that is not approved is refused with `Only an approved grant can be revoked`. A stale decision returns `Someone else reviewed this. Refresh to see what they said.`
 
 #### `ADM-PEOP-004a` - Home exercises on the patient's detail, read only · P1
 **Preconditions.** A Strength and balance, Heart and lung, Orthopaedic, Neurological or Paediatric patient with a published Home exercises plan.
-1. Open the patient's detail as Master Admin (**People → Patient conditions**).
+1. Open the patient's Health Profile as Master Admin (**People → Patients**, then the patient's **Health Profile** card).
 2. Open **Earlier versions** if there is one.
 3. Repeat as an admin whose scope cannot open People.
 **Expected Result.** 1: **Home exercises** shows the current version with who set it and when, each exercise with its dose and its latest mark (who and when), and no control to change anything. 2: replaced versions read only. 3: the section is absent. A database without the tables says *not set up*; a failed read says *couldn't load*; neither reads as *No home exercises yet*.
@@ -622,7 +624,7 @@ The same shape holds for a therapist at `/admin/dashboard/therapists/<id>` (**Sa
 **And the "Hide from /team page" button follows the account.** While the therapist is suspended it is **greyed out and does nothing**, with a line saying they are already off `/team` and that the setting returns as you left it. Same while a therapist is still **pending approval**, worded for that reason instead. Restore them and the button is live again, showing the state it had before - set it to hidden, suspend, restore, and it must still read **Show on /team page**, never reset to the default.
 
 #### `ADM-PEOP-008` - Partners · P1
-Covered by `HOS-AUTH-002`, `HOS-MONEY-*`. Additionally: **Copy invite link**, **Update revenue share**, **Set active/inactive**, **Reset password**, **Referral capacity note**, and **Decline referral** (reason mandatory) all work and are audited.
+Covered by `HOS-AUTH-002`, `HOS-MONEY-*`. The screen opens on a three-figure strip (*Referrals to triage*, *New leads*, *Partners*) and the lead list is headed **Hospital enquiries**. The referral list has chips - *Needs triage*, *Therapist assigned*, *Invite sent*, *Booked*, *Declined*, *Withdrawn* - and Today's *Referrals waiting on triage* opens it already on *Needs triage*; searching a partner in the admin search opens that partner alone with *Show all partners* to come back. A finance desk sees the same lists with no action buttons. Additionally: **Copy invite link**, **Update revenue share**, **Set active/inactive**, **Reset password**, **Referral capacity note**, and **Decline referral** (reason mandatory) all work and are audited.
 
 #### `ADM-PEOP-008a` - The partner surfaces read as laid-out records · P2
 

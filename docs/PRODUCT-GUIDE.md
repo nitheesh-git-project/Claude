@@ -499,7 +499,7 @@ admin action.
 **Developer credit (public, deliberately not a marketing page):** `/developer`
 ("Say hello!") and `/developer/lets-talk` (the contact form), reached only by
 the "Contact me" link in the credit line under the footer's copyright. Both
-404 while **Settings → Dev Reachouts** has the credit switched off, and the
+404 while **Settings → Developer messages** has the credit switched off, and the
 footer line is hidden with them. They are not in `MARKETING_PAGES`, so no nav
 link, Explore card or sitemap entry points at them.
 
@@ -539,14 +539,14 @@ states" above.
 
 | Section | Screens | Answers |
 | --- | --- | --- |
-| **Today** | Today · Approvals · Risk · Activity | What is waiting on me right now. **Activity** is the one feed scoped by desk: a limited scope reads entries whose action belongs to a section it can work *and* whose actor sits at that desk; a Master Admin reads the whole log under **Logs**. |
+| **Today** | Today · Approvals · Health Profile reviews · Risk · Activity | What is waiting on me right now. **Activity** is the one feed scoped by desk: a limited scope reads entries whose action belongs to a section it can work *and* whose actor sits at that desk; a Master Admin reads the whole log under **Logs**. |
 | **Sessions** | Schedule · All Sessions · Roster · Delivery · New Booking | What is being delivered, and by whom. All Sessions has a **Programme** filter (a programme ID such as `PED_PKG001`, an old SP/HS code, or `any`) and each programme session shows its programme's ID with progress. |
 | **Programmes** | All Programmes · Recommendations | Every recommended and bought programme from the therapist's recommendation to its last session. **All Programmes** is the pipeline (Waiting approval → With patient → Paid - nothing booked → In progress → Completed, plus Declined / Not approved / Withdrawn / Lapsed / Expired / Refunded), one list with each programme's ID and progress (`PED_PKG001-2/6` = 2 of 6 done), filters kept in the URL, and a drawer with the whole story, its sessions, its money (Money scope) and its controls. **Recommendations** is the review queue - a therapist's care plan waits here before the patient sees it, and it is also where an admin writes one on a clinician's behalf. Old Sessions → Recommendations and Catalog → Purchases links land here. |
 | **People** | Patients · Therapists · Partners · Declined · Abandoned checkouts | Who is this person, and their whole history - who was declined and why - and who started a booking but never paid |
 | **Money** | Summary · Business Health · Transactions · Payouts · Owed by Patients · Costs · Breakdown · Your Numbers | What came in, what goes out, what it costs, what is still owed, and how the business reads against the standard finance figures. Each screen states what it is and gives one example, under its heading. |
 | **Catalog** | Conditions · Service Areas · Countries & currency | What we sell, at what price, where. Each condition carries a **Programme code** (PED), the prefix of its programme IDs. |
 | **Logs** | All Activity · Archive & Clear | Who did what, and when. **Master Admin only** - the three limited desks read their own desk's history on Today → Activity. |
-| **Settings** | *Your website:* Brand & Contact · Public Site — *How the clinic runs:* Booking Rules · Offers & Discounts · Programmes & Home Visits · Clinical Questions — *Who gets in:* User Access · Sign-in & Security — *Technical:* System Health · Advanced · Dev Reachouts | How the product behaves. Every screen here states what it is and gives one example, under its heading, and the sidebar groups the eleven under four captions - eleven flat labels is a list nobody reads top to bottom. **Dev Reachouts** is the developer's own inbox: the messages left through the footer's "Contact me" link, a note and a contacted flag per message, the switch that shows the credit (it asks before changing in either direction) and the email published on the contact page. |
+| **Settings** | *Your website:* Brand & Contact · Public Site — *How the clinic runs:* Booking Rules · Offers & Discounts · Programmes & Home Visits · Clinical Questions — *Who gets in:* User Access · Sign-in & Security — *Technical:* System Health · Advanced · Developer messages | How the product behaves. Every screen here states what it is and gives one example, under its heading, and the sidebar groups the eleven under four captions - eleven flat labels is a list nobody reads top to bottom. **Developer messages** is the developer's own inbox: the messages left through the footer's "Contact me" link, a note and a contacted flag per message, the switch that shows the credit (it asks before changing in either direction) and the email published on the contact page. |
 
 Three admin records have a route of their own as well as a place on that
 grid - `/admin/dashboard/patients/[id]`, `/therapists/[id]` and
@@ -1459,7 +1459,7 @@ therapist", with the programme's therapist offered as one tap ("Assign
 <name>" in the session drawer), which confirms a paid session and makes its
 Meet link. Nothing is held while it waits; the queue says when the
 pre-picked therapist is no longer free. The patient reads "Booked -
-confirming your therapist". Admin can reassign a whole programme to a new therapist in
+confirming your physiotherapist". Admin can reassign a whole programme to a new therapist in
 one action, extend or view a purchase's expiry, restore a forfeited session,
 or issue a pro-rata refund on the unused balance (which also cancels any
 still-scheduled future sessions). `sessions_used` counts sessions
@@ -2360,7 +2360,7 @@ state.
 **Health Profile and Pain Map.** Two linked but separate layers of a
 patient's condition data, both surfaced on `/patient/dashboard/health-profile`
 (patient), the therapist's `/therapist/dashboard/health-profile/[patientId]`,
-and the admin's **Patient Conditions** tab.
+and the admin's Health Profile screen (`/admin/dashboard/conditions/[id]`, opened from a patient's card; what is waiting is listed under **Today → Health Profile reviews**).
 
 **The intake is per specialty.** A `patient_condition_profiles` row carries
 `specialty` - `ortho`, `neuro`, `pediatrics`, `geriatric` or `cardiopulmonary`
@@ -2718,8 +2718,7 @@ everything else.
   app yet (it needs a schema change).
 
 Both question banks (Health Profile and Pain Map) are managed from
-one place - a **Manage Questions** section at the top of the admin's
-**Patient Conditions** tab (`QuestionBankManager.tsx`), not per-patient -
+one place - **Settings → Clinical Questions** (`QuestionBankManager.tsx`; People → Patients links to it for Master Admin), not per-patient -
 since question wording/required-ness is global config, not something tied
 to one patient's record. The intake bank has one tab per specialty, and
 above it sit the toggles for which specialties triage offers. Switching one
@@ -2788,8 +2787,8 @@ data useful once it's collected, not just to collect it:
   locked and there is nothing in the chart to prepare from. Below them,
   patients with no *approved* access grant yet are flagged "New" (a
   merely-requested grant still counts) so a first-time assignment doesn't
-  go unnoticed. The admin's Patient Conditions list has the same queue as
-  an "Awaiting onboarding" filter, beside a specialty filter and chip.
+  go unnoticed. The admin's People → Patients directory has the same queue as
+  an "Awaiting first record" Health Profile filter, beside a condition-type filter and chip.
 - **Admin audit trail** - a direct intake edit (`ConditionDirectEditForm`)
   also inserts an already-"approved" `condition_change_requests` row, so it
   shows up in the same Review History as every reviewed submission instead
@@ -2850,7 +2849,7 @@ data useful once it's collected, not just to collect it:
 - `area_pain` entries can carry an optional free-text note per area (e.g.
   "started after a fall"), shown alongside the pain score everywhere it's
   displayed.
-- The admin Patients tab (not Patient Conditions) shows a compact severity
+- The admin Patients tab shows a compact severity
   signal - self-reported severity and pain-area count - right where admin
   already manages patients, without a separate trip.
 
@@ -2887,8 +2886,9 @@ having its own layout:
 ### The opening splash
 
 Every page under the root layout paints a full-screen brand greeting -
-the site name, the line **"Movement Is Medicine"** - for about a second and
-a half, then dissolves into the page underneath, which was fully rendered
+the site name, the line **"Movement Is Medicine"** - for a beat (no more
+than about 0.6 seconds on a public page; the admin's longer hold applies in
+the signed-in workspaces), then dissolves into the page underneath, which was fully rendered
 the whole time.
 
 It shows on the **first load of a browser tab**, and again when a tab left
@@ -2907,7 +2907,7 @@ which writes four `site_settings` columns:
 | Whether it runs at all | `splash_enabled` | on |
 | The name above the line | `splash_brand_line` | blank - follows `site_name` |
 | The line it says | `splash_phrase` | "Movement Is Medicine" |
-| How long it holds before fading | `splash_hold_seconds` | 1.5 |
+| How long it holds before fading (clipped to ~0.25 s on public pages, so hold + fade stay under ~0.6 s) | `splash_hold_seconds` | 1.5 |
 | Minutes away that earn a second greeting | `splash_revisit_minutes` | 15 |
 
 Leaving the **name** blank means the splash prints the site name from Brand
@@ -2920,11 +2920,13 @@ the setting that would splash over a payment in progress. Switching the
 splash off removes the overlay and its boot script from the page entirely
 rather than hiding them.
 
-The fade length is **not** admin-configurable on purpose: it is the same
-duration written twice, as `SPLASH_FADE_MS` in `src/lib/splashScreen.ts` and
-as the transition at the foot of `src/app/globals.css`, and the timer is
-what takes the sheet out of the page. Change those two together or the fade
-either cuts short or leaves an invisible sheet swallowing clicks.
+The hold and the fade are a CSS animation, not a timer that starts after the
+page hydrates: the inline boot script writes `--splash-hold` and
+`--splash-fade` on `<html>` before first paint and the stylesheet does the
+rest, so the sheet leaves on schedule even on a slow connection. The fade
+length is **not** admin-configurable on purpose (`SPLASH_FADE_MS` in
+`src/lib/splashScreen.ts`, written to `--splash-fade`); the component only
+clears the `data-splash` attribute afterwards.
 
 The defaults every caller falls back to (including a database that has not
 run the migration adding those columns) live in `src/lib/splashScreen.ts`;

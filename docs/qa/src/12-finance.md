@@ -158,7 +158,8 @@ Every Money screen opens with a **needs-you strip**: `N things need you` over on
 **Expected Result.** One row per payment, with the order id and payment id. **No payment id appears on two rows.** The CSV and the PDF describe the **same table** - they are generated from one column definition, and the PDF route is sent the exact filtered rows the browser rendered. Both cover the **whole filtered set**. The PDF carries a subtitle naming the scope and the date. **No JSON export exists.**
 
 #### `FIN-PAY-001` - Payouts · P0
-**Steps.** Open **Money → Payouts**. Read Therapist A's row.
+**Steps.** Open **Money → Payouts**. Read Therapist A's row. With a payout request open, read the top of the screen.
+**Order.** The screen opens on the **open payout requests**, each with **Pay** on the row (beside Start review / Mark completed; *Set their share first* when no share is set), then the balances table, then the completed requests and the cash ledger. The paragraph on how the figures are worked out is behind an **(i)** beside the heading.
 **Expected Result.** `Owed` matches §16.1's therapist share for A, **less anything already settled**. **The Pay button shows the net figure** - owed minus cash held - not the gross owed. A therapist with **no revenue share set** shows the "not set" state rather than `₹0`; paying them is refused with `Set this therapist's revenue share % before paying out.`
 
 #### `FIN-PAY-002` - Settling a payout · P0

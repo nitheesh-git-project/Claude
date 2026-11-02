@@ -377,6 +377,75 @@ test.describe("Suite S: scoped admin dashboards", () => {
     }
   });
 
+  test("S-009: finance reads People and is shown no button it cannot press", async ({ browser }) => {
+    // The other half of S-007 for People. Finance holds People at `view`:
+    // every control that changes a person is requireAdminScope("people"), so
+    // the patient's page shows their status as text and a sentence saying
+    // who can change it, the Approvals count is not theirs to work, and the
+    // routes refuse regardless of what any screen draws.
+    test.setTimeout(180_000);
+    const admin = adminClient();
+    const adminId = await profileIdFor(admin, QA_EMAILS.admin);
+    const patientId = await profileIdFor(admin, QA_EMAILS.patientA);
+    const context = await browser.newContext();
+
+    try {
+      await setQaAdminScope(admin, adminId, "finance");
+      await context.addCookies(await browserCookiesFor(QA_EMAILS.admin));
+      const page = await context.newPage();
+      await page.goto(`${BASE}/admin/dashboard/patients/${patientId}`);
+
+      await expect(
+        page.getByTestId("read-only-desk-note").filter({ visible: true }).first()
+      ).toContainText("Your desk can read this page. Operations or Clinical make changes.", {
+        timeout: 90_000,
+      });
+      await expect(page.getByTestId("patient-status-text").filter({ visible: true })).toBeVisible();
+      for (const name of ["Suspend Account", "Reactivate Account", /Reset|sign-in link/i]) {
+        await expect(
+          page.getByRole("button", { name }).filter({ visible: true }),
+          `finance was offered ${String(name)} on a patient`
+        ).toHaveCount(0);
+      }
+
+      // Today's Approvals are not finance's work, so they are not in the
+      // queues it is told are waiting.
+      await page.goto(`${BASE}/admin/dashboard?section=today&tab=overview`);
+      await expect(onScreen(page, "Queues").first()).toBeVisible({ timeout: 60_000 });
+      await expect(onScreen(page, "Accounts waiting to be approved")).toHaveCount(0);
+      await expect(onScreen(page, "Health Profile answers to review")).toHaveCount(0);
+
+      // The Health Profile reviews screen opens for reading, with no buttons.
+      await page.goto(`${BASE}/admin/dashboard?section=today&tab=health-reviews`);
+      await expect(
+        page.getByTestId("health-profile-reviews").filter({ visible: true })
+      ).toBeVisible({ timeout: 60_000 });
+      await expect(
+        page.getByTestId("health-profile-reviews").getByRole("button", { name: "Approve" })
+      ).toHaveCount(0);
+
+      // And the routes refuse regardless.
+      const cookie = await cookieHeaderFor(QA_EMAILS.admin);
+      for (const route of [
+        "/api/admin/approve-account",
+        "/api/admin/set-patient-active",
+        "/api/admin/update-patient-contact",
+        "/api/admin/condition-requests/decide",
+        "/api/admin/condition-access/decide",
+      ]) {
+        const res = await fetch(`${BASE}${route}`, {
+          method: "POST",
+          headers: { Cookie: cookie, "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        });
+        expect(res.status, `${route} let a view-only finance admin through`).toBe(403);
+      }
+    } finally {
+      await admin.from("profiles").update({ admin_scope: "full" }).eq("id", adminId);
+      await context.close();
+    }
+  });
+
   test("S-008: Logs is Master Admin's, and its floor holds at the route", async ({
     browser,
   }) => {

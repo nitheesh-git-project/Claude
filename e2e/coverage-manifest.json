@@ -77,6 +77,18 @@
       "integration": "local",
       "destructive": false
     },
+    "admin-health-profile-reviews.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "admin-approve-therapist.spec.ts": {
       "runner": "admin",
       "levels": [
@@ -2829,6 +2841,34 @@
       "rules": [
         "docs/rules/admin.md",
         "docs/rules/roster.md"
+      ]
+    },
+    {
+      "id": "admin.health-profile-reviews",
+      "runner": "admin",
+      "title": "Today -> Health Profile reviews lists pending answers and therapist access requests as rows, and granting or removing access asks first",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "admin-health-profile-reviews.spec.ts",
+          "tests": [
+            "HPR-001",
+            "HPR-002",
+            "HPR-003"
+          ],
+          "level": "browser"
+        },
+        {
+          "spec": "admin-scoped-dashboard.spec.ts",
+          "tests": [
+            "S-009"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/admin.md"
       ]
     },
     {
