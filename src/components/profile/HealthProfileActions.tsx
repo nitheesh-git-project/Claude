@@ -45,32 +45,38 @@ export default function HealthProfileActions() {
     }
   }
 
+  // The patient's page keeps most of the record in closed blocks (B2); a
+  // printout of the screen opens them first, so it is the whole page.
+  function printPage() {
+    document.querySelectorAll("details").forEach((d) => {
+      d.open = true;
+    });
+    window.print();
+  }
+
   return (
-    <div className="flex flex-col items-end gap-1 print:hidden">
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={() => window.print()}
-          className="text-xs font-semibold text-slate-600 hover:text-slate-800 bg-white border border-slate-200 px-3 py-1.5 rounded-lg transition"
-        >
-          Print
-        </button>
+    <div className="flex flex-col items-start gap-2 print:hidden">
+      <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"
           onClick={download}
           disabled={downloading}
           aria-busy={downloading}
-          className="text-xs font-semibold text-slate-600 hover:text-slate-800 bg-white border border-slate-200 px-3 py-1.5 rounded-lg transition disabled:opacity-60"
+          className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-teal-700 px-5 text-sm font-semibold text-white transition hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 disabled:opacity-60"
         >
-          <i
-            aria-hidden
-            className={`fa-solid ${downloading ? "fa-spinner fa-spin" : "fa-file-pdf"} mr-1.5`}
-          />
+          <i aria-hidden className={`fa-solid ${downloading ? "fa-spinner fa-spin" : "fa-file-pdf"}`} />
           {downloading ? "Preparing…" : "Download as PDF"}
+        </button>
+        <button
+          type="button"
+          onClick={printPage}
+          className="inline-flex min-h-[44px] items-center rounded-xl border border-slate-300 bg-white px-5 text-sm font-semibold text-slate-800 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
+        >
+          Print
         </button>
       </div>
       {error && (
-        <p role="alert" className="text-[11px] text-red-600">
+        <p role="alert" className="text-sm text-red-700">
           {error}
         </p>
       )}

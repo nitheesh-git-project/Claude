@@ -22,8 +22,7 @@ import {
   createFixtureAccount,
   deleteFixtureAccount,
   insertPastFixtureAppointment,
-  profileIdFor,
-} from "./helpers";
+  profileIdFor, openProfileBlocks } from "./helpers";
 
 test.skip(
   process.env.E2E_ALLOW_APPEND_ONLY_WRITES !== "1" && process.env.CI_LOCAL_STACK !== "1",
@@ -74,6 +73,7 @@ test("ES-001: before any plan the card is calm and has nothing to fill in", asyn
   await context.addCookies(await browserCookiesFor(patient!.email));
   const page = await context.newPage();
   await page.goto(`${BASE}/patient/dashboard/health-profile`);
+  await openProfileBlocks(page);
   const card = page.getByTestId("home-exercises");
   await expect(card).toBeVisible(SEEN);
   await expect(card).toHaveAttribute("data-state", "empty");
@@ -94,6 +94,7 @@ test("ES-002: the plan card shows each exercise with its dose and steps, read on
   await context.addCookies(await browserCookiesFor(patient!.email));
   const page = await context.newPage();
   await page.goto(`${BASE}/patient/dashboard/health-profile`);
+  await openProfileBlocks(page);
   const card = page.getByTestId("home-exercises");
   await expect(card).toHaveAttribute("data-state", "plan", SEEN);
   await expect(card.getByRole("heading", { name: "Your home exercises" })).toBeVisible();

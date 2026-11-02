@@ -42,6 +42,7 @@ export default function OrthoProfileTop({
   enabledLicensed,
   licenceUnreadable,
   only,
+  testId,
   hiddenGraphKeys,
   headerExtra,
   clinicPhone,
@@ -65,6 +66,9 @@ export default function OrthoProfileTop({
   /** The widgets this rendering draws (profileWidgets.ts); every one when
    *  left out. A page draws the profile in slices, or whole. */
   only?: WidgetPick;
+  /** The root's test id; null for none (a page that wraps its slices in its
+   *  own root). Left out: the kind's id on the slice with the status. */
+  testId?: string | null;
   /** Graph lines the clinic hides from the patient's page. */
   hiddenGraphKeys?: readonly string[];
   /** Inside the status card, under the pill (the patient's page: the intake
@@ -76,7 +80,7 @@ export default function OrthoProfileTop({
   const show = (key: string) => picks(only, key);
   const progressParts = { graph: show("progress_graph"), steps: show("steps"), measures: show("measures_table") };
   return (
-    <div className="space-y-5" data-testid={show("status_header") ? "ortho-profile" : undefined}>
+    <div className="space-y-5" data-testid={testId !== undefined ? (testId ?? undefined) : show("status_header") ? "ortho-profile" : undefined}>
       {show("status_header") && (
       <ProfileHeader
         extra={headerExtra}

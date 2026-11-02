@@ -30,8 +30,7 @@ import {
   createFixtureAccount,
   deleteFixtureAccount,
   insertPastFixtureAppointment,
-  profileIdFor,
-} from "./helpers";
+  profileIdFor, openProfileBlocks } from "./helpers";
 
 test.skip(
   process.env.E2E_ALLOW_APPEND_ONLY_WRITES !== "1" && process.env.CI_LOCAL_STACK !== "1",
@@ -57,6 +56,7 @@ async function pageAs(browser: Browser, email: string, path: string) {
   await context.addCookies(await browserCookiesFor(email));
   const page = await context.newPage();
   await page.goto(`${BASE}${path}`);
+  if (path.includes("/patient/dashboard/health-profile")) await openProfileBlocks(page);
   return { page, context };
 }
 
@@ -258,6 +258,7 @@ test("OHP-006: no horizontal page scroll at phone, tablet and desktop widths", a
     await context.addCookies(await browserCookiesFor(patient!.email));
     const page = await context.newPage();
     await page.goto(`${BASE}/patient/dashboard/health-profile`);
+    await openProfileBlocks(page);
     await expect(page.getByTestId("ortho-profile")).toBeVisible(SEEN);
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow, `width ${width}`).toBeLessThanOrEqual(0);

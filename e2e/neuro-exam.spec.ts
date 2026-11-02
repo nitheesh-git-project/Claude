@@ -27,8 +27,7 @@ import {
   pageUntilVisible,
   profileIdFor,
   rlsClientFor,
-  waitForSplashToClear,
-} from "./helpers";
+  waitForSplashToClear, openProfileBlocks } from "./helpers";
 
 test.skip(
   process.env.E2E_ALLOW_APPEND_ONLY_WRITES !== "1" && process.env.CI_LOCAL_STACK !== "1",
@@ -76,6 +75,7 @@ async function openAs(browser: Browser, email: string, path: string) {
   await ctx.addCookies(await browserCookiesFor(email));
   const page = await ctx.newPage();
   const response = await page.goto(`${BASE}${path}`, { waitUntil: "domcontentloaded" });
+  if (path.includes("/patient/dashboard/health-profile")) await openProfileBlocks(page);
   return { page, response };
 }
 

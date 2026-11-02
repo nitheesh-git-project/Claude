@@ -676,3 +676,18 @@ export async function deleteFixtureAccount(id: string | undefined): Promise<void
   const { error } = await admin.auth.admin.deleteUser(id);
   if (error) console.warn(`[e2e cleanup] could not delete fixture account ${id}: ${error.message}`);
 }
+
+/**
+ * The patient's Health Profile keeps most of the record in closed <details>
+ * blocks (B2: measures, examination, diary, answers, reports, past
+ * recommendations). A spec that reads what is inside them opens them first,
+ * the way a patient taps each one; the order and the closed default are
+ * asserted by e2e/health-profile-layout.spec.ts.
+ */
+export async function openProfileBlocks(page: import("@playwright/test").Page): Promise<void> {
+  await page.evaluate(() => {
+    document.querySelectorAll("details").forEach((d) => {
+      (d as HTMLDetailsElement).open = true;
+    });
+  });
+}

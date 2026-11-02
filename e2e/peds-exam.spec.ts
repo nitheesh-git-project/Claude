@@ -33,8 +33,7 @@ import {
   deleteFixtureAccount,
   insertPastFixtureAppointment,
   profileIdFor,
-  rlsClientFor,
-} from "./helpers";
+  rlsClientFor, openProfileBlocks } from "./helpers";
 import { PEDS_EXAM_REQUIRED_FOR_DONE } from "../src/lib/sessionCompletion";
 
 test.skip(
@@ -313,6 +312,7 @@ async function pageAs(browser: Browser, email: string, path: string, viewport = 
   await context.addCookies(await browserCookiesFor(email));
   const page = await context.newPage();
   await page.goto(`${BASE}${path}`);
+  if (path.includes("/patient/dashboard/health-profile")) await openProfileBlocks(page);
   return { page, context };
 }
 

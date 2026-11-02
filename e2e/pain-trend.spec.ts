@@ -12,8 +12,7 @@ import {
   browserCookiesFor,
   markDashboardTourSeen,
   profileIdFor,
-  waitForSplashToClear,
-} from "./helpers";
+  waitForSplashToClear, openProfileBlocks } from "./helpers";
 
 test.skip(
   process.env.E2E_ALLOW_APPEND_ONLY_WRITES !== "1" && process.env.CI_LOCAL_STACK !== "1",
@@ -41,6 +40,7 @@ test("PT-001: two exams on the same day are two points, the older one kept", asy
 
   await page.context().addCookies(await browserCookiesFor(QA_EMAILS.patientA));
   await page.goto(`${BASE}/patient/dashboard/health-profile`);
+  await openProfileBlocks(page);
   await waitForSplashToClear(page);
   const section = page.locator("section", { has: page.getByRole("heading", { name: "Are you getting better?" }) });
   await expect(section).toBeVisible();

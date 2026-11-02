@@ -93,7 +93,11 @@ export type PatientScreen =
   | "home-visits"
   | "packages"
   | "receipts"
-  | "suggested";
+  | "suggested"
+  // The two stand-alone pages (Health Profile, Edit Profile): the core only,
+  // so they carry the same shell, bars and banner as their siblings.
+  | "health-profile"
+  | "profile";
 
 export async function loadPatientDashboard(screen: PatientScreen = "overview") {
   const needHub = screen === "book";

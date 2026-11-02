@@ -58,6 +58,7 @@ export default function CardioProfileTop({
   enabledLicensed,
   licenceUnreadable,
   only,
+  testId,
   hiddenGraphKeys,
   headerExtra,
   clinicPhone,
@@ -81,6 +82,9 @@ export default function CardioProfileTop({
   /** The widgets this rendering draws (profileWidgets.ts); every one when
    *  left out. A page draws the profile in slices, or whole. */
   only?: WidgetPick;
+  /** The root's test id; null for none (a page that wraps its slices in its
+   *  own root). Left out: the kind's id on the slice with the status. */
+  testId?: string | null;
   /** Graph lines the clinic hides from the patient's page. */
   hiddenGraphKeys?: readonly string[];
   /** Inside the status card (the patient's page). */
@@ -117,7 +121,7 @@ export default function CardioProfileTop({
   const precautions = show("precautions");
 
   return (
-    <div className="space-y-5" data-testid={show("status_header") ? "cardio-profile" : undefined} data-profile-kind={view.kind}>
+    <div className="space-y-5" data-testid={testId !== undefined ? (testId ?? undefined) : show("status_header") ? "cardio-profile" : undefined} data-profile-kind={view.kind}>
       {show("status_header") && (
       <ProfileHeader
         extra={headerExtra}

@@ -30,8 +30,7 @@ import {
   createFixtureAccount,
   deleteFixtureAccount,
   insertPastFixtureAppointment,
-  profileIdFor,
-} from "./helpers";
+  profileIdFor, openProfileBlocks } from "./helpers";
 
 test.skip(
   process.env.E2E_ALLOW_APPEND_ONLY_WRITES !== "1" && process.env.CI_LOCAL_STACK !== "1",
@@ -58,6 +57,7 @@ async function pageAs(browser: Browser, email: string, path: string, viewport = 
   await context.addCookies(await browserCookiesFor(email));
   const page = await context.newPage();
   await page.goto(`${BASE}${path}`);
+  if (path.includes("/patient/dashboard/health-profile")) await openProfileBlocks(page);
   return { page, context };
 }
 
