@@ -562,3 +562,17 @@ export function widgetRows(layout: Pick<ResolvedLayout, "widgets">): {
     source: r.source,
   }));
 }
+
+/** What one rendering of a profile layout draws: a list of widget keys, or
+ *  null/undefined for every widget. A page renders a profile in slices (the
+ *  patient's order) or whole, by passing different lists. */
+export type WidgetPick = readonly string[] | null | undefined;
+
+export function picks(only: WidgetPick, key: string): boolean {
+  return !only || only.includes(key);
+}
+
+/** The measure keys of the graph lines a layout hides from the patient. */
+export function hiddenGraphMeasureKeys(layout: Pick<ResolvedLayout, "hiddenGraphLines">): string[] {
+  return layout.hiddenGraphLines.map((r) => r.widget.key.slice(GRAPH_LINE_PREFIX.length));
+}

@@ -1,3 +1,4 @@
+import type { CorrectedDiaryEntry } from "@/lib/patientDiary";
 import { clinicDateKey } from "@/lib/clinicWeek";
 import {
   activeMinutesWeeklySeries,
@@ -137,7 +138,7 @@ export type CardioView = {
   mmrc: { grade: number; source: "measurement" | "intake" } | null;
   homeOxygen: { uses: boolean | null; prescription: string | null };
   activeMinutes: { status: "ok"; goal: number; weeks: ActiveMinutesWeekPoint[] } | { status: "unreadable" };
-  diary: { status: "ok"; entries: DiaryEntry[]; awaiting: DiaryEntry[] } | { status: "unreadable" };
+  diary: { status: "ok"; entries: DiaryEntry[]; awaiting: DiaryEntry[]; corrected?: CorrectedDiaryEntry[] } | { status: "unreadable" };
   notes: string[];
   measuresFailed: boolean;
   goalsFailed: boolean;
@@ -510,6 +511,7 @@ export function shapeCardioView(reads: CardioReads, ctx: { intake: Readonly<Reco
           status: "ok",
           entries: [...base.diaryEntries].sort((a, b) => Date.parse(b.occurredAt) - Date.parse(a.occurredAt) || (a.id < b.id ? 1 : -1)),
           awaiting: entriesAwaitingConfirmation(base.diaryEntries),
+          corrected: base.diaryCorrected,
         }
       : { status: "unreadable" },
     notes,

@@ -17,6 +17,9 @@ import ProfileStatusControls from "@/components/profile/progress/ProfileStatusCo
 import RecordTestButton, { type RecordSetup } from "@/components/profile/progress/RecordTestButton";
 import type { CardioView } from "@/lib/cardioProfile";
 import type { Voice } from "@/lib/progressView";
+import { picks, type WidgetPick } from "@/lib/profileWidgets";
+import type { ReactNode } from "react";
+import CallClinicLine, { type ClinicPhoneRead } from "@/components/profile/CallClinicLine";
 
 /** The three lines the graph draws. */
 const GRAPH_KEYS = ["six_minute_walk", "breathlessness_nrs", "resting_heart_rate"] as const;
@@ -53,6 +56,10 @@ export default function CardioProfileTop({
   canConfirmDiary,
   enabledLicensed,
   licenceUnreadable,
+  only,
+  hiddenGraphKeys,
+  headerExtra,
+  clinicPhone,
 }: {
   voice: Voice;
   patientId: string;
@@ -68,6 +75,15 @@ export default function CardioProfileTop({
   canConfirmDiary: boolean;
   enabledLicensed: readonly string[];
   licenceUnreadable: boolean;
+  /** The widgets this rendering draws (profileWidgets.ts); every one when
+   *  left out. A page draws the profile in slices, or whole. */
+  only?: WidgetPick;
+  /** Graph lines the clinic hides from the patient's page. */
+  hiddenGraphKeys?: readonly string[];
+  /** Inside the status card (the patient's page). */
+  headerExtra?: ReactNode;
+  /** The patient's page: the clinic's phone for the calm next step. */
+  clinicPhone?: ClinicPhoneRead | null;
 }) {
   const clinician = voice === "clinician";
   const setup: RecordSetup | null = record
@@ -88,10 +104,21 @@ export default function CardioProfileTop({
   const conditionLine = [view.conditionLine, view.ageLine].filter(Boolean).join(" · ") || null;
   // A flagged reading at the latest review, said to the patient gently.
   const flaggedAtReview = view.statusInput.redFlag === true && view.vitalsCheck.status === "stop";
+  const show = (key: string) => picks(only, key);
+  const progressParts = { graph: show("progress_graph"), steps: show("steps"), measures: show("measures_table") };
+  const safety = show("cardio_safety");
+  const cards = { walk: show("walk_track"), oxygen: show("oxygen"), effort: show("effort"), vitals: show("vitals"), breath: show("breathlessness") };
+  const anyCard = Object.values(cards).some(Boolean) || safety;
+  // The surgeon's precautions are locked: drawn with the steps when the
+  // steps are drawn, and on their own when they are not.
+  const precautions = show("precautions");
 
   return (
-    <div className="space-y-5" data-testid="cardio-profile" data-profile-kind={view.kind}>
+    <div className="space-y-5" data-testid={show("status_header") ? "cardio-profile" : undefined} data-profile-kind={view.kind}>
+      {show("status_header") && (
       <ProfileHeader
+        extra={headerExtra}
+        clinicPhone={clinicPhone}
         voice={voice}
         profileKind={view.kind}
         name={patientName}
@@ -122,13 +149,15 @@ export default function CardioProfileTop({
           )
         }
       />
+      )}
 
-      <KeyNumbers series={view.series} tiles={view.keyTiles} profileKind={view.kind} voice={voice} />
+      {show("key_numbers") && <KeyNumbers series={view.series} tiles={view.keyTiles} profileKind={view.kind} voice={voice} />}
 
+      {anyCard && (
       <section aria-label="Condition picture" className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6" data-testid="cardio-picture">
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <h2 className="font-display text-lg font-bold text-slate-900">{clinician ? "Heart and lungs" : "Your heart and lungs today"}</h2>
+            <h2 className="font-display text-lg font-bold text-slate-900">{clinician ? "Heart and lungs" : "Your heart and lungs at your last check"}</h2>
             <p className="mt-0.5 text-sm text-slate-700">
               {clinician
                 ? "From the six-minute walk and the vitals at the latest reviews. Limits are this patient's own."
@@ -149,33 +178,51 @@ export default function CardioProfileTop({
           </p>
         )}
 
-        {flaggedAtReview && (
+        {safety && flaggedAtReview && (
           <p role="status" className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-950" data-testid="flagged-at-review">
             {clinician
               ? `A reading at the latest review was outside the limits for exercise. ${view.vitalsCheck.refusal?.clinician ?? ""}`
-              : `${view.vitalsCheck.refusal?.patient ?? ""} ${view.vitalsCheck.flags.map((f) => f.patientText).join(" ")}`.trim()}
+              : `At your last check, a reading was outside your safe limits for exercise. ${view.vitalsCheck.flags.map((f) => f.patientText).join(" ")}`.trim()}
           </p>
         )}
+        {safety && flaggedAtReview && !clinician && clinicPhone && (
+          <div className="-mt-2 mb-4">
+            <CallClinicLine
+              phone={clinicPhone}
+              message="Don't start your exercises until your physiotherapist has checked this with you. If you feel unwell, short of breath at rest or have chest pain, call 108 now; otherwise call the clinic."
+            />
+          </div>
+        )}
 
-        {clinician && (
+        {safety && clinician && (
           <div className="mb-4">
             <PreSessionCheckCard view={view} setup={setup} />
           </div>
         )}
 
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          <WalkTrackCard view={view} voice={voice} />
-          <OxygenCard view={view} voice={voice} />
-          <EffortCard view={view} voice={voice} />
-          <VitalsStrip view={view} voice={voice} />
-          <BreathlessnessGradeCard view={view} voice={voice} />
-          <StopBox view={view} voice={voice} />
+          {cards.walk && <WalkTrackCard view={view} voice={voice} />}
+          {cards.oxygen && <OxygenCard view={view} voice={voice} />}
+          {cards.effort && <EffortCard view={view} voice={voice} />}
+          {cards.vitals && <VitalsStrip view={view} voice={voice} />}
+          {cards.breath && <BreathlessnessGradeCard view={view} voice={voice} />}
+          {safety && <StopBox view={view} voice={voice} />}
         </div>
       </section>
+      )}
 
-      <ActiveMinutesPanel voice={voice} view={view} canLog={canLogDiary} canConfirm={canConfirmDiary} />
+      {precautions && !progressParts.steps && view.precautions.status !== "not_applicable" && (
+        <section aria-label="Precautions" className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+          <PrecautionsStep view={view} voice={voice} />
+        </section>
+      )}
 
+      {show("active_minutes") && <ActiveMinutesPanel voice={voice} view={view} canLog={canLogDiary} canConfirm={canConfirmDiary} />}
+
+      {(progressParts.graph || progressParts.steps || progressParts.measures) && (
       <ProfileProgressSection
+        parts={progressParts}
+        hiddenGraphKeys={hiddenGraphKeys}
         profileKind={view.kind}
         survivingKeys={[]}
         graphSeries={graphSeries}
@@ -197,8 +244,9 @@ export default function CardioProfileTop({
         reopen={reopen}
         title={{ patient: "Is your fitness coming back?", clinician: "Progress" }}
         recordExtras={{ patient: view.patientFacts, walkEquation: view.equation, oxygenLimit: view.limit }}
-        stepsExtra={<PrecautionsStep view={view} voice={voice} />}
+        stepsExtra={precautions ? <PrecautionsStep view={view} voice={voice} /> : null}
       />
+      )}
     </div>
   );
 }

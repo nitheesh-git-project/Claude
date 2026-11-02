@@ -64,6 +64,8 @@ export default function ProfileProgressSection({
   title,
   recordExtras,
   stepsExtra,
+  parts,
+  hiddenGraphKeys,
 }: {
   profileKind: ProfileKind;
   /** Measure keys whose lines come from a store other than the recorded
@@ -102,6 +104,11 @@ export default function ProfileProgressSection({
   /** A card that sits with the plan's steps but is not one of them (the
    *  surgeon's precautions end date, on the heart and lung page). */
   stepsExtra?: ReactNode;
+  /** Which of the three cards this rendering draws (the clinic's Health
+   *  Profile layout, profileWidgets.ts): all three when left out. */
+  parts?: { graph?: boolean; steps?: boolean; measures?: boolean };
+  /** Graph lines the clinic hides from the patient's page (measure keys). */
+  hiddenGraphKeys?: readonly string[];
   /** What the six-minute walk in Record a test needs (heart and lung). */
   recordExtras?: {
     patient: { sex?: "female" | "male" | null; ageYears?: number | null; heightCm?: number | null; weightKg?: number | null };
@@ -117,10 +124,15 @@ export default function ProfileProgressSection({
   // a measurement: it survives a failed measurement read.
   const surviving = survivingKeys ?? ["pain_nprs"];
   const painOnly = (graphSeries ?? series).filter((s) => surviving.includes(s.measureKey));
-  const drawn = measuresFailed ? painOnly : (graphSeries ?? series);
+  const hiddenLines = new Set(hiddenGraphKeys ?? []);
+  const drawn = (measuresFailed ? painOnly : (graphSeries ?? series)).filter((s) => !hiddenLines.has(s.measureKey));
+  const showGraph = parts?.graph !== false;
+  const showSteps = parts?.steps !== false;
+  const showMeasures = parts?.measures !== false;
 
   return (
     <>
+      {showGraph && (
       <section aria-label="Progress" className={CARD}>
         <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
@@ -173,7 +185,9 @@ export default function ProfileProgressSection({
           riskOverrides={riskOverrides}
         />
       </section>
+      )}
 
+      {showSteps && (
       <section aria-label="Steps" className={CARD}>
         <MilestoneCards
           goal={goal}
@@ -187,7 +201,9 @@ export default function ProfileProgressSection({
         />
         {stepsExtra}
       </section>
+      )}
 
+      {showMeasures && (
       <section aria-label="Measures" className={CARD}>
         <div className="mb-3">
           <h2 className="font-display text-lg font-bold text-slate-900">{clinician ? "Measures" : subject === "child" ? "Your child's measures" : "Your measures"}</h2>
@@ -201,6 +217,7 @@ export default function ProfileProgressSection({
           <MeasuresTable rows={tableRows} voice={voice} subject={subject} />
         )}
       </section>
+      )}
 
       {recording && record && (
         <RecordTestDialog

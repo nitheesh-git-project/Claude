@@ -7,6 +7,9 @@ import type { AreaPainEntry } from "@/lib/conditionIntake";
 import type { OrthoView } from "@/lib/orthoProfileView";
 import type { PainAssessmentRow, QuestionOverrideRow } from "@/lib/painMap";
 import type { Voice } from "@/lib/progressView";
+import { picks, type WidgetPick } from "@/lib/profileWidgets";
+import type { ReactNode } from "react";
+import type { ClinicPhoneRead } from "@/components/profile/CallClinicLine";
 
 /**
  * The orthopaedic Health Profile, top to bottom, shared by the patient's
@@ -38,6 +41,10 @@ export default function OrthoProfileTop({
   reopen,
   enabledLicensed,
   licenceUnreadable,
+  only,
+  hiddenGraphKeys,
+  headerExtra,
+  clinicPhone,
 }: {
   voice: Voice;
   patientId: string;
@@ -55,10 +62,25 @@ export default function OrthoProfileTop({
   reopen: boolean;
   enabledLicensed: readonly string[];
   licenceUnreadable: boolean;
+  /** The widgets this rendering draws (profileWidgets.ts); every one when
+   *  left out. A page draws the profile in slices, or whole. */
+  only?: WidgetPick;
+  /** Graph lines the clinic hides from the patient's page. */
+  hiddenGraphKeys?: readonly string[];
+  /** Inside the status card, under the pill (the patient's page: the intake
+   *  status and the call line). */
+  headerExtra?: ReactNode;
+  /** The patient's page: the clinic's phone for the calm next step. */
+  clinicPhone?: ClinicPhoneRead | null;
 }) {
+  const show = (key: string) => picks(only, key);
+  const progressParts = { graph: show("progress_graph"), steps: show("steps"), measures: show("measures_table") };
   return (
-    <div className="space-y-5" data-testid="ortho-profile">
+    <div className="space-y-5" data-testid={show("status_header") ? "ortho-profile" : undefined}>
+      {show("status_header") && (
       <ProfileHeader
+        extra={headerExtra}
+        clinicPhone={clinicPhone}
         voice={voice}
         profileKind="ortho"
         name={patientName}
@@ -86,11 +108,13 @@ export default function OrthoProfileTop({
           )
         }
       />
+      )}
 
-      {view.measuresFailed && view.series.length === 0 ? null : (
+      {!show("key_numbers") || (view.measuresFailed && view.series.length === 0) ? null : (
         <KeyNumbers series={view.series} milestones={view.views.map((v) => v.milestone)} profileKind="ortho" voice={voice} />
       )}
 
+      {show("body_map") && (
       <OrthoBodyMap
         voice={voice}
         assessments={assessments}
@@ -102,8 +126,12 @@ export default function OrthoProfileTop({
         measuresFailed={view.measuresFailed}
         record={examRecord}
       />
+      )}
 
+      {(progressParts.graph || progressParts.steps || progressParts.measures) && (
       <ProfileProgressSection
+        parts={progressParts}
+        hiddenGraphKeys={hiddenGraphKeys}
         profileKind="ortho"
         patientId={patientId}
         patientName={patientName}
@@ -122,6 +150,7 @@ export default function OrthoProfileTop({
         planner={planner}
         reopen={reopen}
       />
+      )}
     </div>
   );
 }

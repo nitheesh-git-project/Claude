@@ -227,6 +227,8 @@ export default function DiaryPanel({
   canLog,
   canConfirm,
   heading,
+  list = true,
+  showFreezing,
 }: {
   voice: Voice;
   profileKind: ProfileKind;
@@ -239,12 +241,18 @@ export default function DiaryPanel({
   triggers: { trigger: string; label: string; episodes: number }[];
   canLog: boolean;
   canConfirm: boolean;
+  /** The falls summary and the entries (the "diary" widget); false draws
+   *  only the freezing chart (profileWidgets.ts). */
+  list?: boolean;
+  /** The freezing chart (the "freezing_chart" widget); Parkinson's only. */
+  showFreezing?: boolean;
 }) {
   const [logging, setLogging] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const clinician = voice === "clinician";
   const kinds = offeredDiaryKinds(profileKind);
   const parkinsons = profileKind === "neuro_parkinsons";
+  const freezing = parkinsons && showFreezing !== false;
 
   const header = (
     <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
@@ -294,6 +302,7 @@ export default function DiaryPanel({
     <section aria-label="Diary" className={CARD} data-testid="diary-panel">
       {header}
 
+      {list && (
       <dl className="grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-3 text-sm">
         <div>
           <dt className="text-xs font-semibold uppercase tracking-wide text-slate-700">Falls, last 3 months</dt>
@@ -312,8 +321,9 @@ export default function DiaryPanel({
           <dd className="text-xs text-slate-700">{f.nearMisses === 0 ? "None written down" : "in the last 3 months"}</dd>
         </div>
       </dl>
+      )}
 
-      {parkinsons && (
+      {freezing && (
         <div className="mt-5" data-testid="freezing-card">
           <h3 className="font-display text-base font-bold text-slate-900">{clinician ? "Freezing, by week" : "When your feet got stuck, by week"}</h3>
           <p className="mb-2 mt-0.5 text-xs text-slate-700">
@@ -345,7 +355,7 @@ export default function DiaryPanel({
         </div>
       )}
 
-      {canConfirm && awaiting.length > 0 && (
+      {list && canConfirm && awaiting.length > 0 && (
         <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50/60 p-3 sm:p-4" data-testid="diary-awaiting">
           <h3 className="text-sm font-bold text-amber-900">Waiting for you to confirm ({awaiting.length})</h3>
           <p className="text-xs text-slate-700">Confirming says you have seen it and talked it over. It does not change what the patient wrote.</p>
@@ -357,6 +367,8 @@ export default function DiaryPanel({
         </div>
       )}
 
+      {list && (
+      <>
       <div className="mt-5">
         <h3 className="font-display text-base font-bold text-slate-900">{clinician ? "Entries" : "What you wrote"}</h3>
         {rest.length === 0 ? (
@@ -394,6 +406,8 @@ export default function DiaryPanel({
           ? "A fall the patient reported moves the status only once you have confirmed it here; until then it is shown as patient reported."
           : "What you write is your own account. Once your physiotherapist has seen a fall and confirmed it, it also counts when your progress is read."}
       </p>
+      </>
+      )}
 
       {logging && <DiaryLogDialog profileKind={profileKind} onClose={() => setLogging(false)} />}
     </section>

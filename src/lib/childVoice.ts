@@ -10,7 +10,7 @@
 // walks the status reasons to catch one the rules miss.
 
 const NOUNS =
-  "physiotherapist|goal|progress|measures|measure|measurements|main measure|first review|latest review|latest reading|latest numbers|steps|plan|next visit|next review|balance";
+  "physiotherapist|goal|progress|measures|measure|measurements|main measure|first review|first check|last check|latest review|latest reading|latest numbers|steps|plan|next visit|next review|balance";
 
 const RULES: [RegExp, string | ((...m: string[]) => string)][] = [
   [/\bWhere you are in your care\b/g, "Where your child is in their care"],

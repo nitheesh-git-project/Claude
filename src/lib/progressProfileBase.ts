@@ -1,3 +1,4 @@
+import type { CorrectedDiaryEntry } from "@/lib/patientDiary";
 import { shapeMilestones, type CareGoal, type CareMilestone, type MilestoneView } from "@/lib/careGoals";
 import { EMPTY_CARE_STATUS, shapeCareStatus, type ActiveOverride, type CareStatusEvent, type CareStatusState } from "@/lib/careStatus";
 import type { DiaryEntry } from "@/lib/patientDiary";
@@ -30,7 +31,7 @@ export type MeasuredProfileReads = {
     | { status: "ok"; activeGoal: CareGoal | null; goals: CareGoal[]; milestones: CareMilestone[] }
     | { status: "unreadable" };
   careStatus: { status: "ok"; events: CareStatusEvent[] } | { status: "unreadable" };
-  diary: { status: "ok"; entries: DiaryEntry[] } | { status: "unreadable" };
+  diary: { status: "ok"; entries: DiaryEntry[]; corrected?: CorrectedDiaryEntry[] } | { status: "unreadable" };
   intakeHistory: { status: "ok"; rows: IntakeTrendRow[] } | { status: "unreadable" };
   licence: { status: "ok"; keys: string[] } | { status: "unreadable" };
   /** Date of birth and gender (profiles), read with the admin client. */
@@ -56,6 +57,8 @@ export type MeasuredProfileBase = {
   phaseIsInferred: boolean;
   lastReviewAt: string | null;
   diaryEntries: DiaryEntry[] | null;
+  /** Entries the patient withdrew as saved by mistake (counted nowhere). */
+  diaryCorrected: CorrectedDiaryEntry[];
   measuresFailed: boolean;
   goalsFailed: boolean;
   statusFailed: boolean;
@@ -101,6 +104,7 @@ export function shapeMeasuredBase(reads: MeasuredProfileReads, kind: ProfileKind
     phaseIsInferred: !careState.phase && inferred !== null,
     lastReviewAt,
     diaryEntries: reads.diary.status === "ok" ? reads.diary.entries : null,
+    diaryCorrected: reads.diary.status === "ok" ? (reads.diary.corrected ?? []) : [],
     measuresFailed,
     goalsFailed,
     statusFailed,

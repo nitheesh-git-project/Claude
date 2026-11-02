@@ -6,6 +6,9 @@ import ProfileStatusControls from "@/components/profile/progress/ProfileStatusCo
 import type { PedsView } from "@/lib/pedsProfileView";
 import { PEDS_PROFILE_KIND } from "@/lib/pedsProfile";
 import type { Voice } from "@/lib/progressView";
+import { picks, type WidgetPick } from "@/lib/profileWidgets";
+import type { ReactNode } from "react";
+import type { ClinicPhoneRead } from "@/components/profile/CallClinicLine";
 
 /**
  * The paediatric Health Profile top to bottom, shared by the parent's page,
@@ -35,6 +38,10 @@ export default function PedsProfileTop({
   reopen,
   enabledLicensed,
   licenceUnreadable,
+  only,
+  hiddenGraphKeys,
+  headerExtra,
+  clinicPhone,
 }: {
   voice: Voice;
   patientId: string;
@@ -50,6 +57,15 @@ export default function PedsProfileTop({
   reopen: boolean;
   enabledLicensed: readonly string[];
   licenceUnreadable: boolean;
+  /** The widgets this rendering draws (profileWidgets.ts); every one when
+   *  left out. A page draws the profile in slices, or whole. */
+  only?: WidgetPick;
+  /** Graph lines the clinic hides from the patient's page. */
+  hiddenGraphKeys?: readonly string[];
+  /** Inside the status card (the patient's page). */
+  headerExtra?: ReactNode;
+  /** The patient's page: the clinic's phone for the calm next step. */
+  clinicPhone?: ClinicPhoneRead | null;
 }) {
   const clinician = voice === "clinician";
   const ex = view.exam;
@@ -63,14 +79,19 @@ export default function PedsProfileTop({
   }
   const conditionLine =
     [view.conditionLine, ex.ageLine].filter(Boolean).join(" · ") || null;
+  const show = (key: string) => picks(only, key);
+  const progressParts = { graph: show("progress_graph"), steps: show("steps"), measures: show("measures_table") };
 
   return (
     <div
       className="space-y-5"
-      data-testid="peds-profile"
+      data-testid={show("status_header") ? "peds-profile" : undefined}
       data-profile-kind={PEDS_PROFILE_KIND}
     >
+      {show("status_header") && (
       <ProfileHeader
+        extra={headerExtra}
+        clinicPhone={clinicPhone}
         voice={voice}
         subject="child"
         profileKind={PEDS_PROFILE_KIND}
@@ -102,7 +123,9 @@ export default function PedsProfileTop({
           )
         }
       />
+      )}
 
+      {show("key_numbers") && (
       <KeyNumbers
         series={view.series}
         tiles={view.keyTiles}
@@ -110,7 +133,9 @@ export default function PedsProfileTop({
         voice={voice}
         subject="child"
       />
+      )}
 
+      {show("milestone_chart") && (
       <PedsPicture
         voice={voice}
         exam={ex}
@@ -118,8 +143,12 @@ export default function PedsProfileTop({
         dobImplausible={view.dobImplausible}
         record={examRecord}
       />
+      )}
 
+      {(progressParts.graph || progressParts.steps || progressParts.measures) && (
       <ProfileProgressSection
+        parts={progressParts}
+        hiddenGraphKeys={hiddenGraphKeys}
         profileKind={PEDS_PROFILE_KIND}
         survivingKeys={["peds_milestones_achieved"]}
         survivingName="the milestone line"
@@ -149,6 +178,7 @@ export default function PedsProfileTop({
         planner={planner}
         reopen={reopen}
       />
+      )}
     </div>
   );
 }

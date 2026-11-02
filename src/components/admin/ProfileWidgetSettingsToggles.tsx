@@ -288,8 +288,7 @@ export function ProfileWidgetPatientPanel({
         <div className="min-w-0">
           <h2 className="font-display text-lg font-bold text-slate-800">Sections for this patient</h2>
           <p className="mt-0.5 text-sm text-slate-600">
-            {sections.length - hidden} of {sections.length} sections shown on the patient&apos;s own Health Profile. Their physiotherapist sees
-            every section.
+            {`${sections.length - hidden} of ${sections.length} sections shown on the patient's own Health Profile. Their physiotherapist sees every section.`}
           </p>
         </div>
         <button

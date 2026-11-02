@@ -577,3 +577,63 @@ export function entriesAwaitingConfirmation<T extends Pick<DiaryEntry, "enteredB
     .filter((e) => diaryProvenance(e) === "patient_reported")
     .sort((a, b) => Date.parse(a.occurredAt) - Date.parse(b.occurredAt) || (a.id < b.id ? -1 : 1));
 }
+
+// --- "I saved this by mistake" (E1) ------------------------------------------------------
+//
+// A diary entry is never edited or deleted, so a mistake is undone by a NEW
+// row of kind "correction" pointing at the original (supabase/schema.sql
+// keeps it to the same patient's own, unconfirmed entry, once). Every count
+// and the status read past a corrected entry -- `applyDiaryCorrections`
+// takes it out of the live list at the loader, so a corrected fall never
+// flags -- and the clinician still sees it, marked corrected, in its own
+// list. Nothing is deleted.
+
+export const DIARY_CORRECTION_KIND = "correction";
+export const DIARY_CORRECTION_REASON = "saved_by_mistake";
+export const DIARY_CORRECTION_DETAILS = { reason: DIARY_CORRECTION_REASON } as const;
+
+export type DiaryCorrection = { id: string; correctsEntryId: string; createdAt: string };
+
+/** An entry the patient withdrew, with when. */
+export type CorrectedDiaryEntry = DiaryEntry & { correctedAt: string };
+
+export function parseDiaryCorrectionRow(raw: unknown): DiaryCorrection | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  const r = raw as Record<string, unknown>;
+  const id = str(r.id);
+  const correctsEntryId = str(r.corrects_entry_id);
+  const createdAt = str(r.created_at);
+  if (!id || !correctsEntryId || !createdAt) return null;
+  return { id, correctsEntryId, createdAt };
+}
+
+/** The live diary (what every count, graph and status reads) and the
+ *  corrected entries (shown to the clinician, marked, and to the patient as
+ *  "you said this was a mistake"). A correction of an entry not in the list
+ *  is ignored. */
+export function applyDiaryCorrections(
+  entries: readonly DiaryEntry[],
+  corrections: readonly DiaryCorrection[]
+): { live: DiaryEntry[]; corrected: CorrectedDiaryEntry[] } {
+  const byEntry = new Map(corrections.map((c) => [c.correctsEntryId, c.createdAt]));
+  const live: DiaryEntry[] = [];
+  const corrected: CorrectedDiaryEntry[] = [];
+  for (const e of entries) {
+    const at = byEntry.get(e.id);
+    if (at) corrected.push({ ...e, correctedAt: at });
+    else live.push(e);
+  }
+  return { live, corrected };
+}
+
+/** Whether the patient may say an entry was saved by mistake: their own,
+ *  not yet confirmed by the physiotherapist, not already corrected. */
+export function correctionRefusal(
+  entry: Pick<DiaryEntry, "enteredByRole" | "enteredBy" | "confirmedAt" | "patientId">,
+  ctx: { userId: string; alreadyCorrected: boolean }
+): null | { code: "not_yours" | "already_confirmed" | "already_corrected" } {
+  if (entry.patientId !== ctx.userId || entry.enteredByRole !== "patient" || entry.enteredBy !== ctx.userId) return { code: "not_yours" };
+  if (ctx.alreadyCorrected) return { code: "already_corrected" };
+  if (entry.confirmedAt) return { code: "already_confirmed" };
+  return null;
+}

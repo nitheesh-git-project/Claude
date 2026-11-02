@@ -1,3 +1,4 @@
+import type { CorrectedDiaryEntry } from "@/lib/patientDiary";
 import { clinicDateKey } from "@/lib/clinicWeek";
 import { HOME_SAFETY_ITEMS } from "@/lib/outcomeMeasures";
 import { entriesAwaitingConfirmation, type DiaryEntry } from "@/lib/patientDiary";
@@ -109,7 +110,7 @@ export function homeSafetyView(points: readonly MeasurementPoint[]): HomeSafetyV
 }
 
 export type GeriatricDiaryView =
-  | { status: "ok"; entries: DiaryEntry[]; falls: FallsWindow; awaiting: DiaryEntry[] }
+  | { status: "ok"; entries: DiaryEntry[]; falls: FallsWindow; awaiting: DiaryEntry[]; corrected?: CorrectedDiaryEntry[] }
   | { status: "unreadable" };
 
 export type GeriatricView = {
@@ -388,6 +389,7 @@ export function shapeGeriatricView(
           entries: [...base.diaryEntries].sort((a, b) => Date.parse(b.occurredAt) - Date.parse(a.occurredAt) || (a.id < b.id ? 1 : -1)),
           falls: falls!,
           awaiting: entriesAwaitingConfirmation(base.diaryEntries),
+          corrected: base.diaryCorrected,
         }
       : { status: "unreadable" },
     notes,

@@ -10,6 +10,8 @@ import type { StatusResult } from "@/lib/profileStatus";
 import type { ProfileKind } from "@/lib/outcomeMeasures";
 import type { Voice } from "@/lib/progressView";
 import type { WhereThingsStandView } from "@/lib/whereThingsStand";
+import { effectiveStatus } from "@/lib/profileStatus";
+import CallClinicLine, { type ClinicPhoneRead } from "@/components/profile/CallClinicLine";
 
 /**
  * The top of a Health Profile (orthopaedic, neurological, Parkinson's): who
@@ -43,6 +45,8 @@ export default function ProfileHeader({
   stand,
   lastReviewAt,
   controls,
+  extra = null,
+  clinicPhone = null,
 }: {
   voice: Voice;
   /** Who the patient-voice sentences are about (childVoice.ts): "child" speaks to a parent ("your child's ..."). */
@@ -81,8 +85,19 @@ export default function ProfileHeader({
   lastReviewAt: string | null;
   /** The physiotherapist's phase and status controls, when the viewer may use them. */
   controls?: ReactNode;
+  /** Inside the card, under the status (the patient's page: where their
+   *  answers stand with the clinic). */
+  extra?: ReactNode;
+  /** The patient's page: the clinic's phone, for the calm next step beside
+   *  "Needs attention". Null on a clinician's screen. */
+  clinicPhone?: ClinicPhoneRead | null;
 }) {
   const clinician = voice === "clinician";
+  // The patient reads one card: the status, where things stand and the next
+  // step together (B2). A clinician keeps the two cards they work from.
+  const oneCard = !clinician;
+  const shownStatus = effectiveStatus(computed, override ? { status: override.status, reason: override.reason, setAt: override.setAt } : null).status;
+  const standCard = <WhereThingsStand view={stand} voice={voice} subject={subject} loadFailed={statusFailed} />;
   const phaseText = describePhase({ phase, suggested: phaseIsInferred, voice, subject });
   return (
     <div className="space-y-4">
@@ -141,10 +156,22 @@ export default function ProfileHeader({
             <PhaseBar profileKind={profileKind} currentPhase={phase} suggested={phaseIsInferred} voice={voice} subject={subject} />
           </div>
         </div>
+        {!clinician && shownStatus === "needs_attention" && clinicPhone && (
+          <CallClinicLine
+            phone={clinicPhone}
+            message={
+              subject === "child"
+                ? "Your child's physiotherapist will go through this with you. If anything has changed or you are worried, call the clinic - we would rather hear from you."
+                : "Your physiotherapist will go through this with you. If anything has changed or you are worried, call the clinic - we would rather hear from you."
+            }
+          />
+        )}
+        {oneCard && <div className="mt-4 [&>section]:border-0 [&>section]:bg-slate-50 [&>section]:p-4">{standCard}</div>}
+        {extra && <div className="mt-4 border-t border-slate-100 pt-4">{extra}</div>}
         {controls && <div className="mt-4 border-t border-slate-100 pt-4">{controls}</div>}
       </header>
 
-      <WhereThingsStand view={stand} voice={voice} subject={subject} loadFailed={statusFailed} />
+      {!oneCard && standCard}
     </div>
   );
 }

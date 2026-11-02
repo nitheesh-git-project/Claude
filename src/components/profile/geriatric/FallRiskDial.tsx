@@ -1,5 +1,6 @@
 import type { GeriatricFallRisk } from "@/lib/geriatricRisk";
 import type { Voice } from "@/lib/progressView";
+import CallClinicLine, { type ClinicPhoneRead } from "@/components/profile/CallClinicLine";
 
 const CX = 120;
 const CY = 118;
@@ -38,6 +39,7 @@ export default function FallRiskDial({
   text,
   voice,
   unreadableNote,
+  clinicPhone = null,
 }: {
   risk: GeriatricFallRisk;
   /** The level and its rule in the reader's words (fallRiskSentence). */
@@ -45,6 +47,9 @@ export default function FallRiskDial({
   voice: Voice;
   /** The diary could not be read: the dial says it was worked out without it. */
   unreadableNote?: string | null;
+  /** The patient's page: a High level comes with a calm next step and a
+   *  Call button (null on a clinician's screen). */
+  clinicPhone?: ClinicPhoneRead | null;
 }) {
   const index = risk.level === "low" ? 0 : risk.level === "moderate" ? 1 : risk.level === "high" ? 2 : null;
   const needleDeg = index === null ? null : 180 + 30 + index * 60;
@@ -93,9 +98,15 @@ export default function FallRiskDial({
       )}
       <p className="mt-2 text-center text-xs text-slate-700">
         {voice === "patient"
-          ? "Set by the CDC STEADI rules: falls in the last 12 months count as well as today's tests."
+          ? "Worked out the way fall clinics everywhere do it: any falls in the last 12 months count, as well as your latest tests."
           : "CDC STEADI: falls in the last 12 months count as well as today's tests. A level means higher risk, never a diagnosis."}
       </p>
+      {voice === "patient" && risk.level === "high" && clinicPhone && (
+        <CallClinicLine
+          phone={clinicPhone}
+          message="Your physiotherapist is working on this with you. Until then, take your time when you stand up and turn, and use your walking aid if you have one. If you fall and are hurt, call 108."
+        />
+      )}
       {unreadableNote && (
         <p role="status" className="mt-2 text-center text-xs text-amber-900">
           {unreadableNote}

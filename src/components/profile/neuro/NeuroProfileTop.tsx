@@ -9,6 +9,9 @@ import { examOwnedKeys } from "@/lib/neuroProfile";
 import type { NeuroView } from "@/lib/neuroProfileView";
 import type { NeuroAssessmentRow } from "@/lib/neuroExam";
 import type { Voice } from "@/lib/progressView";
+import { picks, type WidgetPick } from "@/lib/profileWidgets";
+import type { ReactNode } from "react";
+import type { ClinicPhoneRead } from "@/components/profile/CallClinicLine";
 
 /**
  * The neurological Health Profile - and the Parkinson's sub-profile, which is
@@ -47,6 +50,10 @@ export default function NeuroProfileTop({
   canConfirmDiary,
   enabledLicensed,
   licenceUnreadable,
+  only,
+  hiddenGraphKeys,
+  headerExtra,
+  clinicPhone,
 }: {
   voice: Voice;
   patientId: string;
@@ -65,6 +72,15 @@ export default function NeuroProfileTop({
   canConfirmDiary: boolean;
   enabledLicensed: readonly string[];
   licenceUnreadable: boolean;
+  /** The widgets this rendering draws (profileWidgets.ts); every one when
+   *  left out. A page draws the profile in slices, or whole. */
+  only?: WidgetPick;
+  /** Graph lines the clinic hides from the patient's page. */
+  hiddenGraphKeys?: readonly string[];
+  /** Inside the status card (the patient's page). */
+  headerExtra?: ReactNode;
+  /** The patient's page: the clinic's phone for the calm next step. */
+  clinicPhone?: ClinicPhoneRead | null;
 }) {
   const pd = view.parkinsons;
   const clinician = voice === "clinician";
@@ -85,10 +101,16 @@ export default function NeuroProfileTop({
     );
   }
   const surviving = [...examOwnedKeys(view.kind), ...(pd ? ["freezing_episodes"] : [])];
+  const show = (key: string) => picks(only, key);
+  const progressParts = { graph: show("progress_graph"), steps: show("steps"), measures: show("measures_table") };
+  const showSymptoms = !!pd && show("parkinsons_symptoms") && !!(pd.symptoms || pd.stage);
 
   return (
-    <div className="space-y-5" data-testid="neuro-profile" data-profile-kind={view.kind}>
+    <div className="space-y-5" data-testid={show("status_header") ? "neuro-profile" : undefined} data-profile-kind={view.kind}>
+      {show("status_header") && (
       <ProfileHeader
+        extra={headerExtra}
+        clinicPhone={clinicPhone}
         voice={voice}
         profileKind={view.kind}
         name={patientName}
@@ -119,9 +141,11 @@ export default function NeuroProfileTop({
           )
         }
       />
+      )}
 
-      <KeyNumbers series={view.series} tiles={view.keyTiles} profileKind={view.kind} voice={voice} />
+      {show("key_numbers") && <KeyNumbers series={view.series} tiles={view.keyTiles} profileKind={view.kind} voice={voice} />}
 
+      {show("exam_picture") && (
       <NeuroPicture
         voice={voice}
         assessments={neuroAssessments}
@@ -132,15 +156,19 @@ export default function NeuroProfileTop({
         speed={view.speed}
         record={examRecord}
       />
+      )}
 
-      {pd && (pd.symptoms || pd.stage) && (
+      {pd && showSymptoms && (
         <div className={`grid gap-5 ${pd.symptoms && pd.stage ? "md:grid-cols-2 md:items-start" : ""}`}>
           {pd.symptoms && <SymptomProfilePanel profile={pd.symptoms} voice={voice} />}
           {pd.stage && <StageCard stage={pd.stage} voice={voice} />}
         </div>
       )}
 
+      {(show("diary") || (pd && show("freezing_chart"))) && (
       <DiaryPanel
+        list={show("diary")}
+        showFreezing={!!pd && show("freezing_chart")}
         voice={voice}
         profileKind={view.kind}
         diary={view.diary}
@@ -149,8 +177,12 @@ export default function NeuroProfileTop({
         canLog={canLogDiary}
         canConfirm={canConfirmDiary}
       />
+      )}
 
+      {(progressParts.graph || progressParts.steps || progressParts.measures) && (
       <ProfileProgressSection
+        parts={progressParts}
+        hiddenGraphKeys={hiddenGraphKeys}
         profileKind={view.kind}
         survivingKeys={surviving}
         survivingName="the examination and diary lines"
@@ -179,6 +211,7 @@ export default function NeuroProfileTop({
         planner={planner}
         reopen={reopen}
       />
+      )}
     </div>
   );
 }

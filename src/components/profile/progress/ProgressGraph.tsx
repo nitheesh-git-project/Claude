@@ -184,6 +184,15 @@ export default function ProgressGraph({
       )}
 
       <h3 className="mt-4 font-display text-base font-bold text-slate-900 [overflow-wrap:anywhere]">{name}</h3>
+      {/* The patient's graph leads with one plain sentence (the same one a
+          screen reader gets) and says which way is good once, above the
+          chart, rather than in the small print under it. */}
+      {!clinician && view && (
+        <p className="mt-1 text-lg leading-snug text-slate-900 [overflow-wrap:anywhere]" data-testid="graph-lead">
+          {w(summary)}
+        </p>
+      )}
+      {!clinician && view && hint && <p className="mt-1 text-sm font-semibold text-slate-700">{hint}</p>}
       {!selected.joinPoints && (
         <p className="mt-1 text-xs text-slate-700" data-testid="state-not-recorded">
           <span className="mr-1.5 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 font-semibold text-amber-900">State not recorded</span>
@@ -225,7 +234,7 @@ export default function ProgressGraph({
 
           <svg
             viewBox={`0 0 ${view.geometry.width} ${view.geometry.height}`}
-            className="mt-2 block h-auto w-full"
+            className="mt-2 block h-auto w-full max-w-[340px]"
             role="img"
             aria-label={summary}
           >
@@ -250,7 +259,7 @@ export default function ProgressGraph({
                   stroke="var(--chart-grid)"
                   strokeWidth={1}
                 />
-                <text x={view.geometry.plot.left - 6} y={tick.y + 3} textAnchor="end" fontSize={9} fill="var(--chart-axis)">
+                <text x={view.geometry.plot.left - 6} y={tick.y + 4} textAnchor="end" fontSize={13} fill="var(--chart-axis)">
                   {formatMeasureValue(tick.value, selected.decimals)}
                 </text>
               </g>
@@ -313,7 +322,7 @@ export default function ProgressGraph({
                       x={p.x}
                       y={below ? p.y + 16 : p.y - 9}
                       textAnchor={labelAnchor(i, all.length)}
-                      fontSize={9}
+                      fontSize={13}
                       fontWeight={last ? 700 : 600}
                       fill={last ? "var(--chart-brand)" : "var(--chart-ink)"}
                     >
@@ -330,7 +339,7 @@ export default function ProgressGraph({
                 x={view.geometry.points[i].x}
                 y={view.geometry.height - 8}
                 textAnchor={labelAnchor(i, view.geometry.points.length)}
-                fontSize={9}
+                fontSize={13}
                 fill="var(--chart-axis)"
               >
                 {formatClinicDateShort(selected.points[i].measuredAt)}
@@ -408,15 +417,16 @@ export default function ProgressGraph({
       )}
 
       <div className="mt-3 space-y-1 text-xs text-slate-600">
-        {hint && <p>{hint}</p>}
-        {scale && (
+        {hint && clinician && <p>{hint}</p>}
+        {/* The scale's own name is the clinician's vocabulary. */}
+        {scale && clinician && (
           <p>
             <span className="font-semibold text-slate-700">Measured as:</span> {scale}
           </p>
         )}
         {imageReadings > 0 && (
           <p data-testid="image-estimate-note">
-            {imageReadings === 1 ? "One reading is" : `${imageReadings} readings are`} {IMAGE_ESTIMATE_LABEL.toLowerCase()}, shown as hollow dots. A photo is good to about 5 to 10 degrees and is not a goniometer reading.
+            {imageReadings === 1 ? "One reading is" : `${imageReadings} readings are`} {IMAGE_ESTIMATE_LABEL.toLowerCase()}, shown as hollow dots. {clinician ? "A photo is good to about 5 to 10 degrees and is not a goniometer reading." : "A photo is good to within about 5 to 10 degrees, so it is less exact than your physiotherapist measuring you."}
           </p>
         )}
         {videoReadings > 0 && (

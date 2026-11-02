@@ -25,7 +25,7 @@
 // no main measure at all is "unknown", which a screen words as "not enough
 // to tell yet", not as steady.
 
-import { changeDirection, isMeaningfulChange, type ProfileKind } from "@/lib/outcomeMeasures";
+import { changeDirection, isMeaningfulChange, outcomeMeasure, type ProfileKind } from "@/lib/outcomeMeasures";
 
 export type ProfileStatus = "improving" | "steady" | "needs_attention" | "baseline" | "unknown";
 
@@ -74,6 +74,10 @@ export type StatusResult = {
   /** For a safety signal (red flag, new fall) only: when the latest signal
    *  happened. Left out when that is not known. */
   signalAt?: string;
+  /** The main measure the status was read from, so the patient's sentence
+   *  can name it ("Pain score: about the same as last time"). Left out for a
+   *  safety signal and when there is no measure. */
+  measureKey?: string;
 };
 
 const latestIso = (...values: (string | null | undefined)[]): string | null => {
@@ -108,25 +112,26 @@ export function computeProfileStatus(input: StatusInput): StatusResult {
   const now = values[values.length - 1];
   const previous = values[values.length - 2];
   const opts = { profileKind: main.profileKind, normal: main.normal, differentTester: main.differentTester };
+  const m = { measureKey: main.measureKey };
 
   const sinceFirst = changeDirection(main.measureKey, first, now, opts);
   if (sinceFirst === null) return { status: "unknown", reason: "no_measure" };
   const sincePrevious = changeDirection(main.measureKey, previous, now, opts);
 
-  if (sinceFirst === "worse") return { status: "needs_attention", reason: "worse_than_first" };
-  if (sincePrevious === "worse") return { status: "needs_attention", reason: "worse_than_previous" };
+  if (sinceFirst === "worse") return { status: "needs_attention", reason: "worse_than_first", ...m };
+  if (sincePrevious === "worse") return { status: "needs_attention", reason: "worse_than_previous", ...m };
 
   if (sinceFirst === "better") {
     // Beyond the measurement error is the floor; where the registry knows a
     // meaningful change, the move must reach it too. Unknown (null) does
     // not block: the MDC test above already held.
     if (isMeaningfulChange(main.measureKey, first, now, main.profileKind) === false) {
-      return { status: "steady", reason: "better_not_meaningful" };
+      return { status: "steady", reason: "better_not_meaningful", ...m };
     }
-    return { status: "improving", reason: "better_meaningful" };
+    return { status: "improving", reason: "better_meaningful", ...m };
   }
-  if (sinceFirst === "changed") return { status: "steady", reason: "no_direction" };
-  return { status: "steady", reason: "within_error" };
+  if (sinceFirst === "changed") return { status: "steady", reason: "no_direction", ...m };
+  return { status: "steady", reason: "within_error", ...m };
 }
 
 // --- Words ------------------------------------------------------------------------------
@@ -141,17 +146,36 @@ export const PROFILE_STATUS_LABEL: Record<ProfileStatus, string> = {
   unknown: "Not enough to tell yet",
 };
 
+/** The pill's word in the reader's voice: "Baseline set" is the clinician's;
+ *  the patient reads "First check done". */
+export function profileStatusLabel(status: ProfileStatus, voice: StatusVoice): string {
+  if (voice === "patient" && status === "baseline") return "First check done";
+  return PROFILE_STATUS_LABEL[status];
+}
+
 const REASON_PATIENT: Record<StatusReasonCode, string> = {
   red_flag: "Your physiotherapist has flagged something to look at together.",
   new_fall: "A new fall has been recorded, so your physiotherapist will look at your balance and safety first.",
-  worse_than_first: "Your main measure is worse than at the first review.",
-  worse_than_previous: "Your main measure slipped since the last review.",
-  better_meaningful: "Your main measure has improved by a change that matters.",
-  better_not_meaningful: "Your main measure is moving the right way, but not yet by a change that matters.",
-  within_error: "Your main measure has not changed by more than the test can tell apart.",
+  worse_than_first: "Your main measure is worse than at your first check.",
+  worse_than_previous: "Your main measure slipped since your last check.",
+  better_meaningful: "Your main measure has improved by enough to count as real progress.",
+  better_not_meaningful: "Your main measure is moving the right way, but not yet by enough to count as real progress.",
+  within_error: "Your main measure is about the same as last time.",
   no_direction: "Your main measure has moved, and it is not a score that goes better or worse.",
-  single_review: "This is your first review. The comparison starts at the next one.",
+  single_review: "This is your first check. The comparison starts at the next one.",
   no_measure: "There is no main measure recorded yet.",
+};
+
+/** The patient's sentence when the measure is known: it names it, and reads
+ *  the same for any measure name ("Walking speed: about the same as last
+ *  time"). */
+const REASON_PATIENT_NAMED: Partial<Record<StatusReasonCode, (name: string) => string>> = {
+  worse_than_first: (n) => `${n}: worse than at your first check.`,
+  worse_than_previous: (n) => `${n}: slipped since your last check.`,
+  better_meaningful: (n) => `${n}: improved by enough to count as real progress.`,
+  better_not_meaningful: (n) => `${n}: moving the right way, but not yet by enough to count as real progress.`,
+  within_error: (n) => `${n}: about the same as last time.`,
+  no_direction: (n) => `${n}: it has moved, and it is not a score that goes better or worse.`,
 };
 
 const REASON_CLINICIAN: Record<StatusReasonCode, string> = {
@@ -167,8 +191,11 @@ const REASON_CLINICIAN: Record<StatusReasonCode, string> = {
   no_measure: "No main measure is recorded, so no status is computed.",
 };
 
-export function statusReasonText(reason: StatusReasonCode, voice: StatusVoice): string {
-  return (voice === "clinician" ? REASON_CLINICIAN : REASON_PATIENT)[reason];
+export function statusReasonText(reason: StatusReasonCode, voice: StatusVoice, measureKey?: string | null): string {
+  if (voice === "clinician") return REASON_CLINICIAN[reason];
+  const name = measureKey ? outcomeMeasure(measureKey)?.plainName : null;
+  const named = name ? REASON_PATIENT_NAMED[reason] : undefined;
+  return named ? named(name!) : REASON_PATIENT[reason];
 }
 
 // --- The override ---------------------------------------------------------------------------

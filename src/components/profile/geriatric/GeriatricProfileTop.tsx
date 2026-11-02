@@ -12,6 +12,9 @@ import { formatClinicDate } from "@/lib/formatDateTime";
 import type { GeriatricView } from "@/lib/geriatricProfile";
 import { steadiCards } from "@/lib/steadiCards";
 import type { Voice } from "@/lib/progressView";
+import { picks, type WidgetPick } from "@/lib/profileWidgets";
+import type { ReactNode } from "react";
+import type { ClinicPhoneRead } from "@/components/profile/CallClinicLine";
 
 /** The three lines the graph draws: the tests with a number that moves. */
 const GRAPH_KEYS = ["gait_speed_4m", "tug", "chair_stand_30s"] as const;
@@ -48,6 +51,10 @@ export default function GeriatricProfileTop({
   canConfirmDiary,
   enabledLicensed,
   licenceUnreadable,
+  only,
+  hiddenGraphKeys,
+  headerExtra,
+  clinicPhone,
 }: {
   voice: Voice;
   patientId: string;
@@ -63,6 +70,15 @@ export default function GeriatricProfileTop({
   canConfirmDiary: boolean;
   enabledLicensed: readonly string[];
   licenceUnreadable: boolean;
+  /** The widgets this rendering draws (profileWidgets.ts); every one when
+   *  left out. A page draws the profile in slices, or whole. */
+  only?: WidgetPick;
+  /** Graph lines the clinic hides from the patient's page. */
+  hiddenGraphKeys?: readonly string[];
+  /** Inside the status card (the patient's page). */
+  headerExtra?: ReactNode;
+  /** The patient's page: the clinic's phone for the calm next step. */
+  clinicPhone?: ClinicPhoneRead | null;
 }) {
   const clinician = voice === "clinician";
   const setup: RecordSetup | null = record
@@ -75,10 +91,19 @@ export default function GeriatricProfileTop({
     : undefined;
   const graphSeries = view.graphSeries.filter((s) => (GRAPH_KEYS as readonly string[]).includes(s.measureKey));
   const conditionLine = [view.conditionLine, view.ageLine].filter(Boolean).join(" · ") || null;
+  const show = (key: string) => picks(only, key);
+  const progressParts = { graph: show("progress_graph"), steps: show("steps"), measures: show("measures_table") };
+  const showRisk = show("fall_risk");
+  const showTests = show("steadi_tests");
+  const lowerCards = [show("daily_living"), show("home_safety"), show("orthostatic")];
+  const anyPicture = showRisk || showTests || lowerCards.some(Boolean);
 
   return (
-    <div className="space-y-5" data-testid="geriatric-profile" data-profile-kind={view.kind}>
+    <div className="space-y-5" data-testid={show("status_header") ? "geriatric-profile" : undefined} data-profile-kind={view.kind}>
+      {show("status_header") && (
       <ProfileHeader
+        extra={headerExtra}
+        clinicPhone={clinicPhone}
         voice={voice}
         profileKind={view.kind}
         name={patientName}
@@ -109,9 +134,11 @@ export default function GeriatricProfileTop({
           )
         }
       />
+      )}
 
-      <KeyNumbers series={view.series} tiles={view.keyTiles} profileKind={view.kind} voice={voice} />
+      {show("key_numbers") && <KeyNumbers series={view.series} tiles={view.keyTiles} profileKind={view.kind} voice={voice} />}
 
+      {anyPicture && (
       <section aria-label="Condition picture" className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6" data-testid="geriatric-picture">
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
@@ -136,8 +163,11 @@ export default function GeriatricProfileTop({
           </p>
         )}
 
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] lg:items-start">
+        {(showRisk || showTests) && (
+        <div className={`grid gap-5 ${showRisk && showTests ? "lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)] lg:items-start" : ""}`}>
+          {showRisk && (
           <FallRiskDial
+            clinicPhone={clinicPhone}
             risk={view.fallRisk}
             text={view.fallRiskText}
             voice={voice}
@@ -149,16 +179,22 @@ export default function GeriatricProfileTop({
                 : null
             }
           />
-          <SteadiTestCards cards={cards} voice={voice} />
+          )}
+          {showTests && <SteadiTestCards cards={cards} voice={voice} />}
         </div>
+        )}
 
-        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          <DailyLivingCard katz={view.katz} voice={voice} />
-          <HomeSafetyCard view={view.homeSafety} voice={voice} record={setup} />
-          <OrthostaticCard flag={view.orthostatic} voice={voice} record={setup} />
+        {lowerCards.some(Boolean) && (
+        <div className={`${showRisk || showTests ? "mt-5 " : ""}grid gap-3 md:grid-cols-2 xl:grid-cols-3`}>
+          {lowerCards[0] && <DailyLivingCard katz={view.katz} voice={voice} />}
+          {lowerCards[1] && <HomeSafetyCard view={view.homeSafety} voice={voice} record={setup} />}
+          {lowerCards[2] && <OrthostaticCard flag={view.orthostatic} voice={voice} record={setup} />}
         </div>
+        )}
       </section>
+      )}
 
+      {show("diary") && (
       <DiaryPanel
         voice={voice}
         profileKind={view.kind}
@@ -169,8 +205,12 @@ export default function GeriatricProfileTop({
         canConfirm={canConfirmDiary}
         heading={{ clinician: "Falls and near misses", patient: "Your falls diary" }}
       />
+      )}
 
+      {(progressParts.graph || progressParts.steps || progressParts.measures) && (
       <ProfileProgressSection
+        parts={progressParts}
+        hiddenGraphKeys={hiddenGraphKeys}
         profileKind={view.kind}
         survivingKeys={[]}
         graphSeries={graphSeries}
@@ -193,6 +233,7 @@ export default function GeriatricProfileTop({
         riskOverrides={riskOverrides}
         title={{ patient: "Are you getting steadier?", clinician: "Progress" }}
       />
+      )}
     </div>
   );
 }

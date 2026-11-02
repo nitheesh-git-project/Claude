@@ -1,7 +1,15 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { readAllRows } from "@/lib/supabase/readAllRows";
-import { PATIENT_DIARY_SELECT, parseDiaryEntryRow, type DiaryEntry } from "@/lib/patientDiary";
+import {
+  PATIENT_DIARY_SELECT,
+  applyDiaryCorrections,
+  parseDiaryCorrectionRow,
+  parseDiaryEntryRow,
+  type CorrectedDiaryEntry,
+  type DiaryCorrection,
+  type DiaryEntry,
+} from "@/lib/patientDiary";
 
 // Reads of the patient diary (patient_diary_entries), one call each, in the
 // outcomeServer.ts shape: a discriminated result where a failed read is
@@ -21,7 +29,10 @@ type AnyClient = SupabaseClient<any, any, any>;
 export const DIARY_MAX_ROWS = 5_000;
 
 export type DiaryRead =
-  | { status: "ok"; entries: DiaryEntry[] }
+  /** `entries` is the live diary (corrected entries taken out, so no count
+   *  or status reads them); `corrected` are the ones the patient withdrew as
+   *  saved by mistake, for the screens to show marked. */
+  | { status: "ok"; entries: DiaryEntry[]; corrected: CorrectedDiaryEntry[] }
   | { status: "unreadable"; reason: "error" | "too_many" };
 
 /**
@@ -46,9 +57,33 @@ export async function loadDiaryEntries(
     );
     if (error) return { status: "unreadable", reason: "error" };
     if (truncated) return { status: "unreadable", reason: "too_many" };
-    return { status: "ok", entries: rows.map(parseDiaryEntryRow).filter((e): e is DiaryEntry => e !== null) };
+    const entries = rows.map(parseDiaryEntryRow).filter((e): e is DiaryEntry => e !== null);
+    // The corrections, in their own call: `corrects_entry_id` is a newer
+    // column. A database without it has no corrections (none can have been
+    // written); any other failure is a diary we could not read, because a
+    // withdrawn fall counted as real would be read as a new fall.
+    const corrections = await loadDiaryCorrections(client, patientId);
+    if (corrections === null) return { status: "unreadable", reason: "error" };
+    const { live, corrected } = applyDiaryCorrections(entries, corrections);
+    return { status: "ok", entries: live, corrected };
   } catch {
     return { status: "unreadable", reason: "error" };
+  }
+}
+
+/** The patient's corrections, or null when they could not be read. */
+export async function loadDiaryCorrections(client: AnyClient, patientId: string): Promise<DiaryCorrection[] | null> {
+  try {
+    const { data, error } = await client
+      .from("patient_diary_entries")
+      .select("id, corrects_entry_id, created_at")
+      .eq("patient_id", patientId)
+      .eq("kind", "correction")
+      .limit(DIARY_MAX_ROWS);
+    if (error) return error.code === "42703" || error.code === "PGRST204" ? [] : null;
+    return (data ?? []).map(parseDiaryCorrectionRow).filter((c): c is DiaryCorrection => c !== null);
+  } catch {
+    return null;
   }
 }
 

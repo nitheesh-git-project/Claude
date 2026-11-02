@@ -30,7 +30,7 @@ import {
   type SymptomProfile,
   type WalkingLadder,
 } from "@/lib/neuroProfile";
-import { entriesAwaitingConfirmation, type DiaryEntry } from "@/lib/patientDiary";
+import { entriesAwaitingConfirmation, type DiaryEntry, type CorrectedDiaryEntry } from "@/lib/patientDiary";
 import { isMeasureEnabled } from "@/lib/outcomeMeasures";
 import {
   buildMeasureSeries,
@@ -62,7 +62,7 @@ export type NeuroReads = {
     | { status: "ok"; activeGoal: CareGoal | null; goals: CareGoal[]; milestones: CareMilestone[] }
     | { status: "unreadable" };
   careStatus: { status: "ok"; events: CareStatusEvent[] } | { status: "unreadable" };
-  diary: { status: "ok"; entries: DiaryEntry[] } | { status: "unreadable" };
+  diary: { status: "ok"; entries: DiaryEntry[]; corrected?: CorrectedDiaryEntry[] } | { status: "unreadable" };
   /** Approved intake submissions, for the independence answer over time. */
   intakeHistory: { status: "ok"; rows: IntakeTrendRow[] } | { status: "unreadable" };
   /** The licensed measures the clinic has switched on (Barthel is one). */
@@ -82,6 +82,8 @@ export type NeuroDiaryView =
       falls: FallsWindow;
       /** Entries the physiotherapist has not confirmed yet, oldest first. */
       awaiting: DiaryEntry[];
+      /** Entries the patient withdrew as saved by mistake (counted nowhere). */
+      corrected?: CorrectedDiaryEntry[];
     }
   | { status: "unreadable" };
 
@@ -197,6 +199,7 @@ export function shapeNeuroView(
           entries: [...diaryEntries].sort((a, b) => Date.parse(b.occurredAt) - Date.parse(a.occurredAt) || (a.id < b.id ? 1 : -1)),
           falls: fallsInWindow(diaryEntries, nowMs),
           awaiting: entriesAwaitingConfirmation(diaryEntries),
+          corrected: reads.diary.status === "ok" ? (reads.diary.corrected ?? []) : [],
         };
 
   const subtype = (ctx.intake.neuro_subtype ?? "").trim() || null;

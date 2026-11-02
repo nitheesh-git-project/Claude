@@ -14,12 +14,12 @@ const speed = (values: number[]): StatusMeasure => ({ measureKey: "gait_speed_4m
 
 describe("computeProfileStatus", () => {
   it("is improving when the main measure moved the good way by its meaningful change", () => {
-    expect(computeProfileStatus({ main: speed([0.6, 0.7, 0.75]) })).toEqual({ status: "improving", reason: "better_meaningful" });
+    expect(computeProfileStatus({ main: speed([0.6, 0.7, 0.75]) })).toMatchObject({ status: "improving", reason: "better_meaningful" });
   });
 
   it("is steady, not improving, when the move is beyond error but short of meaningful", () => {
     // 0.08 is above the 0.05 MDC and below the 0.1 MCID.
-    expect(computeProfileStatus({ main: speed([0.6, 0.68]) })).toEqual({ status: "steady", reason: "better_not_meaningful" });
+    expect(computeProfileStatus({ main: speed([0.6, 0.68]) })).toMatchObject({ status: "steady", reason: "better_not_meaningful" });
   });
 
   it("is steady inside the measurement error either way", () => {
@@ -28,12 +28,12 @@ describe("computeProfileStatus", () => {
   });
 
   it("needs attention when worse than the first review beyond the MDC", () => {
-    expect(computeProfileStatus({ main: speed([0.8, 0.7]) })).toEqual({ status: "needs_attention", reason: "worse_than_first" });
+    expect(computeProfileStatus({ main: speed([0.8, 0.7]) })).toMatchObject({ status: "needs_attention", reason: "worse_than_first" });
   });
 
   it("does not call a recent slip improving even if first-to-now is a gain", () => {
     const r = computeProfileStatus({ main: speed([0.5, 0.9, 0.8]) });
-    expect(r).toEqual({ status: "needs_attention", reason: "worse_than_previous" });
+    expect(r).toMatchObject({ status: "needs_attention", reason: "worse_than_previous" });
   });
 
   it("a new fall or a red flag beats a good number", () => {
@@ -55,7 +55,7 @@ describe("computeProfileStatus", () => {
 
   it("is steady for a measure with no better direction", () => {
     const r = computeProfileStatus({ main: { measureKey: "hoehn_yahr", values: [2, 3], profileKind: "neuro_parkinsons" } });
-    expect(r).toEqual({ status: "steady", reason: "no_direction" });
+    expect(r).toMatchObject({ status: "steady", reason: "no_direction" });
   });
 
   it("judges a lower-is-better measure the right way round, with no MCID known", () => {
@@ -151,5 +151,24 @@ describe("an override never hides a later safety signal", () => {
   it("does not need to supersede an override that already says needs attention", () => {
     const computed = computeProfileStatus({ main: speed(steady), newFall: true, newFallAt: "2026-10-12T05:00:00.000Z" });
     expect(effectiveStatus(computed, { ...overridden, status: "needs_attention" })).toMatchObject({ status: "needs_attention", overridden: true });
+  });
+});
+
+describe("the patient's words (C1)", () => {
+  it("names the main measure and says progress plainly", async () => {
+    const { statusReasonText, profileStatusLabel } = await import("@/lib/profileStatus");
+    expect(statusReasonText("within_error", "patient", "pain_nprs")).toBe("Pain score: about the same as last time.");
+    expect(statusReasonText("better_meaningful", "patient", "pain_nprs")).toBe("Pain score: improved by enough to count as real progress.");
+    expect(statusReasonText("within_error", "patient")).toBe("Your main measure is about the same as last time.");
+    expect(statusReasonText("within_error", "patient", "no_such_measure")).toBe("Your main measure is about the same as last time.");
+    // The clinician's sentence is unchanged and never names the plain words.
+    expect(statusReasonText("within_error", "clinician", "pain_nprs")).toBe("The change in the main measure is inside the MDC.");
+    expect(profileStatusLabel("baseline", "patient")).toBe("First check done");
+    expect(profileStatusLabel("baseline", "clinician")).toBe("Baseline set");
+  });
+
+  it("carries the main measure on a computed status", () => {
+    expect(computeProfileStatus({ main: speed([0.6, 0.7, 0.75]) }).measureKey).toBe(speed([0.6]).measureKey);
+    expect(computeProfileStatus({ main: speed([0.5, 0.9]), newFall: true }).measureKey).toBeUndefined();
   });
 });

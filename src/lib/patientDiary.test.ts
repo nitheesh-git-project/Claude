@@ -232,3 +232,41 @@ describe("sameDiaryContent (the double-tap answer)", () => {
     expect(sameDiaryContent(stored, { kind: "fall", occurredAt: "2026-10-19T05:00:00.000Z", details: { injured: false, place: "other" }, note: "stairs" })).toBe(false);
   });
 });
+
+describe("I saved this by mistake (E1)", () => {
+  const base = {
+    patientId: "p1",
+    occurredAt: "2026-10-01T10:00:00Z",
+    details: { injured: false },
+    note: null,
+    enteredBy: "p1",
+    enteredByRole: "patient" as const,
+    confirmedBy: null,
+    confirmedByRole: null,
+    confirmedAt: null,
+    createdAt: "2026-10-01T10:00:00Z",
+  };
+  const fallA = { ...base, id: "a", kind: "fall" as const };
+  const fallB = { ...base, id: "b", kind: "fall" as const, occurredAt: "2026-10-02T10:00:00Z" };
+
+  it("takes a corrected fall out of every count, and keeps it to show", async () => {
+    const { applyDiaryCorrections, fallsSince, parseDiaryCorrectionRow } = await import("@/lib/patientDiary");
+    const correction = parseDiaryCorrectionRow({ id: "c", corrects_entry_id: "a", created_at: "2026-10-01T11:00:00Z" })!;
+    const { live, corrected } = applyDiaryCorrections([fallA, fallB], [correction]);
+    expect(live.map((e) => e.id)).toEqual(["b"]);
+    expect(corrected).toEqual([{ ...fallA, correctedAt: "2026-10-01T11:00:00Z" }]);
+    expect(fallsSince(live, "2026-09-01T00:00:00Z").falls).toBe(1);
+    // A correction of an entry that is not in the list changes nothing.
+    expect(applyDiaryCorrections([fallB], [correction]).live).toEqual([fallB]);
+    expect(parseDiaryCorrectionRow({ id: "c" })).toBeNull();
+  });
+
+  it("lets only the patient withdraw their own unconfirmed entry, once", async () => {
+    const { correctionRefusal } = await import("@/lib/patientDiary");
+    expect(correctionRefusal(fallA, { userId: "p1", alreadyCorrected: false })).toBeNull();
+    expect(correctionRefusal(fallA, { userId: "p2", alreadyCorrected: false })).toEqual({ code: "not_yours" });
+    expect(correctionRefusal({ ...fallA, enteredByRole: "therapist", enteredBy: "t1" }, { userId: "p1", alreadyCorrected: false })).toEqual({ code: "not_yours" });
+    expect(correctionRefusal({ ...fallA, confirmedAt: "2026-10-03T00:00:00Z" }, { userId: "p1", alreadyCorrected: false })).toEqual({ code: "already_confirmed" });
+    expect(correctionRefusal(fallA, { userId: "p1", alreadyCorrected: true })).toEqual({ code: "already_corrected" });
+  });
+});
