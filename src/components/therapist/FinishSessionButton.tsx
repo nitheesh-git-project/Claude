@@ -74,14 +74,21 @@ export default function FinishSessionButton({
         <button
           type="button"
           onClick={handleClick}
-          className="bg-teal-700 hover:bg-teal-800 text-white text-[11px] font-semibold px-3 py-1.5 rounded-lg transition"
+          aria-label="Done"
+          aria-describedby={`finish-help-${appointmentId}`}
+          className="inline-flex min-h-[44px] flex-col items-start justify-center rounded-lg bg-teal-700 px-3.5 py-1.5 text-left text-white transition hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
         >
-          Done
+          <span className="text-sm font-semibold leading-tight">Done</span>
+          {/* What Done does, on the button: the note (and the condition
+              type's exam, where it needs one), then the session closes. */}
+          <span id={`finish-help-${appointmentId}`} className="text-[13px] font-normal leading-tight text-teal-50">
+            Note and exam, then it closes
+          </span>
         </button>
         {beside}
       </span>
       {notYet && (
-        <span role="status" className="order-last basis-full text-[11px] text-red-600">
+        <span role="status" className="order-last basis-full text-[13px] text-red-700">
           This session hasn&apos;t started yet. You can mark it done once it&apos;s under way.
         </span>
       )}

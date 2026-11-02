@@ -294,8 +294,10 @@ A second attempt returns `This visit's payment has already been recorded.`
 * Step 2: saved. It appears on the therapist's chart. **Completion is never blocked on a note** - the nudge is a "Notes to write" figure on Overview and a feed item.
 * Step 3: succeeds, and a `session_note_revisions` row records what it replaced. After 24 hours, editing is refused.
 * Step 4: **the note text appears nowhere the patient can see, including the PDF export.** `session_notes` has no patient select policy and must never get one.
-* Submitting with required fields blank: `Fill in what you treated, how the patient responded, and the plan for next time.`
+* Submitting with required fields blank: `Fill in what you treated, how the patient responded, and the plan for next time.`, in a red banner, and the first missing field is scrolled to and focused.
 * An unknown field in the payload: `Note contains unknown fields.`
+* Type something, then press Escape, the backdrop, the cross and **Cancel** in turn: each asks *Discard what you have written? Nothing is saved.* with **Keep writing** and **Discard**; with nothing typed they close at once. Help text under each field is at least 13 px.
+* On the session card **Done** is at least 44 px and reads *Note and exam, then it closes* under it (read as its description).
 
 #### `THR-SESS-009` - The summary for the patient, written beside the note · P0
 
