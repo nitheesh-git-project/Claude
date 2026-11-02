@@ -2,7 +2,7 @@
 
 import { displayForTimerEvent, type TimerClockEvent } from "@/lib/timerClock";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
 import type { EmbeddedHandle, EmbeddedSaveResult, EmbeddedStatus } from "@/components/profile/progress/RecordTestDialog";
 import { useRouter } from "@/lib/useRouter";
 import { useToast } from "@/lib/toast";
@@ -39,6 +39,8 @@ import {
   setupProgress,
   stepAvailability,
   stepNav,
+  bloodPressureFromItems,
+  restingPreview,
   summaryRows,
   timerStartBlock,
   toolMode,
@@ -65,6 +67,7 @@ import ToolArea from "@/components/therapist/assessment/ToolArea";
 import BeforeYouStart from "@/components/therapist/assessment/BeforeYouStart";
 import type { Briefing } from "@/lib/cockpitBriefing";
 import type { FinishContext } from "@/lib/assessmentRunServer";
+import type { OxygenStopLimit } from "@/lib/cardioSafety";
 import { treatedLineFromRun } from "@/lib/finishFromRun";
 import { homeExerciseNotePrefill, type ExercisePlan } from "@/lib/exercisePlan";
 import { SESSION_SUMMARY_MAX_CHARS } from "@/lib/sessionSummary";
@@ -112,6 +115,9 @@ export type CockpitProps = {
   enabledLicensed: string[];
   licenceUnreadable: boolean;
   chartHref: string;
+  /** The patient's own oxygen stop limit, for the resting check's preview;
+   *  null when it could not be read (the preview says so). */
+  oxygenLimit?: OxygenStopLimit | null;
   /** The run's own session, for "Finish this session" at the end (B3). */
   finish?: FinishContext;
   /** The patient's milestones, for the summary's "target met" (B8). */
@@ -217,7 +223,15 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
     const key = `${step.id}|${slotKey}`;
     setSlotStatus((prev) => {
       const old = prev[key];
-      if (old && old.hasResult === status.hasResult && old.missing === status.missing && old.saved === status.saved) return prev;
+      if (
+        old &&
+        old.hasResult === status.hasResult &&
+        old.missing === status.missing &&
+        old.saved === status.saved &&
+        old.reading?.value === status.reading?.value &&
+        old.reading?.items === status.reading?.items
+      )
+        return prev;
       return { ...prev, [key]: status };
     });
   }
@@ -555,6 +569,30 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
   }
   const startBlocked = timerStartBlock(protocol, step, preExercise, tickedSet);
 
+  // The heart and lung resting check: the three readings as typed, previewed
+  // with the server's own check (it decides on save), and the 5-minute rest.
+  let resting: ComponentProps<typeof ToolArea>["resting"] = null;
+  if (step.id === protocol.preExerciseVitalsStepId) {
+    const reading = (measureKey: string) => {
+      const slot = slots.find((sl) => sl.measureKey === measureKey);
+      return slot ? slotStatus[`${step.id}|${slot.key}`]?.reading ?? null : null;
+    };
+    const bp = bloodPressureFromItems(reading("blood_pressure")?.items ?? null);
+    const restControl = patientControls(step).find((c) => c.key === "rest")!;
+    const readyControl = patientControls(step).find((c) => c.key === "ready")!;
+    resting = {
+      preview: restingPreview(
+        { restingHeartRate: reading("resting_heart_rate")?.value ?? null, systolic: bp.systolic, diastolic: bp.diastolic, spo2Rest: reading("resting_spo2")?.value ?? null },
+        props.oxygenLimit ?? null
+      ),
+      onRestStart: () => pushDisplay(step.id, restControl, true),
+      onRestDone: () => {
+        setTicked((prev) => ({ ...prev, [step.id]: [...new Set([...(prev[step.id] ?? []), "rested_5_min"])] }));
+        pushDisplay(step.id, readyControl, true);
+      },
+    };
+  }
+
   // N is Save and next (when it is on), Esc is Stop test. The handler reads
   // the latest render through a ref; cockpitShortcut ignores typing, an open
   // dialog (its own Esc closes it), repeats and modifiers.
@@ -736,6 +774,7 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
                     onPreview: setTeachPreview,
                   }}
                   summaryLine={summaryLine}
+                  resting={resting}
                   summary={{
                     patientId: patient.id,
                     rows:

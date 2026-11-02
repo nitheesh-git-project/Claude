@@ -7,6 +7,7 @@ import type { MeasureSeries } from "@/lib/outcomeSeries";
 import type { TimerClockEvent } from "@/lib/timerClock";
 import { toolMode, toolSlots, type CarriedFacts, type SummaryRow } from "@/lib/cockpit";
 import SummaryTool from "@/components/therapist/assessment/SummaryTool";
+import RestTimer from "@/components/therapist/assessment/RestTimer";
 import type { ProtocolStep } from "@/lib/sessionProtocols";
 import LayerTool, { type QuickPainSave } from "@/components/therapist/assessment/LayerTool";
 import type { AreaPainEntry } from "@/lib/conditionIntake";
@@ -42,6 +43,7 @@ export default function ToolArea({
   teach,
   summaryLine,
   summary,
+  resting,
 }: {
   step: ProtocolStep;
   /** The clinical order keeps this step shut: nothing can be entered. */
@@ -88,6 +90,9 @@ export default function ToolArea({
   summaryLine: string;
   /** The summary step's first / last / now rows and their milestones (B8). */
   summary: { patientId: string; rows: SummaryRow[]; milestonesUnreadable: boolean };
+  /** The heart and lung resting check (E14): one row of three readings, the
+   *  five-minute rest and a preview of the check the server makes on save. */
+  resting?: { preview: { status: "stop" | "clear" | "incomplete"; text: string }; onRestStart: () => void; onRestDone: () => void } | null;
 }): ReactNode {
   const mode = toolMode(step);
 
@@ -134,6 +139,58 @@ export default function ToolArea({
 
   const slots = toolSlots(step);
   const hint = TOOL_HINT[step.tool];
+  const recorder = (slot: (typeof slots)[number], compact: boolean) => (
+    <SlotRecorder
+      slotKey={slot.key}
+      measureKey={slot.measureKey}
+      variants={slot.variants}
+      runId={measure.runId}
+      stepId={step.id}
+      helperPresent={measure.helperPresent}
+      patientId={measure.patientId}
+      patientName={measure.patientName}
+      profileKind={measure.profileKind}
+      series={measure.series}
+      enabledLicensed={measure.enabledLicensed}
+      licenceUnreadable={measure.licenceUnreadable}
+      appointmentId={measure.appointmentId}
+      onRegister={measure.onRegister}
+      onStatus={measure.onStatus}
+      onTimerEvent={measure.onTimerEvent}
+      startBlocked={measure.startBlocked}
+      carry={measure.carry}
+      onCarry={measure.onCarry}
+      compact={compact}
+    />
+  );
+
+  if (resting) {
+    const tone =
+      resting.preview.status === "stop"
+        ? "border-red-600 bg-red-50 text-red-950"
+        : resting.preview.status === "clear"
+          ? "border-emerald-300 bg-emerald-50 text-emerald-950"
+          : "border-slate-200 bg-slate-50 text-slate-800";
+    return (
+      <div className="space-y-3" data-testid="tool-resting-check">
+        <RestTimer onStart={resting.onRestStart} onDone={resting.onRestDone} />
+        <p className="text-sm text-slate-700">
+          Read each number off the patient{"'"}s own device on camera. The record says so.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-[1fr_1.5fr_1fr]">
+          {slots.map((slot) => (
+            <div key={`${slot.key}:${resetKey}`} className="rounded-xl border border-slate-200 p-2.5" data-testid={`slot-${slot.measureKey}`}>
+              {recorder(slot, true)}
+            </div>
+          ))}
+        </div>
+        <p role="status" data-testid="resting-preview" className={`rounded-xl border-2 px-3 py-2 text-[15px] font-semibold ${tone}`}>
+          {resting.preview.text} <span className="font-normal">Preview only: the server checks on save.</span>
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5" data-testid={`tool-${step.tool}`}>
       {hint && <p className="text-sm text-slate-700">{hint}</p>}
@@ -147,27 +204,7 @@ export default function ToolArea({
         return (
           <div key={`${slot.key}:${resetKey}`} className="space-y-2" data-testid={`slot-${slot.measureKey}`}>
             {slots.length > 1 && <h3 className="font-display text-base font-bold text-slate-900">{m?.label ?? slot.measureKey}</h3>}
-            <SlotRecorder
-              slotKey={slot.key}
-              measureKey={slot.measureKey}
-              variants={slot.variants}
-              runId={measure.runId}
-              stepId={step.id}
-              helperPresent={measure.helperPresent}
-              patientId={measure.patientId}
-              patientName={measure.patientName}
-              profileKind={measure.profileKind}
-              series={measure.series}
-              enabledLicensed={measure.enabledLicensed}
-              licenceUnreadable={measure.licenceUnreadable}
-              appointmentId={measure.appointmentId}
-              onRegister={measure.onRegister}
-              onStatus={measure.onStatus}
-              onTimerEvent={measure.onTimerEvent}
-              startBlocked={measure.startBlocked}
-              carry={measure.carry}
-              onCarry={measure.onCarry}
-            />
+            {recorder(slot, false)}
           </div>
         );
       })}

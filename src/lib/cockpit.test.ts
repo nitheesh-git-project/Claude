@@ -16,6 +16,8 @@ import {
   stepAvailability,
   stepNav,
   cockpitShortcut,
+  restingPreview,
+  bloodPressureFromItems,
   summaryRows,
   carriedMedicationLine,
   mergeCarried,
@@ -356,5 +358,20 @@ describe("the summary step's first, last and now (B8)", () => {
     const empty = summaryRows(knee, state, [now], [], [], proves)[0];
     expect(empty.first).toBeNull();
     expect(empty.last).toBeNull();
+  });
+});
+
+describe("the resting check preview (E14)", () => {
+  const limit = { percent: 90, source: "default", basis: "heart", label: "90%" } as unknown as Parameters<typeof restingPreview>[1];
+  it("previews the server's check, and says what is still to read", () => {
+    expect(restingPreview({ restingHeartRate: 72, systolic: 130, diastolic: 80, spo2Rest: 96 }, limit).status).toBe("clear");
+    expect(restingPreview({ restingHeartRate: 72, systolic: null, diastolic: null, spo2Rest: 96 }, limit)).toMatchObject({ status: "incomplete" });
+    expect(restingPreview({ restingHeartRate: 72, systolic: 130, diastolic: 80, spo2Rest: 85 }, limit)).toMatchObject({ status: "stop" });
+    expect(restingPreview({ restingHeartRate: 72, systolic: 130, diastolic: 80, spo2Rest: 96 }, null).text).toMatch(/couldn't check/);
+  });
+  it("reads the two blood pressure numbers", () => {
+    expect(bloodPressureFromItems(JSON.stringify({ systolic: 130, diastolic: 80 }))).toEqual({ systolic: 130, diastolic: 80 });
+    expect(bloodPressureFromItems(null)).toEqual({ systolic: null, diastolic: null });
+    expect(bloodPressureFromItems("{bad")).toEqual({ systolic: null, diastolic: null });
   });
 });

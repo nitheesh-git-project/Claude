@@ -95,6 +95,9 @@ export type EmbeddedStatus = {
   missing: string | null;
   /** Saved and unchanged since. */
   saved: boolean;
+  /** The number as entered (and its items as JSON), for a preview the cockpit
+   *  shows beside the tool - the heart and lung resting check. */
+  reading?: { value: number | null; items: string | null };
 };
 export type EmbeddedHandle = { save: () => Promise<EmbeddedSaveResult> };
 export type EmbeddedRecorder = {
@@ -117,6 +120,9 @@ export type EmbeddedRecorder = {
   carry?: CarriedFacts;
   /** Hands the cockpit what this step answered, to carry to the next. */
   onCarry?: (facts: CarriedFacts) => void;
+  /** One cell of a row (the resting check's heart rate | blood pressure |
+   *  oxygen): the label, the number box and "last time", nothing else. */
+  compact?: boolean;
 };
 
 /** "How it was done": a section in the dialog, and a folded-away one inside a
@@ -561,9 +567,11 @@ export default function RecordTestDialog({
             ? "Take the reading first."
             : null;
   const hasResultNow = !!measure && entry?.value != null && !entry.problem;
+  const readingValue = entry?.value ?? null;
+  const readingItems = entry?.items != null ? JSON.stringify(entry.items) : null;
   useEffect(() => {
-    onStatus?.({ hasResult: hasResultNow, missing: missingNow, saved: savedOnce });
-  }, [onStatus, hasResultNow, missingNow, savedOnce]);
+    onStatus?.({ hasResult: hasResultNow, missing: missingNow, saved: savedOnce, reading: { value: readingValue, items: readingItems } });
+  }, [onStatus, hasResultNow, missingNow, savedOnce, readingValue, readingItems]);
   // What this step answered goes back to the cockpit to carry to the next
   // (a half-typed dose time is not carried).
   const onCarry = embedded?.onCarry;
@@ -1348,6 +1356,29 @@ export default function RecordTestDialog({
             )}
     </>
   );
+
+  if (embedded?.compact && measure) {
+    return (
+      <div data-testid="embedded-recorder" data-compact="true" className="space-y-1.5">
+        <p className="text-sm font-bold text-slate-900">{measure.label}</p>
+        {resultSection(measure)}
+        {entry?.problem && (
+          <p role="alert" className="text-[13px] font-semibold text-red-800">
+            {entry.problem}
+          </p>
+        )}
+        {savedOnce ? (
+          <p role="status" data-testid="embedded-saved" className="text-[13px] font-bold text-emerald-800">
+            Saved to the record.
+          </p>
+        ) : (
+          <p className="text-[13px] text-slate-600">
+            {previous ? `Last time ${formatReading(previous.value, previous.decimals, previous.unit)}, ${formatClinicDate(previous.measuredAt)}` : "Nothing recorded yet."}
+          </p>
+        )}
+      </div>
+    );
+  }
 
   if (embedded) {
     return (

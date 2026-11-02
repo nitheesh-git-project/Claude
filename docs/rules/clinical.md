@@ -1573,6 +1573,13 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      question, and a stop for symptoms or a near-fall, show one line of next
      actions:** *End the assessment* and *Add to Anything to watch* (the line
      waits on this page for the note; it is not stored until the note is).
+     **The heart and lung resting check is one row** - heart rate | blood
+     pressure top and bottom | oxygen (`compact` recorders) - under a
+     five-minute rest countdown that puts Rest on the patient's screen and
+     Get ready at the end (and ticks *rested 5 minutes*, which can be
+     unticked), with a preview of `preExerciseCheck` on the numbers as typed,
+     labelled *Preview only: the server checks on save* (`restingPreview`);
+     the server's check on the saved readings is still the only gate.
      Entry: *Start guided assessment* on a video session's card (from the join
      window, judged on the debug clock) and on the chart (assigned, with a
      started session).

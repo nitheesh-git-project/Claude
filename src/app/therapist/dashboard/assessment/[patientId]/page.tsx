@@ -12,6 +12,7 @@ import { parseMeasurementRows, buildMeasureSeries } from "@/lib/outcomeSeries";
 import { protocolsForProfileKind, sessionProtocol } from "@/lib/sessionProtocols";
 import { loadActiveRun, loadBriefingReads, loadFinishContext, loadRunMeasurements } from "@/lib/assessmentRunServer";
 import { cockpitBriefing } from "@/lib/cockpitBriefing";
+import { resolveOxygenStopLimit } from "@/lib/cardioSafety";
 import { loadActiveExercisePlan, loadPatientExerciseContext, loadTeachingEvents } from "@/lib/exercisePlanServer";
 import { CONTRA_FLAGS } from "@/lib/exerciseLibrary";
 import SessionCockpit from "@/components/therapist/assessment/SessionCockpit";
@@ -174,6 +175,9 @@ export default async function AssessmentCockpitPage({
         briefing={cockpitBriefing({ ...briefingReads, profileKind: run.profileKind })}
         intakeAreas={briefingReads.intakeAreas}
         finish={finish}
+        oxygenLimit={
+          briefingReads.intake.status === "ok" ? resolveOxygenStopLimit(briefingReads.intake.data as Record<string, string | undefined>) : null
+        }
         milestones={goalsRead.status === "ok" ? { status: "ok", items: goalsRead.milestones } : { status: "unreadable" }}
       />
     );

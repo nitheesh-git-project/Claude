@@ -1,4 +1,5 @@
 import { splitJointVariant } from "@/lib/jointLandmarks";
+import { preExerciseCheck, resolveOxygenStopLimit, type OxygenStopLimit } from "@/lib/cardioSafety";
 import { outcomeMeasure } from "@/lib/outcomeMeasures";
 import type { MeasurementPoint } from "@/lib/outcomeSeries";
 import { formatReading } from "@/lib/progressChart";
@@ -585,4 +586,32 @@ export function summaryRows<T extends SummaryMilestoneRecord>(
     }
   }
   return rows;
+}
+
+// --- The heart and lung resting check row (E14) -------------------------------------------------------
+
+/** What the screen can show from the numbers typed so far: the same
+ *  `preExerciseCheck` the server runs, labelled as a preview. The server
+ *  works the real check out from what is SAVED (assessmentRun.ts) and may
+ *  differ - the oxygen limit it uses is the patient's own, read again. */
+export function restingPreview(
+  readings: { restingHeartRate: number | null; systolic: number | null; diastolic: number | null; spo2Rest: number | null },
+  limit: OxygenStopLimit | null
+): { status: "stop" | "clear" | "incomplete"; text: string } {
+  const check = preExerciseCheck(readings, limit ?? resolveOxygenStopLimit({}));
+  const limitNote = limit ? "" : " (oxygen limit: couldn't check the patient's own, the default is used)";
+  if (check.status === "stop") return { status: "stop", text: `Looks like a stop: ${check.flags.map((f) => f.clinicianText).join(" ")}${limitNote}` };
+  if (check.status === "incomplete") return { status: "incomplete", text: `Still to read: ${check.notChecked.join(", ")}.` };
+  return { status: "clear", text: `Looks clear to exercise${limitNote}.` };
+}
+
+/** The blood pressure reading's two numbers from a recorder's items. */
+export function bloodPressureFromItems(items: string | null): { systolic: number | null; diastolic: number | null } {
+  try {
+    const parsed = items ? (JSON.parse(items) as Record<string, unknown>) : null;
+    const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+    return { systolic: n(parsed?.systolic), diastolic: n(parsed?.diastolic) };
+  } catch {
+    return { systolic: null, diastolic: null };
+  }
 }

@@ -34,6 +34,7 @@ export default function SlotRecorder({
   startBlocked,
   carry,
   onCarry,
+  compact = false,
 }: {
   slotKey: string;
   measureKey: string;
@@ -55,6 +56,8 @@ export default function SlotRecorder({
   startBlocked: string | null;
   carry: CarriedFacts;
   onCarry: (facts: CarriedFacts) => void;
+  /** One cell of the resting check's row. */
+  compact?: boolean;
 }) {
   const register = useCallback((handle: EmbeddedHandle | null) => onRegister(slotKey, handle), [onRegister, slotKey]);
   const status = useCallback((s: EmbeddedStatus) => onStatus(slotKey, s), [onStatus, slotKey]);
@@ -80,6 +83,7 @@ export default function SlotRecorder({
         startBlocked,
         carry,
         onCarry,
+        compact,
       }}
     />
   );
