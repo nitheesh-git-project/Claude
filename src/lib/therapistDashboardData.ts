@@ -1,4 +1,5 @@
 import "server-only";
+import { formatClinicTime } from "@/lib/formatDateTime";
 import { loadProgrammeTags } from "@/lib/programmeTagsServer";
 import type { ProgrammeTag } from "@/lib/programmeId";
 import { readAllRowsAsData, readAllRowsByIds } from "@/lib/supabase/readAllRows";
@@ -832,7 +833,7 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
       value: String(todayCount),
       unit: todayCount === 1 ? "session" : "sessions",
       note: nextSession?.slot_time
-        ? `Next at ${new Date(nextSession.slot_time).toLocaleTimeString([], { timeZone: "Asia/Kolkata", hour: "numeric", minute: "2-digit" })}`
+        ? `Next at ${formatClinicTime(nextSession.slot_time)}`
         : "Nothing scheduled today",
       accent: "bg-teal-500",
       href: "/therapist/dashboard/sessions",

@@ -17,6 +17,8 @@ import { maskPhone } from "@/lib/contactMasking";
 import { formatRupees } from "@/lib/formatMoney";
 import OnboardingGuideButton from "@/components/therapist/OnboardingGuideButton";
 import StartGuidedAssessmentLink from "@/components/therapist/StartGuidedAssessmentLink";
+import { formatClinicDateTime } from "@/lib/formatDateTime";
+import { pickNextUp } from "@/lib/therapistNextUp";
 
 // "Onboarding needed" on the card of a patient nobody has onboarded yet --
 // the card is what a therapist has open when the first session starts, and
@@ -84,6 +86,51 @@ function finishProps(d: TherapistDashboardData, a: TherapistDashboardData["appoi
     summary: summaryForDialog(d.summaryByAppointmentId.get(a.id), d.summariesLoadFailed, d.nowMs),
     homeExercisePrefill: d.homeExercisePrefillByPatientId.get(a.patient_id) ?? null,
   };
+}
+
+/**
+ * The Overview's "Next up" (B9): the session in progress (until half an hour
+ * after its end, time for the note) or else the next one, as a card with
+ * what can be done with it now - Join and Start guided assessment decide in
+ * the browser on the debug clock and render only inside the join window,
+ * Done only for a confirmed session that has started, the chart always. The
+ * time is the clinic's (formatDateTime), never the runtime's.
+ */
+export function renderTherapistNextUp(d: TherapistDashboardData) {
+  const pick = pickNextUp(d.appointments, d.nowMs);
+  if (!pick) return null;
+  const a = pick.appointment;
+  const name = d.patientMap.get(a.patient_id)?.full_name ?? "A patient";
+  const isHomeVisit = a.visit?.visit_mode === "home_visit";
+  const started = !!a.slot_time && Date.parse(a.slot_time) <= d.nowMs;
+  return (
+    <div data-testid="next-up" className="space-y-3 font-sans text-base font-normal">
+      <div>
+        <p className="text-[13px] font-semibold uppercase tracking-wide text-teal-700">{pick.phase === "now" ? "Now" : "Next up"}</p>
+        <p className="font-display text-lg font-bold leading-snug text-slate-900 sm:text-xl">
+          {name} · {formatClinicDateTime(a.slot_time)}
+        </p>
+        <p className="text-sm text-slate-700">
+          {[a.concern, isHomeVisit ? "Home visit" : "Video", a.status === "requested" ? "Waiting for the clinic to confirm" : null].filter(Boolean).join(" · ")}
+        </p>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {!isHomeVisit && (
+          <JoinSessionButton meetLink={a.meet_link} slotTime={a.slot_time} status={a.status} durationMinutes={a.duration_minutes} />
+        )}
+        {!isHomeVisit && (
+          <StartGuidedAssessmentLink patientId={a.patient_id} appointmentId={a.id} slotTime={a.slot_time} status={a.status} noShow={!!a.no_show} />
+        )}
+        {a.status === "confirmed" && started && <FinishSessionButton {...finishProps(d, a)} />}
+        <Link
+          href={`/therapist/dashboard/health-profile/${a.patient_id}`}
+          className="inline-flex min-h-[44px] items-center rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900 hover:border-teal-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
+        >
+          Chart
+        </Link>
+      </div>
+    </div>
+  );
 }
 
 // The two session cards a therapist sees -- a video consultation and a

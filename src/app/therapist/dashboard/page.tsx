@@ -3,6 +3,7 @@ import TherapistDashboardShell from "@/components/therapist/TherapistDashboardSh
 import DashboardOverview from "@/components/dashboard/DashboardOverview";
 import { loadTherapistDashboard } from "@/lib/therapistDashboardData";
 import OnboardingNeededBanner from "@/components/therapist/OnboardingNeededBanner";
+import { renderTherapistNextUp } from "@/components/therapist/TherapistSessionCards";
 
 export const metadata: Metadata = {
   title: "Therapist Dashboard | MoveRestore",
@@ -55,12 +56,10 @@ export default async function TherapistDashboardPage() {
           ) : undefined
         }
         greeting="Your practice today"
+        // The session in progress, or the next one, as a card with what can
+        // be done with it now (renderTherapistNextUp).
         headline={
-          d.nextSession?.slot_time
-            ? `Next up: ${d.patientNameById.get(d.nextSession.patient_id) ?? "a patient"} at ${new Date(
-                d.nextSession.slot_time
-              ).toLocaleString([], { timeZone: "Asia/Kolkata", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}.`
-            : "No sessions booked yet - keep your availability open and the clinic assigns work to it."
+          renderTherapistNextUp(d) ?? "No sessions booked yet - keep your availability open and the clinic assigns work to it."
         }
         cells={d.overviewCells}
         feed={d.therapistFeed}
@@ -69,10 +68,11 @@ export default async function TherapistDashboardPage() {
         // anchor on this page when the dashboard sections became routes, and
         // a stale "#availability" href simply reloaded Overview.
         actions={[
-          { label: "Set your availability", hint: "Weekly hours and day overrides", icon: "fa-calendar-days", href: "/therapist/dashboard/availability", primary: true },
-          { label: "Your assigned sessions", hint: "Join, complete, or mark a no-show", icon: "fa-clipboard-list", href: "/therapist/dashboard/sessions" },
+          // The sessions come first; availability is weekly upkeep, not today's work.
+          { label: "Your assigned sessions", hint: "Join, complete, or mark a no-show", icon: "fa-clipboard-list", href: "/therapist/dashboard/sessions", primary: true },
           { label: "Patient health profiles", hint: "Intake answers and pain maps", icon: "fa-notes-medical", href: "/therapist/dashboard/health-profile" },
           { label: "Earnings and payouts", hint: "What you've earned and what's owed", icon: "fa-chart-line", href: "/therapist/dashboard/earnings" },
+          { label: "Set your availability", hint: "Weekly hours and day overrides", icon: "fa-calendar-days", href: "/therapist/dashboard/availability" },
         ]}
       />
     </TherapistDashboardShell>

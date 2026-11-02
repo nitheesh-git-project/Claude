@@ -77,7 +77,8 @@ The therapist Overview is where a clinician starts every shift: what is on today
 4. Tap **Notes to write**.
 5. Tap Back, then tap **Owed to you**.
 6. Tap Back. Read the activity feed.
-7. Tap the quick action **Set your availability**.
+7. Read the card at the top: during a confirmed video session (debug clock inside its join window) it says **Now** with **Join**, **Start guided assessment**, **Done** (*Note and exam, then it closes*) and **Chart**; an hour before it says **Next up** with only **Chart** (and Join's own countdown); on a home visit there is no Join or guided assessment. The time reads in the clinic's zone whatever the device's zone is.
+8. Tap the quick action **Set your availability** (now the last of the four; **Your assigned sessions** is first).
 8. Tap Back, then tap each of **Your assigned sessions**, **Patient health profiles** and **Earnings and payouts** in turn, returning each time.
 
 **Expected Result.**

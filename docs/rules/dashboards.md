@@ -82,6 +82,13 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   different one earns this partner nothing. Every read is paged
   (`readAllRows` / `readAllRowsByIds`), and a failed read shows the load
   banner instead of "no referrals" or "₹0".
+- **The therapist's headline is a "Next up" card** (`renderTherapistNextUp`,
+  `therapistNextUp.ts`): the session in progress (until half an hour after
+  its end, for the note) or else the next one, with Join, Start guided
+  assessment, Done and Chart - each only when it can be used (Join and the
+  guided assessment decide on the debug clock in the browser, Done once a
+  confirmed session has started) - its time through `formatDateTime`.
+  Availability is the last quick action, not the primary one.
 - **Every dashboard opens on the same Overview.** Patient, therapist,
   hospital and admin all render `DashboardOverview.tsx` - a strip of four
   figures (`StatStrip`), the notification feed (`ActivityFeed`), and a
