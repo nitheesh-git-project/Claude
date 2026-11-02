@@ -132,6 +132,7 @@ export const USER_ACTIVITY_META = {
     verb: "set a patient's phase, overruled their status or wrote where things stand",
   },
   "patient_diary.added": { label: "Wrote in their diary", group: "clinical", verb: "wrote in their diary" },
+  "patient_diary.corrected": { label: "Said a diary entry was a mistake", group: "clinical", verb: "said a diary entry was saved by mistake" },
   "patient_diary.confirmed": { label: "Confirmed a diary entry", group: "clinical", verb: "confirmed a patient's diary entry" },
   "assessment_run.started": {
     label: "Started a guided video assessment",

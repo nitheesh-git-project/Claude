@@ -270,3 +270,15 @@ describe("I saved this by mistake (E1)", () => {
     expect(correctionRefusal(fallA, { userId: "p1", alreadyCorrected: true })).toEqual({ code: "already_corrected" });
   });
 });
+
+describe("the correction route", () => {
+  it("takes the patient from the session and never deletes or edits a row", async () => {
+    const { readFileSync } = await import("node:fs");
+    const source = readFileSync("src/app/api/patient/diary/correct/route.ts", "utf8");
+    expect(source).toContain("parseJsonBody");
+    expect(source).toContain("auth.getUser()");
+    expect(source).toContain("read.entry.patientId !== user.id");
+    expect(source).not.toMatch(/\.delete\(|\.update\(/);
+    expect(source).toContain("corrects_entry_id: entry.id");
+  });
+});

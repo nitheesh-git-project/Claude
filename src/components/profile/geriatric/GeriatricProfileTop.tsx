@@ -49,6 +49,7 @@ export default function GeriatricProfileTop({
   reopen,
   canLogDiary,
   canConfirmDiary,
+  canCorrectDiary = false,
   enabledLicensed,
   licenceUnreadable,
   only,
@@ -68,6 +69,8 @@ export default function GeriatricProfileTop({
   reopen: boolean;
   canLogDiary: boolean;
   canConfirmDiary: boolean;
+  /** The patient's own page: "I saved this by mistake" on their diary entries. */
+  canCorrectDiary?: boolean;
   enabledLicensed: readonly string[];
   licenceUnreadable: boolean;
   /** The widgets this rendering draws (profileWidgets.ts); every one when
@@ -203,6 +206,7 @@ export default function GeriatricProfileTop({
         triggers={[]}
         canLog={canLogDiary}
         canConfirm={canConfirmDiary}
+        canCorrect={canCorrectDiary}
         heading={{ clinician: "Falls and near misses", patient: "Your falls diary" }}
       />
       )}

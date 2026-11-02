@@ -7,7 +7,7 @@ import { formatClinicDate, formatClinicDateShort, formatClinicDateTime } from "@
 import type { FreezingBar } from "@/lib/neuroProfile";
 import type { NeuroDiaryView } from "@/lib/neuroProfileView";
 import type { ProfileKind } from "@/lib/outcomeMeasures";
-import { diaryProvenance, diaryProvenanceLabel, type DiaryEntry } from "@/lib/patientDiary";
+import { diaryProvenance, diaryProvenanceLabel, type CorrectedDiaryEntry, type DiaryEntry } from "@/lib/patientDiary";
 import { diaryEntrySummary, offeredDiaryKinds } from "@/lib/patientDiaryForm";
 import { NETWORK_ERROR_MESSAGE, progressErrorMessage, readProgressFailure } from "@/lib/progressErrors";
 import { plural } from "@/lib/neuroProfile";
@@ -189,7 +189,111 @@ function ConfirmButton({ entry }: { entry: DiaryEntry }) {
   );
 }
 
-export function EntryRow({ entry, voice, canConfirm }: { entry: DiaryEntry; voice: Voice; canConfirm: boolean }) {
+/** "I saved this by mistake" (E1): the patient's own unconfirmed entry is
+ *  taken out of every count by a correction row; it is never deleted, and
+ *  their physiotherapist sees it marked. Two taps, so a slip of the thumb
+ *  does not withdraw a real fall. */
+function CorrectButton({ entry }: { entry: DiaryEntry }) {
+  const router = useRouter();
+  const { show } = useToast();
+  const [asking, setAsking] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const busyRef = useRef(false);
+  async function correct() {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/patient/diary/correct", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ entryId: entry.id }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        setError(res.status === 429 ? "Please wait a moment and try again." : (data?.error ?? "That didn't save. Please try again."));
+        return;
+      }
+      show("Marked as a mistake. It no longer counts, and your physiotherapist will see why.");
+      setAsking(false);
+      router.refresh();
+    } catch {
+      setError(NETWORK_ERROR_MESSAGE);
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="flex flex-col items-start gap-2 sm:items-end print:hidden">
+      {!asking ? (
+        <button
+          type="button"
+          onClick={() => setAsking(true)}
+          className="inline-flex min-h-[44px] items-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-800 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
+        >
+          I saved this by mistake
+        </button>
+      ) : (
+        <div className="max-w-sm rounded-xl border border-slate-300 bg-slate-50 p-3" role="group" aria-label="Mark this entry as a mistake">
+          <p className="text-sm text-slate-900">It stays in your diary, marked as a mistake, and stops counting. Your physiotherapist will see that you corrected it.</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void correct()}
+              disabled={busy}
+              className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 disabled:opacity-60"
+            >
+              {busy && <Spinner />}
+              Yes, it was a mistake
+            </button>
+            <button
+              type="button"
+              onClick={() => setAsking(false)}
+              disabled={busy}
+              className="min-h-[44px] rounded-xl px-4 text-sm font-semibold text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
+            >
+              Keep it
+            </button>
+          </div>
+        </div>
+      )}
+      {error && (
+        <p role="alert" className="max-w-xs text-sm text-red-800">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** The entries the patient withdrew: shown, marked, and counted nowhere. */
+export function CorrectedEntries({ entries, voice }: { entries: readonly CorrectedDiaryEntry[]; voice: Voice }) {
+  if (entries.length === 0) return null;
+  const clinician = voice === "clinician";
+  return (
+    <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/60 p-3" data-testid="diary-corrected">
+      <h4 className="text-sm font-semibold text-slate-900">{clinician ? "Withdrawn by the patient" : "You said these were saved by mistake"}</h4>
+      <p className="text-xs text-slate-700">
+        {clinician ? "The patient marked these as saved by mistake. They are kept, and not counted anywhere." : "They stay on record but are not counted."}
+      </p>
+      <ul className="mt-1 divide-y divide-slate-200">
+        {entries.map((e) => (
+          <li key={e.id} className="py-2">
+            <p className="text-sm text-slate-700 line-through decoration-slate-400 [overflow-wrap:anywhere]">{diaryEntrySummary(e, voice)}</p>
+            <p className="text-xs text-slate-700">
+              {formatClinicDateTime(e.occurredAt)} · {clinician ? "Withdrawn" : "Marked a mistake"} {formatClinicDateShort(e.correctedAt)}
+            </p>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+export function EntryRow({ entry, voice, canConfirm, canCorrect = false }: { entry: DiaryEntry; voice: Voice; canConfirm: boolean; canCorrect?: boolean }) {
   const provenance = diaryProvenance(entry);
   return (
     <li className="flex min-w-0 flex-col gap-2 py-3 sm:flex-row sm:items-start sm:justify-between">
@@ -203,6 +307,7 @@ export function EntryRow({ entry, voice, canConfirm }: { entry: DiaryEntry; voic
         {entry.note && <p className="mt-1 whitespace-pre-line text-sm text-slate-800 [overflow-wrap:anywhere]">{entry.note}</p>}
       </div>
       {canConfirm && provenance === "patient_reported" && <ConfirmButton entry={entry} />}
+      {canCorrect && provenance === "patient_reported" && <CorrectButton entry={entry} />}
     </li>
   );
 }
@@ -229,6 +334,7 @@ export default function DiaryPanel({
   heading,
   list = true,
   showFreezing,
+  canCorrect = false,
 }: {
   voice: Voice;
   profileKind: ProfileKind;
@@ -246,6 +352,8 @@ export default function DiaryPanel({
   list?: boolean;
   /** The freezing chart (the "freezing_chart" widget); Parkinson's only. */
   showFreezing?: boolean;
+  /** The patient's own page: "I saved this by mistake" on their unconfirmed entries. */
+  canCorrect?: boolean;
 }) {
   const [logging, setLogging] = useState(false);
   const [showAll, setShowAll] = useState(false);
@@ -385,7 +493,7 @@ export default function DiaryPanel({
           <>
             <ul className="divide-y divide-slate-100">
               {entries.map((e) => (
-                <EntryRow key={e.id} entry={e} voice={voice} canConfirm={false} />
+                <EntryRow key={e.id} entry={e} voice={voice} canConfirm={false} canCorrect={canCorrect} />
               ))}
             </ul>
             {rest.length > RECENT && (
@@ -400,6 +508,8 @@ export default function DiaryPanel({
           </>
         )}
       </div>
+
+      <CorrectedEntries entries={diary.corrected ?? []} voice={voice} />
 
       <p className="mt-3 text-xs text-slate-700">
         {clinician

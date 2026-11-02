@@ -54,6 +54,7 @@ export default function CardioProfileTop({
   reopen,
   canLogDiary,
   canConfirmDiary,
+  canCorrectDiary = false,
   enabledLicensed,
   licenceUnreadable,
   only,
@@ -73,6 +74,8 @@ export default function CardioProfileTop({
   reopen: boolean;
   canLogDiary: boolean;
   canConfirmDiary: boolean;
+  /** The patient's own page: "I saved this by mistake" on their diary entries. */
+  canCorrectDiary?: boolean;
   enabledLicensed: readonly string[];
   licenceUnreadable: boolean;
   /** The widgets this rendering draws (profileWidgets.ts); every one when
@@ -217,7 +220,7 @@ export default function CardioProfileTop({
         </section>
       )}
 
-      {show("active_minutes") && <ActiveMinutesPanel voice={voice} view={view} canLog={canLogDiary} canConfirm={canConfirmDiary} />}
+      {show("active_minutes") && <ActiveMinutesPanel voice={voice} view={view} canLog={canLogDiary} canConfirm={canConfirmDiary} canCorrect={canCorrectDiary} />}
 
       {(progressParts.graph || progressParts.steps || progressParts.measures) && (
       <ProfileProgressSection

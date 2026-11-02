@@ -80,6 +80,13 @@ export async function POST(request: NextRequest) {
         { status: 503 }
       );
     }
+    // The guard's refusal (E1): the patient withdrew it as saved by mistake.
+    if (error.code === "P0001" && /corrected by the patient/.test(error.message ?? "")) {
+      return NextResponse.json(
+        { error: "The patient has said this entry was saved by mistake, so there is nothing to confirm.", code: "corrected_by_patient" },
+        { status: 409 }
+      );
+    }
     return serverError("therapist/diary/confirm", error);
   }
   if (!data) {

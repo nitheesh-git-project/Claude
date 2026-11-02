@@ -31,6 +31,7 @@ import {
   type DiaryDraft,
 } from "@/lib/patientDiaryForm";
 import { FREEZING_TRIGGER_LABEL } from "@/lib/neuroProfile";
+import { formatClinicDateTime } from "@/lib/formatDateTime";
 import { NETWORK_ERROR_MESSAGE, progressErrorMessage, readProgressFailure } from "@/lib/progressErrors";
 
 const FIELD =
@@ -75,6 +76,9 @@ export default function DiaryLogDialog({
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [confirmingDiscard, setConfirmingDiscard] = useState(false);
+  // A fall is read back before it is saved (E1): when it was, in the
+  // clinic's clock, and who will see it.
+  const [reviewAt, setReviewAt] = useState<string | null>(null);
   const savingRef = useRef(false);
   const clean = useMemo(() => emptyDiaryDraft(startMs, draft.kind), [startMs, draft.kind]);
   const dirty = JSON.stringify({ ...draft, kind: "" }) !== JSON.stringify({ ...clean, kind: "" });
@@ -91,6 +95,7 @@ export default function DiaryLogDialog({
 
   function patch(p: Partial<DiaryDraft>) {
     setConfirmingDiscard(false);
+    setReviewAt(null);
     setError(null);
     setDraft((d) => ({ ...d, ...p }));
   }
@@ -100,6 +105,11 @@ export default function DiaryLogDialog({
     const built = buildDiaryRequest(draft, { profileKind, nowMs: Date.now() });
     if (!built.ok) {
       setError(built.error);
+      return;
+    }
+    if (draft.kind === "fall" && !reviewAt) {
+      setError(null);
+      setReviewAt(built.body.occurredAt);
       return;
     }
     savingRef.current = true;
@@ -277,6 +287,11 @@ export default function DiaryLogDialog({
                           ],
                           true
                         )}
+                        {(draft.injured === "yes" || draft.gotUp === "no") && (
+                          <p role="alert" className="rounded-xl border-2 border-red-300 bg-red-50 px-4 py-3 text-base font-semibold text-red-900" data-testid="fall-urgent-box">
+                            If you hit your head, can&apos;t put weight on a leg, or feel unwell, call 108 or your doctor now. This diary isn&apos;t watched live.
+                          </p>
+                        )}
                         {placeGroup}
                         {parkinsons && stateGroup}
                       </>
@@ -339,6 +354,11 @@ export default function DiaryLogDialog({
                 {error}
               </p>
             )}
+            {reviewAt && !error && (
+              <p role="status" className="rounded-xl border border-teal-200 bg-teal-50 px-3 py-2 text-base text-slate-900" data-testid="fall-review">
+                You&apos;re recording a fall on {formatClinicDateTime(reviewAt)}. Your physiotherapist will see it.
+              </p>
+            )}
             <div className="flex items-center justify-end gap-2">
               {confirmingDiscard ? (
                 <>
@@ -362,7 +382,7 @@ export default function DiaryLogDialog({
                     className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-teal-700 px-5 text-sm font-semibold text-white transition hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 disabled:opacity-60"
                   >
                     {saving && <Spinner />}
-                    {saving ? "Saving…" : "Save in my diary"}
+                    {saving ? "Saving…" : reviewAt ? "Yes, save it" : draft.kind === "fall" ? "Check and save" : "Save in my diary"}
                   </button>
                 </>
               )}

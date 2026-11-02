@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import DiaryLogDialog from "@/components/profile/neuro/DiaryLogDialog";
-import { EntryRow } from "@/components/profile/neuro/DiaryPanel";
+import { CorrectedEntries, EntryRow } from "@/components/profile/neuro/DiaryPanel";
 import type { CardioView } from "@/lib/cardioProfile";
 import { formatClinicDate, formatClinicDateShort } from "@/lib/formatDateTime";
 import type { ActiveMinutesWeekPoint } from "@/lib/patientDiary";
@@ -127,11 +127,14 @@ export default function ActiveMinutesPanel({
   view,
   canLog,
   canConfirm,
+  canCorrect = false,
 }: {
   voice: Voice;
   view: Pick<CardioView, "activeMinutes" | "diary" | "diaryFailed">;
   canLog: boolean;
   canConfirm: boolean;
+  /** The patient's own page: "I saved this by mistake" on their unconfirmed entries. */
+  canCorrect?: boolean;
 }) {
   const [logging, setLogging] = useState(false);
   const [showAll, setShowAll] = useState(false);
@@ -220,7 +223,7 @@ export default function ActiveMinutesPanel({
           <>
             <ul className="divide-y divide-slate-100">
               {shown.map((e) => (
-                <EntryRow key={e.id} entry={e} voice={voice} canConfirm={false} />
+                <EntryRow key={e.id} entry={e} voice={voice} canConfirm={false} canCorrect={canCorrect} />
               ))}
             </ul>
             {rest.length > RECENT && (
@@ -231,6 +234,7 @@ export default function ActiveMinutesPanel({
           </>
         )}
       </div>
+      {view.diary.status === "ok" && <CorrectedEntries entries={view.diary.corrected ?? []} voice={voice} />}
       <p className="mt-3 text-xs text-slate-700">
         {clinician ? "Light activity (the patient could sing) is kept apart and does not count towards the 150." : "Gentle activity where you could sing does not count towards the 150, but it still does you good."}
       </p>
