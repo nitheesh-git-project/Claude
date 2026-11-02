@@ -11,7 +11,7 @@ import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
 import { useAccountDestination } from "@/lib/useAccountDestination";
 import { isAuthCtaHiddenRoute, isAuthCtaSignedOutRoute, isNavHiddenRoute } from "@/lib/dashboardShellRoutes";
-import { BOOK_CONNECTOR, MARKETING_PAGES, type MarketingPageKey } from "@/lib/marketingNav";
+import { BOOK_CONNECTOR, visibleMarketingPages, type MarketingPageKey } from "@/lib/marketingNav";
 import BrandMark from "@/components/BrandMark";
 import { WhatsAppGlyph } from "@/components/visuals/BrandGlyphs";
 import type { PublicContactLinks } from "@/lib/contactLinks";
@@ -29,6 +29,7 @@ export default function Navbar({
   siteTagline,
   homeVisitEnabled: homeVisitSwitch = false,
   contact = { whatsapp: null, call: null },
+  teamVisible = true,
 }: {
   offsetTop?: boolean;
   siteName: string;
@@ -38,6 +39,8 @@ export default function Navbar({
   homeVisitEnabled?: boolean;
   /** Only the links the clinic has filled in; an unset number is absent. */
   contact?: PublicContactLinks;
+  /** Someone is published on /team; with nobody, the nav does not list it. */
+  teamVisible?: boolean;
 }) {
   // Off outside India unless an admin allows it (Countries & currency).
   const { homeVisitsOffered } = usePricing();
@@ -48,9 +51,7 @@ export default function Navbar({
   // Visit is dropped rather than listed when the clinic has switched it off:
   // the page itself 404s while the feature is off, so a link to it is a dead
   // end.
-  const links = MARKETING_PAGES.filter(
-    (page) => homeVisitEnabled || !page.requiresHomeVisit
-  );
+  const links = visibleMarketingPages(homeVisitEnabled, teamVisible);
   // The header row leaves Home to the logo. Every other page shows at 2xl;
   // on a laptop the secondary ones fold into More.
   const navLinks = links.filter((page) => page.key !== "home");

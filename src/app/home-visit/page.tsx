@@ -6,6 +6,13 @@ import { pickFeatured } from "@/lib/catalogFeatured";
 import HomeVisitConditions from "@/components/home/HomeVisitConditions";
 import SectionNav, { type SectionNavItem } from "@/components/SectionNav";
 import { loadHomeVisitConditions } from "@/lib/homeVisitRatesServer";
+import PincodeCheck from "@/components/home/PincodeCheck";
+import {
+  homeVisitBookable,
+  homeVisitComingLine,
+  homeVisitWeVisitLine,
+  resolveHomeVisitOffer,
+} from "@/lib/homeVisitOffer";
 import PageHero from "@/components/marketing/PageHero";
 import Section from "@/components/marketing/Section";
 import IconCard from "@/components/marketing/IconCard";
@@ -66,7 +73,8 @@ export default async function HomeVisitPage() {
     notFound();
   }
 
-  const [{ conditions: allConditions }, { data: areas }] = await Promise.all([
+  const [{ conditions: allConditions, failed: pricesFailed }, { data: areas, error: areasError }] =
+    await Promise.all([
     // Every condition the clinic treats, each as one visit at its home-visit
     // price (Catalog -> Conditions -> Home visits: its own price, else the
     // clinic-wide one). One visit, always -- a course of visits is a
@@ -81,6 +89,19 @@ export default async function HomeVisitPage() {
       .order("city", { ascending: true })
       .order("pincode", { ascending: true }),
   ]);
+
+  // The switch is on (or this page 404ed above), but a visit is only bookable
+  // with an area served AND something priced. Short of that the page
+  // announces rather than sells: a "Check my pincode" button on a service
+  // that cannot yet say yes to anyone is a dead end. A read that failed is
+  // "could not check" and counts as met -- see homeVisitOffer.ts.
+  const offer = resolveHomeVisitOffer({
+    enabled: true,
+    areas: areasError ? null : (areas ?? []),
+    hasPrice: pricesFailed ? null : allConditions.length > 0,
+  });
+  const live = homeVisitBookable(offer);
+  const weVisit = homeVisitWeVisitLine(offer);
 
   // Every condition, featured ones first. This page *is* the full list of
   // home visits, so nothing is held back behind a reveal.
@@ -104,21 +125,68 @@ export default async function HomeVisitPage() {
   }
 
   // "Where we visit" only renders when serviceable areas exist, so its rail
-  // entry is conditional. Order matches the DOM.
-  const sectionNavItems: SectionNavItem[] = [
-    { id: "how-a-visit-works", label: "How It Works", icon: "fa-route" },
-    { id: "choose-visit", label: "Choose Your Visit", icon: "fa-house-medical" },
-    ...(cities.size > 0
-      ? [{ id: "where-we-visit", label: "Where We Visit", icon: "fa-location-dot" }]
-      : []),
-    { id: "explore", label: "Explore the Site", icon: "fa-compass" },
-    { id: "check-pincode", label: "Check My Pincode", icon: "fa-map-pin" },
-  ];
+  // entry is conditional. Order matches the DOM. While home visits are only
+  // announced (no area or no price yet) the page is a short notice: no steps,
+  // no prices, no coverage list -- nothing that implies a visit can be booked.
+  const sectionNavItems: SectionNavItem[] = live
+    ? [
+        { id: "how-a-visit-works", label: "How It Works", icon: "fa-route" },
+        { id: "choose-visit", label: "Choose Your Visit", icon: "fa-house-medical" },
+        ...(cities.size > 0
+          ? [{ id: "where-we-visit", label: "Where We Visit", icon: "fa-location-dot" }]
+          : []),
+        { id: "explore", label: "Explore the Site", icon: "fa-compass" },
+        { id: "check-pincode", label: "Check My Pincode", icon: "fa-map-pin" },
+      ]
+    : [
+        { id: "coming", label: "Coming Soon", icon: "fa-house-medical" },
+        { id: "explore", label: "Explore the Site", icon: "fa-compass" },
+        { id: "get-started", label: "Book a Video Session", icon: "fa-calendar-check" },
+      ];
 
   // Outside India the page says so instead -- unless an admin has allowed
   // home visits abroad (Catalog -> Countries & currency). The page stays
   // statically cached for everybody; the visitor's country is read in the
   // browser, and the routes that sell a visit refuse one by themselves.
+  if (!live) {
+    return (
+      <HomeVisitOnly fallback={<HomeVisitUnavailable />}>
+        <SectionNav items={sectionNavItems} />
+
+        <PageHero
+          eyebrow="Home visit"
+          title="Home visits are on their way"
+          subtitle={homeVisitComingLine(offer)}
+          // The one action that works today. No "check my pincode": it could
+          // only answer no.
+          primary={{ href: "/book", label: "Book a video session", icon: "fa-calendar-check" }}
+          secondary={{ href: "/how-it-works", label: "See how it works" }}
+          photoId="hero-home-visit"
+          alt="A physiotherapist guiding an older patient through an arm exercise in their living room"
+        />
+
+        <Section id="coming" tone="tint" eyebrow="In the meantime" title="The same physiotherapists, by video">
+          <div className="mx-auto max-w-xl text-center">
+            <p className="text-base leading-relaxed text-slate-600">
+              A video session needs a phone, tablet or laptop. Your physiotherapist watches how you
+              move and builds your plan.
+            </p>
+          </div>
+        </Section>
+
+        <ExploreSection current="home-visit" homeVisitEnabled={false} />
+
+        <ClosingCta
+          title="Start by video today."
+          body="One physiotherapist, one-to-one. Book in two minutes."
+          primary={{ href: "/book", label: "Book a video session", icon: "fa-calendar-check" }}
+          photoId="cta-home-visit"
+          photoAlt="An older couple side by side in their front room, smiling at the tablet they are booking on"
+        />
+      </HomeVisitOnly>
+    );
+  }
+
   return (
     <HomeVisitOnly fallback={<HomeVisitUnavailable />}>
       <SectionNav items={sectionNavItems} />
@@ -132,6 +200,17 @@ export default async function HomeVisitPage() {
         subtitle={subheading}
         primary={{ href: "/book-home-visit", label: "Check my pincode", icon: "fa-map-pin" }}
         secondary={{ href: "/how-it-works", label: "See how it works" }}
+        extras={
+          <>
+            {weVisit && (
+              <p className="mt-6 text-base font-semibold text-slate-700">
+                <i aria-hidden="true" className="fa-solid fa-location-dot mr-2 text-teal-600" />
+                {weVisit}
+              </p>
+            )}
+            <PincodeCheck />
+          </>
+        }
         photoId="hero-home-visit"
         alt="A physiotherapist guiding an older patient through an arm exercise in their living room"
         overlay={{
@@ -166,7 +245,9 @@ export default async function HomeVisitPage() {
           <HomeVisitConditions conditions={conditions} />
         ) : (
           <p className="text-center text-sm text-slate-500">
-            Home visit prices are being finalised - please check back shortly.
+            {pricesFailed
+              ? "We couldn't load the visit prices just now. Please refresh the page."
+              : "Home visit prices are being finalised - please check back shortly."}
           </p>
         )}
       </Section>

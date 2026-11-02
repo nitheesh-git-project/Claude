@@ -19,6 +19,7 @@ import MotionProvider from "@/components/motion/MotionProvider";
 import { loadHomeVisitSupply } from "@/lib/homeVisitFlag";
 import { homeVisitBookable, resolveHomeVisitOffer } from "@/lib/homeVisitOffer";
 import { publicContactLinks } from "@/lib/contactLinks";
+import { readPublicTeam } from "@/lib/publicTeam";
 import RouteProgress from "@/components/system/RouteProgress";
 import NavigationLoader from "@/components/system/NavigationLoader";
 import DeviceThemeFollower from "@/components/system/DeviceThemeFollower";
@@ -85,6 +86,10 @@ export default async function RootLayout({
   // debugNavVisible.ts for why, and for the one kill switch.
   const showDebugNav = isDebugNavVisible();
 
+  // Read together: the settings and who is published on /team (the nav and
+  // footer drop "Our team" while the roster is empty).
+  const [layoutSettings, { hasTeam }] = await Promise.all([getLayoutSettings(), readPublicTeam()]);
+
   // Brand & Contact Details (admin Site Content tab) -- the Navbar/Footer
   // used to hardcode these. Fetched here rather than in each component
   // since both need it and this is the one place they share: the root
@@ -108,7 +113,7 @@ export default async function RootLayout({
     devContact: devContactRow,
     pricing: pricingRow,
     followDeviceTheme,
-  } = await getLayoutSettings();
+  } = layoutSettings;
   // The developer credit under the footer's copyright. On unless an admin
   // switched it off -- and an unreadable row is "could not check", not "off".
   const devCreditEnabled = devContactFromRow(devContactRow).enabled;
@@ -270,6 +275,7 @@ export default async function RootLayout({
           siteTagline={brand.siteTagline}
           homeVisitEnabled={homeVisitEnabled}
           contact={contactLinks}
+          teamVisible={hasTeam}
         />
         <Suspense fallback={null}>
           <FarewellBanner autoDismissSeconds={farewellBannerSeconds} />
@@ -288,6 +294,7 @@ export default async function RootLayout({
             footerCopyrightText={brand.footerCopyrightText}
             socialLinks={socialLinks}
             homeVisitEnabled={homeVisitEnabled}
+            teamVisible={hasTeam}
             devCreditEnabled={devCreditEnabled}
           />
           <ScrollHint />

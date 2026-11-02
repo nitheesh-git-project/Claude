@@ -73,7 +73,7 @@ export function closingSessionLine(rows: DurationRow[]): string {
  */
 export function oneToOneLine(rows: DurationRow[]): string {
   const shared = sharedDurationMinutes(rows);
-  if (shared === null) return "One-to-one, with a physiotherapist.";
+  if (shared === null) return "One-to-one, every session.";
   if (shared === 60) return "An hour, one-to-one.";
   return `${shared} minutes, one-to-one.`;
 }

@@ -7,7 +7,13 @@ import IconCard from "@/components/marketing/IconCard";
 import ExploreSection from "@/components/marketing/ExploreSection";
 import ClosingCta from "@/components/marketing/ClosingCta";
 import { Stagger, StaggerItem } from "@/components/motion/primitives";
-import { readEnabledIntakeSpecialties, readHomeVisitEnabled } from "@/lib/homeVisitFlag";
+import {
+  readEnabledIntakeSpecialties,
+  readHomeVisitBookable,
+  readOnlineBookingRules,
+} from "@/lib/homeVisitFlag";
+import { createPublicClient } from "@/lib/supabase/public";
+import { hoursNoticeLabel, oneToOneLine, refundWindowLine } from "@/lib/sessionLengthCopy";
 import HealthProfileShowcase from "@/components/marketing/HealthProfileShowcase";
 import { enabledShowcaseProfiles } from "@/lib/healthProfileShowcase";
 
@@ -19,7 +25,7 @@ export const revalidate = 300;
 export const metadata: Metadata = {
   title: "How It Works | MoveRestore",
   description:
-    "Four steps: book a slot, send your reports, meet your physiotherapist for an hour, then follow the plan they build for you.",
+    "Four steps: book a slot, send your reports, meet your physiotherapist one-to-one, then follow the plan they build for you.",
 };
 
 /**
@@ -30,7 +36,7 @@ export const metadata: Metadata = {
  * to do?", and an answer you can only see one quarter of at a time is not an
  * answer. Bodies are one line each on purpose.
  */
-function stepsFor(homeVisitEnabled: boolean): Step[] {
+function stepsFor(homeVisitEnabled: boolean, sessionLine: string): Step[] {
   return [
     {
       photoId: "step-book",
@@ -50,7 +56,8 @@ function stepsFor(homeVisitEnabled: boolean): Step[] {
       photoId: "step-assess",
       alt: "A physiotherapist smiling on the call, mid-assessment",
       title: "Get assessed",
-      body: "An hour, one-to-one. They find the cause.",
+      // The catalogue's own length, never a typed "an hour".
+      body: `${sessionLine} They find the cause.`,
     },
     {
       photoId: "step-progress",
@@ -64,7 +71,8 @@ function stepsFor(homeVisitEnabled: boolean): Step[] {
 // What keeps happening after session one -- the part that decides whether
 // someone books a second time. One line each; the detail belongs on the page
 // that owns it, which is what the connector strip at the foot is for.
-const AFTER_FIRST_SESSION = [
+function afterFirstSession(refundHours: number) {
+  return [
   {
     icon: "fa-layer-group",
     title: "One therapist, all the way",
@@ -73,16 +81,17 @@ const AFTER_FIRST_SESSION = [
   {
     icon: "fa-rotate",
     title: "Reschedule yourself",
-    body: "Cancel 24 hours ahead for a full refund.",
+    body: refundWindowLine(refundHours),
   },
   {
     icon: "fa-hospital",
     title: "Referred by a hospital",
     body: "Your referral code carries across. They see your progress.",
   },
-];
+  ];
+}
 
-function objectionsFor(homeVisitEnabled: boolean) {
+function objectionsFor(homeVisitEnabled: boolean, leadTimeHours: number) {
   return [
     {
       icon: "fa-hand",
@@ -99,7 +108,7 @@ function objectionsFor(homeVisitEnabled: boolean) {
     {
       icon: "fa-earth-asia",
       q: "What if I live abroad?",
-      a: "Your timezone, 12 hours' notice. Runs on Google Meet.",
+      a: `Your timezone, ${hoursNoticeLabel(leadTimeHours)}. Runs on Google Meet.`,
     },
     {
       icon: "fa-lock",
@@ -122,9 +131,13 @@ export default async function HowItWorksPage() {
   // Every mention of home visits on this page is gated on the same flag the
   // booking route reads: describing a mode the clinic has switched off sends
   // people to a 404.
-  const [homeVisitEnabled, enabledSpecialties] = await Promise.all([
-    readHomeVisitEnabled(),
+  const [homeVisitEnabled, enabledSpecialties, rules, lengthRows] = await Promise.all([
+    readHomeVisitBookable(),
     readEnabledIntakeSpecialties(),
+    // The notice and the refund window are admin settings; the session length
+    // is the catalogue's. None of them is typed into this page.
+    readOnlineBookingRules(),
+    createPublicClient().from("treatment_categories").select("duration_minutes").eq("active", true),
   ]);
   const showcaseProfiles = enabledShowcaseProfiles(enabledSpecialties);
 
@@ -158,7 +171,7 @@ export default async function HowItWorksPage() {
         title="What happens, in order"
         lede="About a week, booking to written plan."
       >
-        <StepStrip steps={stepsFor(homeVisitEnabled)} />
+        <StepStrip steps={stepsFor(homeVisitEnabled, oneToOneLine(lengthRows.data ?? []))} />
       </Section>
 
       <Section
@@ -168,7 +181,7 @@ export default async function HowItWorksPage() {
         title="Recovery is a course, not one appointment"
       >
         <Stagger className="grid gap-5 md:grid-cols-3">
-          {AFTER_FIRST_SESSION.map((item) => (
+          {afterFirstSession(rules.refundHours).map((item) => (
             <StaggerItem key={item.title} className="h-full">
               <IconCard icon={item.icon} title={item.title} body={item.body} />
             </StaggerItem>
@@ -197,7 +210,7 @@ export default async function HowItWorksPage() {
         title="The things people hesitate over"
       >
         <Stagger className="grid gap-5 md:grid-cols-2">
-          {objectionsFor(homeVisitEnabled).map((objection) => (
+          {objectionsFor(homeVisitEnabled, rules.leadTimeHours).map((objection) => (
             <StaggerItem key={objection.q} className="h-full">
               <IconCard icon={objection.icon} title={objection.q} body={objection.a} />
             </StaggerItem>

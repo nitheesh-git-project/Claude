@@ -35,13 +35,6 @@ const PANELS: Record<ShowcaseSpecialty, ComponentType<SampleProps>> = {
   cardiopulmonary: dynamic(() => import("@/components/marketing/healthProfile/CardioSample"), { loading: PanelLoading }),
 };
 
-/** What every visitor should leave knowing. */
-const PITCH = [
-  { icon: "fa-location-dot", title: "Where you are now", body: "Your latest scores, set beside your first visit." },
-  { icon: "fa-chart-line", title: "How you have improved", body: "One dot per review, with your goal marked." },
-  { icon: "fa-flag-checkered", title: "Your milestones", body: "Planned, being worked on, and reached." },
-];
-
 /**
  * The Health Profile of each kind of care, with sample data -- the real
  * graph, milestone cards and condition picture inside a frame, for an
@@ -61,21 +54,11 @@ const PITCH = [
  * content below stays put. Once a visitor picks a tab the minimum is dropped,
  * since the page then changes only because they asked it to.
  *
- * `variant="home"` on a phone (below md) is compact: only the headline
- * change, the graph and the milestone cards under the pitch and tabs (the
- * "what it watches" list and the neurological example buttons are hidden by
- * CSS alone, so the held height still applies per width).
- * `variant="home"` is the teaser: the graph and the milestone cards beside a
- * short pitch and a booking button. `"full"` (/how-it-works) adds the
- * condition picture and the five-step strip underneath.
+ * It lives on /how-it-works only. The home page carries just the headline
+ * change (HealthProfileTeaser) and a link here: the tour is heavy, and on a
+ * phone it stood between "how it works" and the programmes.
  */
-export default function HealthProfileShowcase({
-  profiles,
-  variant = "full",
-}: {
-  profiles: ShowcaseProfile[];
-  variant?: "full" | "home";
-}) {
+export default function HealthProfileShowcase({ profiles }: { profiles: ShowcaseProfile[] }) {
   const baseId = useId();
   // Not motion's useReducedMotion: it reads the media query on the first
   // client render, and the pause button below exists only while the tour
@@ -265,7 +248,7 @@ export default function HealthProfileShowcase({
           aria-labelledby={`${baseId}-tab-${current.specialty}`}
           className="overflow-hidden rounded-[1.75rem] border border-slate-200 bg-slate-50/60 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_32px_64px_-32px_rgba(15,23,42,0.35)]"
         >
-          <ProfileHeader profile={current} compact={variant === "home"} />
+          <ProfileHeader profile={current} />
           <AnimatePresence initial={false}>
             <motion.div
               key={current.specialty}
@@ -274,55 +257,13 @@ export default function HealthProfileShowcase({
               transition={{ duration: reduceMotion ? 0.1 : 0.3, ease: [0.16, 1, 0.3, 1] }}
               className="min-w-0 p-3 sm:p-5"
             >
-              <Panel showPicture={variant === "full"} compact={variant === "home"} onPick={() => setChosen(true)} />
+              <Panel showPicture compact={false} onPick={() => setChosen(true)} />
             </motion.div>
           </AnimatePresence>
         </div>
       </div>
     </div>
   );
-
-  if (variant === "home") {
-    return (
-      <div className="space-y-8">
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:items-center">
-          <p className="font-display text-2xl font-extrabold leading-tight tracking-tight text-slate-900 sm:text-3xl">
-            Open your profile and see the whole picture - <span className="text-teal-700">on your screen.</span>
-          </p>
-          <ul className="grid gap-4 sm:grid-cols-3">
-            {PITCH.map((item) => (
-              <li key={item.title} className="flex gap-3">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-teal-50 text-sm text-teal-700">
-                  <i className={`fa-solid ${item.icon}`} aria-hidden="true" />
-                </span>
-                <span>
-                  <span className="block font-display text-sm font-bold text-slate-900">{item.title}</span>
-                  <span className="block text-sm leading-relaxed text-slate-600">{item.body}</span>
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-        {tabs}
-        {frame}
-        <div className="flex flex-wrap items-center justify-center gap-3">
-          <Link
-            href="/book"
-            className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-teal-700 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
-          >
-            Book your first session
-            <i className="fa-solid fa-arrow-right text-[11px]" aria-hidden="true" />
-          </Link>
-          <Link
-            href="/how-it-works#health-profile"
-            className="inline-flex min-h-[44px] items-center text-sm font-semibold text-teal-700 hover:underline"
-          >
-            See the full profile
-          </Link>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div>
@@ -363,7 +304,7 @@ export default function HealthProfileShowcase({
 
 /** Who it is for, what it watches and the headline change: the part of a
  *  frame that is plain words, drawn before the heavy components arrive. */
-function ProfileHeader({ profile, compact }: { profile: ShowcaseProfile; compact: boolean }) {
+function ProfileHeader({ profile }: { profile: ShowcaseProfile }) {
   return (
     <div className="border-b border-slate-200 bg-white p-4 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -395,8 +336,7 @@ function ProfileHeader({ profile, compact }: { profile: ShowcaseProfile; compact
           </p>
           <p className="mt-1 text-xs text-slate-700">{profile.sample.line}</p>
         </div>
-        {/* The home teaser drops this on a phone (below md) to stay short. */}
-        <div className={compact ? "max-md:hidden" : undefined}>
+        <div>
           <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-teal-700">What this profile watches</p>
           <ul className="mt-2 space-y-2">
             {profile.watches.map((line) => (

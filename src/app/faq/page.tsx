@@ -6,7 +6,8 @@ import PageHero from "@/components/marketing/PageHero";
 import Section from "@/components/marketing/Section";
 import ExploreSection from "@/components/marketing/ExploreSection";
 import ClosingCta from "@/components/marketing/ClosingCta";
-import { readHomeVisitEnabled } from "@/lib/homeVisitFlag";
+import { readHomeVisitBookable, readOnlineBookingRules } from "@/lib/homeVisitFlag";
+import { defaultFaqs } from "@/lib/faqDefaults";
 import { homeVisitCoverageFaq } from "@/lib/faqLiveFacts";
 
 export const metadata: Metadata = {
@@ -28,7 +29,7 @@ export default async function FaqPage() {
     .order("display_order", { ascending: true })
     .order("id", { ascending: true });
 
-  const homeVisitEnabled = await readHomeVisitEnabled();
+  const homeVisitEnabled = await readHomeVisitBookable();
 
   // Where home visits go, from the live service areas rather than from an
   // answer somebody typed: a pincode or a price written into an FAQ row
@@ -45,7 +46,15 @@ export default async function FaqPage() {
       .eq("active", true);
     coverageFaq = homeVisitCoverageFaq((areas ?? []).map((a) => a.city as string | null));
   }
-  const rows = [...((faqs ?? []) as Faq[]), ...(coverageFaq ? [coverageFaq] : [])];
+  const published = (faqs ?? []) as Faq[];
+  // Nothing published (a new clinic, a truncated table, a screen nobody has
+  // opened) is not "no questions": the page falls back to the shipped answers,
+  // built from the live booking rules. One published row and they step aside.
+  // A failed read (`faqs` null) is "could not check" and falls back the same
+  // way -- an empty FAQ page helps nobody either way.
+  const fallback =
+    published.length === 0 ? defaultFaqs(await readOnlineBookingRules()) : [];
+  const rows = [...published, ...fallback, ...(coverageFaq ? [coverageFaq] : [])];
 
   const sectionNavItems: SectionNavItem[] = [
     { id: "questions", label: "Questions", icon: "fa-circle-question" },
@@ -61,7 +70,7 @@ export default async function FaqPage() {
         eyebrow="Questions"
         title="Answered before you book"
         subtitle="Cost, refunds, privacy, and what a session is actually like."
-        primary={{ href: "/book", label: "Book an assessment", icon: "fa-calendar-check" }}
+        primary={{ href: "/book", label: "Book a video session", icon: "fa-calendar-check" }}
         secondary={{ href: "/how-it-works", label: "See how it works" }}
         photoId="hero-faq"
         alt="A physiotherapist at her laptop, answering a patient's questions on a call"
@@ -85,7 +94,7 @@ export default async function FaqPage() {
         id="still-unsure"
         title="Still unsure whether this will help?"
         body="That is what the assessment answers. If it is not right, we say so."
-        primary={{ href: "/book", label: "Book an assessment", icon: "fa-calendar-check" }}
+        primary={{ href: "/book", label: "Book a video session", icon: "fa-calendar-check" }}
         photoId="cta-faq"
         photoAlt="A patient by her window, smiling as she reads on her phone"
       />

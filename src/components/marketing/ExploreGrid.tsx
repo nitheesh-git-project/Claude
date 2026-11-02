@@ -1,4 +1,5 @@
 import { Stagger, StaggerItem } from "@/components/motion/primitives";
+import Link from "@/components/system/ProgressLink";
 import PhotoTile from "@/components/marketing/PhotoTile";
 import { BOOK_CONNECTOR, type MarketingConnector } from "@/lib/marketingNav";
 import { BOOK_TILE_SPAN, exploreTileSpans } from "@/lib/exploreGridSpans";
@@ -36,11 +37,55 @@ export default function ExploreGrid({
   const spans = exploreTileSpans(pageTiles.length);
 
   return (
-    // Six columns rather than three at the large breakpoint: a normal tile
-    // spans two of them, which is the same three-across layout, but it lets
-    // a row with two tiles left over give each of them half the row instead
-    // of leaving a third of it blank. See exploreGridSpans.ts.
-    <Stagger className="grid gap-5 sm:grid-cols-2 lg:grid-cols-6">
+    <>
+      {/* On a phone the eight photographs were eight screens of scrolling
+          to reach a list of page names. Below sm the band is compact rows --
+          an icon, the name and one line -- each a full-width 56px target, and
+          the photograph grid takes over from sm. */}
+      <ul className="space-y-2 sm:hidden">
+        {connectors.map((connector) => {
+          const isBook = connector.key === BOOK_CONNECTOR.key;
+          return (
+            <li key={connector.key}>
+              <Link
+                href={connector.href}
+                className={`flex min-h-14 items-center gap-3 rounded-2xl border px-4 py-2 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 ${
+                  isBook
+                    ? "border-teal-700 bg-teal-700 text-white"
+                    : "border-slate-200 bg-white text-slate-900 hover:border-teal-300"
+                }`}
+              >
+                <span
+                  aria-hidden="true"
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+                    isBook ? "bg-white/15 text-white" : "bg-teal-50 text-teal-700"
+                  }`}
+                >
+                  <i className={`fa-solid ${connector.icon}`} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-base font-bold leading-tight">{connector.label}</span>
+                  <span
+                    className={`block text-sm leading-snug ${isBook ? "text-teal-50" : "text-slate-600"}`}
+                  >
+                    {connector.blurb}
+                  </span>
+                </span>
+                <i
+                  aria-hidden="true"
+                  className={`fa-solid fa-chevron-right text-xs ${isBook ? "text-white" : "text-slate-400"}`}
+                />
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+
+      {/* Six columns rather than three at the large breakpoint: a normal tile
+          spans two of them, which is the same three-across layout, but it lets
+          a row with two tiles left over give each of them half the row instead
+          of leaving a third of it blank. See exploreGridSpans.ts. */}
+    <Stagger className="hidden gap-5 sm:grid sm:grid-cols-2 lg:grid-cols-6">
       {pageTiles.map((connector, i) => (
         <StaggerItem key={connector.key} className={`h-full ${spans[i].className}`}>
           <PhotoTile
@@ -75,5 +120,6 @@ export default function ExploreGrid({
         </StaggerItem>
       )}
     </Stagger>
+    </>
   );
 }

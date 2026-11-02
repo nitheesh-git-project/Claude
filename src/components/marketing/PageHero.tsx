@@ -31,6 +31,8 @@ export default function PageHero({
   alt,
   overlay,
   size = "default",
+  extras,
+  shortPhotoOnMobile = false,
 }: {
   eyebrow: string;
   title: React.ReactNode;
@@ -44,6 +46,12 @@ export default function PageHero({
   /** Small card floated over the photo - one fact, never a paragraph. */
   overlay?: { icon: string; title: string; body: string };
   size?: "default" | "large";
+  /** Under the buttons: tappable chips, a "WhatsApp us" line, an inline
+   *  pincode box. One short row, never a paragraph. */
+  extras?: React.ReactNode;
+  /** On a phone, crop the photograph to a short 16:9 band so the figures
+   *  below it stay in the first screens. From lg it is the full photograph. */
+  shortPhotoOnMobile?: boolean;
 }) {
   const img = photo(photoId);
   const large = size === "large";
@@ -65,11 +73,19 @@ export default function PageHero({
       <div
         // Copy column slightly wider than the photo: at 1280-1536px an even
         // split wrapped every hero headline onto an extra line.
-        className={`relative mx-auto grid max-w-7xl items-center gap-12 px-4 sm:px-6 lg:grid-cols-[1.08fr_0.92fr] lg:gap-14 lg:px-8 ${
+        className={`relative mx-auto grid max-w-7xl items-center gap-8 px-4 sm:px-6 lg:grid-cols-[1.08fr_0.92fr] lg:gap-x-14 lg:gap-y-0 lg:px-8 ${
           large ? "py-16 lg:py-24" : "py-14 lg:py-20"
         }`}
       >
-        <Reveal>
+        {/* Three blocks in a grid rather than two columns: on a phone the
+            order is words, photograph, figures (the photograph used to sit
+            under the figures, a full screen below the buttons); from lg the
+            figures return under the words and the photograph spans both. */}
+        <Reveal
+          className={`lg:col-start-1 lg:row-start-1 ${
+            stats && stats.length > 0 ? "lg:self-end" : "lg:self-center"
+          }`}
+        >
           <span className="inline-flex items-center gap-2 rounded-full border border-teal-200 bg-teal-50 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-teal-800">
             <span className="h-1.5 w-1.5 rounded-full bg-teal-500" />
             {eyebrow}
@@ -108,37 +124,17 @@ export default function PageHero({
             </div>
           )}
 
-          {stats && stats.length > 0 && (
-            // Columns follow the count. It was fixed at three, so a hero with
-            // anything else to say left a dead cell -- which is what the home
-            // page needs, since its third stat is a real rating and there is
-            // not always one to quote.
-            <dl
-              className={`mt-10 grid max-w-lg gap-6 border-t border-slate-200/80 pt-6 ${
-                stats.length >= 3 ? "grid-cols-3" : "grid-cols-2"
-              }`}
-            >
-              {stats.map((stat) => (
-                // dt before dd, as a definition list requires, then flipped
-                // visually. It used to hide the label in an `sr-only` dt and
-                // draw it again inside the dd, so a screen reader read every
-                // stat's label twice.
-                <div key={stat.label} className="flex flex-col-reverse">
-                  <dt className="mt-0.5 block text-xs font-medium text-slate-500">
-                    {stat.label}
-                  </dt>
-                  <dd className="font-display block text-xl font-bold text-slate-900 sm:text-2xl">
-                    {stat.value}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          )}
+          {extras}
         </Reveal>
 
-        <Reveal delay={0.12}>
+        <Reveal
+          delay={0.12}
+          className="lg:col-start-2 lg:row-start-1 lg:row-span-2 lg:self-center"
+        >
           <div className="relative">
-            <div className="relative overflow-hidden rounded-[1.75rem] bg-slate-100 shadow-[0_24px_64px_-24px_rgba(15,23,42,0.35)] ring-1 ring-slate-900/5">
+            <div className={`relative overflow-hidden rounded-[1.75rem] bg-slate-100 shadow-[0_24px_64px_-24px_rgba(15,23,42,0.35)] ring-1 ring-slate-900/5 ${
+                shortPhotoOnMobile ? "aspect-[16/9] lg:aspect-auto" : ""
+              }`}>
               <Image
                 src={img}
                 alt={alt}
@@ -167,6 +163,35 @@ export default function PageHero({
             )}
           </div>
         </Reveal>
+
+        {stats && stats.length > 0 && (
+          <Reveal delay={0.06} className="lg:col-start-1 lg:row-start-2 lg:self-start">
+            {/* Columns follow the count. It was fixed at three, so a hero with
+                anything else to say left a dead cell -- which is what the home
+                page needs, since its third stat is a real rating and there is
+                not always one to quote. */}
+            <dl
+              className={`grid max-w-lg gap-6 border-t border-slate-200/80 pt-6 lg:mt-10 ${
+                stats.length >= 3 ? "grid-cols-3" : "grid-cols-2"
+              }`}
+            >
+              {stats.map((stat) => (
+                // dt before dd, as a definition list requires, then flipped
+                // visually. It used to hide the label in an `sr-only` dt and
+                // draw it again inside the dd, so a screen reader read every
+                // stat's label twice.
+                <div key={stat.label} className="flex flex-col-reverse">
+                  <dt className="mt-0.5 block text-sm font-medium text-slate-600">
+                    {stat.label}
+                  </dt>
+                  <dd className="font-display block text-xl font-bold text-slate-900 sm:text-2xl">
+                    {stat.value}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </Reveal>
+        )}
       </div>
 
       {/* Breathing room for the overlay card, which hangs past the photo. */}

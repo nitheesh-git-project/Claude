@@ -7,7 +7,7 @@ import Section from "@/components/marketing/Section";
 import ExploreSection from "@/components/marketing/ExploreSection";
 import ClosingCta from "@/components/marketing/ClosingCta";
 import CareAreaShowcase from "@/components/marketing/CareAreaShowcase";
-import { readHomeVisitEnabled } from "@/lib/homeVisitFlag";
+import { readHomeVisitBookable } from "@/lib/homeVisitFlag";
 import { programmesLede } from "@/lib/sessionLengthCopy";
 
 export const metadata: Metadata = {
@@ -77,7 +77,7 @@ export default async function ConditionsPage() {
     ...(focalByCategoryId.get(c.id) ?? {}),
   }));
 
-  const homeVisitEnabled = await readHomeVisitEnabled();
+  const homeVisitEnabled = await readHomeVisitBookable();
 
   // Only sections that actually render -- the programmes are
   // admin-controlled, so a rail item pointing at an absent section would be a
@@ -97,7 +97,7 @@ export default async function ConditionsPage() {
         eyebrow="Conditions treated"
         title="Tell us what hurts"
         subtitle="Six areas of practice. Each with a real programme behind it."
-        primary={{ href: "/book", label: "Book an assessment", icon: "fa-calendar-check" }}
+        primary={{ href: "/book", label: "Book a video session", icon: "fa-calendar-check" }}
         secondary={{ href: "/faq", label: "Read common questions" }}
         photoId="hero-conditions"
         alt="A patient holding a balance exercise on her mat at home, laptop open beside her"
@@ -128,7 +128,7 @@ export default async function ConditionsPage() {
         title="Where we can help"
         lede="Whichever fits, the first step is the same."
       >
-        <CareAreaShowcase href="/book" ctaLabel="Book an assessment" />
+        <CareAreaShowcase href="/book" ctaLabel="Book a video session" />
       </Section>
 
       <ExploreSection current="conditions" homeVisitEnabled={homeVisitEnabled} />
@@ -137,7 +137,7 @@ export default async function ConditionsPage() {
         id="not-sure"
         title="Not sure which one fits?"
         body="Book one assessment. Your physiotherapist chooses the plan."
-        primary={{ href: "/book", label: "Book an assessment", icon: "fa-calendar-check" }}
+        primary={{ href: "/book", label: "Book a video session", icon: "fa-calendar-check" }}
         secondary={{ href: "/faq", label: "Read the FAQ" }}
         photoId="cta-conditions"
         photoAlt="A patient sitting at home, laughing as she books on her phone"

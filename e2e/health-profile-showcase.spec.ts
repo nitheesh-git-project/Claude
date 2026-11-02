@@ -43,7 +43,9 @@ test.describe("health profile showcase", () => {
 
   test("HPS-002 it moves on by itself, and stops once a tab is picked", async ({ page }) => {
     test.setTimeout(120_000);
-    await page.goto(`${BASE}/`);
+    // The full tour lives on /how-it-works; the home page carries only the
+    // headline-change teaser (HPS-003).
+    await page.goto(`${BASE}/how-it-works`);
     await waitForSplashToClear(page);
     const band = page.locator("section#health-profile");
     await band.scrollIntoViewIfNeeded();
@@ -55,5 +57,19 @@ test.describe("health profile showcase", () => {
     await expect(band.getByRole("button", { name: /health profile tour/ })).toHaveCount(0);
     await page.waitForTimeout(6_500);
     await expect(selected).toHaveText("Paediatric physiotherapy");
+  });
+
+  test("HPS-003 the home page shows only the headline change, with a link to the full tour", async ({ page }) => {
+    await page.goto(`${BASE}/`);
+    await waitForSplashToClear(page);
+    const band = page.locator("section#health-profile");
+    await band.scrollIntoViewIfNeeded();
+    await expect(band).toContainText("Sample patient - figures are made up");
+    await expect(band).toContainText("first visit to latest");
+    // No tour on the home page: no tabs, no graph, no milestone cards.
+    await expect(band.getByRole("tab")).toHaveCount(0);
+    await expect(band.getByRole("region", { name: "Progress" })).toHaveCount(0);
+    await band.getByRole("link", { name: /See the full health profile/ }).click();
+    await expect(page).toHaveURL(/\/how-it-works#health-profile$/);
   });
 });

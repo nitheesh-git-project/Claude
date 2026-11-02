@@ -4,6 +4,8 @@ import { photo, type PhotoId } from "@/lib/marketingPhotos";
 import { createPublicClient } from "@/lib/supabase/public";
 import { readInviteDelivery } from "@/lib/inviteDeliveryServer";
 import { patientInviteLine } from "@/lib/calendarInviteOutcome";
+import { readPublicContact } from "@/lib/publicContact";
+import WhatsAppAsk from "@/components/marketing/WhatsAppAsk";
 
 /**
  * The last band of every public page: one sentence, one action, one picture.
@@ -88,6 +90,9 @@ export default async function ClosingCta({
   // of session actually get one (QA F-13, the owner's rule); a server read,
   // so it follows the settings on the page's own revalidate cycle.
   const inviteDelivery = await readInviteDelivery(createPublicClient());
+  // A person to ask, for the visitor who is not sure which to book. Absent
+  // while the clinic has not filled in a WhatsApp number.
+  const contact = await readPublicContact();
 
   return (
     <section
@@ -133,6 +138,10 @@ export default async function ClosingCta({
               </MotionButton>
             )}
           </div>
+
+          <p className="mt-5">
+            <WhatsAppAsk href={contact.whatsapp} tone="dark" />
+          </p>
 
           {assurances.length > 0 && (
             <ul className="mt-7 flex flex-wrap justify-center gap-x-5 gap-y-2 lg:justify-start">

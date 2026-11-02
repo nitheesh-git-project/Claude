@@ -5,7 +5,7 @@ import { usePricing } from "@/components/pricing/PricingProvider";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { isDashboardShellRoute, isDeveloperRoute } from "@/lib/dashboardShellRoutes";
-import { BOOK_CONNECTOR, MARKETING_PAGES } from "@/lib/marketingNav";
+import { BOOK_CONNECTOR, visibleMarketingPages } from "@/lib/marketingNav";
 import { digitsOnly, hasRealEmail, hasRealPhone } from "@/lib/contactLinks";
 import BrandMark from "@/components/BrandMark";
 import type { ReactNode } from "react";
@@ -39,6 +39,7 @@ export default function Footer({
   socialLinks = [],
   homeVisitEnabled: homeVisitSwitch = false,
   devCreditEnabled = true,
+  teamVisible = true,
 }: {
   siteName: string;
   siteDescription: string;
@@ -53,6 +54,8 @@ export default function Footer({
   /** Whether the developer credit line shows. Off when an admin switches the
    *  /developer pages off, so the line never links to a page that 404s. */
   devCreditEnabled?: boolean;
+  /** Someone is published on /team. */
+  teamVisible?: boolean;
 }) {
   // Off outside India unless an admin allows it (Countries & currency).
   const { homeVisitsOffered } = usePricing();
@@ -62,8 +65,8 @@ export default function Footer({
   // wordmark above already links there). Hardcoding these was how the footer
   // ended up offering four of the seven pages under labels the rest of the
   // site had stopped using.
-  const links = MARKETING_PAGES.filter(
-    (page) => page.key !== "home" && (homeVisitEnabled || !page.requiresHomeVisit)
+  const links = visibleMarketingPages(homeVisitEnabled, teamVisible).filter(
+    (page) => page.key !== "home"
   );
   // See Navbar's matching check -- each role dashboard is its own
   // full-height app shell with no page scroll, so a footer below it
