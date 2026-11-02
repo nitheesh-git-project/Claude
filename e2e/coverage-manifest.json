@@ -1727,6 +1727,23 @@
       "integration": "local",
       "destructive": true,
       "limitation": "Written, not run, in phase 7d-2 (no test project reachable). Writes append-only plans and run events, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack. The cockpit's teach tool (pick, dose, demo, your turn, marks) is not clicked here: its readiness, steppers, request bodies and every refusal sentence are the pure module src/lib/teachTool.ts (teachTool.test.ts), and it is checked by hand (THR-HP-005t) and by screenshot at 390, 834 and 1280 in the phase's review. The 36 pictures are tested as data and rendered (exercisePictureLabels.test.ts)."
+    },
+    "health-profile-layout.spec.ts": {
+      "runner": "therapist",
+      "levels": [
+        "browser",
+        "api"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/admin.md",
+        "docs/rules/dashboards.md"
+      ],
+      "integration": "local",
+      "destructive": true
     }
   },
   "flows": [
@@ -4502,6 +4519,28 @@
         "docs/rules/clinical.md",
         "docs/rules/dashboards.md"
       ]
+    },
+    {
+      "id": "therapist.health-profile-layout",
+      "runner": "therapist",
+      "title": "The clinic chooses which Health Profile sections a patient sees (per condition type and per patient, locked safety sections never hidden); the patient's page follows the patient's order with closed blocks; the therapist and admin still see hidden sections; a fall saved by mistake is withdrawn without deleting anything",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "health-profile-layout.spec.ts",
+          "tests": [
+            "HPL-001",
+            "HPL-002",
+            "HPL-003",
+            "HPL-004",
+            "HPL-005",
+            "HPL-006"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "Writes append-only diary rows, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack. The resolution rules, the locked list against the schema CHECK and the export plan are unit-tested in src/lib/profileWidgets.test.ts; the correction rules in src/lib/patientDiary.test.ts and scripts/append-only-sql-checks.sql. Not run in the change that added it."
     }
   ],
   "removed": [

@@ -1085,3 +1085,19 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   always looked. On, every page follows each visitor's device, live. Saved
   through `update-setting` (`follow_device_theme`), which revalidates the
   root layout because the decision is made by a script in `<head>`.
+- **Settings -> Health Profile layout chooses what every patient of a
+  condition kind sees; the patient's record chooses for one patient.** The
+  Settings screen (`ProfileWidgetSettings`, self-fetching) lists every
+  section of each kind's profile with a switch and the live count ("12 of 15
+  sections shown"); locked sections show a lock and why. It writes through
+  `POST /api/admin/profile-widgets/kind` (`requireAdminScope("settings")`,
+  audit `profile_widgets.set_kind`). On the admin's condition detail,
+  **Sections for this patient** (`ProfileWidgetPatientPanel`) shows each
+  section as inherited / on / off with an override switch and *Reset to
+  condition default*, through `POST /api/admin/profile-widgets/patient`
+  (`requireAdminScope("people")` -- a clinical-record capability, like
+  care-status -- audit `profile_widgets.set_patient`, the patient's kind read
+  on the server); its switches render only under `scopeCanManage(scope,
+  "people")`. Both routes refuse an unknown section and hiding a locked one
+  (400), and an unreadable setting is "we couldn't check" on the screen,
+  never a row of switches. Rules: `clinical.md`.

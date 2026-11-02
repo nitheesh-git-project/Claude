@@ -100,6 +100,22 @@ Check the Logs section afterwards: an added, edited, removed or reordered row ea
 
 ---
 
+#### `ADM-HPL-001` - Health Profile layout: per condition type and per patient · P0 **[UI] [API]**
+**Preconditions.** A Master Admin; a Clinical-desk admin; an orthopaedic and a geriatric patient with records; their assigned Therapist A.
+**Steps.**
+1. As the Master Admin open **Settings → Health Profile layout**, choose *Orthopaedic*, switch **Measures table** off.
+2. Choose *Geriatric*: look at **Fall-risk level** and **Standing blood pressure**; post `{ profileKind: "geriatric", widgetKey: "fall_risk", visible: false }` to `/api/admin/profile-widgets/kind`.
+3. Open the orthopaedic patient's record (People → the patient → Health Profile): **Sections for this patient** → **Choose sections**; switch **Measures table** back on for this patient and **Reports and scans** off.
+4. As the patient open My progress; as Therapist A open the chart; download the patient's PDF.
+5. Back on the record tap **Reset to condition default** on both. Then repeat step 3 as the Clinical-desk admin (People at view only, if set up so).
+**Expected Result.**
+* Step 1: the count updates live (*N of M sections shown*); a `profile_widgets.set_kind` row is in the log with from and to.
+* Step 2: both carry a lock and *Always shown* with the reason; the post answers 400 `locked_widget`.
+* Step 3: each row reads *Inherited from the condition type · Off/On* or *Set for this patient*; a `profile_widgets.set_patient` row with the section, from, to.
+* Step 4: the patient sees *Your measures* with the table, and no *Reports and scans* block. The chart shows the same, with *1 section hidden for this patient - show* opening to name it (reports still listed on the chart). The admin record names *Hidden for the patient: Reports and scans* above the chart and still draws everything. The PDF has no reports section and a line *Left out because the clinic does not show them on this patient's own profile: Reports and scans...*.
+* Step 5: both back to inherited. A desk that cannot manage People sees the list read-only (no switches); a Settings screen is never shown to a limited desk. A failed read says *We couldn't check...* rather than drawing switches.
+---
+
 ### 15.3 Settings → Booking Rules, Offers & Discounts, Programmes & Home Visits
 
 **These were one tab and are now three.** "Booking Rules" had grown six unrelated stacks with no heading between them, so an admin opening it to change a refund window scrolled past the discount that decides what every new patient pays. What lives where now:

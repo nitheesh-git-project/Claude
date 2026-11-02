@@ -465,7 +465,23 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   guide with it; the step text names the questions too, so update it in the
   same commit.
 - **The orthopaedic, the neurological and the paediatric Health Profile are
-  each one layout in three places.** The patient's page, the
+  each one layout in three places -- whole for the clinician, in the
+  patient's order for the patient, and only the sections the clinic shows.**
+  Each `*ProfileTop` takes `only` (the widget keys to draw,
+  `src/lib/profileWidgets.ts`), so the therapist's chart and the admin's
+  record draw it whole in the order below, and the patient's page draws it in
+  slices (B2): the status and Where things stand in **one card** (with the
+  intake status and the locked safety pieces) -> home exercises -> *Log a
+  fall* (where the record keeps a diary) -> the one graph -> closed
+  `<details>` blocks (*Your measures*, *Your body map / examination*, *Your
+  diary*, *Your answers*, *Reports and scans*, *Past recommendations*) ->
+  *Share with another doctor* (Download as PDF, Print; print opens every
+  block). No `SpecialtySnapshotStrip` on any new-layout patient page. The
+  page wrapper carries the kind's test id. Both patient stand-alone pages
+  (Health Profile, Edit Profile) use `PatientDashboardShell`, so the
+  guided-check bar, Suggested bar, load banner and `assessment_live_display`
+  subscription are there too (A9). The rest of this rule describes the
+  clinician's whole layout. The patient's page, the
   therapist's chart and the admin's condition detail render `OrthoProfileTop`
   for `specialty === "ortho"`, `NeuroProfileTop` for `specialty === "neuro"`
   (plain neurological or the Parkinson's sub-profile, by `profileKindFor`) and

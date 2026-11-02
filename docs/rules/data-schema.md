@@ -342,6 +342,31 @@ before.
      (`EXERCISE_TEACHING_EVENT_SELECT`), though their plan does not show it.
      The clinician's reads use the service role.
      Same file, same both-halves check, with a negative control.
+     **The diary takes a correction the same way (E1).** A
+     `patient_diary_entries` row of kind `correction` with
+     `corrects_entry_id` (no action) points at the patient's own,
+     unconfirmed, non-correction entry, written by that patient, with details
+     exactly `{"reason": "saved_by_mistake"}` and no note
+     (`patient_diary_entries_correction_shape`); a partial unique index makes
+     it once per entry; the newest `patient_diary_entries_guard()` locks the
+     original (`for update`) so a racing confirmation either waits and is
+     refused or wins and the correction is refused, and it refuses to confirm
+     a correction or a corrected entry. `patient_diary_entries_kind_check` was
+     widened at the end of the file by one drop-and-re-add. `corrects_entry_id`
+     is a newer column, so it is read in its own call (`loadDiaryCorrections`).
+     **The Health Profile layout is two settings tables, not evidence.**
+     `profile_widget_kind_settings` (profile kind, widget) and
+     `patient_profile_widget_overrides` (patient, widget, optional reason) are
+     admin-read, service-role-written, rewritten and deleted (the history is
+     the admin log); `profile_widget_choice_guard()` stamps `set_at` and
+     freezes the key, and a `*_locked_shown` CHECK refuses hiding a locked
+     widget for any caller. The data reset truncates the per-patient
+     overrides and leaves the kind settings, like every setting.
+     `assessment_companion_seen` (one row per guided run: when the patient's
+     companion screen last fetched) is a mutable heartbeat, readable by the
+     run's own active therapist and an admin, written only by the service
+     role; truncated by the reset. Checked in
+     `scripts/append-only-sql-checks.sql`.
 
      **`user_activity_log` is the same rule for everyone who is not an admin**
      -- patients, therapists, hospitals and the system (All Logs is both

@@ -651,6 +651,35 @@ Repeat `PAT-CANCEL-001`/`002` against a home visit. **Expected Result.** The win
 * Step 4: **no** "we've changed some of these questions" banner (the new question is optional); the record still reads complete, and *Weeks at birth* is offered as the last question when the intake is next opened.
 ---
 
+#### `PAT-HP-024` - The patient's order, closed blocks and the call line · P1 **[UI]**
+**Preconditions.** An orthopaedic patient with two reviews and home exercises; a geriatric patient whose fall-risk level is High; a heart and lung patient with a flagged reading at the latest review. Brand & Contact has a phone number.
+**Steps.**
+1. As each patient, open **My progress** on a phone (390 wide).
+2. Open each closed block in turn; then tap **Print**.
+3. Clear the phone number in Brand & Contact and reload as the geriatric patient.
+**Expected Result.**
+* Step 1: top to bottom - one card with the name, the status pill and *Where things stand* (and, when the answers are with the clinic, that line inside it); the safety pieces (the fall-risk dial and standing blood pressure / the heart and lung safety box and precautions); **Home exercises**; **Log a fall or a near miss** (neurological and geriatric) or **Log your active minutes** (heart and lung); the one **Are you getting better?** graph, which leads with one plain sentence in large type and says *Lower is better* (or higher) once above the chart, with no *Measured as* line; then closed blocks *Your measures*, *Your body map* (or examination / milestones / tests / readings), *Your diary*, *Your answers*, *Reports and scans*, *Past recommendations*; last, **Share with another doctor** with 44px **Download as PDF** and **Print**. No four-figure snapshot strip on the orthopaedic page. The guided-check bar and the Suggested bar show here as on Home.
+* Each block opens with a tap or the keyboard (48px header). Print opens every block first.
+* The status sentence names the measure (*Pain score: about the same as last time*); a single review reads **First check done**. The High fall-risk dial and the flagged heart and lung reading each carry a calm sentence and a **Call the clinic** button; step 3 replaces the button with *The clinic's phone number isn't set up here yet...*.
+* The body map lists **Area by area** first, the figure after it, labelled *Your right* / *Your left*, front before back; knee straightening reads *Now straightens fully (was 8° short)*.
+---
+
+#### `PAT-HP-025` - Logging a fall, and "I saved this by mistake" · P0 **[UI] [API]**
+**Preconditions.** A neurological (or geriatric) patient; their assigned Therapist A.
+**Steps.**
+1. Tap **Log a fall or a near miss**, choose *Yes, I was hurt*.
+2. Tap **Check and save**, then **Yes, save it**.
+3. Open *Your diary*, tap **I saved this by mistake** on the new fall, then **Yes, it was a mistake**.
+4. As Therapist A, open the chart; try to confirm the withdrawn entry through the route.
+5. Log a second fall; as Therapist A confirm it; as the patient look for **I saved this by mistake** on it.
+**Expected Result.**
+* Step 1: a red box: *If you hit your head, can't put weight on a leg, or feel unwell, call 108 or your doctor now. This diary isn't watched live.*
+* Step 2: before saving, *You're recording a fall on <date and time in the clinic's zone>. Your physiotherapist will see it.*; then it saves.
+* Step 3: the fall moves to *You said these were saved by mistake*, struck through; the falls count drops by one and a status that the fall had turned to *Needs attention* goes back. Nothing is deleted (two rows on `patient_diary_entries`).
+* Step 4: the chart shows it under *Withdrawn by the patient*; confirming answers 409 *The patient has said this entry was saved by mistake*.
+* Step 5: a confirmed entry has no **I saved this by mistake**; the route answers 409 (*talk it through with your physiotherapist*).
+---
+
 ### 11.8 Suggested Sessions, care plans and credits
 
 #### `PAT-SUGG-001` - The Recommendations entry appears only when something waits · P1
