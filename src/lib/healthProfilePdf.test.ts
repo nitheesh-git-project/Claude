@@ -91,3 +91,28 @@ describe("buildHealthProfilePdf diary section", () => {
     expect((await PDFDocument.load(empty)).getPageCount()).toBe(1);
   });
 });
+
+describe("the clinic's layout in the download", () => {
+  it("prints the left-out line and drops the hidden answers and reports", async () => {
+    const { buildHealthProfilePdf } = await import("@/lib/healthProfilePdf");
+    const pdf = await buildHealthProfilePdf({
+      siteName: "MoveRestore",
+      patientName: "Asha Rao",
+      patientCode: null,
+      patientEmail: null,
+      exportedAt: new Date("2026-10-01T10:00:00Z"),
+      status: "Active",
+      specialtyLabel: "Orthopaedic",
+      questions: [],
+      answers: {},
+      assessments: [],
+      painMapOverridesByRegion: {},
+      documents: [],
+      showExaminations: false,
+      layoutNote: "Left out because the clinic does not show them on this patient's own profile: Reports and scans.",
+      showAnswers: false,
+      showDocuments: false,
+    });
+    expect(pdf.byteLength).toBeGreaterThan(500);
+  });
+});

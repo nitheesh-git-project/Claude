@@ -120,6 +120,14 @@ export type HealthProfilePdfInput = {
   /** "Ramesh, the patient's son, helps at home": the geriatric carer
    *  pre-step, printed in the header block beside the condition type. */
   carerLine?: string | null;
+  /** The clinic's Health Profile layout (profileWidgets.ts `exportPlan`):
+   *  a line naming the sections left out because the patient's own page does
+   *  not show them, so an omission never reads as "none recorded". */
+  layoutNote?: string | null;
+  /** False when the clinic hides the answers from this patient's page. */
+  showAnswers?: boolean;
+  /** False when the clinic hides reports and scans from this patient's page. */
+  showDocuments?: boolean;
 };
 
 // Renders one stored answer the way a person reads it, driven off the
@@ -313,7 +321,9 @@ export async function buildHealthProfilePdf(input: HealthProfilePdfInput): Promi
     size: 9,
     color: MUTED,
   });
+  if (input.layoutNote) cur.text(toWinAnsiTidy(input.layoutNote, ""), { size: 9, color: MUTED });
 
+  if (input.showAnswers !== false) {
   cur.heading("What the patient told us");
   // Only the questions these answers ask: a follow-up the condition group
   // has since closed is kept on file, not printed as part of this record.
@@ -344,6 +354,7 @@ export async function buildHealthProfilePdf(input: HealthProfilePdfInput): Promi
         cur.text(entry.value, { size: 10.5, gap: 7 });
       }
     }
+  }
   }
 
   // The goal in the patient's own words, the steps towards it, and the
@@ -575,6 +586,7 @@ export async function buildHealthProfilePdf(input: HealthProfilePdfInput): Promi
   // Listed, not embedded: the files themselves live in storage and are
   // downloaded individually. A patient handing this to another clinician
   // still needs to see what is on file.
+  if (input.showDocuments !== false) {
   cur.heading("Test reports and scans on file");
   if (input.documents.length === 0) {
     cur.text("No reports uploaded.", { size: 10, color: MUTED });
@@ -583,6 +595,7 @@ export async function buildHealthProfilePdf(input: HealthProfilePdfInput): Promi
       const dated = document.taken_on ? `taken ${formatDate(document.taken_on)}` : `uploaded ${formatDate(document.created_at)}`;
       cur.text(`${document.title}  -  ${document.document_type}, ${dated}`, { size: 10, gap: 2 });
     }
+  }
   }
 
   cur.space(10);

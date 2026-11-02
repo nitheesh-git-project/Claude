@@ -34,6 +34,9 @@ import { formatClinicDate } from "@/lib/formatDateTime";
 import { geriatricExportSection, shapeGeriatricView } from "@/lib/geriatricProfile";
 import { cardioExportSection, shapeCardioView } from "@/lib/cardioProfile";
 import type { MeasuredProfileReads } from "@/lib/progressProfileBase";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { loadProfileLayout } from "@/lib/profileWidgetsServer";
+import { exportPlan } from "@/lib/profileWidgets";
 
 /** Shape of the rows the Pain Map query returns, so the non-orthopaedic
  *  branch's empty placeholder keeps the same type. */
@@ -364,7 +367,14 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const progress = buildProgressExport({
+  // The clinic's Health Profile layout for this patient: what their page
+  // leaves out, their download leaves out too, and says so in a line. Read
+  // with the service role after the patient check above (the layout tables
+  // are admin-read only); unreadable is the standard layout. Locked safety
+  // sections are always printed.
+  const plan = exportPlan(await loadProfileLayout(createAdminClient(), user.id, profileKind));
+
+  const fullProgress = buildProgressExport({
     profileKind,
     careStatus: { phase: careStatusRead.phase, override: careStatusRead.override, summary: careStatusRead.summary },
     points: parseMeasurementRows(measurementsRead.rows),
@@ -372,6 +382,12 @@ export async function GET(request: NextRequest) {
     milestones: goalsRead.milestones,
     nowMs: Date.now(),
   });
+  const progress = {
+    ...fullProgress,
+    goal: plan.steps ? fullProgress.goal : null,
+    milestones: plan.steps ? fullProgress.milestones : [],
+    measures: plan.measures ? fullProgress.measures : [],
+  };
 
   const pdf = await buildHealthProfilePdf({
     siteName: parseAdminSettings(settingsRow).siteName,
@@ -383,13 +399,16 @@ export async function GET(request: NextRequest) {
     specialtyLabel: specialtyLabel(specialty),
     respondent,
     progress,
-    diary: diaryRead ? buildDiaryExport(diaryRead.entries, { profileKind, nowMs: Date.now() }) : null,
+    diary: diaryRead && plan.diary ? buildDiaryExport(diaryRead.entries, { profileKind, nowMs: Date.now() }) : null,
+    layoutNote: plan.note,
+    showAnswers: plan.answers,
+    showDocuments: plan.reports,
     conditionSection,
     carerLine,
     questions,
     answers,
     earlierProfiles,
-    showExaminations: isOrtho,
+    showExaminations: isOrtho && plan.bodyMap,
     assessments: (assessments ?? []).map((a) => ({
       region: a.region,
       side: a.side,
@@ -399,13 +418,13 @@ export async function GET(request: NextRequest) {
       created_at: a.created_at,
     })),
     painMapOverridesByRegion,
-    showNeuroExaminations: isNeuro,
+    showNeuroExaminations: isNeuro && plan.neuroExam,
     neuroExams: parseNeuroAssessments(neuroResult.rows).map((exam) => ({
       created_at: exam.createdAt,
       submitted_by_role: exam.submittedByRole,
       lines: describeNeuroExamForText(exam.findings),
     })),
-    showPedsExamination: isPeds,
+    showPedsExamination: isPeds && plan.pedsExam,
     pedsAgeLine: pedsAgeText,
     pedsVerificationNote: isPeds ? PEDS_WINDOWS_VERIFICATION_NOTE : null,
     pedsExam:
@@ -422,7 +441,7 @@ export async function GET(request: NextRequest) {
             earlierCount: pedsExams.length - 1,
           }
         : null,
-    documents: (documents ?? []).map((d) => ({
+    documents: (plan.reports ? (documents ?? []) : []).map((d) => ({
       title: d.title,
       document_type:
         MEDICAL_DOCUMENT_TYPE_LABEL[d.document_type as MedicalDocumentType] ?? "Report",
