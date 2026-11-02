@@ -112,7 +112,9 @@ test("FS-002: Done before the start says so inline, with No Show still beside it
   await expect(card.getByText("This session hasn't started yet.")).toBeVisible();
   const noShow = card.getByRole("button", { name: /no.?show/i });
   const [d, n] = [await done.boundingBox(), await noShow.boundingBox()];
-  expect(Math.abs(d!.y - n!.y)).toBeLessThan(4);
+  // On one row: centred on the same line. Done is two lines tall now (its
+  // label and "Note and exam, then it closes"), so the tops differ.
+  expect(Math.abs(d!.y + d!.height / 2 - (n!.y + n!.height / 2))).toBeLessThan(4);
   expect(n!.x - (d!.x + d!.width)).toBeLessThan(24);
   await card.screenshot({ path: "test-results/finish-session-not-yet.png" });
 });
@@ -233,6 +235,9 @@ test("FS-005: an orthopaedic patient's Done still needs this session's Pain Map"
 // the status. Seeded straight as completed with no settlement, so it can be
 // deleted afterwards.
 test("FS-006: a completed session sits under Past even while its slot is ahead", async ({ browser }) => {
+  // Two dashboards, each paged through Upcoming and Past on the shared QA
+  // accounts: against a hosted project 30s is not enough (testing.md).
+  test.setTimeout(120_000);
   const concern = `${MARKER} done early`;
   await db.from("appointments").delete().eq("concern", concern);
   const slot = new Date(Date.now() + 50 * HOUR);
