@@ -1805,7 +1805,10 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   work this therapist personally did rather than editing the patient's own
   history. Completion is never blocked on a note - the nudge is a
   `needsYou` feed item plus the "Notes to write" figure on the therapist's
-  Overview.
+  Overview. **A written note is never lost to a stray tap:** Escape, the
+  backdrop, the cross and Cancel ask before discarding anything that differs
+  from how the dialog opened, and a refusal is the `data-form-error` banner
+  with the first missing field revealed (`revealField`).
 - **What the patient reads about a session is the summary, never the note.**
   The same dialog (Done, or the card's note button) carries a second band,
   teal with an eye and labelled **Shared with the patient**: *What we did
