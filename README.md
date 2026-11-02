@@ -175,7 +175,7 @@ flowchart TB
     P[Public site] --- D[Patient · Therapist · Hospital · Admin dashboards]
   end
   Browser -->|HTTPS| PX[src/proxy.ts<br/>auth proxy + rate limits]
-  PX --> APP[Next.js 16 App Router<br/>Server Components + 216 route handlers]
+  PX --> APP[Next.js 16 App Router<br/>Server Components + 220 route handlers]
   APP -->|service role, after route checks| SB[(Supabase Postgres<br/>RLS · triggers · security-definer functions)]
   Browser -->|anon key, RLS| SB
   SB -->|Realtime| D

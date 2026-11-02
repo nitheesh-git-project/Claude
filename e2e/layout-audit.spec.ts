@@ -151,7 +151,7 @@ test("LAYOUT: the chosen-service summary keeps its title readable on a phone", a
     const page = await context.newPage();
     await page.goto(`${BASE}/book`, { waitUntil: "domcontentloaded" });
     await settle(page);
-    await page.getByRole("button", { name: /Continue to Medical Details/ }).click();
+    await page.getByRole("button", { name: /Continue to your details/ }).click();
 
     const summary = page.getByTestId("chosen-service-summary");
     await expect(summary, `${width}px: the summary renders on step 2`).toBeVisible();

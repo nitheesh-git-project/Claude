@@ -744,6 +744,8 @@ still renders the full page.
 
 **Shared:** `/pending-approval`, `/account-suspended`, `/reset-password`.
 
+**Short link:** `/screen` redirects to the patient's companion screen (`/patient/dashboard/session`) so it can be typed or scanned on a second device during a guided check.
+
 **API:** `src/app/api/**` - mutations are POST route handlers grouped by
 audience (`admin/`, `appointments/`, `patient/`, `therapist/`, `hospital/`,
 `packages/`, `home-visit/`, `razorpay/`). Every route re-authenticates
