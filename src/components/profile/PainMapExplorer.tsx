@@ -32,7 +32,10 @@ export default function PainMapExplorer({
   showStandings = true,
   snapshot = "latest",
   record,
+  sideWords = "short",
 }: {
+  /** "patient": the figure says "Your right" / "Your left" (D4). */
+  sideWords?: "short" | "patient";
   assessments: PainAssessmentRow[];
   areaPain: AreaPainEntry[];
   /** The ranked exam list under the figure. Off where the surrounding
@@ -101,7 +104,7 @@ export default function PainMapExplorer({
       {active === "compare" ? (
         <PainComparisonView assessments={assessments} areaPain={areaPain} />
       ) : (
-        <PainMapView key={snapshot} assessments={shown} />
+        <PainMapView key={snapshot} assessments={shown} sideWords={sideWords} />
       )}
 
       {showStandings && active === "exam" && (

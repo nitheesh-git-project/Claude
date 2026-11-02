@@ -128,11 +128,20 @@ export default function OrthoBodyMap({
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-start">
-        <div className="min-w-0 lg:sticky lg:top-4">
-          <PainMapExplorer assessments={assessments} areaPain={areaPain} showStandings={false} snapshot={shown} record={record} />
+        {/* The patient reads the areas first (D4): the list is the main
+            thing to tap and read, the figure is the picture beside it. */}
+        <div className={`min-w-0 lg:sticky lg:top-4 ${clinician ? "" : "order-last"}`}>
+          <PainMapExplorer
+            assessments={assessments}
+            areaPain={areaPain}
+            showStandings={false}
+            snapshot={shown}
+            record={record}
+            sideWords={clinician ? "short" : "patient"}
+          />
         </div>
 
-        <div className="min-w-0 space-y-4">
+        <div className={`min-w-0 space-y-4 ${clinician ? "" : "order-first"}`}>
           <div>
             <h3 className="text-sm font-bold text-slate-900">Area by area</h3>
             {areas.length === 0 ? (
@@ -142,8 +151,8 @@ export default function OrthoBodyMap({
             ) : (
               <ul className="mt-2 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
                 {areas.map((a) => (
-                  <li key={a.key} className="min-w-0 rounded-xl border border-slate-200 p-3">
-                    <div className="flex items-baseline justify-between gap-2 text-sm font-semibold text-slate-900">
+                  <li key={a.key} className={`min-w-0 rounded-xl border border-slate-200 p-3 ${clinician ? "" : "min-h-[48px]"}`}>
+                    <div className={`flex items-baseline justify-between gap-2 font-semibold text-slate-900 ${clinician ? "text-sm" : "text-base"}`}>
                       <span className="min-w-0 [overflow-wrap:anywhere]">{a.label}</span>
                       <span className="shrink-0">{a.nowText}</span>
                     </div>

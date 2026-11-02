@@ -164,7 +164,11 @@ export default function BodyMapDiagram({
   selected,
   interactive = false,
   onSelect,
+  sideWords = "short",
 }: {
+  /** How the figure names the sides: "R"/"L" for a clinician, "Your right"
+   *  / "Your left" in larger, darker type for a patient (D4). */
+  sideWords?: "short" | "patient";
   latestByKey: Map<string, LatestAssessment>;
   // Picker mode (AreaPainPicker): dots whose "region:side" key is in this
   // set render filled in accent teal regardless of latestByKey -- there's
@@ -396,10 +400,17 @@ export default function BodyMapDiagram({
         {/* Which side is which, from the patient's point of view: facing
             the reader on the front figure, so their left is on the reader's
             right; seen from behind on the back figure, so it is not. */}
-        <g fontSize={11} fontWeight={700} fill="#94a3b8" textAnchor="middle" aria-hidden>
-          <text x={cx - 110} y={620}>{view === "front" ? "R" : "L"}</text>
-          <text x={cx + 110} y={620}>{view === "front" ? "L" : "R"}</text>
-        </g>
+        {sideWords === "patient" ? (
+          <g fontSize={22} fontWeight={700} fill="#475569" textAnchor="middle" aria-hidden>
+            <text x={cx - 150} y={600}>{view === "front" ? "Your right" : "Your left"}</text>
+            <text x={cx + 150} y={600}>{view === "front" ? "Your left" : "Your right"}</text>
+          </g>
+        ) : (
+          <g fontSize={11} fontWeight={700} fill="#94a3b8" textAnchor="middle" aria-hidden>
+            <text x={cx - 110} y={620}>{view === "front" ? "R" : "L"}</text>
+            <text x={cx + 110} y={620}>{view === "front" ? "L" : "R"}</text>
+          </g>
+        )}
 
         {regions.map((region) => {
           const coords = REGION_COORDS[region.key];
@@ -457,8 +468,9 @@ export default function BodyMapDiagram({
 
   return (
     <div className="mx-auto flex max-w-lg flex-col items-center gap-4 sm:flex-row sm:items-start sm:gap-2">
-      {figure("back")}
+      {/* Front first: it is the view a person recognises as themselves. */}
       {figure("front")}
+      {figure("back")}
     </div>
   );
 }
