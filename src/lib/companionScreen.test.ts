@@ -17,6 +17,8 @@ import {
   serverOffsetMs,
   UNREADABLE_TEXT,
   WAITING_TEXT,
+  SECOND_SCREEN_HELP,
+  companionShortLink,
   showsUnreadable,
 } from "@/lib/companionScreen";
 import { PATIENT_PICTURES, containsClinicWord } from "@/lib/sessionProtocols";
@@ -219,5 +221,26 @@ describe("the exercise demo on the companion screen", () => {
   it("reads a view with no exercise exactly as before", () => {
     expect(asLiveDisplayView(JSON.parse(JSON.stringify(view())))!.text.exercise).toBeUndefined();
     expect(asLiveExerciseDemo(undefined)).toBeNull();
+  });
+});
+
+describe("the second-screen help", () => {
+  it("keeps clinic words out of what the patient reads", () => {
+    for (const text of Object.values(SECOND_SCREEN_HELP)) expect(containsClinicWord(text)).toBeNull();
+    expect(containsClinicWord(WAITING_TEXT.keepCallOpen)).toBeNull();
+  });
+  it("tells a one-device patient they are fine", () => {
+    expect(SECOND_SCREEN_HELP.twoDevices).toContain("Only one device? That's fine");
+    expect(SECOND_SCREEN_HELP.twoDevices).toContain("keep your video call on your phone");
+    expect(WAITING_TEXT.keepCallOpen).toBe("Keep your video call open.");
+  });
+  it("makes a short link a person can type and a scanner can open", () => {
+    expect(companionShortLink("https://moverestore.example")).toEqual({
+      display: "moverestore.example/screen",
+      href: "https://moverestore.example/screen",
+    });
+    expect(companionShortLink("http://localhost:3000")?.display).toBe("localhost:3000/screen");
+    expect(companionShortLink("not a url")).toBeNull();
+    expect(companionShortLink("javascript:alert(1)")).toBeNull();
   });
 });

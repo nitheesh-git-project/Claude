@@ -95,6 +95,8 @@ test("AC-001: with no run the patient's screen waits calmly and has nothing but 
   const waiting = page.getByTestId("companion-waiting");
   await expect(waiting).toBeVisible(SEEN);
   await expect(waiting).toContainText("Your physiotherapist will start the guided check soon");
+  // For the patient whose video call is on their phone: do not close it.
+  await expect(page.getByTestId("companion-keep-call")).toHaveText("Keep your video call open.");
   // No result, no clinic word, nothing to press but the way back to the dashboard.
   await expect(page.getByTestId("companion").getByRole("button")).toHaveCount(0);
   await expect(page.getByTestId("companion").getByRole("link")).toHaveCount(1);
@@ -199,6 +201,32 @@ test("AC-005: the patient's screen shows only the step counter, its name and one
   // Patient-safe words only: no result, no clinic word, no back-office path.
   const text = (await page.getByTestId("companion").innerText()).toLowerCase();
   for (const word of ["triage", "specialty", "red flag", "lefs", "score", "admin", "protocol", "ortho"]) expect(text).not.toContain(word);
+  await context.close();
+});
+
+test("AC-005b: while a check is live every patient screen says how to use a second device, and that one device is fine", async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 390, height: 800 } });
+  await context.addCookies(await browserCookiesFor(patient!.email));
+  const page = await context.newPage();
+  await page.goto(`${BASE}/patient/dashboard`);
+  const bar = page.getByTestId("guided-check-bar");
+  await expect(bar).toBeVisible(SEEN);
+  await expect(page.getByTestId("guided-check-help")).toHaveText(
+    "Open this on a laptop, tablet or TV and keep your video call on your phone. Only one device? That's fine \u2014 your physiotherapist will talk you through it."
+  );
+  // A short link to type on the other device, and the same as a QR code.
+  await expect(page.getByTestId("guided-check-short-link")).toHaveText(/\/screen$/);
+  const qr = page.getByTestId("guided-check-qr").getByRole("img");
+  await expect(qr).toBeVisible();
+  await expect(qr).toHaveAttribute("aria-label", /QR code for .*\/screen/);
+  // 16px on the sentence, and the page does not scroll sideways.
+  const px = await page.getByTestId("guided-check-help").evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+  expect(px).toBeGreaterThanOrEqual(16);
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(1);
+  // The link opens the companion screen.
+  await page.getByTestId("guided-check-link").click();
+  await expect(page).toHaveURL(/\/patient\/dashboard\/session/);
   await context.close();
 });
 

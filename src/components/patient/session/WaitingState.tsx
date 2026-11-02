@@ -20,6 +20,11 @@ export default function WaitingState({ ended = false, unreadable = false }: { en
         {unreadable ? UNREADABLE_TEXT.line : ended ? "That is everything for today. Thank you." : WAITING_TEXT.line}
       </p>
       <p className="text-[clamp(16px,2vw,22px)] text-[#94a3b8]">{unreadable ? UNREADABLE_TEXT.calm : ended ? "You can close this screen." : WAITING_TEXT.calm}</p>
+      {!unreadable && !ended && (
+        <p data-testid="companion-keep-call" className="text-[clamp(16px,2vw,22px)] font-semibold text-[#e2e8f0]">
+          {WAITING_TEXT.keepCallOpen}
+        </p>
+      )}
     </div>
   );
 }

@@ -687,3 +687,16 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   the support email, and says "the clinic", never "an admin". Text is 16px.
   Get Started's patient card is split the same way: *New here? Book your first
   session* and *Signed up before? Sign in*.
+- **The guided-check bar is written for a patient with one device.** The video
+  call stays on the phone and the companion screen is meant for a second
+  device, so `GuidedCheckBar` says *Open this on a laptop, tablet or TV and keep
+  your video call on your phone. Only one device? That's fine - your
+  physiotherapist will talk you through it.* (`SECOND_SCREEN_HELP`,
+  `companionScreen.ts`), with a typed short link (`/screen`, a plain redirect
+  to `/patient/dashboard/session`, `companionShortLink`) and a QR code of the
+  same link. The QR is drawn in the browser from the page's own origin by
+  `src/lib/qrCode.ts` - a dependency-free byte-mode encoder for versions 1-10
+  (L/M), tested against the standard's worked Reed-Solomon example, its
+  format and version words, and a decoder in the test; text that does not fit
+  returns null and the QR is simply absent. The waiting screen adds *Keep your
+  video call open.* `e2e/assessment-cockpit.spec.ts` AC-001 / AC-005b.

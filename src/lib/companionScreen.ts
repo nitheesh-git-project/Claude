@@ -121,7 +121,37 @@ export const WAITING_TEXT = {
   title: "Your physiotherapist will start the guided check soon",
   line: "You do not need to do anything yet. This screen will change by itself when it starts.",
   calm: "Sit comfortably and take a slow breath.",
+  /** For the patient whose video call is on their phone and who has this
+   *  open on a second device: the one thing not to do is close the call. */
+  keepCallOpen: "Keep your video call open.",
 } as const;
+
+/** The patient's bar on every dashboard screen while a guided check is live
+ *  (GuidedCheckBar). Written for the patient who has one device: the bar must
+ *  never read as a task they cannot do. */
+export const SECOND_SCREEN_HELP = {
+  title: "Your physiotherapist has started a guided check. Open the screen to follow it.",
+  twoDevices:
+    "Open this on a laptop, tablet or TV and keep your video call on your phone. Only one device? That's fine \u2014 your physiotherapist will talk you through it.",
+  scan: "Scan with the other device, or type the short link there.",
+} as const;
+
+/** Where the short link lands: a plain redirect to the companion screen
+ *  (src/app/screen/page.tsx), short enough to type on a TV. */
+export const COMPANION_SHORT_PATH = "/screen";
+
+/** The short link as typed ("moverestore.in/screen") and as scanned
+ *  ("https://moverestore.in/screen") for a site origin, or null when the
+ *  origin cannot be read. */
+export function companionShortLink(origin: string): { display: string; href: string } | null {
+  try {
+    const url = new URL(COMPANION_SHORT_PATH, origin);
+    if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+    return { display: `${url.host}${url.pathname}`, href: url.toString() };
+  } catch {
+    return null;
+  }
+}
 
 // --- Reading what the poll route sends ------------------------------------------------------------------
 
