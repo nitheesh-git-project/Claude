@@ -585,7 +585,13 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   them.** The Overview's blocks are placed by `.overview-grid` (globals.css):
   stacked on a phone; feed and Quick actions side by side from `lg`; from
   `2xl` the headline and Quick actions form a right-hand panel beside the
-  figures and the feed. Sessions (`SessionFilterList`) shows a compact row
+  figures and the feed. A dashboard can pass `queues` to `DashboardOverview`
+  (the admin's "what needs you"): its own grid area, placed **before the feed
+  on a phone** -- what is waiting on you is read before the log of what
+  happened -- and under Quick actions from `lg`, spanned by the feed. Absent
+  on the other three dashboards, where the empty area costs nothing.
+  `PagedList` also takes `viewPresets` / `focusPrefix` so a `?view=` link
+  opens a list on the rows a count counted (admin.md). Sessions (`SessionFilterList`) shows a compact row
   per session on the left and the chosen session's card on the right
   (`.session-split`); each card is still rendered exactly once, so nothing
   in a card -- a half-typed form included -- is ever on the page twice. The
@@ -672,3 +678,12 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   everything a patient reads (the booking wizard, session cards, the waiting
   screen, Home's strip, the pending-approval page); the phone tab bar and rail
   labels are 12px with wrapping allowed because six columns share 360px.
+- **A patient waiting on approval is not made to wait.** `/pending-approval`
+  for a patient leads with **Book your first session** (`/book`; checkout opens
+  the account, so booking is the quickest way in), says the wait in words
+  (`approvalWaitPhrase`, `src/lib/clinicPromises.ts` - *usually within 1
+  working day*, a default until a setting has a column), shows WhatsApp / call
+  links only when Brand & Contact holds a real number (`contactLinks.ts`) plus
+  the support email, and says "the clinic", never "an admin". Text is 16px.
+  Get Started's patient card is split the same way: *New here? Book your first
+  session* and *Signed up before? Sign in*.

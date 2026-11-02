@@ -47,7 +47,7 @@ Two rules shape almost everything on the patient's screens:
 7. Leave **Referral Code** blank.
 8. Tap **Create Account**.
 
-**Expected Result.** The button reads `Creating account...`, then the browser lands on **`/pending-approval`** - **not** the dashboard, and **not** any "check your email" screen. The page explains the account is waiting for approval. In Supabase, the `profiles` row exists with `role='patient'`, `approved=false`, `active=true`, and a `patient_code` of the form `PT####`.
+**Expected Result.** The button reads `Creating account...`, then the browser lands on **`/pending-approval`** - **not** the dashboard, and **not** any "check your email" screen. The page says the clinic is checking the account (*"usually within 1 working day"* - a default until it has a setting), offers a 16px teal **Book your first session** button to `/book` (checkout opens the account), WhatsApp / call links from Settings -> Brand & Contact (only when a real number is set) and the support email, and never says "admin". In Supabase, the `profiles` row exists with `role='patient'`, `approved=false`, `active=true`, and a `patient_code` of the form `PT####`.
 **Cleanup.** Leave. `ADM-APPR-001` approves this account.
 
 #### `PAT-AUTH-003` - An unapproved patient cannot reach the dashboard · P0
