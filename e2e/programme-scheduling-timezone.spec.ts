@@ -53,7 +53,7 @@ async function freshPurchase(): Promise<{ id: string; code: string | null }> {
     .single();
   if (error) throw new Error(error.message);
   purchases.push(data.id);
-  // Your Programmes names a programme by its ID (PED_PKG001-0/3); the old
+  // My programme names a programme by its ID (PED_PKG001-0/3); the old
   // code stands in on a database without the new column.
   const { data: withId } = await db.from("patient_package_purchases").select("programme_code").eq("id", data.id).maybeSingle();
   return { id: data.id, code: (withId as { programme_code?: string | null } | null)?.programme_code ?? data.purchase_code };

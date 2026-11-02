@@ -31,7 +31,7 @@ export function sessionRowStatus(status: string, noShow?: boolean): { label: str
  * the patient had asked for something that might be refused; the session is
  * paid for and booked, and the one thing outstanding is the clinic's.
  */
-export const PROGRAMME_BOOKED_LABEL = "Booked - confirming your therapist";
+export const PROGRAMME_BOOKED_LABEL = "Booked - confirming your physiotherapist";
 
 export type PatientSessionStatusInput = {
   status: string;

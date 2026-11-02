@@ -5,14 +5,14 @@ import PatientPackageWidget from "@/components/packages/PatientPackageWidget";
 import HomeVisitPackageWidget from "@/components/patient/HomeVisitPackageWidget";
 
 export const metadata: Metadata = {
-  title: "Your Programmes | MoveRestore",
+  title: "My programme | MoveRestore",
 };
 
 export default async function Page() {
   const d = await loadPatientDashboard("packages");
 
   return (
-    <PatientDashboardShell data={d} title="Your Programmes" subtitle="The treatment your therapist arranged, and the sessions you have left.">
+    <PatientDashboardShell data={d} title="My programme" subtitle="The treatment your physiotherapist arranged, and the sessions you have left.">
       {d.ownedPackages && d.ownedPackages.length > 0 && (
         <div id="your-packages" className="mt-8">
           <PatientPackageWidget

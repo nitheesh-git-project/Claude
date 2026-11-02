@@ -9,6 +9,8 @@ import { loadPatientDashboard } from "@/lib/patientDashboardData";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { BOOKING_FROM_DASHBOARD } from "@/components/BookingBackToSessions";
 import { noNextSessionHeadline } from "@/lib/patientOverviewCopy";
+import JoinSessionButton from "@/components/JoinSessionButton";
+import { formatSessionWhen } from "@/lib/sessionWhenLabel";
 
 export const metadata: Metadata = {
   title: "Patient Dashboard | MoveRestore",
@@ -27,7 +29,7 @@ export default async function PatientDashboardPage() {
     <PatientDashboardShell
       data={d}
       title={`Welcome back, ${d.profile?.full_name ?? "there"}`}
-      subtitle="Your virtual physical therapy dashboard"
+      subtitle="Your physiotherapy dashboard"
     >
 
       {/* Above everything else on the screen, because it is the one thing
@@ -63,7 +65,7 @@ export default async function PatientDashboardPage() {
             <span className="block text-sm font-semibold text-amber-800">
               {intakeAnswered > 0
                 ? `You're ${intakeAnswered} of ${d.intakeTotal} questions into your health profile.`
-                : "Add to your health profile so your therapist has the full picture before your next session."}
+                : "Add to your health profile so your physiotherapist has the full picture before your next session."}
             </span>
             <span className="mt-1 block text-xs text-amber-700">
               {intakeAnswered > 0
@@ -92,11 +94,44 @@ export default async function PatientDashboardPage() {
       <DashboardOverview
         greeting="Your care at a glance"
         headline={
-          d.nextSession?.slot_time
-            ? `Your next session is ${formatSlotTime(d.nextSession.slot_time, d.nextSession.timezone)}.`
-            : d.unbookedSessionCount > 0
-              ? `You have ${d.unbookedSessionCount} paid session${d.unbookedSessionCount === 1 ? "" : "s"} still to book - pick times that suit you.`
-              : noNextSessionHeadline(d.bookingHistory)
+          <>
+            <span className="block">
+              {d.nextSession?.slot_time
+                ? `Your next session is ${formatSlotTime(d.nextSession.slot_time, d.nextSession.timezone)}.`
+                : d.joinSession?.slot_time
+                  ? `Your session is ${formatSlotTime(d.joinSession.slot_time, d.joinSession.timezone)}.`
+                  : d.unbookedSessionCount > 0
+                    ? `You have ${d.unbookedSessionCount} paid session${d.unbookedSessionCount === 1 ? "" : "s"} still to book - pick times that suit you.`
+                    : noNextSessionHeadline(d.bookingHistory)}
+            </span>
+            {/* The one thing a patient opens Home for when a call is due:
+                while the join window is open, one full-width button with
+                the physiotherapist and the time; before it, when the button
+                will appear. When the link becomes available is the server's
+                rule and is not decided here. */}
+            {d.joinSession && (
+              <span className="mt-4 block">
+                <JoinSessionButton
+                  size="hero"
+                  meetLink={d.joinSession.meet_link}
+                  slotTime={d.joinSession.slot_time}
+                  status={d.joinSession.status}
+                  durationMinutes={d.joinSession.duration_minutes}
+                  heroDetail={
+                    d.joinSession.slot_time
+                      ? formatSessionWhen(
+                          d.joinSession.slot_time,
+                          d.joinSession.duration_minutes ?? 60,
+                          d.joinSession.therapist_id
+                            ? `with ${d.therapistMap.get(d.joinSession.therapist_id) ?? "your physiotherapist"}`
+                            : "with a physiotherapist"
+                        )
+                      : undefined
+                  }
+                />
+              </span>
+            )}
+          </>
         }
         cells={d.overviewCells}
         stripFooter={
@@ -124,7 +159,7 @@ export default async function PatientDashboardPage() {
                 ? "Review your health profile"
                 : "Finish your health profile",
             hint: !d.intakeGate.canEdit
-              ? "Your therapist fills this in at your first session"
+              ? "Your physiotherapist fills this in at your first session"
               : intakeAnswered === d.intakeTotal
                 ? "Keep it current before your next session"
                 : `${d.intakeTotal - intakeAnswered} questions left, about 2 minutes`,

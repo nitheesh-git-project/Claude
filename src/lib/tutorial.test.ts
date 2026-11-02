@@ -78,7 +78,7 @@ describe("tutorial content", () => {
   it("walks the patient through a session's states, in the screens' own words", () => {
     const journey = chapterForSection("patient", "sessions")!.steps.find((s) => s.id === "journey")!;
     const text = journey.points!.join(" ");
-    expect(text).toContain("Waiting for a therapist");
+    expect(text).toContain("Waiting for a physiotherapist");
     expect(text).toContain("Tap to Join");
   });
 

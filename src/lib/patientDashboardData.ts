@@ -37,6 +37,7 @@ import { loadConditionCovers } from "@/lib/catalogImageServer";
 import { programmeDisplay, type ProgrammeDisplay } from "@/lib/programmeDisplay";
 import { SESSION_SUMMARY_SELECT, type SessionSummaryRow } from "@/lib/sessionSummary";
 import { hasBookingHistory, noNextSessionNote } from "@/lib/patientOverviewCopy";
+import { pickJoinSession } from "@/lib/joinHeadline";
 
 // Everything the patient dashboard's screens read, loaded once per
 // request.
@@ -899,6 +900,10 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     )
     .sort((a, b) => new Date(a.slot_time!).getTime() - new Date(b.slot_time!).getTime());
   const nextSession = upcoming[0] ?? null;
+  // The session the Home headline puts its big Join button on: the soonest
+  // online one that has not closed yet - which, unlike `nextSession`, still
+  // counts once it has started (src/lib/joinHeadline.ts).
+  const joinSession = pickJoinSession(onlineAppointments, nowMs, adminSettings.joinWindowAfterMinutes);
   // Whether "nothing booked" would be true, or a returning patient's
   // history being talked over -- see patientOverviewCopy.ts.
   const bookingHistory = hasBookingHistory(appointments);
@@ -1023,7 +1028,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
         : "-",
       note: nextSession?.slot_time
         ? `${new Date(nextSession.slot_time).toLocaleTimeString([], { timeZone: "Asia/Kolkata", hour: "numeric", minute: "2-digit" })}${
-            nextSession.therapist_id ? ` · ${therapistMap.get(nextSession.therapist_id) ?? "therapist"}` : ""
+            nextSession.therapist_id ? ` · ${therapistMap.get(nextSession.therapist_id) ?? "physiotherapist"}` : ""
           }`
         : noNextSessionNote(bookingHistory),
       accent: "bg-teal-500",
@@ -1033,18 +1038,25 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
       label: "Sessions done",
       value: String(completedCount),
       unit: completedCount === 1 ? "session" : "sessions",
-      note: completedCount === 0 ? "Your history builds up here" : "Completed with your therapist",
+      note: completedCount === 0 ? "Your history builds up here" : "Completed with your physiotherapist",
       accent: "bg-emerald-500",
       href: "/patient/dashboard/sessions",
     },
-    {
-      label: "Package sessions left",
-      value: String(sessionsLeftInPackages),
-      unit: sessionsLeftInPackages === 1 ? "session" : "sessions",
-      note: hasOwnedPackages ? "Across the packages you own" : "You don't own a package yet",
-      accent: "bg-blue-500",
-      href: "/patient/dashboard/packages",
-    },
+    // Only for a patient who owns a programme. "0 sessions left - you don't
+    // own a package yet" was a tile that told most patients about something
+    // they had never been offered; with none to count, it is not on screen.
+    ...(hasOwnedPackages
+      ? [
+          {
+            label: "Programme sessions left",
+            value: String(sessionsLeftInPackages),
+            unit: sessionsLeftInPackages === 1 ? "session" : "sessions",
+            note: "Across your programme",
+            accent: "bg-blue-500",
+            href: "/patient/dashboard/packages",
+          } satisfies StatCell,
+        ]
+      : []),
     // Before a therapist has filled it in, this deliberately reads "-" on
     // a slate accent rather than "0%" on amber: an amber zero asserts the
     // patient is behind on something nobody has asked them for. Same
@@ -1053,7 +1065,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
       ? {
           label: "Health profile",
           value: "-",
-          note: "Your therapist fills this in at your first session",
+          note: "Your physiotherapist fills this in at your first session",
           accent: "bg-slate-400",
           href: "/patient/dashboard/health-profile",
         }
@@ -1062,7 +1074,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
           value: `${intakeTotal === 0 ? 0 : Math.round((intakeAnswered / intakeTotal) * 100)}%`,
           note:
             intakeAnswered === intakeTotal
-              ? "Your therapist has your answers"
+              ? "Your physiotherapist has your answers"
               : `${intakeTotal - intakeAnswered} question${
                   intakeTotal - intakeAnswered === 1 ? "" : "s"
                 } left`,
@@ -1242,6 +1254,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     intakeGate,
     intakeSpecialty,
     nextSession,
+    joinSession,
     bookingHistory,
     patientFeed,
     overviewCells,

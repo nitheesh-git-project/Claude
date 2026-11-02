@@ -47,7 +47,7 @@ test("CHROME-002: a slow dashboard tab shows the word-roll loader with the sideb
     await route.continue();
   });
   await page.goto(`${BASE}/patient/dashboard`);
-  const rail = page.getByRole("navigation", { name: "Patient Panel navigation" }).first();
+  const rail = page.getByRole("navigation", { name: /navigation$/ }).first();
   await expect(rail).toBeVisible();
   // The dashboard re-reads itself once after its first paint; the observer
   // below has to live in the document that stays.
@@ -65,7 +65,7 @@ test("CHROME-002: a slow dashboard tab shows the word-roll loader with the sideb
     const t0 = performance.now();
     const tick = () => {
       if (document.querySelector("[data-testid=navigation-loader]")) {
-        const nav = document.querySelector('nav[aria-label="Patient Panel navigation"]:not([data-tabbar])');
+        const nav = document.querySelector('nav[aria-label$=" navigation"]:not([data-tabbar])');
         const visible = nav ? nav.getBoundingClientRect().width > 0 : false;
         const words = [...document.querySelectorAll("[data-testid=navigation-loader] .word-roll__row")]
           .slice(0, 5)

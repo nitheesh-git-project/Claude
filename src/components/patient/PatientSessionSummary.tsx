@@ -27,7 +27,7 @@ export default function PatientSessionSummary({ state }: { state: PatientSummary
 
   return (
     <section
-      aria-label="Summary from your therapist"
+      aria-label="Summary from your physiotherapist"
       data-testid="patient-session-summary"
       className="space-y-1.5 rounded-lg border border-teal-100 bg-teal-50/60 p-3"
     >
@@ -37,7 +37,7 @@ export default function PatientSessionSummary({ state }: { state: PatientSummary
           We couldn&apos;t load this session&apos;s summary just now. Refresh the page to try again.
         </p>
       ) : state.kind === "none" ? (
-        <p className="text-slate-600">Your therapist hasn&apos;t added a summary for this session.</p>
+        <p className="text-slate-600">Your physiotherapist hasn&apos;t added a summary for this session.</p>
       ) : (
         <>
           <p className="text-[11px] text-slate-500">

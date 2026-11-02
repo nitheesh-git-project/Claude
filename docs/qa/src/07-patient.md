@@ -8,7 +8,7 @@ A patient's journey is: **register → get approved (or auto-approve by paying) 
 
 Two rules shape almost everything on the patient's screens:
 
-1. **A screen that can only ever be empty is not in the sidebar.** Your Sessions, Your Packages, Payments and Suggested Sessions appear only once the patient actually has one. **Book a Session is the deliberate exception** - always shown, because that is how a patient gets their first of anything.
+1. **A screen that can only ever be empty is not in the sidebar.** Your Sessions, My programme, Payments and Recommendations appear only once the patient actually has one. **Book a Session is the deliberate exception** - always shown, because that is how a patient gets their first of anything.
 2. **The patient is read-only on their own Health Profile until a therapist writes the first record.** While locked, the "answer your questions" call to action and the answered counter are **absent, not disabled**; the dashboard banner is dropped rather than recoloured; the overview cell reads `-` on slate rather than `0%` on amber. The **reports uploader stays open**, because it is the one useful thing a patient can do beforehand.
 
 ---
@@ -29,7 +29,7 @@ Two rules shape almost everything on the patient's screens:
 4. Tap the **Password** field. Enter the `E2E_QA_PASSWORD` value.
 5. Tap **Sign In**.
 
-**Expected Result.** The button reads `Signing in...` while working. The browser navigates to `/patient/dashboard`. The sidebar shows **Overview**, **Book a Session**, **Health Profile** and **Edit Profile** at minimum, with **Back to Home** at the **foot of the nav, directly above Collapse** (above the profile footer in the mobile drawer, which has no Collapse). The public `Navbar` is **not** rendered on the dashboard. No error banner.
+**Expected Result.** The button reads `Signing in...` while working. The browser navigates to `/patient/dashboard`. The sidebar shows **Home**, **Book a Session**, **My progress** and **Edit Profile** at minimum, with **Back to Home** at the **foot of the nav, directly above Collapse** (above the profile footer in the mobile drawer, which has no Collapse). The public `Navbar` is **not** rendered on the dashboard. No error banner.
 **Cleanup.** Stay signed in for `PAT-DASH-001`.
 
 #### `PAT-AUTH-002` - Register a patient account from `/patient/register` · P0
@@ -108,19 +108,19 @@ The patient portal's Overview is the screen a patient lands on after every sign-
 
 **Steps**
 1. Open `/patient/dashboard`.
-2. On a brand-new account only: the dashboard tutorial opens over the screen, marked `Dashboard tour · dummy data`. Confirm it reads `Step 1 of N`, has **Skip**, **Next**, **Back** (from step 2) and a row of chapter chips, and that each scene animates - on **Booking a session**, the session card moves through `Payment not completed`, `waiting for a therapist`, `confirmed with Dr Ananya Rao`, **Tap to Join** and `Session completed` with stars. Tap the **Health profile** chip and read all three of its steps.
+2. On a brand-new account only: the dashboard tutorial opens over the screen, marked `Dashboard tour · dummy data`. Confirm it reads `Step 1 of N`, has **Skip**, **Next**, **Back** (from step 2) and a row of chapter chips, and that each scene animates - on **Booking a session**, the session card moves through `Payment not completed`, `waiting for a physiotherapist`, `confirmed with Dr Ananya Rao`, **Tap to Join** and `Session completed` with stars. Tap the **My progress** chip and read all three of its steps.
 3. Tap **Next** until the last step, then tap **Done - show my dashboard**. Then tap the (i) beside the page title and confirm it opens just the **Home** chapter as a `Quick guide`; tap **Got it**.
 4. Reload the page.
-5. Read the header: `Welcome back, QA Patient A` with `Your virtual physical therapy dashboard` under it.
-6. Read the four figures across the strip, left to right.
+5. Read the header: `Welcome back, QA Patient A` with `Your physiotherapy dashboard` under it.
+6. Read the figures across the strip, left to right. **Home** is also the sidebar name for this screen (it was "Overview"). When a video session is on the books, the headline card carries one full-width, 56px teal **Join your video call** button with the physiotherapist and the time once the join window is open (the session keeps the button from the moment it starts until its window closes), and before that the line **Your join button appears here at 5:45 pm** (clinic zone; with the day when it is not today).
 7. Tap the **Next session** figure.
-8. Tap the browser's Back button, then tap the **Package sessions left** figure.
+8. Tap the browser's Back button, then tap the **Programme sessions left** figure (it exists only for a patient who owns a programme; with none the strip has three figures and no "0 sessions left / you don't own a package yet" tile).
 9. Tap Back again. Read the activity feed under the strip.
 10. Read the four quick actions at the foot: **Book a session**, the health-profile action, **Your sessions**, **Your payments**.
 
 **Expected Result.**
 * The tour appears **only on the first visit**, and uses dummy data only (Priya, Dr Ananya) - nothing of Patient A's. Step 3 writes `profiles.onboarding_seen_at` through `/api/dashboard/tutorial-seen`, so the reload at step 4 shows no tour, and it never opens by itself again. **Skip** asks `Skip the tour?` once and then does the same thing as **Done**. Any (i) replays its own chapter at any time and never re-marks anything.
-* The strip reads: **Next session** (date + time and the therapist's name, or `-` with `Nothing booked yet` for a patient who has never booked, and `No upcoming sessions` for one with a paid or completed session behind them - telling a returning patient "Nothing booked yet" is the `F-03` defect), **Sessions done** (count, `Your history builds up here` at zero), **Package sessions left** (count, `You don't own a package yet` when there are none), and **Health profile**.
+* The strip reads: **Next session** (date + time and the therapist's name, or `-` with `Nothing booked yet` for a patient who has never booked, and `No upcoming sessions` for one with a paid or completed session behind them - telling a returning patient "Nothing booked yet" is the `F-03` defect), **Sessions done** (count, `Your history builds up here` at zero), **Programme sessions left** (count, only for a patient who owns a programme), and **Health profile**.
 * **Health profile before the therapist's first record reads `-` on a slate accent** with `Your therapist fills this in at your first session` - **not** `0%` on amber. An amber zero here is the `PAT-HP-001` defect: it asserts the patient is behind on something nobody has asked them for.
 * Step 7 navigates to `/patient/dashboard/sessions`; step 8 to `/patient/dashboard/packages`. Every figure is a link and lands on the rows it counted.
 * With no history the feed reads `Bookings, payments and health-profile updates show up here as they happen.` Once there is history, items still waiting on the patient (`needsYou`) are **pinned above** everything else regardless of date, and no single title repeats more than the cap allows.
@@ -515,7 +515,7 @@ Repeat `PAT-CANCEL-001`/`002` against a home visit. **Expected Result.** The win
 **Preconditions.** `THR-SESS-009` step 1 done for Patient A. Patient B exists.
 **Steps.** As Patient A open **Sessions → Past** and find the session. Then search the whole portal and the PDF export for the note's text (`L4-L5 segmental mobilisation`, the plan for next session). Sign in as Patient B and open their Sessions.
 **Expected Result**
-* Patient A's card has a **Session summary** box: `From <Therapist A> · <date>` (clinic date), then **What we did** and **Before your next session** with the therapist's words; `· updated <date>` after an edit. If a programme was recommended after this session and the clinic has published it, a link **See the programme recommended after this session** goes to Suggested Sessions.
+* Patient A's card has a **Session summary** box: `From <Therapist A> · <date>` (clinic date), then **What we did** and **Before your next session** with the therapist's words; `· updated <date>` after an edit. If a programme was recommended after this session and the clinic has published it, a link **See the programme recommended after this session** goes to Recommendations.
 * A completed session with no summary reads `Your therapist hasn't added a summary for this session.` Upcoming, cancelled and no-show sessions show no summary box at all.
 * **No word of the clinical note appears anywhere the patient can see**, including the PDF.
 * Patient B sees nothing of Patient A's summary.
@@ -653,16 +653,16 @@ Repeat `PAT-CANCEL-001`/`002` against a home visit. **Expected Result.** The win
 
 ### 11.8 Suggested Sessions, care plans and credits
 
-#### `PAT-SUGG-001` - The Suggested Sessions entry appears only when something waits · P1
+#### `PAT-SUGG-001` - The Recommendations entry appears only when something waits · P1
 
 **Steps.** Before any therapist has suggested anything, check the sidebar. Then have `THR-SUGG-001` send a suggestion, and reload.
-**Expected Result.** Before: **no** Suggested Sessions entry. After: the entry appears **above** Your Sessions - something waiting on the patient's answer outranks a list of what is settled.
+**Expected Result.** Before: **no** Recommendations entry. After: the entry appears **above** Your Sessions - something waiting on the patient's answer outranks a list of what is settled.
 
 #### `PAT-SUGG-002` - Accept a therapist-proposed time · P0
 
 **Preconditions.** `THR-SUGG-001` has proposed a slot on an active programme with credits remaining.
 **Steps.** Open `/patient/dashboard/suggested`. Read the card. Tap **Accept this time**.
-**Expected Result.** The card resolves to **Accepted - clinic confirming**. An appointment is created via the package-session path, **`requested` and unassigned** - never assigned or confirmed by the accept. It appears in Admin → Sessions with no therapist with the locked therapist pre-picked (`ADM-SESS-005`); once the admin assigns it, it is confirmed and gets its Meet link. Until then the patient's session card reads **Booked - confirming your therapist**. `sessions_used` on the purchase increases by exactly **one**. A `reserve`/`consume` ledger entry is written with an idempotency key derived from the appointment id. The therapist's dashboard shows the new session once it is assigned. **A declined suggestion would have claimed nothing** - a suggestion is its own row, never an appointment in a new status.
+**Expected Result.** The card resolves to **Accepted - clinic confirming**. An appointment is created via the package-session path, **`requested` and unassigned** - never assigned or confirmed by the accept. It appears in Admin → Sessions with no therapist with the locked therapist pre-picked (`ADM-SESS-005`); once the admin assigns it, it is confirmed and gets its Meet link. Until then the patient's session card reads **Booked - confirming your physiotherapist**. `sessions_used` on the purchase increases by exactly **one**. A `reserve`/`consume` ledger entry is written with an idempotency key derived from the appointment id. The therapist's dashboard shows the new session once it is assigned. **A declined suggestion would have claimed nothing** - a suggestion is its own row, never an appointment in a new status.
 
 #### `PAT-SUGG-003` - Decline · P2
 **Steps.** Tap **Decline** on a pending suggestion. **Expected Result.** The card shows `Declined`. No appointment. No credit moves. The therapist's control shows the declined state.
@@ -691,7 +691,7 @@ Repeat `PAT-CANCEL-001`/`002` against a home visit. **Expected Result.** The win
 * **Session credits are granted: exactly 6.** Not 5, not 12.
 * The care plan's status becomes `accepted`. **The thread is now closed** - a later recommendation opens a *new* plan with `supersedes_id` set.
 * The payment does **not** refresh into an empty screen. In place of the Review & pay page the patient reads *"Payment received - N sessions are yours"*, who will run them, and one next step. **If the screen goes blank after paying, that is a P0 defect** - it is the highest-intent moment in the product.
-* **Your Programmes** appears in the sidebar (not "Your Packages") and lists the programme with `6 sessions`, `0 used`, `6 remaining`.
+* **My programme** appears in the sidebar (not "Your Packages") and lists the programme with `6 sessions`, `0 used`, `6 remaining`.
 * A second attempt to buy the same plan is refused: `You've already bought this plan.`
 
 #### `PAT-CARE-003` - A recommended home-visit programme quotes travel correctly · P0
@@ -706,7 +706,7 @@ Additionally: if an admin switches **Home Visit enabled** off, `/api/care-plan/c
 
 **Preconditions.** A paid 6-session programme recommended at **2 a week**, with `min_gap_hours` 48 and `max_sessions_per_week` 2.
 
-**Steps.** Tap **Choose my times** (straight after payment) or **Schedule sessions** (from Your Programmes). Read what is already selected. Change one date. Read the panel again.
+**Steps.** Tap **Choose my times** (straight after payment) or **Schedule sessions** (from My programme). Read what is already selected. Change one date. Read the panel again.
 
 **Expected Result**
 * Dates are **already chosen** - as many as the bulk limit allows - spaced roughly 3 days apart, none inside the 12-hour lead time, none past the programme's expiry, and no more than 2 in any calendar week.
@@ -722,7 +722,7 @@ Additionally: if an admin switches **Home Visit enabled** off, `/api/care-plan/c
 #### `PAT-SCHED-003` - Unbooked sessions keep asking · P0
 **Feature.** The one thing a patient can buy and then receive nothing for. Paying is the hard part and it is done; what is left is a calendar step on a screen they have to think to visit.
 **Steps.** Pay for a programme and tap **I'll do it later**. Open `/patient/dashboard`.
-**Expected Result.** The activity feed carries a **needsYou** item - *"N sessions still to book"* - naming the programme and linking to Your Programmes. It stays until the balance is spent and disappears when it is. The figure must agree with the Your Programmes card exactly; a feed claiming a balance that screen disagrees with is a P0.
+**Expected Result.** The activity feed carries a **needsYou** item - *"N sessions still to book"* - naming the programme and linking to My programme. It stays until the balance is spent and disappears when it is. The figure must agree with the My programme card exactly; a feed claiming a balance that screen disagrees with is a P0.
 
 #### `PAT-CARE-005` - A promo code on a recommended programme · P0
 **Preconditions.** Promo codes on. Two codes: `PROG20` (20% off) with **Valid on recommended programmes** ticked, and `WELCOME200` (₹200 off) without it. A recommended 4-session video programme waiting for the patient.
@@ -741,7 +741,7 @@ Additionally: if an admin switches **Home Visit enabled** off, `/api/care-plan/c
 
 **Preconditions.** `PAT-CARE-002` complete: 6 credits, therapist locked.
 **Steps.** Open `/patient/dashboard/packages`. Use the bulk scheduler to book **3** sessions, respecting the package's rules (min gap 24h, max 3/week).
-**Expected Result.** Three appointments are created, each **`requested` and unassigned** - every programme session goes through the admin. The scheduler's result rows and each session card read **Booked - confirming your therapist**, and the Home feed says "Video session booked - confirming your therapist". In Admin → Sessions with no therapist each row reads **Tap to assign · <locked therapist>**, and one tap on **Assign <name>** in the drawer confirms it and creates its Meet link. The widget reads `6 sessions · 3 used · 3 remaining`. Three `reserve` ledger entries exist, each keyed `reserve:<appointment_id>`.
+**Expected Result.** Three appointments are created, each **`requested` and unassigned** - every programme session goes through the admin. The scheduler's result rows and each session card read **Booked - confirming your physiotherapist**, and the Home feed says "Video session booked - confirming your physiotherapist". In Admin → Sessions with no therapist each row reads **Tap to assign · <locked therapist>**, and one tap on **Assign <name>** in the drawer confirms it and creates its Meet link. The widget reads `6 sessions · 3 used · 3 remaining`. Three `reserve` ledger entries exist, each keyed `reserve:<appointment_id>`.
 **Boundary.** Attempting a 4th session in the same week is refused by the package's max-per-week rule. Attempting more than `package_bulk_schedule_max` (default 8) slots in one request is refused with `Too many slots in one request.` Two slots less than 24h apart are refused by the minimum-gap rule.
 
 #### `PAT-PKG-002` - Credits cannot be overdrawn · P0 **[SQL]**
@@ -791,13 +791,13 @@ Additionally: if an admin switches **Home Visit enabled** off, `/api/care-plan/c
 
 **Feature.** Each screen in the portal has its own loading state, named for the screen rather than a bare spinner, and each keeps the sidebar. The patient dashboard renders its sidebar **per page** rather than in a layout, so a skeleton that forgot it blanks the chrome on every navigation - which reads as the app losing its place.
 
-**Steps.** In DevTools → **Network**, set throttling to **Slow 3G**. Then move through the sidebar: Overview, Book a Session, Suggested Sessions, Sessions, Programmes, Payments, Health Profile, Edit Profile.
+**Steps.** In DevTools → **Network**, set throttling to **Slow 3G**. Then move through the sidebar: Home, Book a Session, Recommendations, Sessions, My programme, Payments, My progress, Edit Profile.
 **Expected Result.** Each shows a skeleton with its own label while it loads - `Loading your dashboard`, `Loading booking`, `Loading suggested sessions`, `Loading your sessions`, `Loading your programmes`, `Loading your payments`, `Loading your health profile`, `Loading your profile`. **The sidebar stays on screen throughout**, and the teal progress bar runs above the chrome. No screen flashes empty white, and none shows another screen's label.
 **Note.** Entries hidden for this patient (Programmes and Payments before they own one - see `PAT-EMPTY-001`) are simply not in the sidebar to tap; that is not a missing loading state.
 
 #### `PAT-EMPTY-001` - Empty states across the patient portal · P2
 **Preconditions.** A freshly approved patient with nothing at all.
-**Expected Result.** The sidebar shows only **Overview**, **Book a Session**, **Health Profile**, **Edit Profile**, plus **Back to Home** at the foot of the nav. Sessions, Packages, Payments and Suggested Sessions are **absent**. The Overview shows a friendly empty feed and quick actions, not a blank panel or a zero-filled table.
+**Expected Result.** The sidebar shows only **Home**, **Book a Session**, **My progress**, **Edit Profile**, plus **Back to Home** at the foot of the nav. Sessions, My programme, Payments and Recommendations are **absent**. The Overview shows a friendly empty feed and quick actions, not a blank panel or a zero-filled table.
 
 #### `PAT-HP-009` - Overview: the Your home exercises row · P2
 **Preconditions.** Patient A has an active Home exercises plan with four exercises, one practised with the physiotherapist.

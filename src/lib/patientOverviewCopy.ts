@@ -33,5 +33,5 @@ export function noNextSessionNote(history: boolean): string {
 export function noNextSessionHeadline(history: boolean): string {
   return history
     ? "No upcoming sessions - book your next one whenever you're ready."
-    : "Nothing booked yet - pick a time that suits you and your therapist takes it from there.";
+    : "Nothing booked yet - pick a time that suits you and your physiotherapist takes it from there.";
 }

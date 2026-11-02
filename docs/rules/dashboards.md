@@ -143,7 +143,7 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   inbox row opens the stage narrowed to the same two days
   (`?view=late:48`).
 - **A programme is named by its ID everywhere it appears.** The patient's
-  Your Programmes cards and session cards, and the therapist's session
+  My programme cards and session cards, and the therapist's session
   cards and Programmes view, show `ProgrammeIdChip` -- `PED_PKG001-2/6`,
   completed over bought, counted across every session of the programme
   rather than one therapist's share -- read by
@@ -177,9 +177,9 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   `requested`, unassigned and drawn from a purchase is "Booked - confirming
   your therapist" on the session card, the Sessions list row
   (`FilterableSession.statusLabel`), the Home feed ("Video session booked -
-  confirming your therapist", `awaiting_programme_therapist` on
+  confirming your physiotherapist", `awaiting_programme_therapist` on
   `FeedAppointment`) and both bulk schedulers' result rows. A single
-  consultation keeps "Requested" / "waiting for a therapist"; an accepted
+  consultation keeps "Requested" / "waiting for a physiotherapist"; an accepted
   suggestion reads "Accepted - clinic confirming".
 - **Status decides a session's tab before its time does**
   (`src/lib/sessionBucket.ts`). Completed is Past and cancelled is
@@ -430,7 +430,7 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
      `TUTORIAL_FIXTURES` and render miniature copies of the screens, not the
      real components - a tour that read real rows would need every page's
      loaders, and one that wrote anything would be a tour with side effects.
-  2. **The words are the screens' words.** "waiting for a therapist",
+  2. **The words are the screens' words.** "waiting for a physiotherapist",
      "Waiting for the clinic to approve", "Onboarding needed", the five
      referral labels - a person meets each twice, first with nothing at
      stake. Change a label on a screen and change it in
@@ -641,3 +641,34 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   Overview "Accepted" cell opens `/hospital/dashboard/referrals?show=accepted`.
   "Updated" is shown only where the table timestamps a change
   (`declined_at` / `withdrawn_at`); never invent one.
+
+- **The patient side has one word per concept.** The clinician is always a
+  **physiotherapist** (not therapist, physical therapy or "virtual"): sessions
+  are video physiotherapy. The first screen is **Home** in every patient-facing
+  label (the tab bar always said Home; the sidebar said Overview). The
+  Health Profile screen is **My progress** in the sidebar, on the tab bar and
+  as its page title (the route stays `/patient/dashboard/health-profile`).
+  What the clinician offers is **Recommendations** (`/suggested`); what the
+  patient has bought is **My programme** (`/packages`). The brand label is the
+  clinic's own name from settings (`adminSettings.siteName`), never "Patient
+  Panel". The strip's programme tile ("Programme sessions left") exists only
+  for a patient who owns a programme. Change a label here and change it in
+  `src/lib/tutorial.ts` and `patientScenes.tsx` in the same commit; the
+  therapist, hospital and admin dashboards keep their own words.
+- **Home puts the Join button where a patient looks for it.** The headline card
+  carries `JoinSessionButton size="hero"` for `joinSession`
+  (`pickJoinSession`, `src/lib/joinHeadline.ts`): the soonest booked online
+  session that has not closed yet - so it stays on the headline from the
+  moment the session starts until its window ends, which `nextSession` (future
+  sessions only) did not. Inside the window it is one full-width 56px teal
+  **Join your video call** with the physiotherapist and the time (clinic zone)
+  beneath; before it, *Your join button appears here at 5:45 pm* (with the day
+  when it is not today); with the window open and no link, the same amber "no
+  link yet" line as the card, large. **When the link becomes available is the
+  server's rule and the window comes from Settings; this only decides what is
+  drawn.** The session card's Join is the `large` size (48px, 16px text) and
+  every join note and caption is at least 13px.
+- **Patient text floor: 16px body, 14px secondary, nothing under 13px** on
+  everything a patient reads (the booking wizard, session cards, the waiting
+  screen, Home's strip, the pending-approval page); the phone tab bar and rail
+  labels are 12px with wrapping allowed because six columns share 360px.

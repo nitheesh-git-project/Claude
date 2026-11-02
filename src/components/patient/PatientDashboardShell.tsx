@@ -38,7 +38,7 @@ export default function PatientDashboardShell({
       completedAfterMinutes={data.adminSettings.sessionCompletedAfterMinutes}
     >
     <DashboardShell
-      brandLabel="Patient Panel"
+      brandLabel={data.adminSettings.siteName}
       brandIcon="fa-user-injured"
       basePath="/patient/dashboard"
       navItems={data.navItems}

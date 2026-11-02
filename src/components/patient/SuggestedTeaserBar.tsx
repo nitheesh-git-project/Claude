@@ -42,7 +42,7 @@ export default function SuggestedTeaserBar({ teaser }: { teaser: SuggestedTeaser
                   ? teaser.sessionCount === 1 ? "home visit" : "home visits"
                   : teaser.sessionCount === 1 ? "session" : "sessions"
               } · `
-            : `Your therapist proposed ${teaser.count} ${teaser.count === 1 ? "time" : "times"} for your sessions`}
+            : `Your physiotherapist proposed ${teaser.count} ${teaser.count === 1 ? "time" : "times"} for your sessions`}
           {/* Video sessions in the visitor's currency; a home visit is
               charged in India, in rupees. */}
           {teaser.kind === "plan" &&

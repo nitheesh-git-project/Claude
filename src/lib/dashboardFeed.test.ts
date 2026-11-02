@@ -298,20 +298,20 @@ describe("buildPatientFeed: unbooked sessions", () => {
 describe("buildPatientFeed: a programme session waiting on the clinic", () => {
   const base = { id: "a1", slot_time: "2026-11-12T12:30:00Z", status: "requested", created_at: "2026-11-01T00:00:00Z" };
 
-  it("says booked - confirming your therapist, not waiting for a therapist", () => {
+  it("says booked - confirming your physiotherapist, not waiting for a physiotherapist", () => {
     const items = buildPatientFeed({
       appointments: [{ ...base, awaiting_programme_therapist: true }],
       conditionRequests: [],
     });
     const item = items.find((i) => i.id === "appt-a1");
-    expect(item?.title).toBe("Video session booked - confirming your therapist");
+    expect(item?.title).toBe("Video session booked - confirming your physiotherapist");
     expect(item?.tone).toBe("info");
     expect(item?.detail).toContain("12 Nov 2026");
   });
 
   it("keeps the old wording for a single consultation", () => {
     const items = buildPatientFeed({ appointments: [base], conditionRequests: [] });
-    expect(items.find((i) => i.id === "appt-a1")?.title).toBe("Video session waiting for a therapist");
+    expect(items.find((i) => i.id === "appt-a1")?.title).toBe("Video session waiting for a physiotherapist");
   });
 });
 

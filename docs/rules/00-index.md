@@ -111,7 +111,7 @@ rg -i "<the thing you are seeing>" docs/rules/
 - A programme is named by its ID everywhere it appears
 - Assigning is not reassigning, and the word has to say which
 - A session is listed once - on every dashboard, not only the admin's
-- A programme session waiting on the clinic says "Booked - confirming your therapist"
+- A programme session waiting on the clinic says "Booked - confirming your physiotherapist"
 - Status decides a session's tab before its time does
 - A different way of looking at the same rows is a view switch, not a sidebar entry
 - A screen that can only ever be empty is not in the sidebar

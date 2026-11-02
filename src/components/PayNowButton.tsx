@@ -72,13 +72,13 @@ export default function PayNowButton({
       <button
         onClick={handlePay}
         disabled={loading}
-        className="bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition"
+        className="bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white text-base font-semibold px-4 py-2 min-h-11 rounded-lg transition"
       >
         {loading
           ? "Please wait..."
           : `Pay ₹${formatRupees(amountPaise)} Now`}
       </button>
-      {error && <span className="text-[11px] text-red-600">{error}</span>}
+      {error && <span className="text-[13px] text-red-600">{error}</span>}
     </div>
   );
 }

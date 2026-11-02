@@ -59,7 +59,7 @@ test("ML-001: the patient's tiles say when the Meet link shows", async ({ page }
   await page.goto(`${BASE}/patient/dashboard/sessions`);
   await waitForSplashToClear(page);
   const requested = page.locator("div.rounded-xl", { hasText: `${MARKER} requested` }).first();
-  await expect(requested.getByText(/Meet link will show here once a therapist is confirmed - you can join from 5:45/i)).toBeVisible();
+  await expect(requested.getByText(/Meet link will show here once a physiotherapist is confirmed - you can join from 5:45/i)).toBeVisible();
   const confirmed = page.locator("div.rounded-xl", { hasText: `${MARKER} confirmed` }).first();
   await expect(confirmed.getByText(/Meet link will show here - you can join from 6:45/i)).toBeVisible();
   await requested.screenshot({ path: "test-results/meet-note-patient.png" });

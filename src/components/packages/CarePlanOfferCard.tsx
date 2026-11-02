@@ -224,8 +224,8 @@ export default function CarePlanOfferCard({
       {homeVisitWithdrawn && state === "awaiting_patient" && (
         <p className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs font-semibold text-amber-800">
           {homeVisitsOffered
-            ? "Visits at home are paused at the moment, so this cannot be booked just now. Your therapist will be in touch about what to do instead."
-            : "Home visits are only available in India, so this cannot be booked from where you are. Your therapist can suggest video sessions instead."}
+            ? "Visits at home are paused at the moment, so this cannot be booked just now. Your physiotherapist will be in touch about what to do instead."
+            : "Home visits are only available in India, so this cannot be booked from where you are. Your physiotherapist can suggest video sessions instead."}
         </p>
       )}
 
@@ -258,7 +258,7 @@ export default function CarePlanOfferCard({
           {decliningOpen && (
             <div className="rounded-xl border border-slate-200 p-3">
               <label htmlFor={declineReasonId} className="block text-xs font-semibold text-slate-700">
-                Anything you want your therapist to know? Optional.
+                Anything you want your physiotherapist to know? Optional.
               </label>
               <textarea
                 id={declineReasonId}
@@ -298,7 +298,7 @@ export default function CarePlanOfferCard({
       ) : (
         <p className="mt-5 text-xs text-slate-500">
           {state === "lapsed"
-            ? "This recommendation has expired. Your therapist can send an updated one after your next session."
+            ? "This recommendation has expired. Your physiotherapist can send an updated one after your next session."
             : state === "accepted"
               ? "Paid for. Your sessions are ready to book."
               : "No longer open."}

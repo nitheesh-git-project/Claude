@@ -111,7 +111,7 @@ export default function PatientBookingHub({
       {categories.length > 0 && (
         <Group
           title="Single online consultation"
-          blurb="One video session with a therapist, booked for a specific concern."
+          blurb="One video session with a physiotherapist, booked for a specific concern."
           tone="online"
           icon="fa-video"
           count={categories.length}
@@ -142,7 +142,7 @@ export default function PatientBookingHub({
         <HomeVisitOnly>
         <Group
           title="Home visits"
-          blurb="One visit from a therapist at your address. We'll check your pincode before anything is charged."
+          blurb="One visit from a physiotherapist at your address. We'll check your pincode before anything is charged."
           tone="home"
           icon="fa-house-medical"
           count={homeVisitConditions.length}

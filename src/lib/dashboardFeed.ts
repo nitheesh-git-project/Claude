@@ -213,7 +213,7 @@ export function buildPatientFeed({
       at: carePlan.authoredAt,
       icon: "fa-lightbulb",
       tone: "info",
-      title: "Your therapist recommended a programme",
+      title: "Your physiotherapist recommended a programme",
       detail: carePlan.title,
       href: "/patient/dashboard/suggested",
       needsYou: true,
@@ -263,10 +263,10 @@ export function buildPatientFeed({
         at: a.created_at ?? when,
         icon: "fa-hourglass-half",
         tone: "info",
-        title: `${mode} booked - confirming your therapist`,
+        title: `${mode} booked - confirming your physiotherapist`,
         detail: when
-          ? `${formatClinicDateTime(when)}. The clinic is confirming your therapist - you'll see the joining details here once it's confirmed.`
-          : "The clinic is confirming your therapist - you'll see the joining details here once it's confirmed.",
+          ? `${formatClinicDateTime(when)}. The clinic is confirming your physiotherapist - you'll see the joining details here once it's confirmed.`
+          : "The clinic is confirming your physiotherapist - you'll see the joining details here once it's confirmed.",
         href: "/patient/dashboard/sessions",
       });
     } else if (a.status === "requested") {
@@ -275,7 +275,7 @@ export function buildPatientFeed({
         at: a.created_at ?? when,
         icon: "fa-hourglass-half",
         tone: "warn",
-        title: `${mode} waiting for a therapist`,
+        title: `${mode} waiting for a physiotherapist`,
         detail: "The clinic is assigning someone - you'll see the joining details here once it's confirmed.",
         href: "/patient/dashboard/sessions",
       });
@@ -382,11 +382,11 @@ export function buildPatientFeed({
         icon: "fa-file-waveform",
         tone: "info",
         title: byTherapist
-          ? "Your therapist updated your health profile"
+          ? "Your physiotherapist updated your health profile"
           : "Health profile sent for review",
         detail: byTherapist
           ? "The clinic is checking it before it goes on your record."
-          : "Your therapist sees the previous answers until the clinic approves this one.",
+          : "Your physiotherapist sees the previous answers until the clinic approves this one.",
         href: "/patient/dashboard/health-profile",
       });
     } else if (r.status === "declined") {
@@ -416,8 +416,8 @@ export function buildPatientFeed({
         // Health Profile is read-only and there is nothing telling them
         // when that changes.
         detail: byTherapist
-          ? "Your therapist has filled it in - you can read it and add to it now."
-          : "Your therapist can now read your answers.",
+          ? "Your physiotherapist has filled it in - you can read it and add to it now."
+          : "Your physiotherapist can now read your answers.",
         href: "/patient/dashboard/health-profile",
       });
     }
