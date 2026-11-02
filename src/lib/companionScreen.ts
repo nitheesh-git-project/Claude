@@ -224,3 +224,41 @@ export function asLiveDisplayView(raw: unknown): LiveDisplayView | null {
     updatedAt: v.updatedAt,
   };
 }
+
+// --- Is the patient's screen open? (E12) ----------------------------------------------------------------
+
+/** How often an open companion screen tells the server it is there, even when
+ *  realtime is delivering everything (the poll route records it). */
+export const COMPANION_HEARTBEAT_MS = 20_000;
+/** A heartbeat older than this means the screen is not open (any more). */
+export const COMPANION_SEEN_FRESH_MS = 45_000;
+
+export type CompanionSeen = "open" | "not_yet" | "unknown";
+
+/**
+ * Whether the patient's screen is open now, from the last time it fetched
+ * its display during this run (`assessment_companion_seen`) read against
+ * the server's clock. "unknown" when the read failed or the table is not
+ * there: "we couldn't check" is never "not open".
+ */
+export function companionSeenState(read: { status: "ok"; seenAt: string | null; serverNow: string } | { status: "unknown" }): CompanionSeen {
+  if (read.status !== "ok") return "unknown";
+  if (!read.seenAt) return "not_yet";
+  const seen = Date.parse(read.seenAt);
+  const now = Date.parse(read.serverNow);
+  if (!Number.isFinite(seen) || !Number.isFinite(now)) return "unknown";
+  return now - seen <= COMPANION_SEEN_FRESH_MS ? "open" : "not_yet";
+}
+
+/** The cockpit's words for it, with the patient's first name. */
+export function companionSeenLabel(state: CompanionSeen, firstName: string): string {
+  if (state === "open") return `Open on ${firstName}'s side`;
+  if (state === "not_yet") return `Not open on ${firstName}'s side yet`;
+  return `Couldn't check ${firstName}'s side`;
+}
+
+/** What the physiotherapist reads aloud to get the screen open (the Start
+ *  panel's step 0): the short link, signed in as themselves, call kept open. */
+export function shareScreenScript(shortLink: string): string {
+  return `Please open ${shortLink} on a laptop, tablet or TV, signed in as you, and keep this call open. It follows me, so there's nothing to press.`;
+}

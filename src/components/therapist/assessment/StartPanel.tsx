@@ -7,6 +7,7 @@ import { useRouter } from "@/lib/useRouter";
 import { failureText, type CockpitFailure } from "@/lib/cockpit";
 import { postEnd, startRun } from "@/components/therapist/assessment/api";
 import BeforeYouStart from "@/components/therapist/assessment/BeforeYouStart";
+import ShareScreenStep from "@/components/therapist/assessment/ShareScreenStep";
 import type { Briefing } from "@/lib/cockpitBriefing";
 
 /**
@@ -84,6 +85,7 @@ export default function StartPanel({
           {sessionNote}
         </p>
       )}
+      <ShareScreenStep firstName={patientName.split(" ")[0] || "the patient"} />
       <BeforeYouStart briefing={briefing} />
       {protocols.length > 1 && (
         <fieldset>

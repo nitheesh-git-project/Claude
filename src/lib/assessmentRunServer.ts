@@ -616,3 +616,48 @@ export async function loadFinishContext(
     return { status: "unreadable" };
   }
 }
+
+// --- The companion's heartbeat (E12) ----------------------------------------------------------
+
+/** Per-process memory of the last heartbeat written per run, so a screen
+ *  polling every three seconds writes about once in ten. Losing it (a new
+ *  worker) only means one extra write. */
+const lastSeenWrite = new Map<string, number>();
+const SEEN_WRITE_EVERY_MS = 10_000;
+
+/**
+ * Records that the patient's companion screen fetched its display during a
+ * live run: one upsert of `assessment_companion_seen` with the service role,
+ * after the route's own checks, only for the patient's own run in progress.
+ * Best effort and silent: a database without the table, or a failed write,
+ * never costs the patient their screen - the cockpit then says it couldn't
+ * check, never "not open".
+ */
+export async function recordCompanionSeen(admin: AdminClient, view: { runId: string; ended: boolean }, patientId: string, nowMs: number): Promise<void> {
+  if (view.ended) return;
+  const last = lastSeenWrite.get(view.runId);
+  if (last !== undefined && nowMs - last < SEEN_WRITE_EVERY_MS) return;
+  lastSeenWrite.set(view.runId, nowMs);
+  if (lastSeenWrite.size > 5000) lastSeenWrite.clear();
+  try {
+    await admin
+      .from("assessment_companion_seen")
+      .upsert({ run_id: view.runId, patient_id: patientId, last_seen_at: new Date(nowMs).toISOString() }, { onConflict: "run_id" });
+  } catch {
+    // A heartbeat; the next one tries again.
+  }
+}
+
+export type CompanionSeenRead = { status: "ok"; seenAt: string | null; serverNow: string } | { status: "unknown" };
+
+/** The run's last heartbeat, read with the therapist's own client (the
+ *  table's select policy is the run's therapist). Missing table: unknown. */
+export async function loadCompanionSeen(client: AnyClient, runId: string): Promise<CompanionSeenRead> {
+  try {
+    const { data, error } = await client.from("assessment_companion_seen").select("last_seen_at").eq("run_id", runId).maybeSingle();
+    if (error) return { status: "unknown" };
+    return { status: "ok", seenAt: (data?.last_seen_at as string | undefined) ?? null, serverNow: new Date().toISOString() };
+  } catch {
+    return { status: "unknown" };
+  }
+}

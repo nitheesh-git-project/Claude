@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { isPatientProfile, isProfileActive, profileCheckUnavailable } from "@/lib/supabase/requireActiveProfile";
 import { enforceRateLimit } from "@/lib/rateLimitServer";
-import { loadLiveDisplay } from "@/lib/assessmentRunServer";
+import { loadLiveDisplay, recordCompanionSeen } from "@/lib/assessmentRunServer";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 // The patient's companion screen asking for what to show (Health Profile
 // redesign, phase 7b): the fallback the screen polls every three seconds when
@@ -13,6 +14,13 @@ import { loadLiveDisplay } from "@/lib/assessmentRunServer";
 // patient-safe whitelist (`validateLiveDisplay`) on the way out. No run, no
 // event and no result is reachable from here. A row that fails the whitelist
 // is "unreadable" (503), never a partial screen.
+//
+// It is also the screen's heartbeat (E12): while a run is live, a successful
+// read records `assessment_companion_seen.last_seen_at` for that run with the
+// service role (after the checks above, for the patient's own row only,
+// written about once in ten seconds), so the cockpit can say "Open on
+// <name>'s side" honestly. Best effort: a database without the table or a
+// failed write never changes this answer.
 //
 // Response: 200 { display: LiveDisplayView | null, serverNow: string }
 //           403 not a signed-in, active patient,
@@ -39,5 +47,6 @@ export async function GET(request: NextRequest) {
   if (read.status !== "ok") {
     return NextResponse.json({ error: "We couldn't check the screen just now." }, { status: 503 });
   }
+  if (read.display) await recordCompanionSeen(createAdminClient(), read.display, user.id, Date.now());
   return NextResponse.json({ display: read.display, serverNow: read.serverNow }, { headers: { "Cache-Control": "no-store" } });
 }

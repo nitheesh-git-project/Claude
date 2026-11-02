@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { parseLiveDisplayRow, type LiveDisplayView } from "@/lib/assessmentRun";
-import { COMPANION_POLL_MS, COMPANION_REALTIME_GRACE_MS, asLiveDisplayView, serverOffsetMs } from "@/lib/companionScreen";
+import { COMPANION_HEARTBEAT_MS, COMPANION_POLL_MS, COMPANION_REALTIME_GRACE_MS, asLiveDisplayView, serverOffsetMs } from "@/lib/companionScreen";
 import { sessionProtocol } from "@/lib/sessionProtocols";
 
 export type LiveDisplayInitial = { display: LiveDisplayView | null; serverNow: string; unreadable: boolean };
@@ -109,6 +109,17 @@ export function useLiveDisplay(patientId: string, initial: LiveDisplayInitial) {
       supabase.removeChannel(channel);
     };
   }, [patientId, apply, refetch]);
+
+  // The heartbeat (E12): while a check is live and realtime is delivering,
+  // a read every twenty seconds anyway, so the physiotherapist's cockpit can
+  // see this screen is open (the poll route records it). Polling below
+  // already reads more often when realtime is down.
+  const live = !!view && !view.ended;
+  useEffect(() => {
+    if (!realtimeOk || !live) return;
+    const id = setInterval(() => void refetch(), COMPANION_HEARTBEAT_MS);
+    return () => clearInterval(id);
+  }, [realtimeOk, live, refetch]);
 
   // Polling: the fallback, used whenever realtime is not up (after a short
   // grace for the socket to join).

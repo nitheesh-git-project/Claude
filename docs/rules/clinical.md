@@ -1605,7 +1605,19 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      never *will start soon*; a live check already on screen is kept through
      one failed read, and *Reconnecting* still shows after three. Every patient screen
      carries a bar to it while a check is live. The first-visit tour never opens
-     over either live screen (`tutorialMayAutoStart`).
+     over either live screen (`tutorialMayAutoStart`). **Whether it is open is
+     a heartbeat, never a guess (E12):** the poll route records
+     `assessment_companion_seen.last_seen_at` for the patient's own live run
+     with the service role after its own checks (about once in ten seconds,
+     best effort, silent on a database without the table), the screen reads
+     every twenty seconds even while realtime is up, and the cockpit asks
+     `/api/therapist/assessment-runs/companion-seen` (the therapist's own
+     client; rate limited `assessmentCompanionSeen`) every fifteen seconds:
+     *Open on Priya's side* within 45 seconds of a heartbeat, *Not open on
+     Priya's side yet* otherwise, *Couldn't check Priya's side* on a failed
+     read (`companionSeenState`). The preview's *Sent* means only that the
+     server stored it. The Start panel's **Step 0, Share the patient screen**,
+     gives the short link and the words to read aloud (`shareScreenScript`).
   `src/lib/sessionProtocols.test.ts`, `assessmentRun.test.ts`,
   `assessmentSummaryDraft.test.ts`, `cockpit.test.ts`, `companionScreen.test.ts`,
   `latestWins.test.ts`, `guidedAssessmentEntry.test.ts`;

@@ -34,6 +34,7 @@ export default function PatientPreview({
   serverOffsetMs,
   status,
   onRetry,
+  seen = null,
 }: {
   firstName: string;
   text: LiveDisplayText;
@@ -41,6 +42,8 @@ export default function PatientPreview({
   serverOffsetMs: number;
   status: PreviewStatus;
   onRetry: () => void;
+  /** Whether the patient's screen is open (E12), in words; null when ended. */
+  seen?: string | null;
 }) {
   const { show } = useToast();
   // The mini clock reads the same server-corrected time as the patient's own
@@ -80,6 +83,7 @@ export default function PatientPreview({
           }`}
         >
           {PREVIEW_STATUS_LABEL[status]}
+          {seen ? ` · ${seen}` : ""}
         </span>
       </div>
 

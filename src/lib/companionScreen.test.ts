@@ -21,6 +21,7 @@ import {
   companionShortLink,
   showsUnreadable,
 } from "@/lib/companionScreen";
+import { companionSeenLabel, companionSeenState, shareScreenScript } from "@/lib/companionScreen";
 import { PATIENT_PICTURES, containsClinicWord } from "@/lib/sessionProtocols";
 
 const NOW = Date.parse("2026-10-26T12:00:00.000Z");
@@ -242,5 +243,21 @@ describe("the second-screen help", () => {
     expect(companionShortLink("http://localhost:3000")?.display).toBe("localhost:3000/screen");
     expect(companionShortLink("not a url")).toBeNull();
     expect(companionShortLink("javascript:alert(1)")).toBeNull();
+  });
+});
+
+describe("whether the patient's screen is open (E12)", () => {
+  const now = "2026-10-27T12:00:00.000Z";
+  it("is open only on a recent heartbeat, and unknown when it could not be read", () => {
+    expect(companionSeenState({ status: "ok", seenAt: "2026-10-27T11:59:40.000Z", serverNow: now })).toBe("open");
+    expect(companionSeenState({ status: "ok", seenAt: "2026-10-27T11:58:00.000Z", serverNow: now })).toBe("not_yet");
+    expect(companionSeenState({ status: "ok", seenAt: null, serverNow: now })).toBe("not_yet");
+    expect(companionSeenState({ status: "unknown" })).toBe("unknown");
+  });
+  it("says it in words, never 'not open' for a failed read", () => {
+    expect(companionSeenLabel("open", "Priya")).toBe("Open on Priya's side");
+    expect(companionSeenLabel("not_yet", "Priya")).toBe("Not open on Priya's side yet");
+    expect(companionSeenLabel("unknown", "Priya")).toBe("Couldn't check Priya's side");
+    expect(shareScreenScript("moverestore.in/screen")).toMatch(/^Please open moverestore\.in\/screen on a laptop/);
   });
 });

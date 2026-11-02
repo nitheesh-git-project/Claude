@@ -292,6 +292,20 @@ export const RATE_LIMITS = {
   },
 
   /**
+   * The cockpit asking whether the patient's screen is open
+   * (/api/therapist/assessment-runs/companion-seen, E12): every fifteen
+   * seconds while a run is open, so a long session is a few hundred reads.
+   * Its own scope so it never spends the display or the run's allowance;
+   * keyed on the therapist, failing open (a refusal only hides the line).
+   */
+  assessmentCompanionSeen: {
+    scope: "assessment-companion-seen",
+    limit: 600,
+    windowSeconds: 3600,
+    message: "We've checked the patient's screen a lot just now.",
+  },
+
+  /**
    * Publishing a home exercise plan (/api/therapist/exercise-plans/publish,
    * phase 7d). A session publishes one or two versions; a correction is a
    * new version, so the ceiling only bounds a runaway client filling the

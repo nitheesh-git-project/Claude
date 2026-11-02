@@ -248,6 +248,31 @@ test("AR-006: the patient reads the live display -- patient-safe text only -- bu
   expect(events ?? []).toHaveLength(0);
 });
 
+test("AR-006b: the patient's screen leaves a heartbeat its therapist can read, and nobody else (E12)", async ({ request }) => {
+  const seen = (email: string) =>
+    cookieHeaderFor(email).then((cookie) =>
+      request.get(`${BASE}/api/therapist/assessment-runs/companion-seen?runId=${kneeRunId}`, { headers: { cookie } })
+    );
+  // The patient's screen reads its display: that is the heartbeat.
+  const read = await request.get(`${BASE}/api/patient/assessment-display`, { headers: { cookie: await cookieHeaderFor(knee!.email) } });
+  expect(read.status(), await read.text()).toBe(200);
+  const mine = await seen(QA_EMAILS.therapistA);
+  expect(mine.status()).toBe(200);
+  const body = await mine.json();
+  // On a database without the table the route says it could not check, never "not open".
+  if (body.known) {
+    expect(typeof body.seenAt).toBe("string");
+    expect(Date.parse(body.serverNow) - Date.parse(body.seenAt)).toBeLessThan(60_000);
+  }
+  // Another therapist reads nothing for this run (the select policy is the run's own therapist).
+  const other = await (await seen(QA_EMAILS.therapistB)).json();
+  if (other.known) expect(other.seenAt).toBeNull();
+  // The patient cannot write it from a browser session.
+  const own = await rlsClientFor(knee!.email);
+  const { error } = await own.from("assessment_companion_seen").upsert({ run_id: kneeRunId, patient_id: knee!.id, last_seen_at: new Date().toISOString() });
+  expect(error).not.toBeNull();
+});
+
 test("AR-007: heart and lung exertion is refused until a clear pre-exercise check, and on a red flag (409)", async ({ request }) => {
   const start = await post(request, "/api/therapist/assessment-runs/start", QA_EMAILS.therapistA, { patientId: heart!.id });
   expect(start.status(), await start.text()).toBe(200);

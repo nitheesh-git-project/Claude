@@ -52,6 +52,8 @@ export default function ActionBar({
     status: PreviewStatus;
     onControl: (control: PatientControl) => void;
     onRetry: () => void;
+    /** "Open on Priya's side", "Not open on Priya's side yet", "Couldn't check Priya's side". */
+    seen?: string;
   };
   /** The one-line keyboard hint; shown from `md` up (a keyboard is likely). */
   keyHint?: string;
@@ -90,6 +92,7 @@ export default function ActionBar({
             className={`shrink-0 text-[13px] font-semibold ${screen.status === "failed" ? "text-red-800" : "text-slate-700"}`}
           >
             {PREVIEW_STATUS_LABEL[screen.status]}
+            {screen.seen && <span data-testid="bar-screen-seen"> · {screen.seen}</span>}
             {screen.status === "failed" && (
               <>
                 {" · "}

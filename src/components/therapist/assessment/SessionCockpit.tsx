@@ -74,6 +74,8 @@ import { SESSION_SUMMARY_MAX_CHARS } from "@/lib/sessionSummary";
 import { postEnd, postEvent } from "@/components/therapist/assessment/api";
 import type { QuickPainSave } from "@/components/therapist/assessment/LayerTool";
 import { useDisplaySender } from "@/components/therapist/assessment/useDisplaySender";
+import { useCompanionSeen } from "@/components/therapist/assessment/useCompanionSeen";
+import { companionSeenLabel } from "@/lib/companionScreen";
 
 function mergeById<T extends { id: string }>(fromServer: readonly T[], local: readonly T[]): T[] {
   const byId = new Map<string, T>();
@@ -281,6 +283,7 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
   });
   const patientScreen = useDisplaySender({ runId: run.id, protocol, startingText, onFailure: setFailure });
   const pushDisplay = patientScreen.push;
+  const seenLabel = companionSeenLabel(useCompanionSeen(run.id, !ended), firstName);
 
   // Tell the patient's screen where we are as soon as the page opens.
   const firstPush = useRef(false);
@@ -871,6 +874,7 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
                   status: patientScreen.status,
                   onControl: (c) => pushDisplay(step.id, c, true),
                   onRetry: patientScreen.retry,
+                  seen: seenLabel,
                 }}
               />
             </>
@@ -895,6 +899,7 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
                 view={ended ? null : patientScreen.view}
                 serverOffsetMs={patientScreen.offsetMs}
                 status={patientScreen.status}
+                seen={ended ? null : seenLabel}
                 onRetry={patientScreen.retry}
               />
             </div>
