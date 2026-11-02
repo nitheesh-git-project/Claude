@@ -222,8 +222,8 @@ export default function AdminProgrammesTab({
           )}
           {idsMissing && (
             <p className={failed.length > 0 ? "mt-1" : ""}>
-              <span className="font-bold">Programme IDs are not set up on this database yet,</span> so rows show
-              their old SP/HS codes. They appear once the latest database update is applied.
+              <span className="font-bold">Programme IDs are not available yet,</span> so rows show their old
+              SP/HS codes. Tell your developer: the latest database update has not been applied. The IDs appear once it is.
             </p>
           )}
         </div>

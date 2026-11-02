@@ -496,7 +496,10 @@ input::-ms-clear {
   display: grid;
   column-gap: 1.25rem;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-areas: "banner" "head" "strip" "feed" "side";
+  /* "queues" sits before "feed" on a phone: what is waiting on you is read
+     before the log of what happened. Absent on the other dashboards, where
+     the empty area costs nothing. */
+  grid-template-areas: "banner" "head" "strip" "queues" "feed" "side";
   align-items: start;
 }
 .overview-grid > * { margin-bottom: 1.25rem; min-width: 0; }
@@ -505,16 +508,18 @@ input::-ms-clear {
 .overview-grid > .ov-strip { grid-area: strip; }
 .overview-grid > .ov-feed { grid-area: feed; }
 .overview-grid > .ov-side { grid-area: side; }
+.overview-grid > .ov-queues { grid-area: queues; }
 @media (min-width: 1024px) {
   .overview-grid {
     grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
-    grid-template-areas: "banner banner" "head head" "strip strip" "feed side";
+    /* The feed spans the side column's two blocks (quick actions, queues). */
+    grid-template-areas: "banner banner" "head head" "strip strip" "feed side" "feed queues";
   }
 }
 @media (min-width: 1536px) {
   .overview-grid {
     grid-template-columns: minmax(0, 1fr) 380px;
-    grid-template-areas: "banner banner" "strip head" "feed side";
+    grid-template-areas: "banner banner" "strip head" "feed side" "feed queues";
   }
   /* Stretched so its edges line up with the figures beside it. */
   .overview-grid > .ov-head { align-self: stretch; }

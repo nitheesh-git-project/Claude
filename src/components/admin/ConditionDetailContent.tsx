@@ -450,7 +450,7 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
           />
           <p className="text-xs text-slate-500">
             Recording here posts live immediately, same as a therapist&apos;s own entry - it adds a new reading rather
-            than editing any past one, since examination history is append-only.
+            than editing any past one, because the examination history is never rewritten.
           </p>
         </>
       ) : pedsView && isPedsProfile ? (
@@ -472,7 +472,7 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
           />
           <p className="text-xs text-slate-500">
             Recording here posts live immediately, same as a therapist&apos;s own entry - it adds a new reading rather
-            than editing any past one, since examination history is append-only.
+            than editing any past one, because the examination history is never rewritten.
           </p>
         </>
       ) : neuroView && isNeuroProfile ? (
@@ -497,7 +497,7 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
           />
           <p className="text-xs text-slate-500">
             Recording here posts live immediately, same as a therapist&apos;s own entry - it adds a new reading rather
-            than editing any past one, since examination history is append-only. The diary is the patient&apos;s own
+            than editing any past one, because the examination history is never rewritten. The diary is the patient&apos;s own
             account and the treating physiotherapist confirms it; it is read-only here.
           </p>
         </>
@@ -545,8 +545,8 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
           />
           <p className="text-xs text-slate-500">
             Recording here posts live immediately, same as a therapist&apos;s own entry - it adds a new reading rather
-            than editing any past one. The pre-exercise refusal is enforced on the guided six-minute walk, which an
-            admin can run only under People scope. The diary is the patient&apos;s own account and the treating
+            than editing any past one. The pre-exercise refusal is enforced on the guided six-minute walk, which
+            only the Operations or Clinical desk can run. The diary is the patient&apos;s own account and the treating
             physiotherapist confirms it; it is read-only here.
           </p>
         </>
@@ -594,7 +594,7 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
           {(isOrthoProfile || (isNeuroProfile && canRecordNeuro)) && (
             <p className="mt-3 text-xs text-slate-500">
               Recording here posts live immediately, same as a therapist&apos;s own entry - it adds a
-              new reading rather than editing any past one, since examination history is append-only.
+              new reading rather than editing any past one, because the examination history is never rewritten.
             </p>
           )}
         </section>

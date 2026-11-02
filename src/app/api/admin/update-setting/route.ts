@@ -91,7 +91,7 @@ const ALLOWED_COLUMNS = new Set([
   // that network's icon. See src/lib/socialLinks.ts.
   ...SOCIAL_LINK_COLUMNS,
   // The developer credit under the footer, and the address its contact page
-  // publishes. Their own screen is Settings -> Dev Reachouts.
+  // publishes. Their own screen is Settings -> Developer messages.
   "dev_contact_enabled",
   "dev_contact_email",
   "home_visit_enabled",

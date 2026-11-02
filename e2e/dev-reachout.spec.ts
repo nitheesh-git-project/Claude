@@ -1,5 +1,5 @@
 // DEV: the developer credit under the footer, its "Say hello" flow, and the
-// Master-Admin-only Dev Reachouts screen that reads what it collects.
+// Master-Admin-only Developer messages screen that reads what it collects.
 //
 // Three things are held here, and each has a reason to be driven in a browser
 // rather than only unit tested (`devReachout.test.ts` holds the rules):

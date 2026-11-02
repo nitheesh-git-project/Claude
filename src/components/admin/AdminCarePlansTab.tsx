@@ -547,7 +547,7 @@ function ReviewCard({
 
       {!canDecide ? (
         <p className="mt-3 text-[11px] text-slate-500">
-          Deciding on a recommendation needs the Programmes scope.
+          Your desk can read this page. Operations or Clinical decide on recommendations.
         </p>
       ) : mode === "idle" ? (
         <>

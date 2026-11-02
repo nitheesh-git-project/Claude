@@ -119,7 +119,7 @@ test.describe("assigning only an available therapist", () => {
       await ctx.addCookies(await browserCookiesFor(QA_EMAILS.admin));
       const page = await ctx.newPage();
       await page.goto(`${BASE}/admin/dashboard?section=sessions&tab=all`, { waitUntil: "domcontentloaded" });
-      await page.getByPlaceholder("Session ID", { exact: true }).fill(appointment!.session_code!);
+      await page.getByPlaceholder(/Search patient, therapist, session ID/).fill(appointment!.session_code!);
       const row = page.getByRole("row").filter({ hasText: appointment!.session_code! });
       await row.first().waitFor({ timeout: 60_000 });
       await row.first().click();

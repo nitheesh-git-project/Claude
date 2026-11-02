@@ -75,7 +75,7 @@ test.describe("CFG -- Settings information architecture", () => {
       "Sign-in & Security",
       "System Health",
       "Advanced",
-      "Dev Reachouts",
+      "Developer messages",
     ]) {
       await expect(onScreen(page, label).first()).toBeVisible();
     }

@@ -380,7 +380,7 @@ function AccountingFindings({ health }: { health: AccountingHealth }) {
       <EmptyState
         icon="fa-database"
         title="Not reporting yet"
-        body="The tables this check reads have not been applied to this database."
+        body="Tell your developer: the latest database update has not been applied to this project, so this check has nothing to read yet."
       />
     );
   }

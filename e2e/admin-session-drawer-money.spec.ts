@@ -39,7 +39,7 @@ async function openDrawer(browser: Browser, sessionCode: string) {
   await page.goto(`${BASE}/admin/dashboard?section=sessions&tab=all`, { waitUntil: "domcontentloaded" });
   // Exact: every screen stays mounted, so a substring match also finds the
   // global search and Payment History's own filter.
-  await page.getByPlaceholder("Session ID", { exact: true }).filter({ visible: true }).fill(sessionCode);
+  await page.getByPlaceholder(/Search patient, therapist, session ID/).filter({ visible: true }).fill(sessionCode);
   const row = page.getByRole("row").filter({ hasText: sessionCode }).filter({ visible: true });
   await row.first().waitFor({ timeout: 60_000 });
   const rowText = (await row.first().innerText()) ?? "";

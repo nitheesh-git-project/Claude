@@ -482,7 +482,7 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
       // the clinic's leads, and a scoped admin has no business reading them.
       {
         key: "reachouts",
-        label: "Dev Reachouts",
+        label: "Developer messages",
         group: "Technical",
         blurb: "Messages left through the developer credit in the footer, and the switch that shows it.",
         example: "Read a note somebody left on the Say hello page, then mark it contacted.",

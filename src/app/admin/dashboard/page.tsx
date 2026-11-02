@@ -1419,7 +1419,7 @@ export default async function AdminDashboardPage({
         (n) => n,
         () => null
       ),
-    // The developer's own inbox, behind Settings -> Dev Reachouts. Read only
+    // The developer's own inbox, behind Settings -> Developer messages. Read only
     // for a viewer whose scope can open Settings: anything in this response
     // reaches the browser whether or not the screen is drawn, and these rows
     // are a stranger's name, email and number. Guarded for the usual reason --
@@ -2279,7 +2279,7 @@ export default async function AdminDashboardPage({
       {!canManagePeople && <ReadOnlyDeskNote className="mb-6" />}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-8">
         <h2 className="font-display font-bold text-lg text-slate-800 mb-4 flex items-center gap-2">
-          B2B Leads
+          Hospital enquiries
           {b2bLeads &&
             b2bLeads.filter((l) => l.status === "new").length > 0 && (
               <span className="text-xs font-bold text-amber-700 bg-amber-100 px-2 py-1 rounded-full">
@@ -2289,7 +2289,7 @@ export default async function AdminDashboardPage({
         </h2>
         {!b2bLeads || b2bLeads.length === 0 ? (
           <p className="text-xs text-slate-500 py-4 text-center">
-            No B2B inquiries yet.
+            No hospital enquiries yet.
           </p>
         ) : (
           <PagedList
@@ -2402,6 +2402,7 @@ export default async function AdminDashboardPage({
             noun="partner"
             nounPlural="partners"
             storageKey="admin-partners"
+            focusPrefix="partner:"
             className="space-y-3"
             filters={[
               { key: "active", label: "Active" },
@@ -3052,6 +3053,7 @@ export default async function AdminDashboardPage({
       appointments={appointmentsWithSessionCode}
       homeVisits={homeVisitRows}
       people={allPeople}
+      patientOptions={patients.map((p) => ({ id: p.id, full_name: p.full_name }))}
       categories={categoriesForReassign}
       therapists={approvedTherapists ?? []}
       programmePicks={programmePicks}
@@ -3418,7 +3420,7 @@ export default async function AdminDashboardPage({
 
   const payoutRequestRows: PayoutRequestRow[] = (payoutRequests ?? []).map((r) => {
     const therapist = profileMap.get(r.therapist_id);
-    const currentlyOwedPaise =
+    const summary =
       r.status === "pending" || r.status === "reviewing"
         ? computeTherapistPayoutSummary(
             r.therapist_id,
@@ -3426,8 +3428,8 @@ export default async function AdminDashboardPage({
             appointmentsForPayouts.filter((a) => a.therapist_id === r.therapist_id),
             nowTimestamp(),
             homeVisitShareById.get(r.therapist_id) ?? null
-          ).owedPaise
-        : 0;
+          )
+        : null;
     return {
       id: r.id,
       therapistId: r.therapist_id,
@@ -3437,14 +3439,21 @@ export default async function AdminDashboardPage({
       requestedAt: r.requested_at,
       status: r.status as "pending" | "reviewing" | "completed",
       completedAt: r.completed_at,
-      currentlyOwedPaise,
+      currentlyOwedPaise: summary?.owedPaise ?? 0,
+      cashHeldPaise: summary?.cashHeldPaise ?? 0,
+      shareSet: (therapist?.revenue_share_percent ?? null) !== null,
     };
   });
   const payoutRequestsBadgeCount = payoutRequestRows.filter(
     (r) => r.status === "pending" || r.status === "reviewing"
   ).length;
 
-  const payoutRequestsTab = <AdminPayoutRequestsTab requests={payoutRequestRows} />;
+  // The open requests lead the Payouts screen and the history follows the
+  // balances table, so the work is above the fold on a phone.
+  const payoutRequestsOpenTab = <AdminPayoutRequestsTab requests={payoutRequestRows} part="open" />;
+  const payoutRequestsCompletedTab = (
+    <AdminPayoutRequestsTab requests={payoutRequestRows} part="completed" />
+  );
 
   const paymentHistoryTab = (
     <AdminPaymentHistoryTab
@@ -5244,7 +5253,7 @@ export default async function AdminDashboardPage({
       domain: "growth",
       items: [
         {
-          label: "New hospital leads",
+          label: "New hospital enquiries",
           count: b2bLeads?.filter((l) => l.status === "new").length ?? 0,
           section: "people",
           tab: "partners",
@@ -5533,7 +5542,10 @@ export default async function AdminDashboardPage({
       feed={adminFeed}
       feedTitle="Activity"
       feedEmptyBody="Admin actions and anything waiting on a person appear here."
-      aside={
+      // Its own block rather than `aside`: on a phone "what needs you" is
+      // read before the activity feed, and from a laptop up it still sits
+      // under the quick actions as before.
+      queues={
         <>
           <AdminInboxQueues groups={scopedInboxGroups} allowedSections={workableSections} />
           {home.accessNote && <AdminAccessCard note={home.accessNote} />}
@@ -5574,7 +5586,8 @@ export default async function AdminDashboardPage({
       label: h.organization_name ?? h.full_name ?? "Partner",
       terms: [h.email ?? "", h.referral_code ?? "", roleCodeMap.get(h.id)?.hospital_code ?? ""],
       kind: "Partner" as const,
-      href: adminScreenHref("people", "partners"),
+      // The exact partner, not the list it is somewhere in.
+      href: adminScreenHref("people", "partners", `partner:${h.id}`),
       hint: h.full_name,
     })),
     ...(canOpenSessionsSection ? appointmentsWithSessionCode : [])
@@ -5589,7 +5602,8 @@ export default async function AdminDashboardPage({
           programmeTagsByAppointment[a.id]?.code ?? "",
         ],
         kind: "Session" as const,
-        href: adminScreenHref("sessions", "all"),
+        // Opens All Sessions on this session's own row and drawer.
+        href: adminScreenHref("sessions", "all", `session:${a.session_code}`),
         hint: `${profileMap.get(a.patient_id)?.full_name ?? "Unknown"} · ${a.status}`,
       })),
     // One entry per programme, under its ID with progress. The old SP/HS
@@ -5662,8 +5676,9 @@ export default async function AdminDashboardPage({
     "money:payouts": (
       <div className="space-y-8">
         {moneyAlerts}
+        {payoutRequestsOpenTab}
         {payoutsTab}
-        {payoutRequestsTab}
+        {payoutRequestsCompletedTab}
         <HomeVisitCashLedger visits={homeVisitRows} nowMs={nowTimestamp()} />
         <MoneyGlossary />
       </div>

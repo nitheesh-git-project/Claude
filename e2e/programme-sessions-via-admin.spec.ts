@@ -278,7 +278,7 @@ test.describe("Programme sessions go through the admin, with the programme's the
     try {
       await page.goto(`${BASE}/admin/dashboard?section=sessions&tab=all&view=unassigned`);
       await waitForSplashToClear(page);
-      await page.getByPlaceholder("Session ID").filter({ visible: true }).first().fill(sessionCode);
+      await page.getByPlaceholder(/Search patient, therapist, session ID/).filter({ visible: true }).first().fill(sessionCode);
       const row = page.locator("tr", { hasText: sessionCode }).filter({ visible: true }).first();
       await expect(row).toBeVisible({ timeout: 60_000 });
       await expect(row).toContainText(`Tap to assign · ${therapistName}`);
@@ -334,7 +334,7 @@ test.describe("Programme sessions go through the admin, with the programme's the
     try {
       await page.goto(`${BASE}/admin/dashboard?section=sessions&tab=all&view=unassigned`);
       await waitForSplashToClear(page);
-      await page.getByPlaceholder("Session ID").filter({ visible: true }).first().fill(sessionCode);
+      await page.getByPlaceholder(/Search patient, therapist, session ID/).filter({ visible: true }).first().fill(sessionCode);
       const row = page.locator("tr", { hasText: sessionCode }).filter({ visible: true }).first();
       await expect(row).toBeVisible({ timeout: 60_000 });
       await expect(row).toContainText(`${therapistName} not free`);
