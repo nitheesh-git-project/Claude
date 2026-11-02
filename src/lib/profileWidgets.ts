@@ -576,3 +576,38 @@ export function picks(only: WidgetPick, key: string): boolean {
 export function hiddenGraphMeasureKeys(layout: Pick<ResolvedLayout, "hiddenGraphLines">): string[] {
   return layout.hiddenGraphLines.map((r) => r.widget.key.slice(GRAPH_LINE_PREFIX.length));
 }
+
+/** What the patient's own download (the PDF a patient carries to another
+ *  doctor) prints, from the same layout as their page: a section hidden from
+ *  the page is left out of the document too, and the document says so in a
+ *  line, so a reader never takes the omission for "none recorded". The
+ *  safety sections are locked, so they are always printed. */
+export function exportPlan(layout: Pick<ResolvedLayout, "shown" | "widgets" | "hiddenSections"> | null): {
+  answers: boolean;
+  bodyMap: boolean;
+  neuroExam: boolean;
+  pedsExam: boolean;
+  diary: boolean;
+  reports: boolean;
+  steps: boolean;
+  measures: boolean;
+  note: string | null;
+} {
+  const on = (key: string) => widgetShown(layout, key);
+  const printed = new Set(["condition_answers", "body_map", "exam_picture", "milestone_chart", "diary", "active_minutes", "reports_scans", "steps", "measures_table"]);
+  const left = (layout?.hiddenSections ?? []).filter((r) => printed.has(r.widget.key)).map((r) => r.widget.label);
+  return {
+    answers: on("condition_answers"),
+    bodyMap: on("body_map"),
+    neuroExam: on("exam_picture"),
+    pedsExam: on("milestone_chart"),
+    diary: on("diary") && on("active_minutes"),
+    reports: on("reports_scans"),
+    steps: on("steps"),
+    measures: on("measures_table"),
+    note:
+      left.length > 0
+        ? `Left out because the clinic does not show them on this patient's own profile: ${left.join(", ")}. They are recorded as usual; ask the clinic for the full record.`
+        : null,
+  };
+}

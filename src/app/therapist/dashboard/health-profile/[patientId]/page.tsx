@@ -56,6 +56,9 @@ import { loadPedsReads } from "@/lib/pedsProfileServer";
 import { shapePedsView } from "@/lib/pedsProfileView";
 import { pedsEquipmentChips } from "@/lib/pedsProfile";
 import { profileKindFor } from "@/lib/profileKind";
+import HiddenForPatient from "@/components/profile/HiddenForPatient";
+import { loadProfileLayout } from "@/lib/profileWidgetsServer";
+import type { WidgetPick } from "@/lib/profileWidgets";
 
 export const metadata: Metadata = {
   title: "Patient Health Profile | MoveRestore",
@@ -559,9 +562,11 @@ export default async function TherapistPatientHealthProfilePage({
     </>
   );
 
-  const orthoTop =
+  const orthoTopFor = (only: WidgetPick, testId?: string | null) =>
     orthoView && isOrtho ? (
       <OrthoProfileTop
+        only={only}
+        testId={testId}
         voice="clinician"
         patientId={patientId}
         patientName={patient.full_name}
@@ -584,9 +589,11 @@ export default async function TherapistPatientHealthProfilePage({
       />
     ) : null;
 
-  const neuroTop =
+  const neuroTopFor = (only: WidgetPick, testId?: string | null) =>
     neuroView && isNeuro ? (
       <NeuroProfileTop
+        only={only}
+        testId={testId}
         voice="clinician"
         patientId={patientId}
         patientName={patient.full_name}
@@ -606,9 +613,11 @@ export default async function TherapistPatientHealthProfilePage({
       />
     ) : null;
 
-  const geriTop =
+  const geriTopFor = (only: WidgetPick, testId?: string | null) =>
     geriView && isGeriatric ? (
       <GeriatricProfileTop
+        only={only}
+        testId={testId}
         voice="clinician"
         patientId={patientId}
         patientName={patient.full_name}
@@ -626,9 +635,11 @@ export default async function TherapistPatientHealthProfilePage({
       />
     ) : null;
 
-  const cardioTop =
+  const cardioTopFor = (only: WidgetPick, testId?: string | null) =>
     cardioView && isCardio ? (
       <CardioProfileTop
+        only={only}
+        testId={testId}
         voice="clinician"
         patientId={patientId}
         patientName={patient.full_name}
@@ -646,9 +657,11 @@ export default async function TherapistPatientHealthProfilePage({
       />
     ) : null;
 
-  const pedsTop =
+  const pedsTopFor = (only: WidgetPick, testId?: string | null) =>
     pedsView && isPeds ? (
       <PedsProfileTop
+        only={only}
+        testId={testId}
         voice="clinician"
         patientId={patientId}
         patientName={patient.full_name}
@@ -664,6 +677,33 @@ export default async function TherapistPatientHealthProfilePage({
         licenceUnreadable={licence.unreadable}
       />
     ) : null;
+
+  // The clinic's Health Profile layout for this patient (profileWidgets.ts).
+  // The chart draws the same set the patient sees, and the sections hidden
+  // from the patient behind a collapsed "hidden for this patient" line, so
+  // no clinician is ever blind to a reading. A layout that could not be
+  // read is the standard one (nothing hidden).
+  const onNewLayout = !!(orthoView || neuroView || pedsView || geriView || cardioView);
+  const layout = onNewLayout ? await loadProfileLayout(admin, patientId, profileKindFor(specialty, currentData)) : null;
+  const shownKeys: WidgetPick = layout ? [...layout.shown] : null;
+  // Sections the chart has elsewhere (reports, recommendations, the answers
+  // card, the exercises chart) are not part of the profile drawing.
+  const ELSEWHERE = ["condition_answers", "who_writes_what", "reports_scans", "care_plan_history", "home_exercises"];
+  const hiddenTopKeys = layout ? layout.hiddenSections.map((r) => r.widget.key).filter((k) => !ELSEWHERE.includes(k)) : [];
+  const topFor = orthoView ? orthoTopFor : pedsView ? pedsTopFor : neuroView ? neuroTopFor : geriView ? geriTopFor : cardioTopFor;
+  const orthoTop = orthoTopFor(shownKeys);
+  const neuroTop = neuroTopFor(shownKeys);
+  const geriTop = geriTopFor(shownKeys);
+  const cardioTop = cardioTopFor(shownKeys);
+  const pedsTop = pedsTopFor(shownKeys);
+  const hiddenForPatient = layout ? (
+    <HiddenForPatient
+      names={layout.hiddenSections.map((r) => r.widget.label)}
+      graphLines={layout.hiddenGraphLines.map((r) => r.widget.label)}
+    >
+      {hiddenTopKeys.length > 0 && topFor(hiddenTopKeys, null)}
+    </HiddenForPatient>
+  ) : null;
 
   return (
     <DashboardShell
@@ -726,6 +766,7 @@ export default async function TherapistPatientHealthProfilePage({
           <>
             {needsOnboarding && conditionCard}
             {orthoTop}
+            {hiddenForPatient}
             {plansSection}
             {exercisesSection}
             {notesSection}
@@ -740,6 +781,7 @@ export default async function TherapistPatientHealthProfilePage({
           <>
             {needsOnboarding && conditionCard}
             {pedsTop}
+            {hiddenForPatient}
             {plansSection}
             {exercisesSection}
             {notesSection}
@@ -754,6 +796,7 @@ export default async function TherapistPatientHealthProfilePage({
           <>
             {needsOnboarding && conditionCard}
             {neuroTop}
+            {hiddenForPatient}
             {plansSection}
             {exercisesSection}
             {notesSection}
@@ -767,6 +810,7 @@ export default async function TherapistPatientHealthProfilePage({
           <>
             {needsOnboarding && conditionCard}
             {geriTop ?? cardioTop}
+            {hiddenForPatient}
             {plansSection}
             {exercisesSection}
             {notesSection}

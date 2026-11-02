@@ -53,6 +53,9 @@ import { loadPedsReads } from "@/lib/pedsProfileServer";
 import { shapePedsView } from "@/lib/pedsProfileView";
 import { pedsEquipmentChips } from "@/lib/pedsProfile";
 import { profileKindFor } from "@/lib/profileKind";
+import { loadProfileLayout } from "@/lib/profileWidgetsServer";
+import { widgetRows } from "@/lib/profileWidgets";
+import { ProfileWidgetPatientPanel } from "@/components/admin/ProfileWidgetSettingsToggles";
 
 const regionLabel = (region: string) =>
   PAIN_MAP_REGIONS.find((r) => r.key === region)?.label ?? region;
@@ -418,6 +421,21 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
     ? nameOf(pendingRequest.submitted_by, pendingRequest.submitted_by_role === "patient" ? "the patient" : "A therapist")
     : null;
 
+  // What the clinic shows THIS patient on their own Health Profile
+  // (profileWidgets.ts). The admin's chart draws every section; the hidden
+  // ones are named above it and listed, marked, in "Sections for this
+  // patient" -- whose switches render only for a scope that manages People,
+  // the route's gate.
+  const widgetLayout =
+    onNewLayout && !chartBlocked && profile ? await loadProfileLayout(admin, id, profileKindFor(specialty, currentData)) : null;
+  const hiddenForPatientNote =
+    widgetLayout && widgetLayout.hiddenSections.length > 0 ? (
+      <p role="note" className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-700" data-testid="admin-hidden-for-patient">
+        <i aria-hidden className="fa-solid fa-eye-slash mr-2 text-slate-600" />
+        Hidden for the patient: {widgetLayout.hiddenSections.map((r) => r.widget.label).join(", ")}. Everything is shown here; the patient&apos;s own
+        page leaves these out.
+      </p>
+    ) : null;
   const chartSection = chartBlocked ? (
     <LoadFailed what="the Health Profile chart" />
   ) : (
@@ -753,7 +771,17 @@ export default async function ConditionDetailContent({ id }: { id: string }) {
       )}
 
       {/* 3. The Health Profile itself: the chart, as the therapist reads it. */}
+      {hiddenForPatientNote}
       {chartSection}
+      {widgetLayout && (
+        <ProfileWidgetPatientPanel
+          patientId={id}
+          rows={widgetRows(widgetLayout)}
+          canManage={canManagePeople}
+          kindUnreadable={widgetLayout.kindUnreadable}
+          patientUnreadable={widgetLayout.patientUnreadable}
+        />
+      )}
 
       {/* 4. Home exercises. */}
       {exercisesRead && !chartBlocked && <HomeExercisesChart read={exercisesRead} />}

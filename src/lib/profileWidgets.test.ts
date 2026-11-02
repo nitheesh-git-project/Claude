@@ -180,3 +180,24 @@ describe("the admin routes' gates", () => {
     }
   });
 });
+
+describe("exportPlan", () => {
+  it("prints everything with no note when nothing is hidden", async () => {
+    const { exportPlan } = await import("@/lib/profileWidgets");
+    const plan = exportPlan(resolveProfileWidgets({ kind: "ortho" }));
+    expect(plan).toMatchObject({ answers: true, bodyMap: true, reports: true, steps: true, measures: true, note: null });
+    expect(exportPlan(null).note).toBeNull();
+  });
+  it("leaves out what the page hides, and says so", async () => {
+    const { exportPlan } = await import("@/lib/profileWidgets");
+    const plan = exportPlan(
+      resolveProfileWidgets({ kind: "geriatric", patientChoices: ok([{ widgetKey: "measures_table", visible: false }, { widgetKey: "diary", visible: false }, { widgetKey: "fall_risk", visible: false }]) })
+    );
+    expect(plan.measures).toBe(false);
+    expect(plan.diary).toBe(false);
+    expect(plan.steps).toBe(true);
+    expect(plan.note).toContain("Measures table");
+    expect(plan.note).toContain("Diary");
+    expect(plan.note).not.toContain("Fall-risk");
+  });
+});
