@@ -82,7 +82,7 @@ export default function BookingExitLink({
     <div className="mt-6 flex justify-end">
       <Link
         href={href}
-        className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white/70 px-4 py-2.5 text-sm font-semibold text-slate-500 shadow-sm transition hover:bg-white hover:text-teal-700"
+        className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white/70 px-4 py-2.5 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-white hover:text-teal-700"
       >
         <i aria-hidden className="fa-solid fa-arrow-left text-[10px]"></i>
         {label}

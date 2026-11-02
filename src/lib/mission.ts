@@ -202,7 +202,7 @@ export const COMMITMENTS: MissionPrinciple[] = [
   {
     key: "no-lock-in",
     title: "No subscriptions, no auto-renewals",
-    body: "Cancel 24 hours ahead for a full refund. No subscriptions.",
+    body: "Cancel in time for a full refund. Nothing renews itself.",
     icon: "fa-lock-open",
   },
   {
