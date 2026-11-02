@@ -48,25 +48,47 @@ let patientId: string;
 let therapistId: string;
 let therapist: APIRequestContext;
 
-async function seedPaidSession(slotMs: number) {
-  const slot = new Date(slotMs);
-  slot.setMinutes(0, 0, 0);
-  const { data, error } = await db
-    .from("appointments")
-    .insert({
-      patient_id: patientId,
-      therapist_id: therapistId,
-      slot_time: slot.toISOString(),
-      status: "confirmed",
-      payment_status: "paid",
-      duration_minutes: 30,
-      visit_mode: "online",
-      concern: MARKER,
-    })
-    .select("id")
-    .single();
-  if (error) throw new Error(`could not seed a session: ${error.message}`);
-  return data.id as string;
+// The hours either side of each case's own that keep its meaning: "started
+// two hours ago" holds for one or three hours ago on the hour too (still
+// "not started" once the header winds now back four), and "three hours
+// away" for four or five. The QA therapist and patient are shared, so the
+// case's own hour can already be taken by another spec's session, and
+// appointments_one_therapist_per_slot (or the patient overlap trigger) then
+// refuses the seed -- testing.md: give each seeded booking its own slot.
+const NEARBY: Record<string, number[]> = {
+  [String(-2 * HOUR)]: [-1 * HOUR, -3 * HOUR],
+  [String(3 * HOUR)]: [4 * HOUR, 5 * HOUR],
+};
+const SLOT_TAKEN = /appointments_one_therapist_per_slot|overlap/i;
+
+async function seedOnFreeHour(offsetMs: number, patient: string): Promise<string> {
+  let last = "";
+  for (const offset of [offsetMs, ...(NEARBY[String(offsetMs)] ?? [])]) {
+    const slot = new Date(Date.now() + offset);
+    slot.setMinutes(0, 0, 0);
+    const { data, error } = await db
+      .from("appointments")
+      .insert({
+        patient_id: patient,
+        therapist_id: therapistId,
+        slot_time: slot.toISOString(),
+        status: "confirmed",
+        payment_status: "paid",
+        duration_minutes: 30,
+        visit_mode: "online",
+        concern: MARKER,
+      })
+      .select("id")
+      .single();
+    if (!error) return data.id as string;
+    last = error.message;
+    if (!SLOT_TAKEN.test(error.message)) break;
+  }
+  throw new Error(`could not seed a session: ${last}`);
+}
+
+async function seedPaidSession(offsetMs: number) {
+  return seedOnFreeHour(offsetMs, patientId);
 }
 
 async function complete(appointmentId: string, offsetMs?: number) {
@@ -102,7 +124,7 @@ test.afterAll(async () => {
 });
 
 test("DC-001: a session that has not started is refused on the real clock", async () => {
-  const id = await seedPaidSession(Date.now() + 3 * HOUR);
+  const id = await seedPaidSession(3 * HOUR);
   const res = await complete(id);
   expect(res.status()).toBe(409);
   expect((await res.json()).notYet).toBe(true);
@@ -113,7 +135,7 @@ test("DC-002: the simulated clock moves the completion gate while the debug bar 
   if (BAR_ON) {
     // Started two hours ago by the real clock; the header winds "now" back
     // four hours, so the route must answer as though it has not started.
-    const id = await seedPaidSession(Date.now() - 2 * HOUR);
+    const id = await seedPaidSession(-2 * HOUR);
     const res = await complete(id, -4 * HOUR);
     expect(res.status(), "the server ignored the simulated clock").toBe(409);
     expect((await res.json()).notYet).toBe(true);
@@ -121,7 +143,7 @@ test("DC-002: the simulated clock moves the completion gate while the debug bar 
   } else {
     // Three hours away; the header claims it is four hours later. With the
     // bar off the server must still refuse.
-    const id = await seedPaidSession(Date.now() + 3 * HOUR);
+    const id = await seedPaidSession(3 * HOUR);
     const res = await complete(id, 4 * HOUR);
     expect(res.status(), "the server honoured a debug clock with the bar off").toBe(409);
     expect((await res.json()).notYet).toBe(true);
@@ -136,7 +158,7 @@ test("DC-002: the simulated clock moves the completion gate while the debug bar 
 test("DC-003: the session note's 'has it started' gate follows the simulated clock", async () => {
   test.skip(!BAR_ON, "the header is ignored with the debug bar off (DC-002)");
   // Started two hours ago; the header winds "now" back four hours.
-  const id = await seedPaidSession(Date.now() - 2 * HOUR);
+  const id = await seedPaidSession(-2 * HOUR);
   const res = await therapist.post(`${BASE}/api/therapist/session-notes/submit`, {
     headers: { [HEADER]: String(-4 * HOUR) },
     // Every required field filled, so the only thing left to refuse on is
@@ -157,7 +179,7 @@ test("DC-004: 'Show number' follows the simulated clock and says when it opens",
   const { data: settings } = await db.from("site_settings").select("contact_masking_enabled").maybeSingle();
   test.skip(settings?.contact_masking_enabled === false, "masking is off, so nothing is refused");
   // In progress by the real clock; four hours earlier by the header.
-  const id = await seedPaidSession(Date.now());
+  const id = await seedPaidSession(0);
   const res = await therapist.post(`${BASE}/api/therapist/reveal-contact`, {
     headers: { [HEADER]: String(-4 * HOUR) },
     data: { appointmentId: id },
@@ -177,20 +199,7 @@ test("DC-005: the Pain Map exam's 'has a session started' gate follows the simul
   test.setTimeout(90_000);
   const patient = await createFixtureAccount("debug clock exam");
   try {
-    const slotMs = BAR_ON ? Date.now() - 2 * HOUR : Date.now() + 3 * HOUR;
-    const slot = new Date(slotMs);
-    slot.setMinutes(0, 0, 0);
-    const { error } = await db.from("appointments").insert({
-      patient_id: patient.id,
-      therapist_id: therapistId,
-      slot_time: slot.toISOString(),
-      status: "confirmed",
-      payment_status: "paid",
-      duration_minutes: 30,
-      visit_mode: "online",
-      concern: MARKER,
-    });
-    if (error) throw new Error(`could not seed a session: ${error.message}`);
+    await seedOnFreeHour(BAR_ON ? -2 * HOUR : 3 * HOUR, patient.id);
     const res = await therapist.post(`${BASE}/api/therapist/pain-assessments/submit`, {
       // Bar on: started two hours ago, wound back four -- only the header can
       // make it "not started". Bar off: three hours away, wound forward four
