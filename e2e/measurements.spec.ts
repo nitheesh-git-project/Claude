@@ -38,7 +38,10 @@ test.skip(
   "writes append-only measurements; set E2E_ALLOW_APPEND_ONLY_WRITES=1 on a disposable project"
 );
 
-test.describe.configure({ mode: "serial" });
+// Every case here is several round trips to the app and the database; against
+// a hosted project from a container each takes 2-5s, and 30s is not enough
+// (testing.md). Cases that set their own timeout keep it.
+test.describe.configure({ mode: "serial", timeout: 90_000 });
 
 const MARKER = "E2E measurements";
 const db = adminClient();
