@@ -8,7 +8,7 @@ Every route below is covered by at least one test. The rightmost column names th
 
 | Route | What it is | Auth | Covered by |
 | --- | --- | --- | --- |
-| `/` | Home. Hero, care-area showcase, walkthrough, programmes, testimonials, mission band, connector grid | Public | `PUB-HOME-001` |
+| `/` | Home. Hero with condition chips, two ways to start, programmes, walkthrough, health-profile teaser, care-area showcase, real testimonials, mission band, connector grid | Public | `PUB-HOME-001` |
 | `/conditions` | What we treat, plus the programme cards per condition | Public | `PUB-COND-001` |
 | `/how-it-works` | Booking to recovery in four steps | Public | `PUB-NAV-001` |
 | `/home-visit` | Home-visit landing page. **404s while the admin master switch is off** | Public | `PUB-HV-001` |

@@ -15,7 +15,17 @@ Eight pages from one design system, the word budgets, why every photograph carri
   (`src/components/system/SplashScreen.tsx`, everything it needs defined once
   in `src/lib/splashScreen.ts`) shows on the first load of a browser tab and
   again when a tab that has been in the background for longer than
-  `SPLASH_REVISIT_AWAY_MS` is returned to. It deliberately does **not** show
+  `SPLASH_REVISIT_AWAY_MS` is returned to. **Its hold is the stylesheet's, not
+  a timer, and on a public page hold + fade stay under ~600ms**
+  (`SPLASH_PUBLIC_TOTAL_MS`): the boot script writes `--splash-hold` /
+  `--splash-fade` on `<html>` before first paint (the hold clipped by
+  `splashTimings()` on every path outside the signed-in workspaces, which keep
+  the admin's full hold), and `html[data-splash="on"] .splash-screen` runs one
+  `splash-leave` animation with the hold as its delay. A timer that started
+  after hydration left the sheet up for as long as the page took to load; the
+  component now only clears the attribute once the animation has certainly
+  finished, which is also what lets a replay restart it. Under reduced motion
+  the sheet is `display: none`, not frozen on screen. It deliberately does **not** show
   on every navigation, every reload or every tab focus: a patient paying by
   UPI leaves the tab for their bank's app and comes back mid-checkout, and
   splashing over a payment in progress is the one thing this must never do.
@@ -27,10 +37,10 @@ Eight pages from one design system, the word budgets, why every photograph carri
   `data-splash` attribute on `<html>` read by CSS, because deciding it in
   React state is a hydration mismatch on every page of the app (that
   attribute is also why `<html>` carries `suppressHydrationWarning` - it
-  covers that one element, never a descendant). And the fade duration lives
-  in both `globals.css` and `SPLASH_FADE_MS`: the timer is what takes the
-  sheet out of the flow, so the two drifting apart either cuts the fade
-  short or leaves an invisible sheet eating clicks. Anyone who has asked for
+  covers that one element, never a descendant). And the fade duration is
+  `SPLASH_FADE_MS`, handed to the stylesheet as `--splash-fade` (the CSS keeps
+  a matching fallback, which `splashScreen.test.ts` pins), so the clearing
+  timer and the animation cannot drift apart. Anyone who has asked for
   reduced motion is skipped outright - it is decoration over content that is
   already rendered, so the honest answer to "don't animate" is not to show
   it. The name line, the wording, the hold and the away threshold are
@@ -532,11 +542,12 @@ Eight pages from one design system, the word budgets, why every photograph carri
   while the tour can still rotate the frame keeps the tallest height any
   profile has drawn at that width, so the page below does not move. On
   `/how-it-works` it sits above the five-step strip (profile, goal and
-  milestones, scores after each session, reviews, the PDF record); on the
-  home page it is its own band beside a short pitch and **Book your first
-  session**, drawing the graph and milestones only. On a phone (below `md`) the home band is
-  compact by CSS alone: headline change, graph and milestones, with the
-  "what it watches" list and the Parkinson's buttons hidden.
+  milestones, scores after each session, reviews, the PDF record). **The home
+  page does not carry the tour**: `HealthProfileTeaser` (a Server Component)
+  shows the first enabled profile's headline change - one sample patient's
+  first-visit-to-latest figure, labelled as a sample - and a link to
+  `/how-it-works#health-profile`. The tour was a long, heavy band between
+  "how it works" and the programmes a phone visitor came to price.
   **It is the one public widget that moves on its own**, every five seconds,
   which the carousel rule below otherwise forbids, so the movement is held
   to the reader: only while its frame is at least half on screen (never
@@ -638,10 +649,14 @@ Eight pages from one design system, the word budgets, why every photograph carri
   generic silhouette is a worse signal than no photo.
   **The five rows `schema.sql` seeds are illustrative copy, not real
   patients**, seeded only into an empty table and never re-seeded once it has
-  any row. They exist so the band can be reviewed populated before launch.
-  Never add a testimonial that reads as a real patient without consent for
-  both the words and the face, and never present the seeded ones as real -
-  the admin form says as much at the point of entry, and
+  any row. They exist so the band can be reviewed populated before launch, and
+  **the public pages never render them**: there is no flag column, so
+  `publicTestimonials()` (`src/lib/testimonialTrust.ts`) recognises a seeded
+  row by its exact quote (a test pins the list to `schema.sql`). With only
+  those in the table the Reviews band and its rail entry are not drawn; a row
+  whose words an admin has rewritten counts as theirs. Never add a testimonial
+  that reads as a real patient without consent for both the words and the
+  face - the admin form says as much at the point of entry, and
   `public_rating_summary` stays the only place a *real* number is quoted.
 - **A public catalog card opens a dialog; booking is its own button.** The
   session-package, home-visit-package and programme cards all follow one
@@ -689,8 +704,17 @@ Eight pages from one design system, the word budgets, why every photograph carri
   shown where `isBookBarRoute` says -- not on `/get-started`, the wizard, an
   auth card or a dashboard). From `lg` the header shows Conditions, How it
   works, Home visit, Team and FAQ with Mission and Hospitals under **More**,
-  then Sign In and the Book button; from `2xl` every page is in the row and
-  Get Started joins them. Home is the logo at every width. The Book label is
+  then Sign In and the Book button; from `2xl` every page is in the row. There
+  is **no Get Started in the header**: that hub is a switchboard (patient,
+  therapist, hospital sign-ins), so the phone menu's one primary button is
+  Book a video session and the hub's other doors live in the footer under
+  "For clinicians and partners". Below `sm` the brand is the short name
+  ("MoveRestore", `shortBrandName`) with no tagline so it fits whole. Menu rows
+  and footer links are 44px targets. The WhatsApp / Call chip in the menu and
+  the icon beside the sticky bar's Book button exist only for numbers an admin
+  has filled in (`contactLinks.ts`; the shipped "+91 XXXXX XXXXX" is not one),
+  and on `/home-visit` (while bookable) the bar reads "Check my pincode" and
+  goes to `/book-home-visit`. Home is the logo at every width. The Book label is
   `BOOK_CONNECTOR.label`, so it names the mode wherever it appears.
 
 - **A public price is a `<Price>`, never a formatted string.** The public
@@ -728,3 +752,62 @@ Eight pages from one design system, the word budgets, why every photograph carri
   `isAuthCtaSignedOutRoute` pins it there whatever the session says, which
   still stops "Go to Dashboard" flashing mid-login; only registration and
   the holding pages drop the cluster (`isAuthCtaHiddenRoute`).
+
+- **Home visits are sold only when they can be booked.** The master switch
+  alone is not "bookable": switched on with no active service area, or with no
+  condition priced, the first step ("check my pincode") could only answer no.
+  `resolveHomeVisitOffer()` (`src/lib/homeVisitOffer.ts`, read by
+  `readHomeVisitOffer()` / `readHomeVisitBookable()` and, for the root layout,
+  `loadHomeVisitSupply()`) answers `live` (switch + >=1 active area + >=1
+  price), `coming` (switch on, one of the others missing) or `off`. Every
+  public list - the nav, the footer, the Explore tiles, the sticky bar, the
+  home page's "Option two" band - treats only `live` as bookable. `coming`
+  says "Home visits are coming to <cities>" (or "soon") with no button to
+  nowhere; `/home-visit` in that state is a short notice offering a video
+  session, and when `live` its hero says "We visit: <areas>" and carries an
+  inline pincode box (`PincodeCheck`, the same public `check-area` route the
+  wizard asks). **An unreadable fact counts as met, an unreadable switch as
+  off**: a hiccup must not take a working service off the site, and the
+  routes behind it re-check the same facts anyway. `readHomeVisitEnabled()`
+  stays the bare switch because the hospital-referral route gates on it - a
+  marketing page learning to be honest must not make a server gate stricter.
+- **Scroll-reveal is an enhancement over content that is already there.**
+  `Reveal` / `Stagger` render visible in the server HTML (no `opacity:0`, a
+  unit test and `HY-003` hold that); only after mount, and only for a block
+  still below the fold, is the hidden state armed (instantly, off screen) and
+  scrolling it in plays the entrance. Nothing is ever hidden for a visitor who
+  asked for reduced motion, and the root layout wraps everything in
+  `MotionProvider` (`MotionConfig reducedMotion="user"`). A new
+  `AnimatePresence` on a public page takes `initial={false}`.
+- **One label per mode, and conditions in the patient's words.** The two
+  booking buttons say "Book a video session" and "Book a home visit"
+  everywhere - hero, closing band, footer, menu, card, `/get-started`. Never
+  "Book an assessment", "Book a Consultation" or "Booking Enquiry". Catalogue
+  titles are mapped to four plain groups at display time
+  (`patientConditionLabels.ts`: After surgery; Back, neck & joint pain; Stroke
+  & Parkinson's; Children) - the rows are never renamed, a title nothing
+  claims is printed as typed, and two cards never share a mapped name. The
+  home hero's chips deep-link into `/book?category=<id>` and a group the
+  catalogue has no condition for gets no chip. Copy avoids "Musculoskeletal",
+  "range-of-motion testing", "protocol", "Virtual Physical Therapy" and
+  "certified ... in clinic".
+- **A session's notice and refund window are the admin's, like its length.**
+  "An hour" and "12 hours' notice" were typed into the home, How it works and
+  Mission pages. They are now `oneToOneLine(rows)`, `hoursNoticeLabel()` and
+  `refundWindowLine()` over the catalogue and `readOnlineBookingRules()`
+  (`online_booking_lead_time_hours`, `online_cancellation_refund_hours`);
+  `sessionLengthCopy.test.ts` fails on "an hour", "1 hour" or any "N hours" in
+  those files.
+- **Trust surfaces show only what exists.** The avatar stack on "Qualified
+  physiotherapists" draws the initials of therapists actually on `/team`
+  (`readPublicTeam()`), none when nobody is; with an empty roster "Our team"
+  leaves the nav, the footer and the Explore tiles (`requiresTeam` in
+  `marketingNav.ts`; a failed read keeps it, as "could not check"). `/faq`
+  falls back to the shipped answers in `faqDefaults.ts` (built from the live
+  notice and refund settings, quoting no price) when no FAQ row is active.
+  There is deliberately **no "lead physio" block**: it needs a real name and
+  registration number, which only the owner can supply - never invent either.
+- **WhatsApp and Call appear only for numbers that are real.** `contactLinks.ts`
+  is the one rule (the footer, the menu chip, the sticky bar's icon and the
+  "Not sure which to book? WhatsApp us" line in the home hero and every
+  closing band all read it). Unset means absent, never a dead link.
