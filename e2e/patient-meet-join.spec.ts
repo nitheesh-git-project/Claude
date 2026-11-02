@@ -221,7 +221,11 @@ test("MJ-003: before the window Home says when the join button will appear", asy
   const waiting = await createFixtureAccount("meet join waiting");
   try {
     const therapistId = await profileIdFor(db, QA_EMAILS.therapistA);
-    const slot = new Date(Date.now() + (windowBefore + 120) * MIN);
+    // Its own slot, half an hour after beforeAll's "early" one for the same
+    // therapist: at the same offset the two landed on the same minute
+    // whenever the first cases ran inside one, and
+    // appointments_one_therapist_per_slot refused this insert.
+    const slot = new Date(Date.now() + (windowBefore + 150) * MIN);
     slot.setSeconds(0, 0);
     const { error } = await db.from("appointments").insert({
       patient_id: waiting.id,
