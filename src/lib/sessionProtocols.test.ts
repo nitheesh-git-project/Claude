@@ -3,6 +3,8 @@ import { outcomeMeasure, PROFILE_KINDS } from "./outcomeMeasures";
 import {
   CLINICAL_REVIEW_MARK,
   SESSION_PROTOCOLS,
+  SESSION_PROTOCOLS_VERSION,
+  safetyScript,
   containsClinicWord,
   defaultProtocolFor,
   needsPreExerciseCheck,
@@ -28,12 +30,12 @@ describe("session protocols", () => {
     expect(knee.steps.map((s) => s.short)).toEqual([
       "Safety",
       "Pain",
-      "Function",
+      "Everyday",
       "Knee bend",
       "Straightening",
-      "Chair stand",
+      "Sit to stand",
       "Walking",
-      "Exercises",
+      "Home exercises",
       "Summary",
     ]);
     expect(protocolStep(knee, "pain")?.layer).toBe("pain_map");
@@ -132,5 +134,24 @@ describe("session protocols", () => {
     expect(containsClinicWord("Showcase your knee")).toBeNull();
     expect(containsClinicWord("Your case notes")).toBe("case");
     expect(containsClinicWord("The patient stands")).toBe("patient");
+  });
+});
+
+describe("version 3: one name per step and a safety script that counts (C3, E14)", () => {
+  it("makes every tab label the start of its step's title", () => {
+    for (const p of SESSION_PROTOCOLS) for (const st of p.steps) expect(st.title.toLowerCase().startsWith(st.short.toLowerCase())).toBe(true);
+    expect(protocolProblems([{ ...knee, steps: knee.steps.map((st) => (st.id === "pain" ? { ...st, short: "Hurt" } : st)) }]).join()).toMatch(/not the start of the title/);
+  });
+  it("says how many safety questions it will ask, and keeps one test's set-up in that test's step", () => {
+    for (const p of SESSION_PROTOCOLS) {
+      const first = p.steps[0];
+      expect(first.script).toBe(safetyScript(first.redFlags!.length, p.profileKind === "pediatrics" ? "your child" : "you"));
+      expect(first.setup.map((i) => i.id)).not.toContain("sturdy_chair");
+      expect(first.setup.map((i) => i.id)).not.toContain("camera_side_on");
+      expect(p.version).toBe(SESSION_PROTOCOLS_VERSION);
+    }
+    expect(safetyScript(5)).toBe("I'll ask five quick safety questions. Just answer yes or no.");
+    expect(protocolStep(sessionProtocol("cardiopulmonary")!, "resting_check")!.setup.map((i) => i.id)).toContain("devices_ready");
+    expect(SESSION_PROTOCOLS_VERSION).toBe(3);
   });
 });

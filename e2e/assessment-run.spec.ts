@@ -131,7 +131,7 @@ test("AR-003: nothing after step 1 until the red flags are answered, and set-up 
   expect(early.status()).toBe(409);
   expect((await early.json()).code).toBe("red_flags_unanswered");
 
-  expect((await event(request, kneeRunId, "safety", "setup_confirmed", { items: ["clear_space", "sturdy_chair", "camera_side_on"] })).status()).toBe(200);
+  expect((await event(request, kneeRunId, "safety", "setup_confirmed", { items: ["clear_space"] })).status()).toBe(200);
   const partial = await event(request, kneeRunId, "safety", "safety_confirmed", { answers: { chest_pain_or_breathless: false } });
   expect(partial.status()).toBe(409);
   expect((await partial.json()).code).toBe("red_flags_unanswered");
@@ -252,7 +252,7 @@ test("AR-007: heart and lung exertion is refused until a clear pre-exercise chec
   const start = await post(request, "/api/therapist/assessment-runs/start", QA_EMAILS.therapistA, { patientId: heart!.id });
   expect(start.status(), await start.text()).toBe(200);
   heartRunId = (await start.json()).run.id;
-  expect((await event(request, heartRunId, "safety", "setup_confirmed", { items: ["clear_space", "devices_ready"] })).status()).toBe(200);
+  expect((await event(request, heartRunId, "safety", "setup_confirmed", { items: ["clear_space"] })).status()).toBe(200);
   expect((await event(request, heartRunId, "safety", "safety_confirmed", { answers: allNo(HEART_RED_FLAGS) })).status()).toBe(200);
 
   // No resting vitals yet: the sit-to-stand's set-up is refused.
@@ -261,7 +261,7 @@ test("AR-007: heart and lung exertion is refused until a clear pre-exercise chec
   expect((await early.json()).code).toBe("cardio_check_not_recorded");
 
   // Resting vitals off the patient's own devices, with a heart rate over 120.
-  expect((await event(request, heartRunId, "resting_check", "setup_confirmed", { items: ["rested_5_min", "device_in_view"] })).status()).toBe(200);
+  expect((await event(request, heartRunId, "resting_check", "setup_confirmed", { items: ["devices_ready", "rested_5_min", "device_in_view"] })).status()).toBe(200);
   const device = { setting: "video", homeMeasured: true, readFrom: "patient_device_on_video" };
   const unlabelled = await measure(request, heart!.id, heartRunId, "resting_check", {
     measureKey: "resting_heart_rate",

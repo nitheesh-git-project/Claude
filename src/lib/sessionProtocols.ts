@@ -30,9 +30,13 @@ import { CARDIO_DO_NOT_EXERCISE_SYMPTOMS } from "@/lib/cardioSafety";
 // same mark; nothing here adds a threshold.
 
 /** Version 2 (phase 7d): every protocol gained the Home exercises step
- *  before the summary. A run started on version 1 is refused as
- *  `protocol_changed` and started again. */
-export const SESSION_PROTOCOLS_VERSION = 2;
+ *  before the summary. Version 3 (UX review): the safety step's script says
+ *  how many questions it asks, set-up that belongs to one test moved into
+ *  that test's step (the sturdy chair, the camera, the heart and lung
+ *  devices), and each tab label is the start of its step's title. A run
+ *  started on an earlier version is refused as `protocol_changed` and
+ *  started again (an open one can always be ended, checkRunAbandon). */
+export const SESSION_PROTOCOLS_VERSION = 3;
 
 export const CLINICAL_REVIEW_MARK = "to be verified by a senior physiotherapist" as const;
 
@@ -218,17 +222,29 @@ const UNWELL: RedFlagQuestion = { id: "unwell_or_fever", question: "A fever, or 
 const NEW_FALL: RedFlagQuestion = { id: "fall_since_last", question: "A fall or a new injury since your last session?" };
 const DIZZY: RedFlagQuestion = { id: "dizzy_today", question: "Any dizziness or feeling faint today?" };
 
+const COUNT_WORDS = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight"];
+
+/** "I'll ask five quick safety questions. Just answer yes or no." - the
+ *  number is the step's own count, so the script never disagrees with the
+ *  list on the screen; the questions themselves are read from the list. */
+export function safetyScript(count: number, about: "you" | "your child" = "you"): string {
+  const n = COUNT_WORDS[count] ?? String(count);
+  return about === "you"
+    ? `I'll ask ${n} quick safety questions. Just answer yes or no.`
+    : `I'll ask ${n} quick questions about your child. Just answer yes or no.`;
+}
+
 function safetyStep(input: {
-  script: string;
   redFlags: readonly RedFlagQuestion[];
   setup: readonly SetupItem[];
   patientLine?: string;
+  about?: "you" | "your child";
 }): ProtocolStep {
   return {
     id: "safety",
     title: "Safety check",
     short: "Safety",
-    script: input.script,
+    script: safetyScript(input.redFlags.length, input.about),
     patientLine: input.patientLine ?? "A few safety questions first.",
     patientPicture: "sitting",
     setup: input.setup,
@@ -270,7 +286,7 @@ function teachStep(input: { helperRequired: boolean }): ProtocolStep {
   return {
     id: "exercises",
     title: "Home exercises",
-    short: "Exercises",
+    short: "Home exercises",
     script: "Now I will show you some exercises to do at home. Then I will watch you do each one.",
     patientLine: "We will learn some exercises for home together.",
     patientPicture: "standing",
@@ -299,7 +315,7 @@ const MEDICATION_NOTED: SetupItem = { id: "medication_noted", label: "ON or OFF,
 
 const ORTHO_KNEE: SessionProtocol = {
   key: "ortho_knee",
-  version: 2,
+  version: SESSION_PROTOCOLS_VERSION,
   profileKind: "ortho",
   title: "Knee pain: video assessment",
   patientTitle: "Your knee check",
@@ -307,7 +323,6 @@ const ORTHO_KNEE: SessionProtocol = {
   review: R,
   steps: [
     safetyStep({
-      script: "Any chest pain, fever, or a knee that suddenly swelled? Is there a clear space and a sturdy chair?",
       redFlags: [
         CHEST_AND_BREATH,
         UNWELL,
@@ -315,11 +330,8 @@ const ORTHO_KNEE: SessionProtocol = {
         { id: "leg_numb_weak", question: "Any new numbness, pins and needles or weakness in the leg?" },
         NEW_FALL,
       ],
-      setup: [
-        CLEAR_SPACE,
-        { id: "sturdy_chair", label: "A sturdy chair without arms is ready" },
-        { id: "camera_side_on", label: "The camera is side-on to the knee" },
-      ],
+      // The chair and the camera moved into the steps that use them (version 3).
+      setup: [CLEAR_SPACE],
     }),
     {
       id: "pain",
@@ -340,7 +352,7 @@ const ORTHO_KNEE: SessionProtocol = {
     {
       id: "function",
       title: "Everyday tasks",
-      short: "Function",
+      short: "Everyday",
       script: "I will read out some everyday tasks. Tell me how hard each one is today, from 0 for not possible to 4 for easy.",
       patientLine: "Tell us how hard each task is: 0 is unable, 4 is no difficulty.",
       patientPicture: "talking",
@@ -373,7 +385,7 @@ const ORTHO_KNEE: SessionProtocol = {
     },
     {
       id: "knee_straightening",
-      title: "Knee straightening",
+      title: "Straightening the knee",
       short: "Straightening",
       script: "Put a rolled towel under your heel and let the knee drop straight. Now tighten your thigh and lift.",
       patientLine: "Let your knee drop straight, then tighten the thigh.",
@@ -392,12 +404,12 @@ const ORTHO_KNEE: SessionProtocol = {
     {
       id: "chair_stand",
       title: "Sit to stand for 30 seconds",
-      short: "Chair stand",
+      short: "Sit to stand",
       script: "Cross your arms on your chest. When I say go, stand up and sit down as many times as you can.",
       patientLine: "Arms crossed. Stand up and sit down as many times as you can.",
       patientPicture: "chair_stand",
       setup: [
-        { id: "chair_against_wall", label: "The chair is against a wall, feet flat" },
+        { id: "chair_against_wall", label: "A sturdy chair without arms is against a wall, feet flat" },
         { id: "arms_crossed", label: "Arms crossed on the chest" },
         HELPER,
       ],
@@ -436,7 +448,7 @@ const ORTHO_KNEE: SessionProtocol = {
 
 const ORTHO_GENERAL: SessionProtocol = {
   key: "ortho_general",
-  version: 2,
+  version: SESSION_PROTOCOLS_VERSION,
   profileKind: "ortho",
   title: "Joint or back pain: video assessment",
   patientTitle: "Your movement check",
@@ -444,7 +456,6 @@ const ORTHO_GENERAL: SessionProtocol = {
   review: R,
   steps: [
     safetyStep({
-      script: "Any chest pain, fever, or a joint that suddenly swelled? Is there a clear space around you?",
       redFlags: [
         CHEST_AND_BREATH,
         UNWELL,
@@ -452,7 +463,7 @@ const ORTHO_GENERAL: SessionProtocol = {
         { id: "new_numb_weak", question: "Any new numbness, pins and needles or weakness?" },
         NEW_FALL,
       ],
-      setup: [CLEAR_SPACE, { id: "camera_side_on", label: "The camera can see the joint from the side" }],
+      setup: [CLEAR_SPACE],
     }),
     {
       id: "pain",
@@ -473,7 +484,7 @@ const ORTHO_GENERAL: SessionProtocol = {
     {
       id: "range",
       title: "How far it moves",
-      short: "Movement",
+      short: "How far",
       script: "Move the joint as far as it comfortably goes, and hold it there.",
       patientLine: "Move as far as is comfortable. Hold it there.",
       patientPicture: "standing",
@@ -491,7 +502,7 @@ const ORTHO_GENERAL: SessionProtocol = {
     {
       id: "function",
       title: "Everyday tasks",
-      short: "Function",
+      short: "Everyday",
       script: "I will read out some everyday tasks. Tell me how hard each one is today.",
       patientLine: "Tell us how hard each everyday task is today.",
       patientPicture: "talking",
@@ -510,7 +521,7 @@ const ORTHO_GENERAL: SessionProtocol = {
 
 const NEURO: SessionProtocol = {
   key: "neuro",
-  version: 2,
+  version: SESSION_PROTOCOLS_VERSION,
   profileKind: "neuro",
   title: "Neurological: video assessment",
   patientTitle: "Your walking and balance check",
@@ -518,7 +529,6 @@ const NEURO: SessionProtocol = {
   review: R,
   steps: [
     safetyStep({
-      script: "Any chest pain, a bad new headache, or new weakness since we last met? Is someone at home with you?",
       redFlags: [
         CHEST_AND_BREATH,
         { id: "new_weakness_speech", question: "Any new weakness, numbness, or trouble speaking since your last session?" },
@@ -551,7 +561,7 @@ const NEURO: SessionProtocol = {
     },
     {
       id: "walking_ability",
-      title: "How you get about",
+      title: "Getting about",
       short: "Getting about",
       script: "Tell me how much help you need to walk indoors and outside.",
       patientLine: "Tell us how much help you need to walk.",
@@ -571,7 +581,7 @@ const NEURO: SessionProtocol = {
 
 const NEURO_PARKINSONS: SessionProtocol = {
   key: "neuro_parkinsons",
-  version: 2,
+  version: SESSION_PROTOCOLS_VERSION,
   profileKind: "neuro_parkinsons",
   title: "Parkinson's: video assessment",
   patientTitle: "Your walking and balance check",
@@ -579,7 +589,6 @@ const NEURO_PARKINSONS: SessionProtocol = {
   review: R,
   steps: [
     safetyStep({
-      script: "Any chest pain, dizziness when you stand, or a fall since we last met? When did you take your last dose?",
       redFlags: [
         CHEST_AND_BREATH,
         { id: "dizzy_standing", question: "Dizziness or feeling faint when you stand up, today?" },
@@ -591,7 +600,7 @@ const NEURO_PARKINSONS: SessionProtocol = {
     {
       id: "up_and_go",
       title: "Stand, walk and sit",
-      short: "Up and go",
+      short: "Stand, walk",
       script: "Stand up, walk to the mark at your normal pace, turn, walk back and sit down.",
       patientLine: "Stand up, walk to the mark, turn, come back and sit.",
       patientPicture: "walking",
@@ -651,7 +660,7 @@ const NEURO_PARKINSONS: SessionProtocol = {
 
 const PEDIATRICS: SessionProtocol = {
   key: "pediatrics",
-  version: 2,
+  version: SESSION_PROTOCOLS_VERSION,
   profileKind: "pediatrics",
   title: "Paediatric: video assessment",
   patientTitle: "Your child's movement check",
@@ -659,8 +668,8 @@ const PEDIATRICS: SessionProtocol = {
   review: R,
   steps: [
     safetyStep({
-      script: "Is your child well today, with no fever or cough? Any new pain, a fall, or a seizure since last time?",
       patientLine: "A few questions for you first.",
+      about: "your child",
       redFlags: [
         { id: "child_unwell", question: "Is your child unwell, with a fever or a cough, today?" },
         { id: "child_new_pain_fall", question: "Any new pain, swelling or a fall since last time?" },
@@ -673,7 +682,7 @@ const PEDIATRICS: SessionProtocol = {
     }),
     {
       id: "milestones",
-      title: "How your child moves",
+      title: "Movement and play",
       short: "Movement",
       script: "Let's see how your child sits, crawls and stands today. Show me with a favourite toy.",
       patientLine: "Show us how your child sits, crawls and stands.",
@@ -731,7 +740,7 @@ const PEDIATRICS: SessionProtocol = {
 
 const GERIATRIC: SessionProtocol = {
   key: "geriatric",
-  version: 2,
+  version: SESSION_PROTOCOLS_VERSION,
   profileKind: "geriatric",
   title: "Falls and strength: video assessment",
   patientTitle: "Your strength and balance check",
@@ -739,7 +748,6 @@ const GERIATRIC: SessionProtocol = {
   review: R,
   steps: [
     safetyStep({
-      script: "Any chest pain, dizziness, or a fall since we last met? Is someone at home who can stand beside you?",
       redFlags: [
         CHEST_AND_BREATH,
         DIZZY,
@@ -752,7 +760,7 @@ const GERIATRIC: SessionProtocol = {
     {
       id: "up_and_go",
       title: "Stand, walk and sit",
-      short: "Up and go",
+      short: "Stand, walk",
       script: "Stand up, walk to the mark at your normal pace, turn, walk back and sit down.",
       patientLine: "Stand up, walk to the mark, turn, come back and sit.",
       patientPicture: "walking",
@@ -768,12 +776,12 @@ const GERIATRIC: SessionProtocol = {
     {
       id: "chair_stand",
       title: "Sit to stand for 30 seconds",
-      short: "Chair stand",
+      short: "Sit to stand",
       script: "Cross your arms on your chest. When I say go, stand up and sit down as many times as you can.",
       patientLine: "Arms crossed. Stand up and sit down as many times as you can.",
       patientPicture: "chair_stand",
       setup: [
-        { id: "chair_against_wall", label: "The chair is against a wall, feet flat" },
+        { id: "chair_against_wall", label: "A sturdy chair without arms is against a wall, feet flat" },
         { id: "arms_crossed", label: "Arms crossed on the chest" },
         HELPER,
       ],
@@ -820,7 +828,7 @@ const GERIATRIC: SessionProtocol = {
     {
       id: "daily_living",
       title: "Everyday tasks",
-      short: "Daily living",
+      short: "Everyday",
       script: "I will ask about six everyday tasks. Tell me if you need help with any of them.",
       patientLine: "Tell us which everyday tasks you need help with.",
       patientPicture: "talking",
@@ -839,7 +847,7 @@ const GERIATRIC: SessionProtocol = {
 
 const CARDIOPULMONARY: SessionProtocol = {
   key: "cardiopulmonary",
-  version: 2,
+  version: SESSION_PROTOCOLS_VERSION,
   profileKind: "cardiopulmonary",
   title: "Heart and lung: video assessment",
   patientTitle: "Your heart and lung check",
@@ -854,7 +862,6 @@ const CARDIOPULMONARY: SessionProtocol = {
   review: R,
   steps: [
     safetyStep({
-      script: "Any chest pain, new swelling, or a fever today? Is your oximeter and blood pressure monitor to hand?",
       redFlags: [
         ...CARDIO_DO_NOT_EXERCISE_SYMPTOMS.map((question, i) => ({
           id: ["chest_pain_new", "recent_heart_attack", "swelling_fever_weight"][i] ?? `cardio_symptom_${i}`,
@@ -863,7 +870,7 @@ const CARDIOPULMONARY: SessionProtocol = {
         DIZZY,
         { id: "more_breathless", question: "More breathless than usual at rest today?" },
       ],
-      setup: [CLEAR_SPACE, { id: "devices_ready", label: "The patient's own oximeter and blood pressure monitor are ready" }],
+      setup: [CLEAR_SPACE],
     }),
     {
       id: "resting_check",
@@ -873,6 +880,7 @@ const CARDIOPULMONARY: SessionProtocol = {
       patientLine: "Sit quietly. Hold your monitor up to the camera.",
       patientPicture: "sitting",
       setup: [
+        { id: "devices_ready", label: "The patient's own oximeter and blood pressure monitor are ready" },
         { id: "rested_5_min", label: "The patient has rested sitting for 5 minutes" },
         { id: "device_in_view", label: "The device screen is readable on camera" },
       ],
@@ -1094,6 +1102,8 @@ export function protocolProblems(protocols: readonly SessionProtocol[]): string[
       if (sentenceCount(s.patientLine) > SCRIPT_MAX_SENTENCES) problems.push(`${where}: patient line is more than two sentences`);
       if (s.title.length > TITLE_MAX_CHARS) problems.push(`${where}: title is too long`);
       if (s.short.length > SHORT_MAX_CHARS) problems.push(`${where}: tab label is too long`);
+      // One name per step: the tab is the start of the title, never a second name.
+      if (!s.title.toLowerCase().startsWith(s.short.toLowerCase())) problems.push(`${where}: tab label "${s.short}" is not the start of the title`);
       for (const text of [s.title, s.patientLine]) {
         const bad = containsClinicWord(text);
         if (bad) problems.push(`${where}: patient-visible text uses the clinic word "${bad}"`);

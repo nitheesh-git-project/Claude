@@ -465,7 +465,7 @@ A second attempt returns `This visit's payment has already been recorded.`
 
 #### `THR-HP-005r2` - Guided assessment: facts carried from step to step · P1
 **Preconditions.** A Parkinson's patient (neurological, condition group *Parkinson's disease*) with a video session in its join window.
-**Steps.** Start the guided assessment. On *Stand, walk and sit* choose **ON**, type `08:30`, tick the set-up and record a trial, Save and next. Look at *Walking speed*. Tap **Change**, choose OFF. Save and next, and look at *Five stands from a chair*. On a knee patient, record the knee bend on the left, active, and look at *Knee straightening*.
+**Steps.** Start the guided assessment. On *Stand, walk and sit* choose **ON**, type `08:30`, tick the set-up and record a trial, Save and next. Look at *Walking speed*. Tap **Change**, choose OFF. Save and next, and look at *Five stands from a chair*. On a knee patient, record the knee bend on the left, active, and look at *Straightening the knee*.
 **Expected Result.** The second and third steps show *ON, last dose 08:30 · Change* (then *OFF, last dose 08:30*) instead of asking again, and the reading saves with them. The helper item is still there to tick on every step that has one, now worded *Helper still beside them*; nothing is ticked for you. The knee straightening starts on left and active, and either can be changed.
 
 #### `THR-HP-005f` - Phase, status overrule and a failed read · P0

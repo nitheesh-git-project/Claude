@@ -345,7 +345,7 @@ const BY_RUN_CODE: Record<RunRefusalCode, { message: string; fix: string | null 
   no_clock: { message: "This step has no clock.", fix: "Use Get ready or Go without the clock." },
   exercises_not_marked: {
     message: "Not every exercise in the plan is marked yet.",
-    fix: "Mark each one performed correctly, needs practice or not attempted, or skip the step.",
+    fix: "Mark each one Did it correctly, Needs practice or Not attempted, or skip the step.",
   },
 };
 

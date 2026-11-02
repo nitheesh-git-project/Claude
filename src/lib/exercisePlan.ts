@@ -48,7 +48,9 @@ export const TEACHING_OUTCOMES: readonly TeachingOutcome[] = ["performed_correct
 
 /** The cockpit's three buttons. */
 export const TEACHING_OUTCOME_LABELS: Record<TeachingOutcome, string> = {
-  performed_correctly: "Performed correctly",
+  // The same words as the cockpit's button (teachTool.ts), so the chart and
+  // the session note never name one outcome two ways.
+  performed_correctly: "Did it correctly",
   needs_practice: "Needs practice",
   not_attempted: "Not attempted",
 };
@@ -840,7 +842,7 @@ export function teachingSummarySentence(events: readonly TeachingEvent[], voice:
     return out.join(" ");
   }
   const parts: string[] = [`Home exercises taught: ${taught} of ${latest.size}`];
-  if (well.length) parts.push(`performed correctly: ${listWords(well)}`);
+  if (well.length) parts.push(`did it correctly: ${listWords(well)}`);
   if (practice.length) parts.push(`needs practice: ${listWords(practice)}`);
   if (notYet.length) parts.push(`not attempted: ${listWords(notYet)}`);
   // The clinician's draft says a mark was corrected (the patient's never does).

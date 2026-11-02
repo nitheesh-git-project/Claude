@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { preExerciseCheck, resolveOxygenStopLimit } from "./cardioSafety";
-import { protocolStep, sessionProtocol, SESSION_PROTOCOLS } from "./sessionProtocols";
+import { protocolStep, sessionProtocol, SESSION_PROTOCOLS, SESSION_PROTOCOLS_VERSION } from "./sessionProtocols";
 import { exerciseByKey } from "./exerciseLibrary";
 import {
   buildExerciseDisplay,
@@ -37,7 +37,7 @@ const RUN: AssessmentRun = {
   appointmentId: null,
   therapistId: "ther-1",
   protocolKey: "ortho_knee",
-  protocolVersion: 2,
+  protocolVersion: SESSION_PROTOCOLS_VERSION,
   profileKind: "ortho",
   status: "in_progress",
   startedAt: "2026-10-26T09:00:00.000Z",
@@ -426,7 +426,7 @@ describe("the Home exercises step (phase 7d)", () => {
   it("sits just before the summary in every protocol, with an optional helper except for a child", () => {
     for (const p of SESSION_PROTOCOLS) {
       expect(p.steps[p.steps.length - 2].tool).toBe("teach_exercises");
-      expect(p.version).toBe(2);
+      expect(p.version).toBe(SESSION_PROTOCOLS_VERSION);
     }
     expect(teach.setup.find((i) => i.helper)?.optional).toBe(true);
     expect(protocolStep(peds, "exercises")!.needsHelper).toBe(true);

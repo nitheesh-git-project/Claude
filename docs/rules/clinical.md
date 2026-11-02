@@ -1386,8 +1386,9 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   Ten rules:
   1. **One ordered protocol per profile kind, checked at load.**
      `src/lib/sessionProtocols.ts`: `ortho_knee` (the approved cockpit's
-     Safety, Pain, Function, Knee bend, Knee straightening, 30-second chair
-     stand, walk, Summary - the orthopaedic default) and `ortho_general`,
+     Safety, Pain, Everyday tasks, Knee bend, Straightening the knee, Sit to
+     stand for 30 seconds, Walking speed, Home exercises, Summary - the
+     orthopaedic default) and `ortho_general`,
      `neuro`, `neuro_parkinsons`, `pediatrics`, `geriatric`,
      `cardiopulmonary`. Each step has a title, a tab label, a script of at most
      two short sentences, one patient line, a picture from a fixed set, a
@@ -1406,7 +1407,15 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      optional set-up item that is not that step's helper, a heart and lung
      exertion step before the resting check, or
      a clinic word ("triage", "case", "patient", "geriatric"...) in what the
-     patient sees. The six-minute walk is in person only, so the heart and lung
+     patient sees, or **a tab label that is not the start of its step's
+     title** (one name per step: *Sit to stand* / *Sit to stand for 30
+     seconds*). **Version 3** (`SESSION_PROTOCOLS_VERSION`): the safety step's
+     script is built from its own count (`safetyScript`: *I'll ask five quick
+     safety questions. Just answer yes or no.*) and the questions are read
+     from the list; set-up that belongs to one test lives in that test's step
+     (the sturdy chair in the chair stand, the camera in the angle steps, the
+     heart and lung devices in the resting check); a run on version 2 is
+     `protocol_changed` and can be ended (`checkRunAbandon`). The six-minute walk is in person only, so the heart and lung
      protocol uses the one-minute sit-to-stand (the handbook's video stand-in);
      the chair stand and the 10-metre walk were opened to the orthopaedic
      profile for the knee protocol. **Every step, script, red-flag question and

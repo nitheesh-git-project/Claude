@@ -31,8 +31,8 @@ describe("exerciseChartView", () => {
     expect(view[0].items[0].latest).toBeNull();
     expect(view[0].items[1].latest).toMatchObject({ text: "Not attempted: Not enough space", by: "Dr Rao" });
     // Both marks stay in the history; the latest is the headline.
-    expect(view[1].items[0].marks.map((m) => m.text)).toEqual(["Needs practice: Keep your back flat.", "Performed correctly"]);
-    expect(view[1].items[0].latest?.text).toBe("Performed correctly");
+    expect(view[1].items[0].marks.map((m) => m.text)).toEqual(["Needs practice: Keep your back flat.", "Did it correctly"]);
+    expect(view[1].items[0].latest?.text).toBe("Did it correctly");
     expect(view[0].authoredBy).toBe("Dr Rao");
   });
   it("drops an exercise that left the library and names an unknown author plainly", () => {
@@ -43,7 +43,7 @@ describe("exerciseChartView", () => {
     expect(view[0].authoredBy).toBe("A physiotherapist");
   });
   it("words a mark in the clinician's terms", () => {
-    expect(chartMarkText({ outcome: "performed_correctly", cueKey: null, reasonKey: null })).toBe("Performed correctly");
+    expect(chartMarkText({ outcome: "performed_correctly", cueKey: null, reasonKey: null })).toBe("Did it correctly");
   });
 });
 
@@ -59,7 +59,7 @@ describe("exerciseChartView: corrections (phase 7d-3)", () => {
     );
     const item = view[0].items[0];
     expect(item.marks.map((m) => [m.text, m.correction])).toEqual([
-      ["Performed correctly", null],
+      ["Did it correctly", null],
       ["Not attempted: Too tired or breathless today", "Corrected: the wrong button was tapped"],
     ]);
     // Same instant: the chain, not the clock, decides the headline.

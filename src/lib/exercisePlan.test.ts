@@ -298,7 +298,7 @@ describe("the summary and the session note", () => {
       "We practised 2 home exercises together: sit to stand went well, and heel raise needs more practice. We will try heel-to-toe stand next time."
     );
     expect(teachingSummarySentence(events, "clinician")).toBe(
-      "Home exercises taught: 2 of 3; performed correctly: sit to stand; needs practice: heel raise (keep a hand on the support); not attempted: heel-to-toe stand (no one could stand beside the patient)."
+      "Home exercises taught: 2 of 3; did it correctly: sit to stand; needs practice: heel raise (keep a hand on the support); not attempted: heel-to-toe stand (no one could stand beside the patient)."
     );
   });
   it("prefills a new note's home exercise field from the plan", () => {
