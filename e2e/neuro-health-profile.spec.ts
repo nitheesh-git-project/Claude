@@ -152,7 +152,8 @@ test("NHP-001: the neurological chart opens in the shared layout, with the exami
   expect(at(/^steps$/i)).toBeLessThan(at(/^measures$/i));
 
   // Four key numbers, always four: balance and walking speed come from the exams.
-  await expect(root.getByText("Falls, last 3 months")).toBeVisible();
+  // The key-number tile, not the diary panel's own "Falls, last 3 months" line.
+  await expect(root.getByRole("listitem").filter({ hasText: "Falls, last 3 months" })).toBeVisible();
   await expect(root.getByText("46", { exact: true }).first()).toBeVisible();
 
   // The Berg line is drawn from the examinations (one dot each), and is in the table once.
