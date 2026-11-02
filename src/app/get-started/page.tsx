@@ -165,7 +165,7 @@ export default function GetStartedPage() {
                     </ul>
                   </div>
                   <div className="mt-7 space-y-3">
-                    {"newHereHref" in p && (
+                    {p.newHereHref && (
                       <MotionButton
                         href={p.newHereHref}
                         variant="primary"
@@ -179,7 +179,7 @@ export default function GetStartedPage() {
                       href={p.href}
                       variant={p.variant}
                       fullWidth
-                      className={`justify-center ${"newHereHref" in p ? "text-base" : "text-xs"}`}
+                      className={`justify-center ${p.newHereHref ? "text-base" : "text-xs"}`}
                     >
                       {p.cta} <i className="fa-solid fa-arrow-right text-[10px]" />
                     </MotionButton>

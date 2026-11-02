@@ -32,7 +32,7 @@ export default function SuggestedTeaserBar({ teaser }: { teaser: SuggestedTeaser
         </span>
       )}
       <span className="min-w-0 flex-1">
-        <span className="block text-[11px] font-semibold uppercase tracking-wide text-teal-700">
+        <span className="block text-[13px] font-semibold uppercase tracking-wide text-teal-700">
           Suggested for you
         </span>
         <span className="block truncate text-sm font-semibold text-slate-800">
@@ -49,7 +49,7 @@ export default function SuggestedTeaserBar({ teaser }: { teaser: SuggestedTeaser
             (teaser.isHomeVisit ? formatInr(teaser.pricePaise) : <Price paise={teaser.pricePaise} />)}
         </span>
       </span>
-      <span className="shrink-0 text-xs font-semibold text-teal-700">
+      <span className="shrink-0 text-sm font-semibold text-teal-700">
         View <i className="fa-solid fa-arrow-right ml-0.5 text-[10px]" aria-hidden="true" />
       </span>
     </Link>

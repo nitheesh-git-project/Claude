@@ -129,6 +129,7 @@ Detail routes (open as an overlay from the dashboard, and as a full page on dire
 | `/dashboard` | Server-side role router. Sends each role to its own dashboard. The admin path never reaches a public bundle. | `SEC-ROUTE-006` |
 | `/pending-approval` | Where an unapproved patient/therapist lands | `PAT-AUTH-003` |
 | `/account-suspended` | Where a suspended account lands | `SEC-AUTH-006` |
+| `/screen` | Short link (a redirect) to the patient's companion screen, for typing or scanning on a second device during a guided check | `PAT-GUIDED` / AC-005b |
 | `/reset-password` | Password reset landing | `PAT-AUTH-006` |
 
 ### 3.8 API routes

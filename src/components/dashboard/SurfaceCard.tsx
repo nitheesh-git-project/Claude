@@ -47,7 +47,7 @@ export default function SurfaceCard({
                 {info && <TutorialInfoButton section={info} label={title} size="sm" />}
               </h2>
             )}
-            {subtitle && <p className="mt-0.5 text-xs leading-relaxed text-slate-500">{subtitle}</p>}
+            {subtitle && <p className="mt-0.5 text-sm leading-relaxed text-slate-500">{subtitle}</p>}
           </div>
           {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
         </div>
@@ -79,7 +79,7 @@ export function StatusPill({
 }) {
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${TONE[tone] ?? TONE.neutral}`}
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[13px] font-semibold ${TONE[tone] ?? TONE.neutral}`}
     >
       {icon && <i aria-hidden className={`fa-solid ${icon} text-[9px]`} />}
       {children}
@@ -105,7 +105,7 @@ export function EmptyState({
     <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/60 px-4 py-8 text-center">
       <i aria-hidden className={`fa-solid ${icon} text-lg text-slate-300`} />
       <p className="mt-2 font-display text-sm font-bold text-slate-700">{title}</p>
-      {body && <p className="mx-auto mt-1 max-w-sm text-xs leading-relaxed text-slate-500">{body}</p>}
+      {body && <p className="mx-auto mt-1 max-w-sm text-sm leading-relaxed text-slate-500">{body}</p>}
       {action && <div className="mt-3">{action}</div>}
     </div>
   );

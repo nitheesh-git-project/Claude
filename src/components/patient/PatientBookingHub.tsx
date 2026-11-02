@@ -52,14 +52,14 @@ function Group({
               {title}
             </h3>
             <span
-              className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+              className={`rounded-full px-2 py-0.5 text-[13px] font-bold uppercase tracking-wide ${
                 online ? "bg-teal-50 text-teal-700" : "bg-amber-50 text-amber-700"
               }`}
             >
               {count} {count === 1 ? "option" : "options"}
             </span>
           </div>
-          <p className="mt-1 max-w-prose text-xs leading-relaxed text-slate-500">{blurb}</p>
+          <p className="mt-1 max-w-prose text-sm leading-relaxed text-slate-500">{blurb}</p>
         </div>
       </div>
       {/* Starts in the mode's colour and fades out, so it reads as belonging
@@ -100,7 +100,7 @@ export default function PatientBookingHub({
 
   if (!hasAnything) {
     return (
-      <p className="py-6 text-center text-xs text-slate-500">
+      <p className="py-6 text-center text-sm text-slate-500">
         Nothing is available to book right now - please check back shortly.
       </p>
     );

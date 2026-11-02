@@ -19,7 +19,7 @@ export default function PatientSessionSummary({ state }: { state: PatientSummary
     state.kind !== "unavailable" && state.planHref ? (
       <Link
         href={state.planHref}
-        className="inline-flex items-center gap-1.5 pt-1 text-[11px] font-semibold text-teal-700 hover:text-teal-800"
+        className="inline-flex items-center gap-1.5 pt-1 text-[13px] font-semibold text-teal-700 hover:text-teal-800"
       >
         <i aria-hidden="true" className="fa-solid fa-clipboard-list" /> See the programme recommended after this session
       </Link>
@@ -31,7 +31,7 @@ export default function PatientSessionSummary({ state }: { state: PatientSummary
       data-testid="patient-session-summary"
       className="space-y-1.5 rounded-lg border border-teal-100 bg-teal-50/60 p-3"
     >
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-teal-800">Session summary</p>
+      <p className="text-[13px] font-semibold uppercase tracking-wide text-teal-800">Session summary</p>
       {state.kind === "unavailable" ? (
         <p className="text-slate-600">
           We couldn&apos;t load this session&apos;s summary just now. Refresh the page to try again.
@@ -40,7 +40,7 @@ export default function PatientSessionSummary({ state }: { state: PatientSummary
         <p className="text-slate-600">Your physiotherapist hasn&apos;t added a summary for this session.</p>
       ) : (
         <>
-          <p className="text-[11px] text-slate-500">
+          <p className="text-[13px] text-slate-500">
             {`From ${state.writtenBy} · ${formatClinicDate(state.writtenAt)}`}
             {state.updatedAt ? ` · updated ${formatClinicDate(state.updatedAt)}` : ""}
           </p>

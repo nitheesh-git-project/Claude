@@ -20,11 +20,15 @@ export default function PatientDashboardShell({
   title,
   subtitle,
   children,
+  extraRealtimeTables = [],
 }: {
   data: PatientDashboardData;
   title: string;
   subtitle?: ReactNode;
   children: ReactNode;
+  /** A screen's own live tables on top of the shared list (the Health
+   *  Profile's measurements, diary, layout choices). */
+  extraRealtimeTables?: readonly string[];
 }) {
   const showDebugNav = isDebugNavVisible();
 
@@ -68,6 +72,7 @@ export default function PatientDashboardShell({
         "assessment_live_display",
         // A plan published in the session shows its Overview row without a reload.
         "exercise_plans",
+        ...extraRealtimeTables,
       ]}
       headerTitle={title}
       headerSubtitle={subtitle}

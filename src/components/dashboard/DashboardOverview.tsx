@@ -79,7 +79,7 @@ export default function DashboardOverview({
       {(greeting || headline) && (
         <div className="ov-head rounded-2xl border border-slate-200 bg-gradient-to-br from-teal-50/80 via-white to-white p-5 shadow-sm sm:p-6">
           {greeting && (
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-teal-700">{greeting}</p>
+            <p className="text-[13px] font-semibold uppercase tracking-wide text-teal-700">{greeting}</p>
           )}
           {headline && (
             <div className="mt-1 font-display text-lg font-bold leading-snug text-slate-800 sm:text-xl">
@@ -125,7 +125,7 @@ export default function DashboardOverview({
                     <span className="block text-sm font-semibold">{action.label}</span>
                     {action.hint && (
                       <span
-                        className={`block text-[11px] ${action.primary ? "text-teal-50" : "text-slate-500"}`}
+                        className={`block text-[13px] ${action.primary ? "text-teal-50" : "text-slate-500"}`}
                       >
                         {action.hint}
                       </span>

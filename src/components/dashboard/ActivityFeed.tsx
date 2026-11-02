@@ -85,7 +85,7 @@ export default function ActivityFeed({ items, emptyBody }: { items: FeedItem[]; 
   return (
     <div>
       {waiting > 0 && (
-        <p className="mb-3 flex items-center gap-2 rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+        <p className="mb-3 flex items-center gap-2 rounded-xl bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
           <i aria-hidden className="fa-solid fa-circle-exclamation text-[11px]" />
           {waiting} {waiting === 1 ? "thing needs" : "things need"} you
         </p>
@@ -113,9 +113,9 @@ export default function ActivityFeed({ items, emptyBody }: { items: FeedItem[]; 
               </span>
               <div className="min-w-0 flex-1">
                 <p className="break-words text-sm font-semibold leading-snug text-slate-800">{item.title}</p>
-                {item.detail && <p className="mt-0.5 break-words text-xs leading-relaxed text-slate-500">{item.detail}</p>}
+                {item.detail && <p className="mt-0.5 break-words text-sm leading-relaxed text-slate-500">{item.detail}</p>}
               </div>
-              <span suppressHydrationWarning className="shrink-0 text-[11px] text-slate-500">
+              <span suppressHydrationWarning className="shrink-0 text-[13px] text-slate-500">
                 {when(item.at)}
               </span>
             </div>

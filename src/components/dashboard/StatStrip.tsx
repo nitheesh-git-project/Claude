@@ -47,7 +47,7 @@ function Cell({ cell }: { cell: StatCell }) {
     <>
       <span className="flex flex-wrap items-center gap-1.5">
         <span aria-hidden className={`h-2.5 w-1 rounded-full ${cell.accent ?? "bg-slate-300"}`} />
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+        <span className="text-[13px] font-semibold uppercase tracking-wide text-slate-500">
           {cell.label}
         </span>
         {cell.scopeNote && (
@@ -66,11 +66,11 @@ function Cell({ cell }: { cell: StatCell }) {
         <span className={`font-display text-2xl font-bold leading-none ${cell.valueClass ?? "text-slate-800"}`}>
           {cell.value}
         </span>
-        {cell.unit && <span className="text-xs font-semibold text-slate-500">{cell.unit}</span>}
+        {cell.unit && <span className="text-sm font-semibold text-slate-500">{cell.unit}</span>}
       </span>
       {cell.trend && (
         <span
-          className={`mt-1 flex items-center gap-1 text-[11px] font-semibold ${
+          className={`mt-1 flex items-center gap-1 text-[13px] font-semibold ${
             cell.trend.direction === "flat"
               ? "text-slate-500"
               : (cell.trend.direction === "up") === (cell.trend.goodWhenUp ?? true)
@@ -92,7 +92,7 @@ function Cell({ cell }: { cell: StatCell }) {
         </span>
       )}
       {cell.note && (
-        <span className="mt-1 block text-[11px] leading-snug text-slate-500">{cell.note}</span>
+        <span className="mt-1 block text-[13px] leading-snug text-slate-500">{cell.note}</span>
       )}
     </>
   );
@@ -174,7 +174,7 @@ export function StripProgress({ percent, caption }: { percent: number; caption: 
           style={{ width: `${Math.max(0, Math.min(100, percent))}%` }}
         />
       </div>
-      <p className="shrink-0 text-[11px] font-semibold text-slate-500">{caption}</p>
+      <p className="shrink-0 text-[13px] font-semibold text-slate-500">{caption}</p>
     </>
   );
 }
