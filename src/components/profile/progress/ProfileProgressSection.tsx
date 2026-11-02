@@ -66,6 +66,7 @@ export default function ProfileProgressSection({
   stepsExtra,
   parts,
   hiddenGraphKeys,
+  liveSession,
 }: {
   profileKind: ProfileKind;
   /** Measure keys whose lines come from a store other than the recorded
@@ -109,6 +110,10 @@ export default function ProfileProgressSection({
   parts?: { graph?: boolean; steps?: boolean; measures?: boolean };
   /** Graph lines the clinic hides from the patient's page (measure keys). */
   hiddenGraphKeys?: readonly string[];
+  /** The assigned therapist's started video session with this patient (B11):
+   *  "Record a test" leads with the guided assessment, where a reading taken
+   *  over video belongs. The routes' own gates are unchanged. */
+  liveSession?: { href: string; patientName: string } | null;
   /** What the six-minute walk in Record a test needs (heart and lung). */
   recordExtras?: {
     patient: { sex?: "female" | "male" | null; ageYears?: number | null; heightCm?: number | null; weightKg?: number | null };
@@ -165,6 +170,20 @@ export default function ProfileProgressSection({
             </div>
           )}
         </div>
+        {record && liveSession && (
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-teal-200 bg-teal-50 px-4 py-3 print:hidden" data-testid="record-in-guided-assessment">
+            <p className="min-w-0 text-sm font-semibold text-slate-900">
+              You&apos;re in a video session with {liveSession.patientName} - record it in the guided assessment.
+            </p>
+            <a
+              href={liveSession.href}
+              className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
+            >
+              <i aria-hidden className="fa-solid fa-clipboard-check text-xs" />
+              Open the guided assessment
+            </a>
+          </div>
+        )}
         {notice && (
           <p role="status" className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             {notice}

@@ -134,7 +134,9 @@ export default function ProfileHeader({
               )}
               {statusFailed && (
                 <p role="status" className="mt-1.5 text-xs text-amber-900">
-                  {"We couldn't check whether your physiotherapist has overruled this status, so the computed one is shown."}
+                  {clinician
+                    ? "We couldn't check whether your physiotherapist has overruled this status, so the computed one is shown."
+                    : "We couldn't check your physiotherapist's latest view just now, so this is worked out from your results alone."}
                 </p>
               )}
               {notes.map((note) => (

@@ -53,6 +53,7 @@ export default function GeriatricProfileTop({
   enabledLicensed,
   licenceUnreadable,
   only,
+  liveSession,
   testId,
   hiddenGraphKeys,
   headerExtra,
@@ -77,6 +78,8 @@ export default function GeriatricProfileTop({
   /** The widgets this rendering draws (profileWidgets.ts); every one when
    *  left out. A page draws the profile in slices, or whole. */
   only?: WidgetPick;
+  /** The assigned therapist's started video session (B11), for "Record a test". */
+  liveSession?: { href: string; patientName: string } | null;
   /** The root's test id; null for none (a page that wraps its slices in its
    *  own root). Left out: the kind's id on the slice with the status. */
   testId?: string | null;
@@ -218,6 +221,7 @@ export default function GeriatricProfileTop({
       {(progressParts.graph || progressParts.steps || progressParts.measures) && (
       <ProfileProgressSection
         parts={progressParts}
+        liveSession={liveSession}
         hiddenGraphKeys={hiddenGraphKeys}
         profileKind={view.kind}
         survivingKeys={[]}

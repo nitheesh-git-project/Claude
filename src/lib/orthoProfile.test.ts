@@ -186,3 +186,13 @@ describe("the status input", () => {
     expect(computeProfileStatus(orthoStatusInput([])).status).toBe("unknown");
   });
 });
+
+describe("the patient's straightening line (C1)", () => {
+  it("says it plainly with where it started", async () => {
+    const { straighteningPatientText } = await import("@/lib/orthoProfile");
+    expect(straighteningPatientText(0, -8)).toBe("Now straightens fully (was 8° short)");
+    expect(straighteningPatientText(-5, -12)).toBe("Now 5° short of straight (was 12° short)");
+    expect(straighteningPatientText(-5, -5)).toBe("Now 5° short of straight");
+    expect(straighteningPatientText(2, null)).toBe("Now straightens fully");
+  });
+});

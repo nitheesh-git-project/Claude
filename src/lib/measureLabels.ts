@@ -44,6 +44,28 @@ const SHORT_STRENGTH: Record<string, string> = {
   grip: "Grip strength",
 };
 
+/** The patient's words for a joint movement: what they do, not the
+ *  clinician's plane of motion ("Lifting your arm forward", not "Shoulder
+ *  flexion"). A movement not listed keeps the registry's label. */
+const PATIENT_JOINT: Record<string, string> = {
+  shoulder_flexion: "Lifting your arm forward",
+  shoulder_abduction: "Lifting your arm out to the side",
+  shoulder_external_rotation: "Turning your arm outwards",
+  shoulder_internal_rotation: "Turning your arm inwards",
+  elbow_flexion: "Bending your elbow",
+  wrist_flexion: "Bending your wrist down",
+  wrist_extension: "Bending your wrist back",
+  hip_flexion: "Bringing your knee up",
+  hip_abduction: "Moving your leg out to the side",
+  hip_internal_rotation: "Turning your leg inwards",
+  hip_external_rotation: "Turning your leg outwards",
+  knee_flexion: "Bending your knee",
+  knee_extension: "Straightening your knee",
+  ankle_dorsiflexion: "Pulling your foot up",
+  ankle_plantarflexion: "Pointing your foot down",
+  neck_rotation: "Turning your head",
+};
+
 const MODE_WORDS = {
   patient: { active: "on your own", passive: "moved by physio" },
   clinician: { active: "active", passive: "passive" },
@@ -85,7 +107,8 @@ export function shortSeriesLabel(line: LabelLine, voice: LabelVoice, all: readon
       (o) => o !== line && (o.side ?? null) === (line.side ?? null) && o.variant === `${joint.movement}_${other}` && jointParts(o) !== null
     );
     const mode = bothModes ? (voice === "patient" ? ` - ${MODE_WORDS.patient[joint.mode]}` : `, ${MODE_WORDS.clinician[joint.mode]}`) : "";
-    return `${joint.label}${mode}${tail(line)}`;
+    const name = voice === "patient" ? (PATIENT_JOINT[joint.movement] ?? joint.label) : joint.label;
+    return `${name}${mode}${tail(line)}`;
   }
   const strength = line.measureKey === "strength_symmetry" ? (line.variant ? SHORT_STRENGTH[line.variant] : "Strength") : null;
   if (strength) return `${strength}${tail(line)}`;

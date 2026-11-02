@@ -268,6 +268,14 @@ export function kneeStraightening(series: readonly MeasureSeries[], side: Measur
 }
 
 /** "0 degrees", "-8 degrees (8 short of straight)". */
+/** The patient's straightening line (C1): "Now straightens fully (was 8°
+ *  short)", "Now 5° short of straight (was 12° short)". */
+export function straighteningPatientText(now: number, first: number | null): string {
+  const state = (v: number) => (v >= 0 ? "straightens fully" : `${Math.abs(v)}° short of straight`);
+  const was = first !== null && first !== now ? (first >= 0 ? " (was straightening fully)" : ` (was ${Math.abs(first)}° short)`) : "";
+  return `Now ${state(now)}${was}`;
+}
+
 export function straighteningText(value: number): string {
   if (value === 0) return "0° (straight)";
   return value < 0 ? `${value}° (${Math.abs(value)}° short of straight)` : `+${value}° (past straight)`;

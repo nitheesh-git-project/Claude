@@ -567,6 +567,7 @@ export default async function TherapistPatientHealthProfilePage({
       <OrthoProfileTop
         only={only}
         testId={testId}
+        liveSession={startedSession ? { href: cockpitHref(patientId), patientName: patient.full_name } : null}
         voice="clinician"
         patientId={patientId}
         patientName={patient.full_name}
@@ -594,6 +595,7 @@ export default async function TherapistPatientHealthProfilePage({
       <NeuroProfileTop
         only={only}
         testId={testId}
+        liveSession={startedSession ? { href: cockpitHref(patientId), patientName: patient.full_name } : null}
         voice="clinician"
         patientId={patientId}
         patientName={patient.full_name}
@@ -618,6 +620,7 @@ export default async function TherapistPatientHealthProfilePage({
       <GeriatricProfileTop
         only={only}
         testId={testId}
+        liveSession={startedSession ? { href: cockpitHref(patientId), patientName: patient.full_name } : null}
         voice="clinician"
         patientId={patientId}
         patientName={patient.full_name}
@@ -640,6 +643,7 @@ export default async function TherapistPatientHealthProfilePage({
       <CardioProfileTop
         only={only}
         testId={testId}
+        liveSession={startedSession ? { href: cockpitHref(patientId), patientName: patient.full_name } : null}
         voice="clinician"
         patientId={patientId}
         patientName={patient.full_name}
@@ -662,6 +666,7 @@ export default async function TherapistPatientHealthProfilePage({
       <PedsProfileTop
         only={only}
         testId={testId}
+        liveSession={startedSession ? { href: cockpitHref(patientId), patientName: patient.full_name } : null}
         voice="clinician"
         patientId={patientId}
         patientName={patient.full_name}

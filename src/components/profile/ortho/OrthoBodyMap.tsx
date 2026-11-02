@@ -5,7 +5,7 @@ import PainMapExplorer from "@/components/profile/PainMapExplorer";
 import KneeBendGauge from "@/components/profile/ortho/KneeBendGauge";
 import StrengthBar from "@/components/profile/ortho/StrengthBar";
 import type { AreaProgress, KneeBend, KneeStraightening, LegStrength } from "@/lib/orthoProfile";
-import { straighteningText } from "@/lib/orthoProfile";
+import { straighteningPatientText, straighteningText } from "@/lib/orthoProfile";
 import { formatClinicDate } from "@/lib/formatDateTime";
 import type { AreaPainEntry } from "@/lib/conditionIntake";
 import type { PainAssessmentRow, QuestionOverrideRow } from "@/lib/painMap";
@@ -60,14 +60,26 @@ export default function OrthoBodyMap({
       <p className="text-xs leading-relaxed text-slate-700">
         {straightening.passive && (
           <span className="block">
-            {clinician ? "Straightening, passive" : "Straightens when the physio moves it"}: {straighteningText(straightening.passive.now)}
-            {straightening.passive.first !== straightening.passive.now && ` (was ${straightening.passive.first}°)`}
+            {clinician ? (
+              <>
+                Straightening, passive: {straighteningText(straightening.passive.now)}
+                {straightening.passive.first !== straightening.passive.now && ` (was ${straightening.passive.first}°)`}
+              </>
+            ) : (
+              `When your physio moves it: ${straighteningPatientText(straightening.passive.now, straightening.passive.first)}`
+            )}
           </span>
         )}
         {straightening.active && (
           <span className="block">
-            {clinician ? "Straightening, active" : "Straightens on your own"}: {straighteningText(straightening.active.now)}
-            {straightening.active.first !== straightening.active.now && ` (was ${straightening.active.first}°)`}
+            {clinician ? (
+              <>
+                Straightening, active: {straighteningText(straightening.active.now)}
+                {straightening.active.first !== straightening.active.now && ` (was ${straightening.active.first}°)`}
+              </>
+            ) : (
+              `On your own: ${straighteningPatientText(straightening.active.now, straightening.active.first)}`
+            )}
           </span>
         )}
         {straightening.lag && (
