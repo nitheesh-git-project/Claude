@@ -10,6 +10,7 @@ import { Stagger, StaggerItem } from "@/components/motion/primitives";
 import {
   PROGRESS_STEPS,
   SAMPLE_NOTE,
+  showcaseFrameInView,
   type ShowcaseProfile,
   type ShowcaseSpecialty,
 } from "@/lib/healthProfileShowcase";
@@ -44,7 +45,8 @@ const PANELS: Record<ShowcaseSpecialty, ComponentType<SampleProps>> = {
  * It advances every five seconds, which the public pages otherwise avoid
  * ("a carousel that moves on its own is a carousel nobody can read",
  * public-site.md), so the movement is held to the reader: only while at
- * least half of it is on screen (so it never moves at the same time as
+ * least half of it is on screen, or it fills half the window when it is the
+ * taller of the two (so it never moves at the same time as
  * JourneySteps above it), never while hovered, focused or touched, never
  * again once somebody picks a tab, never under reduced motion, and always
  * with a pause button.
@@ -93,9 +95,20 @@ export default function HealthProfileShowcase({ profiles }: { profiles: Showcase
   useEffect(() => {
     const el = frameRef.current;
     if (!el) return;
-    const observer = new IntersectionObserver(([entry]) => setInView(entry.isIntersecting), {
-      threshold: 0.5,
-    });
+    // Half of the frame, or half of the window for a frame taller than it
+    // (showcaseFrameInView). Fine-grained thresholds, because for a tall
+    // frame the line is crossed at a small fraction of the frame's height.
+    const observer = new IntersectionObserver(
+      ([entry]) =>
+        setInView(
+          showcaseFrameInView(
+            entry.intersectionRect.height,
+            entry.boundingClientRect.height,
+            entry.rootBounds?.height ?? window.innerHeight
+          )
+        ),
+      { threshold: Array.from({ length: 21 }, (_, i) => i / 20) }
+    );
     observer.observe(el);
     return () => observer.disconnect();
   }, []);

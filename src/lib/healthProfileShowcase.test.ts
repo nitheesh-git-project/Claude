@@ -4,6 +4,7 @@ import {
   SAMPLE_NOTE,
   SHOWCASE_PROFILES,
   enabledShowcaseProfiles,
+  showcaseFrameInView,
   type ShowcaseProfile,
 } from "./healthProfileShowcase";
 import {
@@ -317,5 +318,27 @@ describe("the heart and lung sample", () => {
     expect(cardio.view.vitalsCheck.status).toBe("clear");
     expect(cardio.view.walk.prediction).toEqual({ status: "not_chosen", text: "" });
     expect(cardio.view.predictionNeeds).toEqual([]);
+  });
+});
+
+describe("showcaseFrameInView", () => {
+  it("counts a frame shorter than the window once half of it shows", () => {
+    expect(showcaseFrameInView(300, 600, 900)).toBe(true);
+    expect(showcaseFrameInView(299, 600, 900)).toBe(false);
+  });
+
+  it("counts a frame taller than twice the window once it fills half the window", () => {
+    // The desktop frame (~1,500px) on a 720px laptop screen: half the frame
+    // can never be on screen, so the old rule never let the tour move.
+    expect(showcaseFrameInView(720, 1502, 720)).toBe(true);
+    expect(showcaseFrameInView(360, 1502, 720)).toBe(true);
+    expect(showcaseFrameInView(359, 1502, 720)).toBe(false);
+  });
+
+  it("is never in view with nothing visible or unknown sizes", () => {
+    expect(showcaseFrameInView(0, 600, 900)).toBe(false);
+    expect(showcaseFrameInView(300, 0, 900)).toBe(false);
+    expect(showcaseFrameInView(300, 600, 0)).toBe(false);
+    expect(showcaseFrameInView(Number.NaN, 600, 900)).toBe(false);
   });
 });

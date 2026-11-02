@@ -119,6 +119,17 @@ export function enabledShowcaseProfiles(enabled: readonly ConditionSpecialty[]):
   return SHOWCASE_PROFILES.filter((p) => p.specialty === "ortho" || enabled.includes(p.specialty));
 }
 
+/** Whether the tour's frame counts as "on screen", which is when it may
+ *  rotate: half of the frame visible, or -- for a frame taller than the
+ *  window -- half of the window filled by it. "Half of the frame" alone could
+ *  never be met by a frame more than twice the window's height, and the
+ *  desktop frame is about 1,500px: on a 720px laptop screen the tour never
+ *  moved at all. */
+export function showcaseFrameInView(visiblePx: number, framePx: number, viewportPx: number): boolean {
+  if (!(visiblePx > 0) || !(framePx > 0) || !(viewportPx > 0)) return false;
+  return visiblePx >= 0.5 * Math.min(framePx, viewportPx);
+}
+
 /** What every sample says about itself, beside every profile. */
 export const SAMPLE_NOTE = "Sample patient - figures are made up";
 
