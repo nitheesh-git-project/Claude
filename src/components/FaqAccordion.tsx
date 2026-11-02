@@ -45,7 +45,10 @@ export default function FaqAccordion({ faqs }: { faqs: Faq[] }) {
               <motion.div
                 key={f.id}
                 layout
-                initial={{ opacity: 0, y: 14 }}
+                // Drawn visible in the server HTML and on the first render
+                // (HY-003: a public page never ships content at opacity:0).
+                // Only a row a search brings in gets the entrance.
+                initial={query ? { opacity: 0, y: 14 } : false}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.35, delay: Math.min(i * 0.05, 0.3), ease: [0.16, 1, 0.3, 1] }}
                 className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
