@@ -122,8 +122,11 @@ test.describe("brand splash", () => {
   test("SP-009 the hold is the stylesheet's, clipped to ~600ms on a public page", async ({ page }) => {
     // 6s is the longest an admin can set; a public page still leaves in ~600ms.
     await setSplash({ splash_hold_seconds: 6 });
-    const started = Date.now();
     await page.goto(`${BASE}/`, { waitUntil: "domcontentloaded" });
+    // From the document, not from before the request: the server's render
+    // time is not the splash's, and against a hosted project from a
+    // container it alone took this past 5s on a splash that left on time.
+    const started = Date.now();
     const vars = await page.evaluate(() => ({
       hold: document.documentElement.style.getPropertyValue("--splash-hold"),
       fade: document.documentElement.style.getPropertyValue("--splash-fade"),
