@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { EXERCISE_LIBRARY, exerciseByKey, DOSE_LIMITS, doseShapeProblem, type ContraFlag } from "@/lib/exerciseLibrary";
+import { EXERCISE_LIBRARY, exerciseByKey, exercisesFor, DOSE_LIMITS, doseShapeProblem, type ContraFlag } from "@/lib/exerciseLibrary";
+import { orderForPicking, suggestedArea } from "@/lib/teachTool";
 import {
   COACHING_CUES,
   EXERCISE_REFUSAL_TEXT,
@@ -259,5 +260,24 @@ describe("Fix this mark (phase 7d-3)", () => {
     expect(teachFailure({ status: 409, code: "correction_needs_mark" })).toMatchObject({ message: /no mark/i, fix: /three buttons/ } as never);
     expect(teachFailure({ status: 400, code: "bad_correction_reason" }).fix).toMatch(/reason/);
     expect(teachFailure({ status: 409, code: "already_marked" }).fix).toMatch(/Fix this mark/);
+  });
+});
+
+describe("the exercise picker opens on the patient's area, suggested first (E13)", () => {
+  it("names the area from the protocol, the painful region or the kind", () => {
+    expect(suggestedArea("ortho", { protocolKey: "ortho_knee" })).toBe("knee");
+    expect(suggestedArea("ortho", { protocolKey: "ortho_general", painRegion: "lower_back" })).toBe("back");
+    expect(suggestedArea("ortho", { protocolKey: "ortho_general", painRegion: null })).toBeNull();
+    expect(suggestedArea("geriatric", {})).toBe("balance");
+  });
+  it("puts the suitable ones for that area first and a ruled-out one last, never suggested", () => {
+    const list = exercisesFor("geriatric");
+    const ordered = orderForPicking(list, "balance", new Set(["high_fall_risk"]));
+    expect(ordered).toHaveLength(list.length);
+    const firstOther = ordered.findIndex((o) => !o.suggested);
+    expect(ordered.slice(0, firstOther).every((o) => o.exercise.bodyArea === "balance")).toBe(true);
+    for (const o of ordered) if (o.exercise.contraindications.includes("high_fall_risk")) expect(o.suggested).toBe(false);
+    const ruledOutAt = ordered.findIndex((o) => o.exercise.contraindications.includes("high_fall_risk"));
+    if (ruledOutAt >= 0) expect(ordered.slice(ruledOutAt).every((o) => o.exercise.contraindications.includes("high_fall_risk"))).toBe(true);
   });
 });

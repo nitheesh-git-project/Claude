@@ -11,8 +11,9 @@ const EVERY_MS = 15_000;
  * against the server's clock (`companionSeenState`). A failed or refused
  * read is "unknown" - said as "couldn't check", never "not open".
  */
-export function useCompanionSeen(runId: string, active: boolean): CompanionSeen {
-  const [seen, setSeen] = useState<CompanionSeen>("unknown");
+export function useCompanionSeen(runId: string, active: boolean): CompanionSeen | null {
+  // Null until the first answer: nothing is said before anything is known.
+  const [seen, setSeen] = useState<CompanionSeen | null>(null);
   useEffect(() => {
     if (!active) return;
     let cancelled = false;

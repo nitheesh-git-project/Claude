@@ -10,7 +10,7 @@ import { exerciseByKey, type ContraFlag, type ExerciseDose } from "@/lib/exercis
 import type { TeachingEvent } from "@/lib/exercisePlan";
 import type { ProfileKind } from "@/lib/outcomeMeasures";
 import type { ProtocolStep, SessionProtocol } from "@/lib/sessionProtocols";
-import { publishBody, type DraftItem } from "@/lib/teachTool";
+import { suggestedArea, publishBody, type DraftItem } from "@/lib/teachTool";
 
 export type TeachPlan = { id: string; version: number; items: { exerciseKey: string; dose: ExerciseDose }[] };
 
@@ -36,6 +36,7 @@ export default function TeachTool({
   onPlan,
   onMark,
   onPreview,
+  painRegion = null,
 }: {
   runId: string;
   protocol: SessionProtocol;
@@ -52,6 +53,8 @@ export default function TeachTool({
   onPlan: (plan: TeachPlan) => void;
   onMark: (event: TeachingEvent) => void;
   onPreview: (text: LiveDisplayText | null) => void;
+  /** The orthopaedic patient's worst area on record, for the picker's starting area. */
+  painRegion?: string | null;
 }) {
   const [editing, setEditing] = useState(false);
   const [publishing, setPublishing] = useState(false);
@@ -114,6 +117,7 @@ export default function TeachTool({
         )}
         <PlanBuilder
           kind={profileKind}
+          suggested={suggestedArea(profileKind, { protocolKey: protocol.key, painRegion })}
           contraFlags={contraFlags}
           helperTicked={helperTicked}
           initial={plan ? plan.items.map((i) => ({ exerciseKey: i.exerciseKey, dose: { ...i.dose } })) : []}

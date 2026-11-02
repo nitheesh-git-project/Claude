@@ -13,6 +13,7 @@ import {
   draftProblem,
   noteProblem,
   offerFor,
+  orderForPicking,
   toggleDraft,
   updateDraft,
   withNote,
@@ -24,10 +25,19 @@ import {
  * body area, a card per exercise (tiny picture, plain name, a "Needs a
  * helper" badge, or the reason it is not suitable for this patient), up to
  * six picked. Each pick then has its dose as big steppers and an optional
- * short note. One button, Use this plan, saves it as a new version.
+ * short note. Use this plan saves it as a new version.
+ *
+ * It opens on the patient's own area (`suggested`: the knee for the knee
+ * assessment, the worst area on record, or what the kind works on first),
+ * suitable exercises for that area first with a "Suggested" badge, and those
+ * the intake rules out last - never suggested (orderForPicking). Use this
+ * plan is drawn as a secondary button: the step's one primary action stays
+ * the cockpit's Save and next. Every control keeps clear of the sticky bar
+ * when it is scrolled to (scroll-margin).
  */
 export default function PlanBuilder({
   kind,
+  suggested = null,
   contraFlags,
   helperTicked,
   initial,
@@ -36,6 +46,8 @@ export default function PlanBuilder({
   onCancel,
 }: {
   kind: ProfileKind;
+  /** The area the picker opens on; null opens on All. */
+  suggested?: BodyArea | null;
   contraFlags: readonly ContraFlag[];
   helperTicked: boolean;
   initial: DraftItem[];
@@ -43,12 +55,15 @@ export default function PlanBuilder({
   onPublish: (draft: DraftItem[]) => void;
   onCancel: (() => void) | null;
 }) {
-  const [area, setArea] = useState<BodyArea | "all">("all");
+  const [area, setArea] = useState<BodyArea | "all">(suggested ?? "all");
   const [draft, setDraft] = useState<DraftItem[]>(initial);
   const [limitHit, setLimitHit] = useState(false);
   const flags = useMemo(() => new Set(contraFlags), [contraFlags]);
   const areas = useMemo(() => bodyAreasFor(kind), [kind]);
-  const shown = useMemo(() => exercisesFor(kind, area === "all" ? undefined : area), [kind, area]);
+  const shown = useMemo(
+    () => orderForPicking(exercisesFor(kind, area === "all" ? undefined : area), suggested, flags),
+    [kind, area, suggested, flags]
+  );
   const picked = new Set(draft.map((d) => d.exerciseKey));
 
   const problem = draftProblem(draft, { helperTicked, needsHelper: (k) => !!exerciseByKey(k)?.needsHelper });
@@ -65,7 +80,7 @@ export default function PlanBuilder({
     }`;
 
   return (
-    <div className="space-y-5" data-testid="plan-builder">
+    <div className="space-y-5 [&_button]:scroll-mb-64 [&_textarea]:scroll-mb-64" data-testid="plan-builder">
       <div>
         <p className="text-base font-semibold text-slate-900">Pick the exercises for home.</p>
         <p className="mt-0.5 text-sm text-slate-700">
@@ -80,12 +95,13 @@ export default function PlanBuilder({
         {areas.map((a) => (
           <button key={a} type="button" aria-pressed={area === a} className={chip(area === a)} onClick={() => setArea(a)} data-testid={`area-${a}`}>
             {BODY_AREAS[a]}
+            {a === suggested && <span className="ml-1.5 text-[13px] font-normal">(this patient)</span>}
           </button>
         ))}
       </div>
 
       <ul className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3" aria-label="Exercises">
-        {shown.map((e) => {
+        {shown.map(({ exercise: e, suggested: isSuggested }) => {
           const offer = offerFor(e, flags);
           const on = picked.has(e.key);
           const ruledOut = offer.kind === "ruled_out";
@@ -112,6 +128,9 @@ export default function PlanBuilder({
                 <span className="min-w-0 flex-1">
                   <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
                     <span className="text-base font-semibold text-slate-900">{e.name}</span>
+                    {isSuggested && !on && area === "all" && (
+                      <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[13px] font-semibold text-teal-900">Suggested</span>
+                    )}
                     {e.needsHelper && (
                       <span className="rounded-full bg-slate-900 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white">Needs a helper</span>
                     )}
@@ -203,7 +222,7 @@ export default function PlanBuilder({
             disabled={publishing || !!problem}
             aria-describedby="use-plan-help"
             onClick={() => onPublish(draft)}
-            className="inline-flex min-h-[56px] flex-[2_1_14rem] items-center justify-center gap-2 rounded-xl bg-teal-700 px-5 text-lg font-bold text-white transition hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-400"
+            className="inline-flex min-h-[52px] flex-[2_1_14rem] items-center justify-center gap-2 rounded-xl border-2 border-teal-700 bg-white px-5 text-base font-bold text-teal-900 transition hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-500"
           >
             {publishing && <Spinner />}
             {publishing ? "Saving…" : "Use this plan"}
@@ -213,7 +232,7 @@ export default function PlanBuilder({
               type="button"
               onClick={onCancel}
               disabled={publishing}
-              className="min-h-[56px] flex-1 basis-[8rem] rounded-xl border border-slate-300 bg-white px-4 text-base font-semibold text-slate-900 hover:border-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 disabled:opacity-60"
+              className="min-h-[52px] flex-1 basis-[8rem] rounded-xl border border-slate-300 bg-white px-4 text-base font-semibold text-slate-900 hover:border-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 disabled:opacity-60"
             >
               Keep the current plan
             </button>

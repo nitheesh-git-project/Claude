@@ -818,7 +818,7 @@ See `FIN-PAY-003` for the full cross-check. From the therapist's side, the figur
 
 #### `THR-HP-005t` - Home exercises: the teach tool on the cockpit · P0
 **Preconditions.** A started video session; the patient is recorded as *Strength and balance care* with *Two or more falls* on file; a second device shows the companion. The safety questions are answered *no* and the *Home exercises* set-up is ticked.
-1. Open **Home exercises**. Filter by **Balance**. Look for *Stand on one leg*; pick *Sit to stand*, *Heel raise* and *Side steps*.
+1. Open **Home exercises**: it opens already filtered to **Balance (this patient)**; tap **All** and check the *Suggested* balance exercises come first and the ruled-out ones last. Back on **Balance**, look for *Stand on one leg*; pick *Sit to stand*, *Heel raise* and *Side steps*. Scroll to **Use this plan** and check the sticky bar does not cover it, and that it is an outlined button (Save and next is the one filled button).
 2. Raise the sets with **+** past the limit; type a note of three sentences, then one of two.
 3. Tap **Use this plan**.
 4. For *Sit to stand* tap **Show the demo**, then **Your turn**, then **Needs practice** and one cue.

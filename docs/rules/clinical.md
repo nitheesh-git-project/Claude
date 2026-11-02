@@ -1746,7 +1746,12 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   `src/lib/teachTool.ts`) only calls the two routes: Show the demo, Your turn,
   then ONE row of three marks (*Did it correctly*, *Needs practice* with one
   cue, *Not attempted* with one reason), and Save and next stays locked until
-  every exercise is marked. The set-up is recorded on the run from what was
+  every exercise is marked. **The picker opens on this patient's area**
+  (`suggestedArea`: the knee assessment's knee, else the worst intake area,
+  else what the kind works on first - balance, walking, breathing), suitable
+  exercises for it first with a *Suggested* badge, ruled-out ones last and
+  never suggested (`orderForPicking`); *Use this plan* is a secondary button
+  so Save and next stays the step's one primary. The set-up is recorded on the run from what was
   ticked, never "all items" (the optional helper item counts only when
   ticked). The 36 pictures (`ExercisePicture`) carry no text; the companion
   draws the library's own steps. The patient's card and the chart section
@@ -1884,3 +1889,53 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   last score. It used to average each calendar day, which folded a second
   exam that day into the first and erased the earlier value from the line.
   `src/lib/painTrendSeries.test.ts`, `e2e/pain-trend.spec.ts`.
+
+- **What a patient's Health Profile shows is the clinic's choice, per
+  condition kind and per patient, and the safety sections are never
+  hidden.** Every section of the profile is a widget in
+  `src/lib/profileWidgets.ts` (the status and Where things stand, home
+  exercises, key numbers, the graph and each of its lines, goal and steps,
+  the measures table, each kind's condition-picture cards, the diary,
+  freezing and active minutes, the answers, the who-writes-what guide,
+  reports and past recommendations). `resolveProfileWidgets()` is the rule:
+  the patient's own override beats the condition kind's setting, which beats
+  the registry default; a **locked** widget is always shown (the status with
+  its red flags and Needs attention, home exercises and their safety lines,
+  the geriatric fall-risk level and standing blood pressure, the heart and
+  lung safety box and the surgeon's precautions -- the tables' CHECK repeats
+  that list); an unknown key or another kind's key is ignored; an unreadable
+  layer is skipped, never read as "hide everything". **Hidden is a
+  patient-page decision**: the server leaves the section out of the
+  patient's page and their PDF (which prints one line naming what was left
+  out, `exportPlan`), the therapist's chart draws the hidden sections behind a
+  collapsed "N sections hidden for this patient - show" (hidden graph lines
+  stay on the clinician's graph and are named), and the admin's record draws
+  everything with the hidden ones named. A senior physiotherapist should
+  confirm the locked list. Tests: `src/lib/profileWidgets.test.ts`;
+  `e2e/health-profile-layout.spec.ts`.
+- **A patient withdraws a diary entry by saying it was saved by mistake,
+  and nothing is deleted (E1).** `POST /api/patient/diary/correct` writes a
+  `patient_diary_entries` row of kind `correction` pointing at their own,
+  unconfirmed entry (once; a confirmed one is for the physiotherapist to
+  talk through, 409). The loader (`loadDiaryEntries`,
+  `applyDiaryCorrections`) takes a corrected entry out of the live diary, so
+  no count, graph, falls tile, fall-risk level or status reads it -- a
+  withdrawn fall never flags -- and hands it to the screens to show struck
+  through, "Withdrawn by the patient". A corrections read that fails makes
+  the diary unreadable (a withdrawn fall counted as real would read as a new
+  fall). Logging a fall where the person was hurt or needed help shows a red
+  box -- call 108 or your doctor if you hit your head, can't put weight on a
+  leg or feel unwell; this diary isn't watched live -- and a fall is read
+  back with its clinic-zone time before it saves. The 108 wording wants a
+  senior physiotherapist's sign-off.
+- **The patient's own words on the profile (C1/D2/D3).** The status sentence
+  names the main measure ("Pain score: about the same as last time",
+  "improved by enough to count as real progress"); one review reads "First
+  check done"; joint lines say the movement ("Lifting your arm forward");
+  knee straightening reads "Now straightens fully (was 8° short)"; the fall
+  dial says how the level is worked out without naming STEADI; the graph
+  leads with one plain sentence and says which way is good once above it,
+  without the scale's name. Needs attention, a High fall risk and a flagged
+  heart and lung reading each carry a calm next step and a 44px Call button
+  with the clinic's number (Brand & Contact); an unset or unreadable number
+  is said as such (`CallClinicLine`). The clinician's words are unchanged.

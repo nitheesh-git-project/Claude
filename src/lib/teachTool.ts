@@ -3,6 +3,8 @@ import { cockpitFailure, type CockpitFailure } from "@/lib/cockpit";
 import {
   CONTRA_FLAG_TEXT,
   DOSE_LIMITS,
+  bodyAreasFor,
+  type BodyArea,
   type ContraFlag,
   type DoseKind,
   type Exercise,
@@ -25,6 +27,7 @@ import {
   type TeachingOutcome,
 } from "@/lib/exercisePlan";
 import { sentenceCount } from "@/lib/sessionProtocols";
+import type { ProfileKind } from "@/lib/outcomeMeasures";
 
 // The pure half of the physiotherapist's TEACH TOOL on the guided session's
 // Home exercises step (phase 7d-2; src/components/therapist/assessment/teach/):
@@ -258,4 +261,68 @@ export function teachFailure(failure: ProgressApiFailure): CockpitFailure {
   }
   if (code && Object.prototype.hasOwnProperty.call(EXTRA, code)) return { ...EXTRA[code], kind: failure.status === 503 ? "unchecked" : "refused" };
   return cockpitFailure(failure);
+}
+
+// --- Suggested first (E13) ------------------------------------------------------------------------
+
+/** Which body area a Pain Map region trains (the orthopaedic patient's worst area). */
+const REGION_AREA: Record<string, BodyArea> = {
+  knee: "knee",
+  quads: "legs",
+  hamstrings: "legs",
+  calves: "ankle",
+  ankle_foot: "ankle",
+  hip: "hip",
+  glutes: "hip",
+  lower_back: "back",
+  upper_back: "back",
+  neck: "back",
+  abs_core: "back",
+  shoulder: "shoulder",
+  biceps: "arms",
+  triceps: "arms",
+  elbow: "arms",
+  wrist_hand: "arms",
+};
+
+/** What each other kind of patient works on first. */
+const KIND_AREA: Partial<Record<ProfileKind, BodyArea>> = {
+  neuro: "walking",
+  neuro_parkinsons: "walking",
+  geriatric: "balance",
+  cardiopulmonary: "breathing",
+};
+
+/**
+ * The body area the exercise picker opens on: the orthopaedic patient's area
+ * (the knee assessment's knee, else the worst intake or last-exam area), else
+ * what the kind works on first. Null - "All" - when nothing names one, or the
+ * library has nothing for it for this kind. A suggestion only: every area
+ * stays one tap away.
+ */
+export function suggestedArea(kind: ProfileKind, input: { protocolKey?: string | null; painRegion?: string | null }): BodyArea | null {
+  const available = new Set(bodyAreasFor(kind));
+  const candidate =
+    kind === "ortho"
+      ? input.protocolKey === "ortho_knee"
+        ? "knee"
+        : input.painRegion
+          ? REGION_AREA[input.painRegion] ?? null
+          : null
+      : KIND_AREA[kind] ?? null;
+  return candidate && available.has(candidate) ? candidate : null;
+}
+
+/**
+ * The list in the order it is offered: suitable exercises for the suggested
+ * area first, then the other suitable ones, then those the intake rules out
+ * (never suggested; still listed with the reason). The library order is kept
+ * within each group.
+ */
+export function orderForPicking(list: readonly Exercise[], area: BodyArea | null, contraFlags: ReadonlySet<ContraFlag>): { exercise: Exercise; suggested: boolean }[] {
+  const rank = (e: Exercise) => (contraindicationsHit(e, contraFlags).length > 0 ? 2 : area && e.bodyArea === area ? 0 : 1);
+  return list
+    .map((exercise, i) => ({ exercise, i, r: rank(exercise) }))
+    .sort((a, b) => a.r - b.r || a.i - b.i)
+    .map(({ exercise, r }) => ({ exercise, suggested: r === 0 }));
 }

@@ -283,7 +283,8 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
   });
   const patientScreen = useDisplaySender({ runId: run.id, protocol, startingText, onFailure: setFailure });
   const pushDisplay = patientScreen.push;
-  const seenLabel = companionSeenLabel(useCompanionSeen(run.id, !ended), firstName);
+  const seenState = useCompanionSeen(run.id, !ended);
+  const seenLabel = seenState ? companionSeenLabel(seenState, firstName) : undefined;
 
   // Tell the patient's screen where we are as soon as the page opens.
   const firstPush = useRef(false);
@@ -775,6 +776,7 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
                     onPlan: setTeachPlan,
                     onMark: (e) => setTeachMarks((prev) => addTeachMark(prev, e)),
                     onPreview: setTeachPreview,
+                    painRegion: [...(props.intakeAreas ?? [])].sort((x, y) => y.pain - x.pain)[0]?.region ?? null,
                   }}
                   summaryLine={summaryLine}
                   resting={resting}
