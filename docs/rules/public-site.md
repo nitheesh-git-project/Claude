@@ -240,6 +240,10 @@ Eight pages from one design system, the word budgets, why every photograph carri
   entry out of order sends the arrow backwards. `e2e/section-nav.spec.ts`
   reads the rail's own buttons rather than a hardcoded list, which is what
   lets these pages change shape without the spec changing with them.
+  The lit pill is the section crossing the viewport's centre, none at the
+  very top, and - scrolled to the end, where the 44px-row footer is taller
+  than half a laptop screen and holds the centre - the last section still on
+  screen (`src/lib/sectionNavActive.ts`).
 
 - **Every catalog card has a cover slot, and one component owns the empty
   state.** Programmes, session packages and home-visit packages are all
@@ -550,8 +554,10 @@ Eight pages from one design system, the word budgets, why every photograph carri
   "how it works" and the programmes a phone visitor came to price.
   **It is the one public widget that moves on its own**, every five seconds,
   which the carousel rule below otherwise forbids, so the movement is held
-  to the reader: only while its frame is at least half on screen (never
-  alongside `JourneySteps`), never while hovered, focused or touched, never
+  to the reader: only while its frame is at least half on screen - or fills
+  half the window, for a frame taller than it (`showcaseFrameInView`; the
+  desktop frame is ~1,500px, so "half the frame" alone never let it move on
+  a 720px laptop screen) - never alongside `JourneySteps`, never while hovered, focused or touched, never
   again once a tab or the Parkinson's example is picked, never under reduced
   motion, and always with a pause button
   (`e2e/health-profile-showcase.spec.ts`).
@@ -696,7 +702,8 @@ Eight pages from one design system, the word budgets, why every photograph carri
   footer's WhatsApp number - carries `target="_blank"` with
   `rel="noopener noreferrer"` and says "(opens in a new tab)" in its
   accessible name; `mailto:` and `tel:` stay as they are. The icons are
-  inline SVG in `BrandGlyphs.tsx`, not the fa-brands webfont.
+  inline SVG in `BrandGlyphs.tsx`, not the fa-brands webfont, in 44px
+  circles like every other footer target (`mobile-smoke` MOB-003).
 
 - **The header changes by width, and booking is always one tap away.** Below
   `lg` the page links are in the menu and every marketing page has a sticky

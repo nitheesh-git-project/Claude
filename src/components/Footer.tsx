@@ -93,7 +93,8 @@ export default function Footer({
             // where the practice is, not ways to reach it about a booking.
             // A new tab, because each leaves this site for someone else's
             // app -- a patient half-way through reading should not lose
-            // their place. 36px targets clear WCAG 2.2's 24px minimum.
+            // their place. 44px, like every other footer link: a 36px
+            // circle cleared WCAG's 24px minimum but not this footer's rule.
             <ul className="mt-4 flex flex-wrap gap-2" aria-label={`${siteName} on social media`}>
               {socialLinks.map((link) => (
                 <li key={link.platform}>
@@ -103,7 +104,7 @@ export default function Footer({
                     rel="noopener noreferrer"
                     aria-label={`${link.label} (opens in a new tab)`}
                     title={link.label}
-                    className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-800 text-base text-slate-300 transition hover:bg-teal-700 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400"
+                    className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-800 text-base text-slate-300 transition hover:bg-teal-700 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400"
                   >
                     {SOCIAL_GLYPHS[link.platform]()}
                   </a>
