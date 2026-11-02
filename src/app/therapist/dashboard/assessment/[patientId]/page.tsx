@@ -7,7 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { hasStartedSessionWithPatient, isTherapistAssignedToPatient } from "@/lib/conditionAccess";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { formatClinicTime } from "@/lib/formatDateTime";
-import { loadEnabledLicensedMeasures, loadMeasurements, loadPatientProfileKind } from "@/lib/outcomeServer";
+import { loadEnabledLicensedMeasures, loadGoalAndMilestones, loadMeasurements, loadPatientProfileKind } from "@/lib/outcomeServer";
 import { parseMeasurementRows, buildMeasureSeries } from "@/lib/outcomeSeries";
 import { protocolsForProfileKind, sessionProtocol } from "@/lib/sessionProtocols";
 import { loadActiveRun, loadBriefingReads, loadRunMeasurements } from "@/lib/assessmentRunServer";
@@ -115,7 +115,7 @@ export default async function AssessmentCockpitPage({
   } else if (active.run) {
     const run = active.run;
     const protocol = sessionProtocol(run.protocolKey);
-    const [measurementsRead, savedRead, licensed, planRead, marksRead, exerciseContext, briefingReads] = await Promise.all([
+    const [measurementsRead, savedRead, licensed, planRead, marksRead, exerciseContext, briefingReads, goalsRead] = await Promise.all([
       loadMeasurements(admin, patientId),
       loadRunMeasurements(admin, active.events),
       loadEnabledLicensedMeasures(admin),
@@ -123,6 +123,7 @@ export default async function AssessmentCockpitPage({
       loadTeachingEvents(admin, run.id),
       loadPatientExerciseContext(admin, patientId, nowTimestamp()),
       loadBriefingReads(admin, patientId, nowTimestamp()),
+      loadGoalAndMilestones(admin, patientId),
     ]);
     // The Home exercises step: a read that could not be run is said as such,
     // never as "no plan yet".
@@ -171,6 +172,7 @@ export default async function AssessmentCockpitPage({
         exercises={exercises}
         briefing={cockpitBriefing({ ...briefingReads, profileKind: run.profileKind })}
         intakeAreas={briefingReads.intakeAreas}
+        milestones={goalsRead.status === "ok" ? { status: "ok", items: goalsRead.milestones } : { status: "unreadable" }}
       />
     );
     if (savedRead.status !== "ok" || measurementsRead.status !== "ok") {

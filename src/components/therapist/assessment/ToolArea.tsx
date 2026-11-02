@@ -5,7 +5,8 @@ import type { EmbeddedHandle, EmbeddedStatus } from "@/components/profile/progre
 import { outcomeMeasure, READ_FROM_LABELS, type ProfileKind } from "@/lib/outcomeMeasures";
 import type { MeasureSeries } from "@/lib/outcomeSeries";
 import type { TimerClockEvent } from "@/lib/timerClock";
-import { toolMode, toolSlots, type CarriedFacts } from "@/lib/cockpit";
+import { toolMode, toolSlots, type CarriedFacts, type SummaryRow } from "@/lib/cockpit";
+import SummaryTool from "@/components/therapist/assessment/SummaryTool";
 import type { ProtocolStep } from "@/lib/sessionProtocols";
 import LayerTool, { type QuickPainSave } from "@/components/therapist/assessment/LayerTool";
 import type { AreaPainEntry } from "@/lib/conditionIntake";
@@ -40,6 +41,7 @@ export default function ToolArea({
   layer,
   teach,
   summaryLine,
+  summary,
 }: {
   step: ProtocolStep;
   /** The clinical order keeps this step shut: nothing can be entered. */
@@ -78,6 +80,8 @@ export default function ToolArea({
   /** The Home exercises step's tool: everything the cockpit holds for it. */
   teach: ComponentProps<typeof TeachTool>;
   summaryLine: string;
+  /** The summary step's first / last / now rows and their milestones (B8). */
+  summary: { patientId: string; rows: SummaryRow[]; milestonesUnreadable: boolean };
 }): ReactNode {
   const mode = toolMode(step);
 
@@ -109,15 +113,7 @@ export default function ToolArea({
   if (mode === "teach") return <TeachTool {...teach} />;
 
   if (mode === "summary") {
-    return (
-      <div className="space-y-1.5" data-testid="summary-tool">
-        <p className="text-base font-semibold text-slate-900">Check today{"'"}s results before you finish.</p>
-        <p className="text-sm text-slate-700">{summaryLine}</p>
-        <p className="text-sm text-slate-700">
-          Save and finish ends the assessment and gives you a draft of {"“"}Where things stand{"”"} to put into your own words.
-        </p>
-      </div>
-    );
+    return <SummaryTool patientId={summary.patientId} rows={summary.rows} summaryLine={summaryLine} milestonesUnreadable={summary.milestonesUnreadable} />;
   }
 
   const slots = toolSlots(step);

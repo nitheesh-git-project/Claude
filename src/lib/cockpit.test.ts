@@ -16,6 +16,7 @@ import {
   stepAvailability,
   stepNav,
   cockpitShortcut,
+  summaryRows,
   carriedMedicationLine,
   mergeCarried,
   NO_CARRIED_FACTS,
@@ -25,6 +26,7 @@ import {
 } from "@/lib/cockpit";
 import { runStateFromEvents, type RunEvent } from "@/lib/assessmentRun";
 import type { MeasurementPoint } from "@/lib/outcomeSeries";
+import { measurementProvesMilestone } from "@/lib/careGoals";
 import { sessionProtocol, SESSION_PROTOCOLS, protocolStep } from "@/lib/sessionProtocols";
 
 const knee = sessionProtocol("ortho_knee")!;
@@ -322,5 +324,37 @@ describe("facts carried from step to step (B6)", () => {
     expect(carriedMedicationLine({ medicationState: "on", lastDoseTime: "08:30" })).toBe("ON, last dose 08:30");
     expect(carriedMedicationLine({ medicationState: "off", lastDoseTime: "" })).toBeNull();
     expect(carriedMedicationLine({ medicationState: "", lastDoseTime: "08:30" })).toBeNull();
+  });
+});
+
+describe("the summary step's first, last and now (B8)", () => {
+  const saved = ev("chair_stand", "saved", { measurementId: "m9" });
+  const state = runStateFromEvents([clear, saved]);
+  const now = point({ id: "m9", value: 12 });
+  const before = [{ measureKey: "chair_stand_30s", variant: null, side: null, medicationState: null, decimals: 0, unit: "stands", points: [{ value: 7 }, { value: 10 }] }];
+  const milestone = {
+    id: "ms1",
+    title: "Twelve stands in 30 seconds",
+    reachedAt: null as string | null,
+    status: "working",
+    linkedMeasureKey: "chair_stand_30s",
+    linkedVariant: null,
+    linkedSide: null as "left" | "right" | null,
+    targetValue: 12,
+    baselineValue: 7,
+  };
+  const proves = (ms: typeof milestone, m: MeasurementPoint) => measurementProvesMilestone(ms, m).ok;
+  it("compares with the first and the last review before today, and names a milestone the reading meets", () => {
+    const rows = summaryRows(knee, state, [now], before, [milestone], proves);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ measurementId: "m9", first: "7 stands", last: "10 stands", meets: { id: "ms1" } });
+    expect(rows[0].now).toMatch(/^12/);
+  });
+  it("names no milestone that is reached or not met, and no first or last with nothing on record", () => {
+    expect(summaryRows(knee, state, [now], before, [{ ...milestone, reachedAt: "2026-10-01T00:00:00Z", status: "reached" }], proves)[0].meets).toBeNull();
+    expect(summaryRows(knee, state, [now], before, [{ ...milestone, targetValue: 14 }], proves)[0].meets).toBeNull();
+    const empty = summaryRows(knee, state, [now], [], [], proves)[0];
+    expect(empty.first).toBeNull();
+    expect(empty.last).toBeNull();
   });
 });

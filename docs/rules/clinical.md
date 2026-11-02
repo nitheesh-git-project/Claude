@@ -1518,7 +1518,13 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      usual medicine times with "ask ON or OFF" - in full on the Start panel,
      one line in the cockpit's header that opens to the list; a failed read is
      "couldn't check", and a one-sided affected side is where tests start.
-     Read only: it gates nothing. **The pain step is a quick score:** the area starts on the
+     Read only: it gates nothing. **The summary step shows today's readings
+     against the first and the last review** (`summaryRows`: the same measure,
+     variant, side and ON/OFF), with a *Target met* chip where a reading meets
+     an unreached milestone and **Mark reached**, which calls the existing
+     milestone route with that reading as the proof - the route checks it
+     again; nothing is marked by itself, and a milestone read that failed is
+     said. **The pain step is a quick score:** the area starts on the
      latest exam's, else the worst intake area, else the protocol's joint
      (`painStepStartArea`), the side where it has two, then the eleven 0-10
      buttons; Save and next records it as a Pain Map reading and names it in

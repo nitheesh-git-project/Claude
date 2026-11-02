@@ -512,3 +512,77 @@ export function carriedMedicationLine(facts: Pick<CarriedFacts, "medicationState
   if (!facts.medicationState || !facts.lastDoseTime.trim()) return null;
   return `${facts.medicationState.toUpperCase()}, last dose ${facts.lastDoseTime.trim()}`;
 }
+
+// --- The summary step: first, last and now (B8) -----------------------------------------------------
+
+export type SummaryMilestone = { id: string; title: string };
+
+export type SummaryRow = {
+  id: string;
+  /** The measurement saved in this run. */
+  measurementId: string;
+  label: string;
+  first: string | null;
+  last: string | null;
+  now: string;
+  /** An unreached milestone this reading meets (measurementProvesMilestone): the
+   *  "target met" chip and its Mark reached. Null when none. */
+  meets: SummaryMilestone | null;
+};
+
+export type SummaryMilestoneRecord = SummaryMilestone & {
+  reachedAt: string | null;
+  status: string;
+  linkedMeasureKey: string | null;
+  linkedVariant: string | null;
+  linkedSide: "left" | "right" | null;
+  targetValue: number | null;
+  baselineValue: number | null;
+};
+
+/**
+ * One row per reading saved in this run: what it was at the first review on
+ * record, at the last review before today, and now - each the same measure,
+ * variant and side (never the other knee). A row that meets an unreached
+ * milestone's target names it; marking it reached stays the physiotherapist's
+ * tap, through the milestone route, which checks the proof again.
+ */
+export function summaryRows<T extends SummaryMilestoneRecord>(
+  protocol: SessionProtocol,
+  state: RunState,
+  measurements: readonly MeasurementPoint[],
+  before: readonly { measureKey: string; variant: string | null; side: string | null; medicationState: string | null; decimals: number; unit: string; points: readonly { value: number }[] }[],
+  milestones: readonly T[],
+  proves: (milestone: T, m: MeasurementPoint) => boolean
+): SummaryRow[] {
+  const byId = new Map(measurements.map((m) => [m.id, m]));
+  const rows: SummaryRow[] = [];
+  for (const step of protocol.steps) {
+    for (const id of state.savedMeasurements.get(step.id) ?? []) {
+      const m = byId.get(id);
+      if (!m) continue;
+      const measure = outcomeMeasure(m.measureKey);
+      const med = (m.conditions as { medicationState?: unknown } | null)?.medicationState;
+      const line = before.find(
+        (s) =>
+          s.measureKey === m.measureKey &&
+          (s.variant ?? null) === (m.variant ?? null) &&
+          (s.side ?? null) === (m.side ?? null) &&
+          (s.medicationState ?? null) === (typeof med === "string" ? med : null)
+      );
+      const fmt = (v: number) => (line ? formatReading(v, line.decimals, line.unit) : measure ? formatReading(v, measure.decimals, measure.unit) : String(v));
+      const q = readingQualifier(m);
+      const meets = milestones.find((ms) => ms.reachedAt === null && ms.status !== "reached" && proves(ms, m)) ?? null;
+      rows.push({
+        id: `${step.id}:${m.id}`,
+        measurementId: m.id,
+        label: `${measure?.label ?? m.measureKey}${q ? ` (${q})` : ""}`,
+        first: line && line.points.length > 0 ? fmt(line.points[0].value) : null,
+        last: line && line.points.length > 1 ? fmt(line.points[line.points.length - 1].value) : null,
+        now: readingValue(m),
+        meets: meets ? { id: meets.id, title: meets.title } : null,
+      });
+    }
+  }
+  return rows;
+}

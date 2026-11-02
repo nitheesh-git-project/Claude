@@ -39,6 +39,7 @@ import {
   setupProgress,
   stepAvailability,
   stepNav,
+  summaryRows,
   timerStartBlock,
   toolMode,
   toolSlots,
@@ -49,6 +50,7 @@ import type { MeasurementPoint, MeasureSeries } from "@/lib/outcomeSeries";
 import { sessionProtocol } from "@/lib/sessionProtocols";
 import type { ContraFlag } from "@/lib/exerciseLibrary";
 import type { AreaPainEntry } from "@/lib/conditionIntake";
+import { measurementProvesMilestone, type CareMilestone } from "@/lib/careGoals";
 import type { TeachingEvent } from "@/lib/exercisePlan";
 import { addTeachMark, teachMissing } from "@/lib/teachTool";
 import type { TeachPlan } from "@/components/therapist/assessment/teach/TeachTool";
@@ -106,6 +108,8 @@ export type CockpitProps = {
   enabledLicensed: string[];
   licenceUnreadable: boolean;
   chartHref: string;
+  /** The patient's milestones, for the summary's "target met" (B8). */
+  milestones?: { status: "ok"; items: CareMilestone[] } | { status: "unreadable" };
   /** "Before you start": one line in the header that opens to the list. */
   briefing?: Briefing;
   /** The areas the patient marked in their intake (orthopaedic): the pain step starts on the worst. */
@@ -703,6 +707,21 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
                     onPreview: setTeachPreview,
                   }}
                   summaryLine={summaryLine}
+                  summary={{
+                    patientId: patient.id,
+                    rows:
+                      mode === "summary"
+                        ? summaryRows(
+                            protocol,
+                            state,
+                            measurements,
+                            props.series,
+                            props.milestones?.status === "ok" ? props.milestones.items : [],
+                            (ms, m) => measurementProvesMilestone(ms, m).ok
+                          )
+                        : [],
+                    milestonesUnreadable: props.milestones?.status === "unreadable",
+                  }}
                 />
               </StepCard>
 
