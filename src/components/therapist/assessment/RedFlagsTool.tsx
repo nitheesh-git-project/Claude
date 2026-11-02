@@ -2,6 +2,11 @@
 
 import type { RedFlagQuestion } from "@/lib/sessionProtocols";
 
+/** The line a yes adds to the session note's "Anything to watch". */
+export function watchLineFor(q: RedFlagQuestion): string {
+  return `Safety question answered yes: ${q.question.replace(/\?$/, "")}.`;
+}
+
 /**
  * The safety questions, asked aloud, answered with two big buttons each. A
  * yes is a concern: it closes every test for today (the server enforces it)
@@ -12,11 +17,19 @@ export default function RedFlagsTool({
   answers,
   onAnswer,
   disabled,
+  onEnd,
+  onWatch,
+  watched,
 }: {
   questions: readonly RedFlagQuestion[];
   answers: Readonly<Record<string, boolean>>;
   onAnswer: (id: string, yes: boolean) => void;
   disabled: boolean;
+  /** The two next actions under a yes: end the assessment now, or carry the
+   *  answer into the session note's "Anything to watch". */
+  onEnd?: () => void;
+  onWatch?: (line: string) => void;
+  watched?: readonly string[];
 }) {
   const anyYes = questions.some((q) => answers[q.id] === true);
   return (
@@ -55,6 +68,28 @@ export default function RedFlagsTool({
                     Yes
                   </button>
                 </div>
+                {answer === true && (onEnd || onWatch) && (
+                  <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-red-950" data-testid={`flag-next-${q.id}`}>
+                    <span className="font-semibold">Next:</span>
+                    {onEnd && (
+                      <button type="button" onClick={onEnd} className="min-h-[44px] font-bold underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600">
+                        End the assessment
+                      </button>
+                    )}
+                    {onWatch &&
+                      (watched?.includes(watchLineFor(q)) ? (
+                        <span className="font-semibold text-teal-900">Added to Anything to watch</span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => onWatch(watchLineFor(q))}
+                          className="min-h-[44px] font-bold underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"
+                        >
+                          Add to Anything to watch
+                        </button>
+                      ))}
+                  </p>
+                )}
               </div>
             </li>
           );

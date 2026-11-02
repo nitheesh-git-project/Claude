@@ -47,7 +47,7 @@ import {
 } from "@/lib/cockpit";
 import type { ProfileKind } from "@/lib/outcomeMeasures";
 import type { MeasurementPoint, MeasureSeries } from "@/lib/outcomeSeries";
-import { sessionProtocol } from "@/lib/sessionProtocols";
+import { STOP_REASONS, sessionProtocol } from "@/lib/sessionProtocols";
 import type { ContraFlag } from "@/lib/exerciseLibrary";
 import type { AreaPainEntry } from "@/lib/conditionIntake";
 import { measurementProvesMilestone, type CareMilestone } from "@/lib/careGoals";
@@ -64,6 +64,10 @@ import StepCard from "@/components/therapist/assessment/StepCard";
 import ToolArea from "@/components/therapist/assessment/ToolArea";
 import BeforeYouStart from "@/components/therapist/assessment/BeforeYouStart";
 import type { Briefing } from "@/lib/cockpitBriefing";
+import type { FinishContext } from "@/lib/assessmentRunServer";
+import { treatedLineFromRun } from "@/lib/finishFromRun";
+import { homeExerciseNotePrefill, type ExercisePlan } from "@/lib/exercisePlan";
+import { SESSION_SUMMARY_MAX_CHARS } from "@/lib/sessionSummary";
 import { postEnd, postEvent } from "@/components/therapist/assessment/api";
 import type { QuickPainSave } from "@/components/therapist/assessment/LayerTool";
 import { useDisplaySender } from "@/components/therapist/assessment/useDisplaySender";
@@ -108,6 +112,8 @@ export type CockpitProps = {
   enabledLicensed: string[];
   licenceUnreadable: boolean;
   chartHref: string;
+  /** The run's own session, for "Finish this session" at the end (B3). */
+  finish?: FinishContext;
   /** The patient's milestones, for the summary's "target met" (B8). */
   milestones?: { status: "ok"; items: CareMilestone[] } | { status: "unreadable" };
   /** "Before you start": one line in the header that opens to the list. */
@@ -243,8 +249,16 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
   // stop the server has not recorded yet (the patient already has Rest).
   const [stoppedStepId, setStoppedStepId] = useState<string | null>(null);
   const [pendingStop, setPendingStop] = useState<{ stepId: string; reason: string | null; failure: CockpitFailure } | null>(null);
+  // A stop for symptoms or a near-fall: the two next actions, under the card.
+  const [stopFollowUp, setStopFollowUp] = useState<{ stepId: string; line: string } | null>(null);
   const [ended, setEnded] = useState<{ outcome: "completed" | "abandoned"; reason: EndReason | null; draft: string | null; readable: boolean } | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // Lines for the session note's "Anything to watch", added from the run
+  // (a safety yes, a stop for symptoms or a near-fall) by the physiotherapist.
+  const [watchLines, setWatchLines] = useState<string[]>([]);
+  function addWatchLine(line: string) {
+    setWatchLines((prev) => (prev.includes(line) ? prev : [...prev, line]));
+  }
 
   // --- The patient's screen -------------------------------------------------------------------------
   const [startingText] = useState<LiveDisplayText>(() => {
@@ -500,6 +514,10 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
     }
     setPendingStop(null);
     addEvent(r.data.event);
+    const stopped = protocol.steps.find((s) => s.id === stepId);
+    if (stopped && (reasonKey === "symptoms" || reasonKey === "near_fall")) {
+      setStopFollowUp({ stepId, line: `${stopped.title} stopped: ${STOP_REASONS[reasonKey].toLowerCase()}.` });
+    }
     router.refresh();
   }
 
@@ -632,6 +650,14 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
               summaryDraft={ended.draft}
               draftReadable={ended.readable}
               chartHref={chartHref}
+              finish={props.finish ?? { status: "none" }}
+              prefill={{
+                treated: treatedLineFromRun(protocol.title, rows),
+                // Only the two fields the line is built from are read.
+                homeExercise: teachPlan && teachPlan.items.length > 0 ? homeExerciseNotePrefill(teachPlan as unknown as ExercisePlan) : null,
+                watch: watchLines.length > 0 ? watchLines.join(" ") : null,
+                whatWeDid: ended.draft ? ended.draft.slice(0, SESSION_SUMMARY_MAX_CHARS) : null,
+              }}
             />
           ) : (
             <>
@@ -662,6 +688,9 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
                       setFailure(null);
                       setAnswers((prev) => ({ ...prev, [id]: yes }));
                     },
+                    onEnd: () => setDialog("end"),
+                    onWatch: addWatchLine,
+                    watched: watchLines,
                   }}
                   measure={{
                     runId: run.id,
@@ -754,6 +783,28 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
                     >
                       Record the stop again
                     </button>
+                  </div>
+                )}
+                {stopFollowUp && stopFollowUp.stepId === step.id && (
+                  <div data-testid="stop-follow-up" className="rounded-xl border-2 border-red-600 bg-red-50 px-4 py-3 text-[15px] text-red-950">
+                    <p className="font-semibold">{stopFollowUp.line} Check how they are before anything else.</p>
+                    <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                      <span className="font-semibold">Next:</span>
+                      <button type="button" onClick={() => setDialog("end")} className="min-h-[44px] font-bold underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600">
+                        End the assessment
+                      </button>
+                      {watchLines.includes(stopFollowUp.line) ? (
+                        <span className="font-semibold text-teal-900">Added to Anything to watch</span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => addWatchLine(stopFollowUp.line)}
+                          className="min-h-[44px] font-bold underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"
+                        >
+                          Add to Anything to watch
+                        </button>
+                      )}
+                    </p>
                   </div>
                 )}
                 {!failure && notice && (

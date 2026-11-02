@@ -33,6 +33,9 @@ import { contraFlagsFromIntake } from "@/lib/exercisePlan";
 import type { ContraFlag } from "@/lib/exerciseLibrary";
 import { parseAreaPain, type AreaPainEntry } from "@/lib/conditionIntake";
 import { formatClinicDate } from "@/lib/formatDateTime";
+import { formatSlotTime } from "@/lib/formatSlotTime";
+import { isNoteEditable, noteEditHoursLeft, type SessionNoteRow } from "@/lib/sessionNotes";
+import { SESSION_SUMMARY_SELECT, summaryForDialog, type SessionSummaryRow, type SummaryForDialog } from "@/lib/sessionSummary";
 import { isProfileActiveAndApproved, profileCheckUnavailable } from "@/lib/supabase/requireActiveProfile";
 import { isTherapistAssignedToPatient } from "@/lib/conditionAccess";
 
@@ -550,4 +553,66 @@ export async function loadBriefingReads(admin: AdminClient, patientId: string, n
     contraFlags: [...contraFlagsFromIntake(data, nowMs)],
     intakeAreas: parseAreaPain(typeof data.area_pain === "string" ? data.area_pain : null),
   };
+}
+
+// --- "Finish this session" (B3) ----------------------------------------------------------------
+
+export type FinishContext =
+  | { status: "none" }
+  | { status: "unreadable" }
+  | {
+      status: "ok";
+      appointmentId: string;
+      slotTime: string | null;
+      sessionLabel: string;
+      /** Already closed: the button writes the note only. */
+      completed: boolean;
+      note: SessionNoteRow | null;
+      noteEditable: boolean;
+      hoursLeft: number | null;
+      summary: SummaryForDialog;
+    };
+
+/**
+ * What "Finish this session" at the end of a run needs about the run's own
+ * session: it must be this therapist's session with this patient (anything
+ * else is "none" - the button is absent, never pointed at someone else's),
+ * with its note and its patient summary. A failed read is "unreadable", and
+ * the panel says it could not check rather than offering a blank note over
+ * one that may exist.
+ */
+export async function loadFinishContext(
+  admin: AdminClient,
+  input: { therapistId: string; patientId: string; appointmentId: string | null; nowMs: number }
+): Promise<FinishContext> {
+  if (!input.appointmentId) return { status: "none" };
+  try {
+    const { data: appt, error } = await admin
+      .from("appointments")
+      .select("id, patient_id, therapist_id, slot_time, timezone, status")
+      .eq("id", input.appointmentId)
+      .maybeSingle();
+    if (error) return { status: "unreadable" };
+    if (!appt || appt.patient_id !== input.patientId || appt.therapist_id !== input.therapistId) return { status: "none" };
+    if (appt.status === "cancelled") return { status: "none" };
+    const [noteRes, summaryRes] = await Promise.all([
+      admin.from("session_notes").select("id, appointment_id, patient_id, therapist_id, data, free_text, created_at, updated_at").eq("appointment_id", appt.id).maybeSingle(),
+      admin.from("session_summaries").select(SESSION_SUMMARY_SELECT).eq("appointment_id", appt.id).maybeSingle(),
+    ]);
+    if (noteRes.error) return { status: "unreadable" };
+    const note = (noteRes.data ?? null) as SessionNoteRow | null;
+    return {
+      status: "ok",
+      appointmentId: appt.id as string,
+      slotTime: (appt.slot_time as string | null) ?? null,
+      sessionLabel: formatSlotTime((appt.slot_time as string | null) ?? null, (appt.timezone as string | null) ?? null),
+      completed: appt.status === "completed",
+      note,
+      noteEditable: !note || isNoteEditable(note, input.nowMs),
+      hoursLeft: note ? noteEditHoursLeft(note, input.nowMs) : null,
+      summary: summaryForDialog((summaryRes.data ?? null) as SessionSummaryRow | null, !!summaryRes.error, input.nowMs),
+    };
+  } catch {
+    return { status: "unreadable" };
+  }
 }

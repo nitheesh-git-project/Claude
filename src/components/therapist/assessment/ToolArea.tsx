@@ -48,7 +48,13 @@ export default function ToolArea({
   locked: boolean;
   /** Bumped by Stop test: the tool starts again from nothing. */
   resetKey: number;
-  redFlags: { answers: Readonly<Record<string, boolean>>; onAnswer: (id: string, yes: boolean) => void };
+  redFlags: {
+    answers: Readonly<Record<string, boolean>>;
+    onAnswer: (id: string, yes: boolean) => void;
+    onEnd: () => void;
+    onWatch: (line: string) => void;
+    watched: readonly string[];
+  };
   measure: {
     runId: string;
     helperPresent: boolean;
@@ -90,7 +96,17 @@ export default function ToolArea({
   }
 
   if (mode === "red_flags") {
-    return <RedFlagsTool questions={step.redFlags ?? []} answers={redFlags.answers} onAnswer={redFlags.onAnswer} disabled={false} />;
+    return (
+      <RedFlagsTool
+        questions={step.redFlags ?? []}
+        answers={redFlags.answers}
+        onAnswer={redFlags.onAnswer}
+        disabled={false}
+        onEnd={redFlags.onEnd}
+        onWatch={redFlags.onWatch}
+        watched={redFlags.watched}
+      />
+    );
   }
 
   if (mode === "layer" && step.layer) {

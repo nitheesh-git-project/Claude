@@ -1552,7 +1552,18 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      phase and whether the clock starts, debounced to the last tap with one
      request in flight (`latestWins.ts`); on a phone the results and the
      preview fold away under the step. The end of a run puts the draft in the
-     existing *Where things stand* editor (`CareStatusControls summaryOnly`).
+     existing *Where things stand* editor (`CareStatusControls summaryOnly`),
+     beside **Finish this session** (`loadFinishContext`: the run's own
+     session, this therapist's, never another): the session note opened with
+     Done's gates (`completeOnSave`), its **blank** fields started from the run
+     - *What did you treat today?* from today's results (`treatedLineFromRun`),
+     the home-exercise line, *Anything to watch* from lines the physiotherapist
+     added, *What we did today* from the draft - and never over their own text
+     (`fillEmptyOnly`), with a three-line checklist (note, summary, session
+     closed). A failed read says it could not check. **A yes to a safety
+     question, and a stop for symptoms or a near-fall, show one line of next
+     actions:** *End the assessment* and *Add to Anything to watch* (the line
+     waits on this page for the note; it is not stored until the note is).
      Entry: *Start guided assessment* on a video session's card (from the join
      window, judged on the debug clock) and on the chart (assigned, with a
      started session).

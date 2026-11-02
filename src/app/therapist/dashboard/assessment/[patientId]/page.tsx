@@ -10,7 +10,7 @@ import { formatClinicTime } from "@/lib/formatDateTime";
 import { loadEnabledLicensedMeasures, loadGoalAndMilestones, loadMeasurements, loadPatientProfileKind } from "@/lib/outcomeServer";
 import { parseMeasurementRows, buildMeasureSeries } from "@/lib/outcomeSeries";
 import { protocolsForProfileKind, sessionProtocol } from "@/lib/sessionProtocols";
-import { loadActiveRun, loadBriefingReads, loadRunMeasurements } from "@/lib/assessmentRunServer";
+import { loadActiveRun, loadBriefingReads, loadFinishContext, loadRunMeasurements } from "@/lib/assessmentRunServer";
 import { cockpitBriefing } from "@/lib/cockpitBriefing";
 import { loadActiveExercisePlan, loadPatientExerciseContext, loadTeachingEvents } from "@/lib/exercisePlanServer";
 import { CONTRA_FLAGS } from "@/lib/exerciseLibrary";
@@ -115,7 +115,7 @@ export default async function AssessmentCockpitPage({
   } else if (active.run) {
     const run = active.run;
     const protocol = sessionProtocol(run.protocolKey);
-    const [measurementsRead, savedRead, licensed, planRead, marksRead, exerciseContext, briefingReads, goalsRead] = await Promise.all([
+    const [measurementsRead, savedRead, licensed, planRead, marksRead, exerciseContext, briefingReads, goalsRead, finish] = await Promise.all([
       loadMeasurements(admin, patientId),
       loadRunMeasurements(admin, active.events),
       loadEnabledLicensedMeasures(admin),
@@ -124,6 +124,7 @@ export default async function AssessmentCockpitPage({
       loadPatientExerciseContext(admin, patientId, nowTimestamp()),
       loadBriefingReads(admin, patientId, nowTimestamp()),
       loadGoalAndMilestones(admin, patientId),
+      loadFinishContext(admin, { therapistId: user.id, patientId, appointmentId: run.appointmentId ?? appointmentParam, nowMs: nowTimestamp() }),
     ]);
     // The Home exercises step: a read that could not be run is said as such,
     // never as "no plan yet".
@@ -172,6 +173,7 @@ export default async function AssessmentCockpitPage({
         exercises={exercises}
         briefing={cockpitBriefing({ ...briefingReads, profileKind: run.profileKind })}
         intakeAreas={briefingReads.intakeAreas}
+        finish={finish}
         milestones={goalsRead.status === "ok" ? { status: "ok", items: goalsRead.milestones } : { status: "unreadable" }}
       />
     );
