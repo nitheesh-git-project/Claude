@@ -251,7 +251,10 @@ function ContactLine({
         href={href}
         aria-label={label}
         {...(newTab ? { target: "_blank", rel: "noopener noreferrer" } : {})}
-        className={FOOTER_LINK}
+        // A real address is longer than a footer column at the md
+        // breakpoint (~164px at 800px wide): unbroken, it pushed the whole
+        // page 10px wider than the screen (layout-audit, 800x480).
+        className={`${FOOTER_LINK} min-w-0 [overflow-wrap:anywhere]`}
       >
         {/* The glyph is a node rather than a class string: the WhatsApp one
             is now inline SVG (see BrandGlyphs.tsx), which saved pulling the
