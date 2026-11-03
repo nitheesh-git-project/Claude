@@ -94,15 +94,19 @@ test("ES-002: the plan card shows each exercise with its dose and steps, read on
   await context.addCookies(await browserCookiesFor(patient!.email));
   const page = await context.newPage();
   await page.goto(`${BASE}/patient/dashboard/health-profile`);
+  const sit = page.getByTestId("home-exercise-sit_to_stand");
+  // The steps sit under the name, collapsed until it is opened -- read before
+  // openProfileBlocks, which opens every <details> on the page, these too.
+  await expect(sit).toHaveCount(1, SEEN);
+  await expect(sit).not.toHaveAttribute("open");
   await openProfileBlocks(page);
+  await sit.evaluate((d) => ((d as HTMLDetailsElement).open = false));
   const card = page.getByTestId("home-exercises");
   await expect(card).toHaveAttribute("data-state", "plan", SEEN);
   await expect(card.getByRole("heading", { name: "Your home exercises" })).toBeVisible();
-  const sit = page.getByTestId("home-exercise-sit_to_stand");
   await expect(sit).toContainText("Sit to stand");
   await expect(sit).toContainText("2 sets of 8. Once a day, 5 days a week.");
   await expect(sit.getByRole("img")).toBeVisible();
-  // The steps sit under the name, collapsed until it is opened.
   await expect(sit.getByRole("listitem").first()).toBeHidden();
   await sit.locator("summary").click();
   await expect(sit.getByRole("listitem").first()).toBeVisible();
@@ -167,7 +171,11 @@ test("ES-005: the admin's patient detail shows Home exercises read only", async 
   const page = await context.newPage();
   await page.goto(`${BASE}/admin/dashboard/conditions/${patient!.id}`);
   await expect(page.getByTestId("chart-exercises")).toBeVisible(SEEN);
-  await expect(page.getByTestId("chart-exercise-sit_to_stand")).toContainText("Sit to stand");
+  // The current plan's card, not the same exercise in the replaced plan listed
+  // under it (chart-exercises-history).
+  await expect(
+    page.locator('[data-testid="chart-exercise-sit_to_stand"]:not([data-testid="chart-exercises-history"] *)')
+  ).toContainText("Sit to stand");
   await expect(page.getByTestId("chart-exercises").locator("input, textarea, select, button")).toHaveCount(0);
   await context.close();
 });
