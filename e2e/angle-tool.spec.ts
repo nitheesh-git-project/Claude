@@ -184,7 +184,11 @@ test("AT-002: a drag and the arrow keys move a point and the readout follows; Un
   await expect(tool.getByTestId("angle-point-0")).toHaveCount(0);
 
   // A keyboard user places the points too: Tab to the photo, the arrow keys
-  // move a cross, Enter puts the next point there.
+  // move a cross, Enter puts the next point there. The cross shows only on a
+  // keyboard arrival (:focus-visible); straight after the mouse click on
+  // "Start again" a programmatic focus counts as a mouse one, so a key press
+  // first puts the browser in keyboard mode, as a Tab would.
+  await page.keyboard.press("Shift");
   await page.getByTestId("angle-stage").focus();
   await expect(page.getByTestId("angle-cross")).toBeVisible(SEEN);
   await page.keyboard.press("Enter");
