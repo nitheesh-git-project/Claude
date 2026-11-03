@@ -14,7 +14,7 @@
 import { test, expect, type Page, type BrowserContext } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
-import { BASE, QA_EMAILS, adminClient, browserCookiesFor, profileIdFor } from "./helpers";
+import { BASE, QA_EMAILS, adminClient, browserCookiesFor, chooseAnyServiceOnStepOne, profileIdFor } from "./helpers";
 import { ADMIN_SECTIONS } from "../src/lib/adminNav";
 import { probeLayout, type LayoutIssue } from "./layout/layoutProbe";
 
@@ -151,6 +151,8 @@ test("LAYOUT: the chosen-service summary keeps its title readable on a phone", a
     const page = await context.newPage();
     await page.goto(`${BASE}/book`, { waitUntil: "domcontentloaded" });
     await settle(page);
+    // Step 1 offers Continue once a service and a time are chosen.
+    await chooseAnyServiceOnStepOne(page);
     await page.getByRole("button", { name: /Continue to your details/ }).click();
 
     const summary = page.getByTestId("chosen-service-summary");

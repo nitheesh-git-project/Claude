@@ -48,9 +48,10 @@ test.describe("Dashboard tutorial", () => {
       // The patient's word is "physiotherapist" (patientScenes.tsx, the patient voice pass).
       await expect(page.getByTestId("tutorial")).toContainText("Waiting for a physiotherapist");
 
-      // A chapter chip jumps straight to the health profile.
-      await page.getByRole("navigation", { name: "Tour chapters" }).getByRole("button", { name: "Health profile" }).click();
-      await expect(page.getByRole("heading", { name: "Your therapist starts your health profile with you" })).toBeVisible();
+      // A chapter chip jumps straight to the health profile -- "My progress",
+      // in the patient's words, since the Health Profile redesign.
+      await page.getByRole("navigation", { name: "Tour chapters" }).getByRole("button", { name: "My progress" }).click();
+      await expect(page.getByRole("heading", { name: "Your physiotherapist starts your health profile with you" })).toBeVisible();
 
       // Jump to the end and finish.
       await page.getByRole("navigation", { name: "Tour chapters" }).getByRole("button", { name: "You're ready" }).click();
