@@ -102,7 +102,10 @@ test.beforeAll(async ({ request }) => {
   const { data } = await db.from("site_settings").select("enabled_intake_specialties").eq("id", true).maybeSingle();
   settingBefore = data?.enabled_intake_specialties ?? null;
   await db.from("site_settings").update({ enabled_intake_specialties: ["ortho", "neuro", "pediatrics", "geriatric", "cardiopulmonary"] }).eq("id", true);
-  geri = await createFixtureAccount("Geriatric Profile");
+  // Not "Geriatric ...": the patient's own page shows their name, and GP-002
+  // asserts that page never says "Geriatric" (the patient's word is
+  // "Strength and balance care"); a fixture called that matched itself.
+  geri = await createFixtureAccount("Strength Balance Profile");
   cardio = await createFixtureAccount("Cardio Profile");
   for (const patient of [geri, cardio]) {
     await insertPastFixtureAppointment(db, {

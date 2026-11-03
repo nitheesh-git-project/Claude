@@ -164,10 +164,13 @@ test("NHP-001: the neurological chart opens in the shared layout, with the exami
   // The picture: the figure for the affected side, the switch, and the existing
   // "Record a re-examination" door.
   await expect(root.getByTestId("affected-side")).toContainText("Left side");
-  await root.getByRole("button", { name: "First exam" }).click();
-  await expect(root.getByRole("button", { name: "First exam" })).toHaveAttribute("aria-pressed", "true");
+  // The picture's own switch ("Show which exam"): the profile has a second
+  // "Latest" button elsewhere, so the unscoped lookup was ambiguous.
+  const which = root.getByRole("group", { name: "Show which exam" });
+  await which.getByRole("button", { name: "First exam" }).click();
+  await expect(which.getByRole("button", { name: "First exam" })).toHaveAttribute("aria-pressed", "true");
   await expect(root.getByText(/Examined .*Compared with/)).toHaveCount(0);
-  await root.getByRole("button", { name: "Latest" }).click();
+  await which.getByRole("button", { name: "Latest" }).click();
   await expect(root.getByRole("button", { name: /Record a re-examination/ })).toBeVisible();
   await context.close();
 });

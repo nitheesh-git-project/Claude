@@ -80,11 +80,11 @@ async function openAs(browser: Browser, email: string, path: string) {
 }
 
 function examCard(page: import("@playwright/test").Page) {
-  // The card is the innermost block holding its own heading.
-  return page
-    .locator("div")
-    .filter({ has: page.getByRole("heading", { level: 2, name: "Neurological examination" }) })
-    .last();
+  // The examination is the neurological profile's condition picture now
+  // (NeuroPicture, data-testid "neuro-picture"), its heading in a header
+  // block of its own -- so "the innermost block holding the heading" was that
+  // header, without the empty state or the record button.
+  return page.getByTestId("neuro-picture");
 }
 
 function scale(dialog: import("@playwright/test").Locator, group: string, grade: RegExp) {

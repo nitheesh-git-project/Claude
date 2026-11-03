@@ -317,7 +317,10 @@ test("ET-008: a mistaken mark is fixed as a new record; the original stays; the 
   const html = await page.text();
   expect(html).toContain("Keep a hand on the support.");
   expect(html).not.toContain("Go slower and keep it smooth.");
-  expect(html).not.toMatch(/wrong button|Fix this mark|corrected/i);
+  // In the words on the page, not the RSC payload in its scripts: the
+  // diary's data carries a "corrected" key on every health profile.
+  const words = html.replace(/<script[\s\S]*?<\/script>/gi, "");
+  expect(words).not.toMatch(/wrong button|Fix this mark|corrected/i);
 });
 
 test("ET-007: the end's draft says what was taught; nothing is taught after the end", async ({ request }) => {
