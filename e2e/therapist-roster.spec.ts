@@ -746,6 +746,10 @@ test.describe("Therapist roster - booking is untouched", () => {
   });
 
   test("R-B02: the booking page offers the same times it always did", async ({ browser }) => {
+    // Two roster writes, /book twice and a browser-side profile read: its own
+    // first wait is 30s, which was the whole test's budget (testing.md's
+    // multi-round-trip rule for a hosted project).
+    test.setTimeout(90_000);
     // Availability is a planning tool in this app -- the booking picker is
     // driven by the lead-time rule, not by the roster (see
     // src/lib/bookingSlots.ts and the schema comment on
