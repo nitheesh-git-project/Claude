@@ -203,7 +203,8 @@ test("NHP-002: a patient writes a fall in their diary; it is theirs until the ph
   await expect(admin.page.getByTestId("diary-panel")).toBeVisible(SEEN);
   await expect(admin.page.getByTestId("diary-panel").getByText(/A fall, not hurt|Fall, not hurt/)).toBeVisible();
   await expect(admin.page.getByRole("button", { name: /^Confirm/ })).toHaveCount(0);
-  await expect(admin.page.getByRole("button", { name: /^Log / })).toHaveCount(0);
+  // The diary's own log button, not the admin shell's "Log Out".
+  await expect(admin.page.getByTestId("diary-log-button")).toHaveCount(0);
   await admin.context.close();
 
   // The assigned therapist sees it waiting and confirms it.
@@ -231,7 +232,9 @@ test("NHP-003: the Parkinson's profile adds the ON-time chip, the freezing diary
   expect((await asStroke.json()).code).toBe("diary_kind_not_offered");
 
   // The Parkinson's therapist records ON-time tests, then the chart says so.
-  const dose = new Date(Date.now() - 90 * 60_000).toISOString();
+  // Each test's last dose is 90 minutes before that test: one dose time for
+  // both put the 20-day-old test before its own dose, which the route refuses
+  // ("The last dose time is after the test.").
   for (const [value, ago] of [
     [14.2, 60 * 24 * 20],
     [10.8, 30],
@@ -243,7 +246,7 @@ test("NHP-003: the Parkinson's profile adds the ON-time chip, the freezing diary
         value,
         items: [value, value, value],
         measuredAt: minutesAgo(ago),
-        conditions: { setting: "in_person", medicationState: "on", lastDoseAt: dose },
+        conditions: { setting: "in_person", medicationState: "on", lastDoseAt: minutesAgo(ago + 90) },
       },
     });
     expect(res.status(), await res.text()).toBe(200);
@@ -255,7 +258,9 @@ test("NHP-003: the Parkinson's profile adds the ON-time chip, the freezing diary
   await expect(root).toHaveAttribute("data-profile-kind", "neuro_parkinsons");
   await expect(root.getByText(/Tested in ON time/)).toBeVisible();
   await expect(root.getByTestId("freezing-card")).toBeVisible();
-  await root.getByRole("button", { name: /Log feet getting stuck, a fall or a near miss/ }).click();
+  // One "Log a fall or a near miss" button for every record with falls; the
+  // dialog is where a Parkinson's record also offers feet getting stuck.
+  await own.page.getByTestId("diary-log-button").click();
   const dialog = own.page.getByRole("dialog");
   await dialog.getByLabel("Feet getting stuck").check();
   await dialog.getByLabel("A whole week, added up").check();
