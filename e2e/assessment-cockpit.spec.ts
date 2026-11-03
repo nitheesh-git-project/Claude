@@ -180,9 +180,12 @@ test("AC-004: Stop test saves nothing and writes only a stopped event", async ({
   // The answers are thrown away with it.
   await expect(page.getByTestId("action-save")).toBeDisabled();
 
-  const events = await db.from("assessment_run_events").select("kind, step_id, measurement_id").eq("run_id", runId);
-  const kinds = (events.data ?? []).map((e) => e.kind as string);
-  expect(kinds).toContain("stopped");
+  // Stop test is an emergency stop: the notice shows at once and the stopped
+  // event is written after the reason dialog, so wait for the row.
+  const kindsNow = async () =>
+    ((await db.from("assessment_run_events").select("kind").eq("run_id", runId)).data ?? []).map((e) => e.kind as string);
+  await expect.poll(kindsNow, SEEN).toContain("stopped");
+  const kinds = await kindsNow();
   expect(kinds).not.toContain("saved");
   expect(kinds).not.toContain("safety_confirmed");
   const readings = await db.from("outcome_measurements").select("id").eq("patient_id", patient!.id);

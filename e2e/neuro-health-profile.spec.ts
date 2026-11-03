@@ -186,7 +186,10 @@ test("NHP-002: a patient writes a fall in their diary; it is theirs until the ph
   await expect(dialog.getByLabel("Feet getting stuck")).toHaveCount(0);
   await dialog.getByLabel("A fall").check();
   await dialog.getByLabel("No, I was not hurt").check();
-  await dialog.getByRole("button", { name: "Save in my diary" }).click();
+  // A fall is read back before it is saved (HPL-006): Check and save, then Yes.
+  await dialog.getByRole("button", { name: "Check and save" }).click();
+  await expect(dialog.getByTestId("fall-review")).toBeVisible(SEEN);
+  await dialog.getByRole("button", { name: "Yes, save it" }).click();
   await expect(own.page.getByTestId("diary-panel").getByText(/A fall, not hurt/)).toBeVisible(SEEN);
   await expect(own.page.getByTestId("diary-panel").getByText("You noted this").first()).toBeVisible();
   // Unconfirmed: the pill is not "Needs attention" because of it.

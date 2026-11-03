@@ -234,7 +234,8 @@ test("NE-002: the patient reads the exam on their own Health Profile, read-only"
   const { page } = await openAs(browser, patient!.email, "/patient/dashboard/health-profile");
   try {
     await waitForSplashToClear(page);
-    await expect(page.getByRole("heading", { name: "Your examination" })).toBeVisible({ timeout: 60_000 });
+    // The patient's title for the neurological picture (NeuroPicture).
+    await expect(page.getByRole("heading", { name: "How your body is working now" })).toBeVisible({ timeout: 60_000 });
     await expect(page.getByText("Balance score").first()).toBeVisible();
     await expect(page.getByText("44/56").first()).toBeVisible();
     await expect(page.getByText("is still being built")).toHaveCount(0);
