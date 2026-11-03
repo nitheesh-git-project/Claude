@@ -35,6 +35,7 @@ import {
   deleteFixtureAccount,
   insertPastFixtureAppointment,
   profileIdFor,
+  waitForSplashToClear,
 } from "./helpers";
 
 test.skip(
@@ -150,7 +151,13 @@ test("AC-003: Save and next stays disabled until the set-up is ticked and every 
   // The next step is shut until the safety questions are answered.
   await expect(page.getByTestId("step-pain")).toBeDisabled();
 
-  for (const box of await page.getByTestId("step-card").getByRole("checkbox").all()) await box.check();
+  // Tick by clicking: once the last item is ticked the set-up list folds away
+  // to "N/N set up" with an Edit button, so a check() re-reading the state of
+  // a box that is no longer there waited for ever.
+  await waitForSplashToClear(page);
+  const unticked = page.getByTestId("step-card").getByRole("checkbox", { checked: false });
+  while ((await unticked.count()) > 0) await unticked.first().click();
+  await expect(page.getByTestId("setup-edit")).toBeVisible();
   await expect(save).toBeDisabled();
   await expect(note).toContainText(/safety question/i);
 
