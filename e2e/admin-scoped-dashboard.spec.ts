@@ -401,7 +401,9 @@ test.describe("Suite S: scoped admin dashboards", () => {
         timeout: 90_000,
       });
       await expect(page.getByTestId("patient-status-text").filter({ visible: true })).toBeVisible();
-      for (const name of ["Suspend Account", "Reactivate Account", /Reset|sign-in link/i]) {
+      // "Reset password (send sign-in link)" -- not the pre-launch debug bar's
+      // "Reset data" above every page, which the server gates on its own.
+      for (const name of ["Suspend Account", "Reactivate Account", /Reset password|sign-in link/i]) {
         await expect(
           page.getByRole("button", { name }).filter({ visible: true }),
           `finance was offered ${String(name)} on a patient`
