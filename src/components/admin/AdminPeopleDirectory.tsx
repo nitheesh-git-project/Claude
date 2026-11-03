@@ -273,13 +273,16 @@ export default function AdminPeopleDirectory({
             <Link
               key={p.id}
               href={`${basePath}/${p.id}`}
-              className="flex flex-col items-center text-center p-4 rounded-xl border border-slate-200 hover:border-teal-300 hover:shadow-sm transition relative"
+              // min-w-0 and a truncated subtitle: an email is one unbreakable
+              // word, and a long one ran out of a two-column card on a phone
+              // and over its neighbour (layout-audit, people/patients at 360px).
+              className="flex min-w-0 flex-col items-center text-center p-4 rounded-xl border border-slate-200 hover:border-teal-300 hover:shadow-sm transition relative"
             >
               {badge(p) && <span className="absolute top-2 right-2">{badge(p)}</span>}
               <AvatarThumbnail url={p.avatar_url} name={p.full_name ?? "U"} size={56} />
               <p className="font-bold text-slate-900 text-xs mt-2 line-clamp-1">{p.full_name}</p>
               {p.code && <p className="text-slate-500 text-[10px] font-mono">{p.code}</p>}
-              <p className="text-slate-500 text-[11px] line-clamp-1">{p.subtitle}</p>
+              <p className="max-w-full truncate text-slate-500 text-[11px]" title={p.subtitle ?? undefined}>{p.subtitle}</p>
               {refChip(p)}
               {p.specialization && (
                 <span className="mt-1">
