@@ -626,6 +626,17 @@ export function applyDiaryCorrections(
   return { live, corrected };
 }
 
+/** What a profile loader hands its view from a diary read: the live
+ *  entries AND the withdrawn ones. The three loaders (neurological, strength
+ *  and balance, heart and lung) each rebuilt the read as `{ status, entries }`
+ *  and dropped `corrected`, so a fall the patient withdrew vanished from both
+ *  sides' profiles instead of showing, marked, on the clinician's. */
+export function diaryReadForView(
+  read: { status: "ok"; entries: DiaryEntry[]; corrected: CorrectedDiaryEntry[] } | { status: "unreadable" }
+): { status: "ok"; entries: DiaryEntry[]; corrected: CorrectedDiaryEntry[] } | { status: "unreadable" } {
+  return read.status === "ok" ? { status: "ok", entries: read.entries, corrected: read.corrected } : { status: "unreadable" };
+}
+
 /** Whether the patient may say an entry was saved by mistake: their own,
  *  not yet confirmed by the physiotherapist, not already corrected. */
 export function correctionRefusal(

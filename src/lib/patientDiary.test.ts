@@ -269,6 +269,16 @@ describe("I saved this by mistake (E1)", () => {
     expect(correctionRefusal({ ...fallA, confirmedAt: "2026-10-03T00:00:00Z" }, { userId: "p1", alreadyCorrected: false })).toEqual({ code: "already_confirmed" });
     expect(correctionRefusal(fallA, { userId: "p1", alreadyCorrected: true })).toEqual({ code: "already_corrected" });
   });
+
+  it("hands a profile's view the withdrawn entries as well as the live ones", async () => {
+    const { applyDiaryCorrections, diaryReadForView, parseDiaryCorrectionRow } = await import("@/lib/patientDiary");
+    const correction = parseDiaryCorrectionRow({ id: "c", corrects_entry_id: "a", created_at: "2026-10-01T11:00:00Z" })!;
+    const { live, corrected } = applyDiaryCorrections([fallA, fallB], [correction]);
+    // The loaders used to rebuild this as { status, entries } and lose `corrected`.
+    expect(diaryReadForView({ status: "ok", entries: live, corrected })).toEqual({ status: "ok", entries: [fallB], corrected });
+    expect(diaryReadForView({ status: "ok", entries: live, corrected }).status === "ok" && corrected.length).toBe(1);
+    expect(diaryReadForView({ status: "unreadable" })).toEqual({ status: "unreadable" });
+  });
 });
 
 describe("the correction route", () => {

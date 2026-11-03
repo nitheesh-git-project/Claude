@@ -8,6 +8,7 @@ import {
   loadSixMinuteWalkEquation,
 } from "@/lib/outcomeServer";
 import { loadDiaryEntries } from "@/lib/patientDiaryServer";
+import { diaryReadForView } from "@/lib/patientDiary";
 import { loadSummaryAuthorName } from "@/lib/careStatusAuthor";
 import { loadIntakeHistory, loadPersonFacts } from "@/lib/profileReadsServer";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -48,7 +49,7 @@ export async function loadCardioReads(client: AnyClient, patientId: string): Pro
     measurements,
     goals,
     careStatus: careStatus.status === "ok" ? { status: "ok", events: careStatus.events } : { status: "unreadable" },
-    diary: diary.status === "ok" ? { status: "ok", entries: diary.entries } : { status: "unreadable" },
+    diary: diaryReadForView(diary),
     intakeHistory,
     licence: licence.status === "ok" ? { status: "ok", keys: licence.keys } : { status: "unreadable" },
     person,

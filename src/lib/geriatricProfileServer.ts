@@ -2,6 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadCareStatus, loadEnabledLicensedMeasures, loadGoalAndMilestones, loadMeasurements } from "@/lib/outcomeServer";
 import { loadDiaryEntries } from "@/lib/patientDiaryServer";
+import { diaryReadForView } from "@/lib/patientDiary";
 import { loadSummaryAuthorName } from "@/lib/careStatusAuthor";
 import { loadIntakeHistory, loadPersonFacts } from "@/lib/profileReadsServer";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -45,7 +46,7 @@ export async function loadGeriatricReads(client: AnyClient, patientId: string): 
     measurements,
     goals,
     careStatus: careStatus.status === "ok" ? { status: "ok", events: careStatus.events } : { status: "unreadable" },
-    diary: diary.status === "ok" ? { status: "ok", entries: diary.entries } : { status: "unreadable" },
+    diary: diaryReadForView(diary),
     intakeHistory,
     licence: licence.status === "ok" ? { status: "ok", keys: licence.keys } : { status: "unreadable" },
     person,
