@@ -10,6 +10,9 @@ import { test, expect } from "@playwright/test";
 import { BASE, browserCookiesFor, QA_EMAILS } from "./helpers";
 
 test("LOG-BACK: entry and record history each offer the way back", async ({ page, context }) => {
+  // The admin dashboard, then up to a dozen rows and the timeline's own
+  // reads: against a hosted project 30s is not enough (testing.md).
+  test.setTimeout(90_000);
   await context.addCookies(await browserCookiesFor(QA_EMAILS.admin));
   await page.goto(`${BASE}/admin/dashboard?section=logs&tab=activity`);
   await page.waitForLoadState("networkidle");
