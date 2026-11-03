@@ -81,7 +81,9 @@ export default function FinishSessionButton({
           <span className="text-sm font-semibold leading-tight">Done</span>
           {/* What Done does, on the button: the note (and the condition
               type's exam, where it needs one), then the session closes. */}
-          <span id={`finish-help-${appointmentId}`} className="text-[13px] font-normal leading-tight text-teal-50">
+          {/* On a phone it may wrap (the row around it does not): at 360px,
+              Done with this line beside No Show was 5px wider than the card. */}
+          <span id={`finish-help-${appointmentId}`} className="whitespace-normal sm:whitespace-nowrap text-[13px] font-normal leading-tight text-teal-50">
             Note and exam, then it closes
           </span>
         </button>
