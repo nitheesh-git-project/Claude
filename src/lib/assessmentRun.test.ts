@@ -281,6 +281,21 @@ describe("the heart and lung pre-exercise check", () => {
     expect(checkStepAction({ protocol: cardio, step: protocolStep(cardio, "sit_to_stand")!, state, action: "go", preExercise: high })?.code).toBe("cardio_red_flag");
   });
 
+  it("names the stop, not the checklist, on a save whose set-up the stop refused", () => {
+    // The reachable state: under a stop the set-up is refused, so it is never
+    // confirmed. A save sent anyway was told "Tick the set-up checklist".
+    const state = runStateFromEvents([...base(), ...savedVitals()]);
+    const high = preExerciseCheck(preExerciseVitalsFromRun(cardio, state, vitalsRows(130, 150, 90, 96)), limit);
+    expect(high.status).toBe("stop");
+    const r = checkRunSave({ protocol: cardio, stepId: "sit_to_stand", state, measurement: exertion, preExercise: high });
+    expect(!r.ok && r.refusal.code).toBe("cardio_red_flag");
+    // With a clear check the checklist is still asked for.
+    const clear = preExerciseCheck(preExerciseVitalsFromRun(cardio, state, vitalsRows(72, 120, 80, 97)), limit);
+    expect(clear.status).toBe("clear");
+    const ok = checkRunSave({ protocol: cardio, stepId: "sit_to_stand", state, measurement: exertion, preExercise: clear });
+    expect(!ok.ok && ok.refusal.code).toBe("setup_not_confirmed");
+  });
+
   it("allows exertion once the check is clear", () => {
     const state = runStateFromEvents([...base(), ...savedVitals(), setup(cardio, "sit_to_stand")]);
     const clear = preExerciseCheck(preExerciseVitalsFromRun(cardio, state, vitalsRows(72, 130, 80, 96)), limit);

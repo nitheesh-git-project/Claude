@@ -1436,7 +1436,10 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      and oxygen **saved in this run's resting step** and the patient's own
      oxygen limit, never from what the cockpit says ("not recorded" is
      `cardio_check_not_recorded`, a red flag `cardio_red_flag`). The same gate
-     refuses that exertion step's set-up and its *go* on the patient's screen.
+     refuses that exertion step's set-up and its *go* on the patient's screen,
+     and it is checked **before** the step's set-up and helper: under a stop
+     the set-up can never be ticked, so a save sent anyway is told why
+     (`cardio_red_flag`), not "tick the set-up checklist".
      This moves the 6b pre-exercise refusal, which was UI only, to the route
      for any reading inside a run; a reading outside a run keeps today's
      behaviour.

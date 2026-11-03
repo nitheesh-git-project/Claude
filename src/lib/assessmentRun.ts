@@ -429,15 +429,10 @@ export function checkStepAction(input: {
     }
   }
 
-  if (action === "save") {
-    if (!state.setupConfirmed.has(step.id)) {
-      return refuse(409, "setup_not_confirmed", "Tick the set-up checklist for this step first.");
-    }
-    if (step.needsHelper && !state.helperConfirmed.has(step.id)) {
-      return refuse(409, "helper_not_confirmed", "Confirm that another adult is standing beside the patient first.");
-    }
-  }
-
+  // Before the set-up checks: under a stop the set-up of an exertion step is
+  // itself refused, so its checklist can never be ticked, and a save sent
+  // anyway was told "Tick the set-up checklist" -- when the reason is "do
+  // not exercise today, contact the patient's doctor".
   if ((action === "setup" || action === "save" || action === "go") && needsPreExerciseCheck(protocol, step, input.measureKey)) {
     const check = input.preExercise ?? null;
     if (!check || check.status === "incomplete") {
@@ -449,6 +444,15 @@ export function checkStepAction(input: {
     }
     if (check.status === "stop") {
       return refuse(409, "cardio_red_flag", check.refusal?.clinician ?? "Do not exercise or test today. Contact the patient's doctor.");
+    }
+  }
+
+  if (action === "save") {
+    if (!state.setupConfirmed.has(step.id)) {
+      return refuse(409, "setup_not_confirmed", "Tick the set-up checklist for this step first.");
+    }
+    if (step.needsHelper && !state.helperConfirmed.has(step.id)) {
+      return refuse(409, "helper_not_confirmed", "Confirm that another adult is standing beside the patient first.");
     }
   }
   return null;
