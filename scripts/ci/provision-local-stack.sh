@@ -75,7 +75,11 @@ prepull() {
       try {
         for (const s of JSON.parse(raw)) {
           const name = String(s.name).split("/").pop();
-          if (keep.has(name) && s.local) console.log(`${registry}/supabase/${name}:${s.local}`);
+          // Docker Hub keeps the names as listed (supabase/postgres,
+          // postgrest/postgrest); the mirrors put everything under supabase/.
+          if (keep.has(name) && s.local) {
+            console.log(registry === "docker.io" ? `${s.name}:${s.local}` : `${registry}/supabase/${name}:${s.local}`);
+          }
         }
       } catch {}
     });' "$PREPULL_SERVICES" "${SUPABASE_INTERNAL_IMAGE_REGISTRY:-public.ecr.aws}" 2>/dev/null)" || return 0
