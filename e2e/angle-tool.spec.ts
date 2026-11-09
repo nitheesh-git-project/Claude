@@ -70,13 +70,20 @@ async function openTool(page: Page) {
   return dialog;
 }
 
+// Taps the three landmarks like a person does: one at a time, each after the
+// last has landed. The stage is measured again before every tap because the
+// dialog re-lays itself out as points arrive (the step line and the readout),
+// so a box measured once can put the second tap somewhere else entirely.
 async function tapPoints(page: Page) {
-  const box = (await page.getByTestId("angle-stage").boundingBox())!;
-  const s = Math.min(box.width / 1200, box.height / 900);
-  const ox = box.x + (box.width - 1200 * s) / 2;
-  const oy = box.y + (box.height - 900 * s) / 2;
-  for (const [x, y] of [HIP, KNEE, ANKLE]) {
+  const landmarks = [HIP, KNEE, ANKLE];
+  for (let i = 0; i < landmarks.length; i++) {
+    const [x, y] = landmarks[i];
+    const box = (await page.getByTestId("angle-stage").boundingBox())!;
+    const s = Math.min(box.width / 1200, box.height / 900);
+    const ox = box.x + (box.width - 1200 * s) / 2;
+    const oy = box.y + (box.height - 900 * s) / 2;
     await page.mouse.click(ox + x * s, oy + y * s);
+    await expect(page.getByTestId(`angle-point-${i}`)).toBeVisible();
   }
 }
 
