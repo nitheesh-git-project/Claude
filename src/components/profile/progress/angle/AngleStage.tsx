@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type FocusEvent as ReactFocusEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FocusEvent as ReactFocusEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import type { ImageSize, Pt } from "@/lib/angleMeasure";
 import { displaySize, fitView, frameToPicture, pictureToFrame, zoomView, type Affine, type View } from "@/lib/angleView";
 
@@ -90,9 +90,13 @@ export default function AngleStage({
   const fit = fitView(picture, size);
   const view = userView ?? fit;
 
-  useEffect(() => {
+  // Measured before the first paint, not only when the observer first reports
+  // (a frame later): a tap in between was mapped through a zero-size view, so
+  // the first points landed at raw screen offsets instead of on the photo.
+  useLayoutEffect(() => {
     const el = frameRef.current;
     if (!el) return;
+    setSize({ width: el.clientWidth, height: el.clientHeight });
     const ro = new ResizeObserver(() => setSize({ width: el.clientWidth, height: el.clientHeight }));
     ro.observe(el);
     return () => ro.disconnect();
@@ -190,7 +194,9 @@ export default function AngleStage({
     const g = gesture.current;
     const p = local(e);
     pointers.current.delete(e.pointerId);
-    if (g?.kind === "tap" && e.type === "pointerup") {
+    // No measured frame means no view to map through: drop the tap rather
+    // than place a point somewhere the person did not touch.
+    if (g?.kind === "tap" && e.type === "pointerup" && size.width > 0 && size.height > 0) {
       onBegin();
       onPlace(frameToPicture(view, p));
     }
