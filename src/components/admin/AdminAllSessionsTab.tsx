@@ -193,32 +193,9 @@ export default function AdminAllSessionsTab({
   // server rendered no saved filters, so a hydration pass that applied them
   // mismatched, and React only showed them by discarding the server HTML and
   // re-rendering the whole tree. `mounted` is false while hydrating and true
-  // on the very next render, so the restore lands one render later, cleanly.
+  // on the very next render, so the restore (after the preset, below) lands
+  // one render later, cleanly.
   const mounted = useSyncExternalStore(noSubscribe, () => true, () => false);
-  if (mounted && !filtersRestored) {
-    let restored: Partial<SavedFilters> = {};
-    try {
-      const saved = window.localStorage.getItem(FILTER_STORAGE_KEY);
-      if (saved) restored = JSON.parse(saved) as Partial<SavedFilters>;
-    } catch {
-      // A corrupt or unavailable store is not worth a broken screen.
-    }
-    // A date range is deliberately not restored: "last week" saved on Friday
-    // is the wrong week on Monday, and a stale range that hides today's
-    // sessions looks like missing data.
-    // `sessionCode` and `programme` are the two boxes this replaced; a browser
-    // that saved either keeps its search.
-    const savedSearch = restored.search ?? restored.sessionCode ?? restored.programme;
-    if (typeof savedSearch === "string") setSearchText(savedSearch);
-    if (restored.mode === "all" || restored.mode === "online" || restored.mode === "home_visit") {
-      setModeFilter(restored.mode);
-    }
-    if (typeof restored.status === "string") setStatusFilter(restored.status);
-    if (typeof restored.payment === "string") setPaymentFilter(restored.payment);
-    if (typeof restored.therapist === "string") setTherapistFilter(restored.therapist);
-    if (typeof restored.patient === "string") setPatientFilter(restored.patient);
-    setFiltersRestored(true);
-  }
 
   // A filter preset this screen was linked with (?view=, built by
   // adminScreenHref) -- the Today screen's "Unassigned sessions" figure and
@@ -280,6 +257,37 @@ export default function AdminAllSessionsTab({
       // cleared filters above as the whole answer: everything, rather than
       // nothing.
     }
+  }
+
+  // Runs after the ?view= preset above has had its say, and never over it:
+  // a deep link (global search, a Today figure) names exactly what to show,
+  // so remembered filters stand aside for it -- restoring them one render
+  // later would quietly widen the list the link promised.
+  if (mounted && !filtersRestored) {
+    if (!viewParam) {
+      let restored: Partial<SavedFilters> = {};
+      try {
+        const saved = window.localStorage.getItem(FILTER_STORAGE_KEY);
+        if (saved) restored = JSON.parse(saved) as Partial<SavedFilters>;
+      } catch {
+        // A corrupt or unavailable store is not worth a broken screen.
+      }
+      // A date range is deliberately not restored: "last week" saved on Friday
+      // is the wrong week on Monday, and a stale range that hides today's
+      // sessions looks like missing data.
+      // `sessionCode` and `programme` are the two boxes this replaced; a browser
+      // that saved either keeps its search.
+      const savedSearch = restored.search ?? restored.sessionCode ?? restored.programme;
+      if (typeof savedSearch === "string") setSearchText(savedSearch);
+      if (restored.mode === "all" || restored.mode === "online" || restored.mode === "home_visit") {
+        setModeFilter(restored.mode);
+      }
+      if (typeof restored.status === "string") setStatusFilter(restored.status);
+      if (typeof restored.payment === "string") setPaymentFilter(restored.payment);
+      if (typeof restored.therapist === "string") setTherapistFilter(restored.therapist);
+      if (typeof restored.patient === "string") setPatientFilter(restored.patient);
+    }
+    setFiltersRestored(true);
   }
 
   useEffect(() => {
