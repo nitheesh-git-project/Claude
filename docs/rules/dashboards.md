@@ -302,7 +302,11 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   arithmetic and `e2e/admin-refresh-badge.spec.ts` pins what a person reads --
   driven as a screen because no route and no row changed, and carrying its own
   RB-000 egress probe, since the badge is fed by a socket that never opens in
-  a sandbox and every other case would pass vacuously.
+  a sandbox and every other case would pass vacuously. When a case fails it
+  prints the browser's realtime trail (`src/lib/realtimeTrail.ts`,
+  development builds only): every refresh start and landing, every event, and
+  whether it was counted, deferred by the cooldown or judged covered -- the
+  timing a "no badge" assertion cannot show on its own.
   **And a lazy sweep must not be able to refresh the render that started
   it.** Anything running in the dashboard's `after()` that *writes* a table
   on one of these channels closes a circle: render, write, realtime event,

@@ -5,6 +5,7 @@ import { useRouter } from "@/lib/useRouter";
 import { createClient } from "@/lib/supabase/client";
 import { isEventCoveredByLocalRefresh } from "@/lib/refreshSignal";
 import { useLiveUpdates } from "@/lib/liveUpdates";
+import { trail } from "@/lib/realtimeTrail";
 
 // Keeps an already-open dashboard in sync with other users' actions (a
 // therapist requesting a payout, a hospital submitting a referral, a new
@@ -114,7 +115,11 @@ export default function RealtimeRefresh({
     const fire = () => {
       const newestEventAt = lastEventAtRef.current;
       lastEventAtRef.current = null;
-      if (newestEventAt !== null && isEventCoveredByLocalRefresh(newestEventAt)) return;
+      if (newestEventAt !== null && isEventCoveredByLocalRefresh(newestEventAt)) {
+        trail("event-covered", tablesKey.slice(0, 40));
+        return;
+      }
+      trail(mode === "notify" ? "event-counted" : "event-refresh", tablesKey.slice(0, 40));
       // Only a refresh that actually happens starts a cooldown. Counting a
       // skipped one would hold the next genuine change off for up to
       // cooldownMs -- 30 seconds on the catalog channel -- for a rebuild
@@ -127,8 +132,9 @@ export default function RealtimeRefresh({
       router.refresh();
     };
 
-    const handleChange = () => {
+    const handleChange = (payload: { table?: string }) => {
       lastEventAtRef.current = Date.now();
+      trail("event", payload.table);
 
       // Already waiting to fire at the end of the current cooldown -- this
       // event is part of the burst that trailing refresh will cover.
@@ -140,6 +146,7 @@ export default function RealtimeRefresh({
         return;
       }
 
+      trail("event-deferred", `${cooldownMs - sinceLast}ms`);
       trailingRef.current = setTimeout(() => {
         trailingRef.current = null;
         fire();
@@ -156,6 +163,7 @@ export default function RealtimeRefresh({
       // Removing the channel on unmount reports CLOSED; that is this screen
       // leaving, not a fault.
       if (disposed) return;
+      trail(`channel-${status}`, tablesKey.slice(0, 40));
       if (status === "SUBSCRIBED") {
         // A join from the banner's Refresh starts with hadProblem false, so
         // the banner is cleared here on any successful join, not only on a

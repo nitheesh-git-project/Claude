@@ -33,6 +33,19 @@ import { adminClient, browserCookiesFor, profileIdFor, QA_EMAILS, BASE } from ".
 test.describe("the admin Refresh button's waiting-changes badge", () => {
   const SHOTS = "e2e/screenshots/admin-refresh-badge";
 
+  // On a failure, print the browser's realtime trail (src/lib/realtimeTrail.ts):
+  // each refresh's start and landing, each event, and whether it was counted,
+  // deferred or judged covered. "No badge" alone cannot say which step failed.
+  test.afterEach(async ({ page }, testInfo) => {
+    if (testInfo.status === testInfo.expectedStatus) return;
+    const entries = await page
+      .evaluate(() => (window as unknown as { __realtimeTrail?: unknown[] }).__realtimeTrail ?? [])
+      .catch(() => [] as unknown[]);
+    const text = JSON.stringify(entries, null, 1);
+    console.log(`[realtime trail] ${testInfo.title}\n${text}`);
+    await testInfo.attach("realtime-trail.json", { body: text, contentType: "application/json" });
+  });
+
   /** The badge's own live region -- the button's name is deliberately constant. */
   function badgeText(page: import("@playwright/test").Page) {
     return page.getByRole("status").filter({ hasText: /update/ });
