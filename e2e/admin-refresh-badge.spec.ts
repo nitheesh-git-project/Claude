@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { test, expect } from "@playwright/test";
 import { adminClient, browserCookiesFor, profileIdFor, QA_EMAILS, BASE } from "./helpers";
 
@@ -33,18 +34,45 @@ import { adminClient, browserCookiesFor, profileIdFor, QA_EMAILS, BASE } from ".
 test.describe("the admin Refresh button's waiting-changes badge", () => {
   const SHOTS = "e2e/screenshots/admin-refresh-badge";
 
-  // On a failure, print the browser's realtime trail (src/lib/realtimeTrail.ts):
-  // each refresh's start and landing, each event, and whether it was counted,
-  // deferred or judged covered. "No badge" alone cannot say which step failed.
+  // What the browser saw of the change stream (src/lib/realtimeTrail.ts): each
+  // refresh's start and landing, each join, the server's word on the Postgres
+  // side of it, each event, and whether it was counted, deferred or judged
+  // covered. One line on a pass, so a green run can be read beside a red one;
+  // in full on a failure, where "no badge" alone cannot say which step failed.
   test.afterEach(async ({ page }, testInfo) => {
-    if (testInfo.status === testInfo.expectedStatus) return;
-    const entries = await page
+    const entries = (await page
       .evaluate(() => (window as unknown as { __realtimeTrail?: unknown[] }).__realtimeTrail ?? [])
-      .catch(() => [] as unknown[]);
-    const text = JSON.stringify(entries, null, 1);
-    console.log(`[realtime trail] ${testInfo.title}\n${text}`);
-    await testInfo.attach("realtime-trail.json", { body: text, contentType: "application/json" });
+      .catch(() => [])) as { at: number; kind: string; detail?: string }[];
+    const start = entries[0]?.at ?? 0;
+    const line = entries.map((e) => `+${e.at - start}ms ${e.kind}${e.detail ? ` (${e.detail.slice(0, 60)})` : ""}`).join(" | ");
+    console.log(`[realtime trail] ${testInfo.title}: ${line || "empty"}`);
+    if (testInfo.status === testInfo.expectedStatus) return;
+    await testInfo.attach("realtime-trail.json", { body: JSON.stringify(entries, null, 1), contentType: "application/json" });
+    const server = localStackRealtimeState();
+    if (server) {
+      console.log(`[realtime server] ${testInfo.title}\n${server}`);
+      await testInfo.attach("realtime-server.txt", { body: server, contentType: "text/plain" });
+    }
   });
+
+  /**
+   * The quality gate's local stack only: what Realtime holds in the database
+   * at the moment a case failed -- the subscriptions it stored for the pages
+   * that are open, and where its replication slot stands. Rows with no slot
+   * movement is a stalled poller; no rows is a join the server never
+   * finished. Read-only, and skipped anywhere there is no local stack.
+   */
+  function localStackRealtimeState(): string | null {
+    const url = process.env.CI_LOCAL_STACK === "1" ? process.env.SCHEMA_APPLY_DATABASE_URL : undefined;
+    if (!url) return null;
+    const sql = [
+      "select 'subscriptions' as what, count(*) as rows, count(distinct subscription_id) as channels, count(distinct entity) as tables, min(created_at) as oldest, max(created_at) as newest from realtime.subscription",
+      "select 'slot' as what, slot_name, plugin, temporary, active, wal_status, pg_wal_lsn_diff(pg_current_wal_lsn(), confirmed_flush_lsn) as bytes_behind from pg_replication_slots",
+      "select 'activity' as what, state, wait_event, round(extract(epoch from now() - query_start)) as seconds, left(regexp_replace(query, '\\s+', ' ', 'g'), 140) as query from pg_stat_activity where datname = current_database() and pid <> pg_backend_pid() and (query ilike '%realtime.%' or query ilike '%logical_slot%' or backend_type = 'walsender')",
+    ];
+    const out = spawnSync("psql", [url, "-X", "-q", "-x", ...sql.flatMap((q) => ["-c", q])], { encoding: "utf8", timeout: 20_000 });
+    return `${out.stdout ?? ""}${out.stderr ?? ""}`.trim() || null;
+  }
 
   /** The badge's own live region -- the button's name is deliberately constant. */
   function badgeText(page: import("@playwright/test").Page) {

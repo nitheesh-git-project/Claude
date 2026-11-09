@@ -159,6 +159,15 @@ export default function RealtimeRefresh({
 
     let hadProblem = false;
     let disposed = false;
+
+    // The server's own word on the change stream. A join can succeed -- the
+    // channel reports SUBSCRIBED -- while the Postgres side of it is still
+    // being set up, or was refused; that arrives as a "system" message, which
+    // nothing else here hears. Recorded for the realtime trail only.
+    channel.on("system", {}, (payload: { extension?: string; status?: string; message?: unknown }) => {
+      if (disposed) return;
+      trail("channel-system", `${payload.extension ?? "?"} ${payload.status ?? "?"}: ${String(payload.message ?? "").slice(0, 160)}`);
+    });
     channel.subscribe((status) => {
       // Removing the channel on unmount reports CLOSED; that is this screen
       // leaving, not a fault.

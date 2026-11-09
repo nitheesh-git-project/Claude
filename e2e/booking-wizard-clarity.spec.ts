@@ -74,17 +74,25 @@ test.describe("booking wizard: honest Step 1, plain Step 2", () => {
     const signIn = page.getByRole("link", { name: /I already have an account/ });
     await expect(signIn).toBeVisible();
     await expect(signIn).toHaveAttribute("href", "/patient/login");
-    const signInBox = await signIn.boundingBox();
-    expect(signInBox!.height).toBeGreaterThanOrEqual(44);
-
-    const name = await page.getByLabel("Your name").boundingBox();
-    const phone = await page.locator("#bw-phone").boundingBox();
-    const email = await page.getByLabel("Email").boundingBox();
-    const password = await page.getByLabel(/Create a password/).boundingBox();
-    expect(signInBox!.y).toBeLessThan(name!.y);
-    expect(name!.y).toBeLessThan(phone!.y);
-    expect(phone!.y).toBeLessThan(email!.y);
-    expect(email!.y).toBeLessThan(password!.y);
+    // The five boxes are read together, and again until the page has
+    // settled: boxes are relative to the viewport, and Step 2 replaces a
+    // longer Step 1, so the page can still be moving when it first shows.
+    // Boxes read one call apart can straddle that move (CI once saw the link
+    // at y=228 and the name field, read a moment later, at y=118).
+    await expect(async () => {
+      const [signInBox, name, phone, email, password] = await Promise.all([
+        signIn.boundingBox(),
+        page.getByLabel("Your name").boundingBox(),
+        page.locator("#bw-phone").boundingBox(),
+        page.getByLabel("Email").boundingBox(),
+        page.getByLabel(/Create a password/).boundingBox(),
+      ]);
+      expect(signInBox!.height).toBeGreaterThanOrEqual(44);
+      expect(signInBox!.y).toBeLessThan(name!.y);
+      expect(name!.y).toBeLessThan(phone!.y);
+      expect(phone!.y).toBeLessThan(email!.y);
+      expect(email!.y).toBeLessThan(password!.y);
+    }).toPass({ timeout: 15_000 });
 
     // The password box has a show button, so there is no retype box.
     await expect(page.getByLabel("Confirm Password")).toHaveCount(0);
