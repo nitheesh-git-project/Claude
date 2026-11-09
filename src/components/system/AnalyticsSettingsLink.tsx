@@ -17,7 +17,9 @@ export default function AnalyticsSettingsLink() {
           e.preventDefault();
           window.dispatchEvent(new Event(ANALYTICS_REOPEN_EVENT));
         }}
-        className="inline underline-offset-2 transition hover:text-teal-400 hover:underline"
+        // Inline padding grows the tap area to 44px (MOB-003) without making
+        // the copyright line, and so the footer, any taller (SN-003).
+        className="inline py-[15px] underline-offset-2 transition hover:text-teal-400 hover:underline"
       >
         Analytics settings
       </a>
