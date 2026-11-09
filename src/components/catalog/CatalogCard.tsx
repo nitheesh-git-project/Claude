@@ -218,9 +218,10 @@ export default function CatalogCard({
         {points.length > 0 && (
           <ul className="mt-3 grid grid-cols-2 gap-x-2.5 gap-y-1.5 border-t border-slate-100 pt-3">
             {points.map((pt) => (
-              <li key={pt} className="flex items-start gap-1.5 text-[13px] leading-snug text-slate-600">
+              <li key={pt} className="flex min-w-0 items-start gap-1.5 text-[13px] leading-snug text-slate-600">
                 <i aria-hidden className="fa-solid fa-check mt-0.5 shrink-0 text-[10px] text-teal-600" />
-                {pt}
+                {/* Half a card wide at 13px, a long word ("decompression") must break rather than spill. */}
+                <span className="min-w-0 hyphens-auto [overflow-wrap:anywhere]">{pt}</span>
               </li>
             ))}
           </ul>
