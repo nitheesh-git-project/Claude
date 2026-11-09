@@ -838,3 +838,9 @@ Eight pages from one design system, the word budgets, why every photograph carri
   Analytics calls never throw and never wait: a blocked script must not break
   checkout.
 - GA is for funnels. Revenue, utilisation and no-shows come from Supabase.
+- **The footer's "Analytics settings" works before the page has hydrated.** It
+  is a link to `#analytics-settings` (`ANALYTICS_SETTINGS_HASH`), not a
+  button: a tap that lands before React has attached its click handler still
+  sets the hash, and the consent card opens for it on mount or on
+  `hashchange`, then clears the hash. The splash now leaves on a CSS timer, so
+  the page can be tapped before hydration; a button there was a dead control.
