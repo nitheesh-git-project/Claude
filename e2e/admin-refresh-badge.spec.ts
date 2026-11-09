@@ -51,6 +51,32 @@ test.describe("the admin Refresh button's waiting-changes badge", () => {
     return page.getByRole("status").filter({ hasText: /update/ });
   }
 
+  /**
+   * Somebody else changes a row, again if need be, until the badge counts it.
+   *
+   * A channel reports SUBSCRIBED before the local stack's change stream is
+   * live for it, and a write in that gap is never delivered -- not late,
+   * never. CI's trail shows exactly that (src/lib/realtimeTrail.ts): joined,
+   * authenticated, refresh settled, and no event at all. Writing again until
+   * one lands keeps the assertion -- an outside change is counted, and none of
+   * the browser's own work is -- without betting on how long the gap lasts.
+   */
+  async function changeUntilCounted(
+    page: import("@playwright/test").Page,
+    admin: ReturnType<typeof adminClient>,
+    id: string,
+    restore: string | null
+  ) {
+    let attempt = 0;
+    await expect(async () => {
+      attempt += 1;
+      // A different value every time, so every write is a real change.
+      const name = `${restore ?? "QA Patient"}${" ".repeat(attempt)}`;
+      await admin.from("profiles").update({ full_name: name }).eq("id", id);
+      await expect(badgeText(page)).toHaveCount(1, { timeout: 8_000 });
+    }).toPass({ timeout: 60_000 });
+  }
+
   function refreshButton(page: import("@playwright/test").Page) {
     return page.getByRole("button", { name: "Refresh this screen" }).first();
   }
@@ -141,9 +167,7 @@ test.describe("the admin Refresh button's waiting-changes badge", () => {
       await expect(refreshButton(page)).toBeEnabled({ timeout: 60_000 });
       await page.waitForTimeout(5_000);
 
-      await admin.from("profiles").update({ full_name: `${restore ?? "QA Patient"} ` }).eq("id", id);
-
-      await expect(badgeText(page)).toHaveCount(1, { timeout: 30_000 });
+      await changeUntilCounted(page, admin, id, restore);
       await page.screenshot({ path: `${SHOTS}/02-someone-elses-change.png`, fullPage: true });
     } finally {
       await admin.from("profiles").update({ full_name: restore }).eq("id", id);
@@ -170,8 +194,7 @@ test.describe("the admin Refresh button's waiting-changes badge", () => {
       await expect(refreshButton(page)).toBeEnabled({ timeout: 60_000 });
       await page.waitForTimeout(5_000);
 
-      await admin.from("profiles").update({ full_name: `${restore ?? "QA Patient"} ` }).eq("id", id);
-      await expect(badgeText(page)).toHaveCount(1, { timeout: 30_000 });
+      await changeUntilCounted(page, admin, id, restore);
 
       // Reading it is what clears it, and the refresh that clears it must not
       // then count its own echo -- which is the whole bug, one step along.
