@@ -223,16 +223,16 @@ jobs:
       # next dev's Turbopack cache (on by default since Next 16.1), per
       # runner: a shard opens the same pages as the runner's other shards,
       # and a warm cache turns each page's first compile from seconds into a
-      # lookup. Turbopack validates entries against the files on disk, so an
-      # older entry is slower, never wrong. Saved by shard 1 only (below).
+      # lookup. Exact source tree only: a cache restored from an older tree
+      # by prefix once made `next dev` answer 404 for routes that exist (PR
+      # #112, platform-1of3, twice), so a new tree compiles cold rather than
+      # trust a near match. Saved by shard 1 only (below).
       - name: Restore the dev-server compile cache
         id: devcache
         uses: actions/cache/restore@v4
         with:
           path: .next/dev/cache
           key: next-dev-v1-${{ runner.os }}-${{ matrix.runner }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('src/**', 'public/**', 'next.config.ts', 'tsconfig.json', 'postcss.config.mjs') }}
-          restore-keys: |
-            next-dev-v1-${{ runner.os }}-${{ matrix.runner }}-${{ hashFiles('package-lock.json') }}-
 
       - name: Provision the disposable local stack
         run: scripts/ci/provision-local-stack.sh

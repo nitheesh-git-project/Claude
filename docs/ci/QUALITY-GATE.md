@@ -135,8 +135,10 @@ admin runner's tests 32. Now:
 - **Caches**: Chromium (keyed on the installed Playwright version), the
   production build's `.next/cache` in `verify`, and `next dev`'s Turbopack
   cache (`.next/dev/cache`, per runner, saved by shard 1 after a pass when
-  under 2 GB). Turbopack checks every entry against the files on disk, so
-  an old entry costs time, never correctness. Docker images are not cached:
+  under 2 GB), restored **only for the exact same source tree**. A cache
+  restored by prefix from an older tree once made `next dev` answer 404 for
+  routes that exist, on both attempts of the same job, so a changed tree
+  compiles cold: slower, but it cannot serve a stale route table. Docker images are not cached:
   restoring a multi-gigabyte tarball and `docker load`-ing it costs about
   more than the parallel pull once 19 jobs restore at once (measured: the
   stack was ready ~3 minutes later, and a cached `node_modules` restored
