@@ -165,6 +165,24 @@ export default function RealtimeRefresh({
       if (disposed) return;
       trail(`channel-${status}`, tablesKey.slice(0, 40));
       if (status === "SUBSCRIBED") {
+        // Postgres changes reach a channel only for rows its role may read, so
+        // a join made before the session landed is anonymous and silent.
+        void supabase.auth
+          .getSession()
+          .then(({ data }) => {
+            // The role the socket itself carries, which is what RLS sees.
+            let socketRole = "none";
+            try {
+              const token = supabase.realtime.accessTokenValue;
+              if (token) socketRole = String(JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))).role);
+            } catch {
+              socketRole = "unreadable";
+            }
+            trail("channel-auth", `session ${data.session ? "user" : "none"}, socket ${socketRole}`);
+          })
+          .catch(() => trail("channel-auth", "unreadable"));
+      }
+      if (status === "SUBSCRIBED") {
         // A join from the banner's Refresh starts with hadProblem false, so
         // the banner is cleared here on any successful join, not only on a
         // recovery this channel saw itself.

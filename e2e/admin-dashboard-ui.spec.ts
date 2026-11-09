@@ -221,8 +221,14 @@ test.describe("Suites A/B/C/K: the admin dashboard in a browser", () => {
     await page.goto(`${BASE}/admin/dashboard?section=sessions&tab=all`);
     await expect(page.getByRole("heading", { level: 2, name: /^All Sessions/ })).toBeVisible();
 
-    await page.getByRole("combobox", { name: "Filter by delivery mode" }).selectOption("home_visit");
-    await page.waitForTimeout(500);
+    // A choice made before React has hydrated the select is dropped (the
+    // controlled value snaps back), so choose until the screen says a filter
+    // is active -- only React's own state draws "Clear filters".
+    const mode = page.getByRole("combobox", { name: "Filter by delivery mode" });
+    await expect(async () => {
+      await mode.selectOption("home_visit");
+      await expect(page.getByRole("button", { name: "Clear filters" })).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 30_000 });
 
     // A reload is the test: a filter an admin has to re-set on every visit is
     // the friction this removes.

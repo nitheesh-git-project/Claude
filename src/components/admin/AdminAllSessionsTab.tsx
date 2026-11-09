@@ -183,13 +183,19 @@ export default function AdminAllSessionsTab({
   // Declared with the filters because the ?view=session:<code> preset below
   // (global search) opens the drawer as it applies.
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  // Restored from the browser's own store on the first client render. Not in
+  // Restored from the browser's own store just after hydration (below). Not in
   // a useState initialiser, which also runs on the server where there is no
   // window; not in an effect, which would set state after paint and flash the
   // unfiltered list first. `filtersRestored` gates the save below so the
   // restore itself can't immediately overwrite what it just read.
   const [filtersRestored, setFiltersRestored] = useState(false);
-  if (!filtersRestored && typeof window !== "undefined") {
+  // Restored on the first render *after* hydration, never during it: the
+  // server rendered no saved filters, so a hydration pass that applied them
+  // mismatched, and React only showed them by discarding the server HTML and
+  // re-rendering the whole tree. `mounted` is false while hydrating and true
+  // on the very next render, so the restore lands one render later, cleanly.
+  const mounted = useSyncExternalStore(noSubscribe, () => true, () => false);
+  if (mounted && !filtersRestored) {
     let restored: Partial<SavedFilters> = {};
     try {
       const saved = window.localStorage.getItem(FILTER_STORAGE_KEY);
@@ -487,12 +493,6 @@ export default function AdminAllSessionsTab({
     setPatientFilter("all");
   }
 
-  // Filters restored from this browser's store are applied on the first
-  // client render, which the server never saw. What the screen *says* about
-  // them (the Clear button, the hint below) waits for mount, or hydration
-  // finds a button the server did not render and re-renders the whole tree.
-  const mounted = useSyncExternalStore(noSubscribe, () => true, () => false);
-
   const filtersActive =
     !!fromDate ||
     !!toDate ||
@@ -735,7 +735,7 @@ export default function AdminAllSessionsTab({
                 </option>
               ))}
           </select>
-          {mounted && filtersActive && (
+          {filtersActive && (
             <button
               onClick={clearFilters}
               className="text-xs font-semibold text-teal-700 hover:underline"
@@ -745,7 +745,7 @@ export default function AdminAllSessionsTab({
           )}
         </div>
         <p className="mt-2 text-[11px] text-slate-500">
-          {mounted && filtersActive
+          {filtersActive
             ? "These filters are remembered on this device - clear them to see everything."
             : "Filters are remembered on this device, except the date range."}{" "}
           Unpaid is normal for a cash-on-visit home visit - money changes hands at the door,
