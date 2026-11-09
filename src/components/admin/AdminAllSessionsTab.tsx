@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import RefundChip from "@/components/admin/RefundChip";
 import { describeRefund } from "@/lib/refundState";
 import { formatClinicDate } from "@/lib/formatDateTime";
@@ -26,6 +26,10 @@ import { awaitsPatientPayment, needsTherapist, type ProgrammePick } from "@/lib/
 import { programmeQueryMatches, type ProgrammeTag } from "@/lib/programmeId";
 import ProgrammeIdChip from "@/components/dashboard/ProgrammeIdChip";
 import TapToAssignChip from "@/components/admin/TapToAssignChip";
+
+// useSyncExternalStore with nothing to subscribe to: false while hydrating,
+// true after -- the "has this mounted" flag without a setState in an effect.
+const noSubscribe = () => () => {};
 
 // The one list of sessions.
 //
@@ -483,6 +487,12 @@ export default function AdminAllSessionsTab({
     setPatientFilter("all");
   }
 
+  // Filters restored from this browser's store are applied on the first
+  // client render, which the server never saw. What the screen *says* about
+  // them (the Clear button, the hint below) waits for mount, or hydration
+  // finds a button the server did not render and re-renders the whole tree.
+  const mounted = useSyncExternalStore(noSubscribe, () => true, () => false);
+
   const filtersActive =
     !!fromDate ||
     !!toDate ||
@@ -725,7 +735,7 @@ export default function AdminAllSessionsTab({
                 </option>
               ))}
           </select>
-          {filtersActive && (
+          {mounted && filtersActive && (
             <button
               onClick={clearFilters}
               className="text-xs font-semibold text-teal-700 hover:underline"
@@ -735,7 +745,7 @@ export default function AdminAllSessionsTab({
           )}
         </div>
         <p className="mt-2 text-[11px] text-slate-500">
-          {filtersActive
+          {mounted && filtersActive
             ? "These filters are remembered on this device - clear them to see everything."
             : "Filters are remembered on this device, except the date range."}{" "}
           Unpaid is normal for a cash-on-visit home visit - money changes hands at the door,
