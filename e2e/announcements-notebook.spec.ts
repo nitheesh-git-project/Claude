@@ -428,7 +428,9 @@ test.describe("announcements and the notebook", () => {
     await page.reload();
     await page.getByTestId("notebook-button").click({ timeout: 60_000 });
     await expect(page.getByTestId("notebook")).toHaveAttribute("data-stage", "open", { timeout: 15_000 });
-    await page.getByTestId("notebook").getByRole("button", { name: "Older page" }).click();
+    // Through the list of pages, which is how an old page is found again.
+    await page.getByTestId("notebook").getByRole("button", { name: "All pages" }).click();
+    await page.getByTestId("notebook-index").getByRole("button", { name: /Page 1/ }).click();
     await expect(page.getByTestId("notebook-editor")).toContainText("Knee felt better after the stretches.", {
       timeout: 30_000,
     });
