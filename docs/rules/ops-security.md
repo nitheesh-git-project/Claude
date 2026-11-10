@@ -1006,3 +1006,17 @@ it — and do not need to. A signed-out browser has no user for the id to
 match, and a different user signing in fails the id check and re-reads.
 `stop-impersonation` clears it explicitly anyway, at the one moment the
 server already knows it is stale.
+- **An admin signed in as somebody cannot open their notebook, and does not
+  spend their announcements.** The session swap is real, so every route
+  would otherwise answer the admin as the owner. `readDashboardViewer()`
+  (`src/lib/dashboardViewer.ts`) reads the impersonation marker beside the
+  session; `/api/notebook` refuses with a 403 while it is set and the button
+  is not rendered, and `/api/announcements/receipt` answers success without
+  writing, so an admin's visit neither closes the person's banner nor uses
+  up a pop-up that opens once. A new per-person private surface must make
+  the same check -- "the session is theirs" is not "they are at the keyboard".
+- **The notebook and the announcement receipt each have their own limit**
+  (`notebook`, `announcementReceipt` in `RATE_LIMITS`), keyed on the account
+  and failing open: the notebook saves itself every few seconds while
+  somebody types, and a limiter that cannot be asked must not cost them what
+  they wrote.

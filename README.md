@@ -62,6 +62,7 @@ Recovery is won by turning up. MoveRestore keeps a patient with **the same physi
 | **Patient dashboard** | Home feed, suggested programmes, sessions (upcoming / past), programmes, payments, health profile, profile; animated first-visit tutorial with (i) help on every page |
 | **Therapist dashboard** | Today's sessions, weekly roster with exceptions and time off, patients' charts, onboarding guide, recommendations, earnings and payout requests |
 | **Hospital dashboard** | Refer patients, track referral status, earn a configured revenue share |
+| **On every dashboard** | Announcements from the clinic (a banner with a pop-up: pictures, formatted text with tables, a button, a time limit, per-role targeting) and a private notebook that opens like a diary |
 | **Admin back office** | Today (inbox + recommendation pulse), Sessions (schedule, all sessions, roster, delivery), Programmes (pipeline, list, timeline drawer), People, Money (summary, business health, transactions, payouts, owed, costs), Catalog (conditions, home-visit prices, service areas, countries), Logs (everyone's actions), Settings, System Health |
 | **Access control** | Scoped admin desks (Master, Operations, Clinical, Finance), impersonation with an exit banner, approval and decline (with reasons) for new accounts |
 | **Operations** | Scheduled maintenance sweep, rate limiting, risk signals, realtime dashboards, CSV/PDF exports, debug clock and data reset for pre-launch testing |
@@ -214,7 +215,7 @@ GitHub Actions (maintenance cron) ───────────────�
 | **Data & auth** | Supabase - Postgres, Auth, Storage, Realtime (`@supabase/ssr`, `@supabase/supabase-js`) |
 | **Payments** | Razorpay (orders, webhooks, refunds) |
 | **Video & calendar** | Google Calendar API + Google Meet (`googleapis`, `google-auth-library`) |
-| **Rich text** | Tiptap 3 (allow-listed JSON, rendered as React elements - no HTML) |
+| **Rich text** | Tiptap 3 (allow-listed JSON, rendered as React elements - no HTML); tables where a surface opts in (announcements, the notebook) |
 | **Documents** | `pdf-lib` for PDF exports and receipts |
 | **Phone numbers** | `libphonenumber-js` |
 | **Testing** | Vitest (unit), Playwright (end to end, desktop + mobile, layout audit at 17 viewports) |

@@ -373,3 +373,44 @@ Repeat with Patient C (Hospital A). **Additional expectation:** the hospital see
 
 **Expected Result.** Step 5: **the picker is byte-for-byte identical.** The roster is the clinic's planning record - who can be *offered* - and it deliberately does **not** filter the patient's picker, which applies the lead-time rule alone. Step 6: **the appointment is unchanged** - not cancelled, not moved, not flagged.
 **If the picker changed, do not "fix" the roster - raise it.** Connecting the two is a product decision with a deploy-sized blast radius, not a refactor.
+
+#### `XANN-001` - An announcement reaches the dashboards it was ticked for, and no other · P1
+
+**Purpose.** Announcements are the clinic speaking to everybody of a role at once. The two ways this goes wrong are a notice shown to the wrong role, and one that never leaves.
+
+**Steps**
+1. As a Master Admin open **Settings -> Announcements -> New announcement**. Title it, tick **Patients** and **Therapists** only, upload a banner picture of any shape and a pop-up picture, write a few lines with a **Table**, add a button ("Book a session") and pick a destination for each ticked dashboard. Leave **Stays for** on 24 hours. Open the pop-up preview, then **Publish now**.
+2. Sign in as a patient on a phone and on a laptop. Open the dashboard home, then the booking screen.
+3. Tap the banner. Read the pop-up, then tap its button.
+4. Sign in as a therapist, then as a hospital partner.
+5. As the patient, close the banner, reload, then sign in on a second device.
+6. As the admin, press **End now**, and reload the patient's and the therapist's dashboards.
+
+**Expected Result.** Step 1: the banner picture is cropped to the wide 6:1 shape in the form; the preview shows the banner, the one-line strip and the real pop-up. Step 2: the banner sits at the top of the dashboard home, aligned with the content, on both screens; on the booking screen it is **one line**, not a banner. Step 3: the page behind blurs; the pop-up shows the picture, the text and the table as written, "Showing until" in India time, and the button opens the screen that was picked. Step 4: the therapist sees it and their button leads to a **therapist** screen; the hospital sees **no** banner. Step 5: it stays closed after the reload and on the second device, and the therapist still has theirs. Step 6: it is gone for everybody without anybody closing it, and the admin list shows it under **Ended** with **Use again**.
+
+#### `XANN-002` - A notice everyone must see, several at once, and a scheduled one · P2
+
+**Steps**
+1. Publish an announcement with **People can close this banner** unticked and **Open the pop-up once by itself** ticked, for patients.
+2. Publish two more ordinary ones for patients, one of them with no banner picture.
+3. Open a patient's dashboard twice.
+4. Create one with **Starts -> On a date and time** a few minutes ahead and **Until a date** for its end.
+5. In the list, use the arrows to change the order of the live ones.
+
+**Expected Result.** Step 3, first visit: the must-see pop-up opens by itself once; its banner has **no** close button. The three banners share **one** slot, slide by themselves, can be swiped and stepped with the dots, and stop sliding once touched; the one with no picture shows its title on a teal strip. Second visit: no pop-up opens. Step 4: it is listed under **Coming up**, is not on any dashboard until its start, then appears without anybody doing anything. Step 5: the dashboards slide them in the new order.
+
+#### `XNOTE-001` - The notebook is on every dashboard, and private to its owner · P1
+
+**Purpose.** The notebook's cover says "Only you can read this". That sentence is the feature.
+
+**Steps**
+1. As a patient, tap the small notebook floating at the bottom right of the dashboard (above the tab bar on a phone). Watch it open.
+2. Write a few lines, a heading and a table. Wait a moment, then close it and reload the page.
+3. Open it again. Add a **New page**, write on it, go back with the arrow, open **All pages**.
+4. Delete a page.
+5. Repeat step 1 as a therapist and as a hospital partner.
+6. As a Master Admin, open **Sign in as** for that patient and look for the notebook.
+7. As an admin, look for the patient's notebook anywhere in the back office.
+
+**Expected Result.** Step 1: the cover opens like a book (lifts on its rings on a phone); with the device set to reduce motion it simply appears. Step 2: the footer reads **Saving...** then **Saved** without any button; after the reload the text, the heading and the table are all there. Step 3: pages are numbered in the order they were started and dated at the top; the list shows the first words of each. Step 4: the app's own dialog asks first (never a browser prompt), and the page is gone. Step 5: each account has its **own** empty notebook. Step 6: **there is no notebook button** while signed in as the patient. Step 7: there is no screen, export or search that shows it.
+

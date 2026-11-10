@@ -10245,6 +10245,11 @@ begin
     -- What the clinic chose to show on one patient's Health Profile (end of
     -- this file); the condition-kind settings are settings and stay.
     patient_profile_widget_overrides,
+    -- Who closed or has seen which announcement, and everybody's private
+    -- notebook (both at the end of this file). The announcements themselves
+    -- are the admin's own writing, like the FAQs, and stay.
+    announcement_receipts,
+    notebook_pages,
     -- The guided video assessment (phase 7a, end of this file): the events
     -- are append-only by trigger and the runs refuse a delete, so they are
     -- named here rather than left to CASCADE; the live display goes with them.
@@ -20151,6 +20156,138 @@ create policy "assessment_companion_seen_select_admin" on assessment_companion_s
   for select using (is_admin());
 
 revoke insert, update, delete on assessment_companion_seen from anon, authenticated;
+
+-- ---------------------------------------------------------------------
+-- Announcements and the notebook.
+--
+--   1. announcements         -- a banner an admin puts on top of the
+--                               patient, therapist and hospital dashboards,
+--                               with a pop-up behind it (src/lib/announcements.ts).
+--   2. announcement_receipts -- per person: closed it, has seen its pop-up.
+--   3. notebook_pages        -- every account's private diary (src/lib/notebook.ts).
+--
+-- Written only by the service role from routes that have done their own
+-- check (requireAdminScope("settings") for an announcement; the signed-in
+-- owner for a receipt or a page), so no table carries an insert, update or
+-- delete policy and the three verbs are revoked from the browser roles.
+--
+-- None of the three is evidence: an announcement is edited and ended, a
+-- receipt is a convenience, a notebook page is rewritten every few seconds
+-- while its owner types. So there is no append-only guard, deliberately.
+-- Foreign keys cascade or set null -- none is `restrict` -- so
+-- scripts/clean-e2e-residue.mjs has nothing to learn. The data reset
+-- truncates the receipts and the pages (newest debug_reset_all_data(),
+-- above) and leaves the announcements, which are the admin's own writing.
+-- ---------------------------------------------------------------------
+create table if not exists announcements (
+  id uuid primary key default gen_random_uuid(),
+  title text not null check (char_length(btrim(title)) between 1 and 80),
+  -- The pop-up's formatted text: the editor's JSON, sanitised by the route.
+  body text check (body is null or char_length(body) <= 40000),
+  banner_image_url text check (banner_image_url is null or banner_image_url ~ '^https://'),
+  popup_image_url text check (popup_image_url is null or popup_image_url ~ '^https://'),
+  audiences text[] not null check (
+    cardinality(audiences) between 1 and 3
+    and audiences <@ array['patient', 'therapist', 'hospital']::text[]
+  ),
+  cta_label text check (cta_label is null or char_length(btrim(cta_label)) between 1 and 30),
+  -- Per dashboard: {"patient": {"kind": "screen", "key": "book"}, ...}.
+  cta_targets jsonb not null default '{}'::jsonb check (jsonb_typeof(cta_targets) = 'object'),
+  -- Null while it is a draft.
+  published_at timestamptz,
+  starts_at timestamptz,
+  ends_at timestamptz,
+  -- "Stays for N": kept so a draft published later still runs its full time.
+  duration_minutes integer check (duration_minutes is null or duration_minutes between 5 and 527040),
+  dismissible boolean not null default true,
+  auto_open boolean not null default false,
+  sort_order integer not null default 0,
+  created_by uuid references profiles(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  -- A published announcement knows when it starts and ends, and ends later.
+  constraint announcements_published_has_window check (
+    published_at is null
+    or (starts_at is not null and ends_at is not null and ends_at > starts_at)
+  )
+);
+
+create index if not exists announcements_window_idx
+  on announcements (ends_at, starts_at) where published_at is not null;
+create index if not exists announcements_created_by_idx
+  on announcements (created_by) where created_by is not null;
+
+alter table announcements enable row level security;
+
+drop policy if exists "announcements_select_admin" on announcements;
+create policy "announcements_select_admin" on announcements
+  for select using (is_admin());
+
+-- A signed-in person may read what is live for their own role. The
+-- dashboards read through the service role after working out the role
+-- themselves; this is the same rule said to the database, so a browser
+-- holding a session can never read a draft or another role's notice.
+drop policy if exists "announcements_select_live_audience" on announcements;
+create policy "announcements_select_live_audience" on announcements
+  for select using (
+    published_at is not null
+    and starts_at <= now()
+    and ends_at > now()
+    and exists (
+      select 1 from profiles p
+      where p.id = (select auth.uid())
+        and p.role = any (announcements.audiences)
+    )
+  );
+
+revoke insert, update, delete on announcements from anon, authenticated;
+
+create table if not exists announcement_receipts (
+  announcement_id uuid not null references announcements(id) on delete cascade,
+  user_id uuid not null references profiles(id) on delete cascade,
+  dismissed_at timestamptz,
+  popup_seen_at timestamptz,
+  primary key (announcement_id, user_id)
+);
+
+create index if not exists announcement_receipts_user_idx
+  on announcement_receipts (user_id);
+
+alter table announcement_receipts enable row level security;
+
+drop policy if exists "announcement_receipts_select_own" on announcement_receipts;
+create policy "announcement_receipts_select_own" on announcement_receipts
+  for select using (user_id = (select auth.uid()));
+
+drop policy if exists "announcement_receipts_select_admin" on announcement_receipts;
+create policy "announcement_receipts_select_admin" on announcement_receipts
+  for select using (is_admin());
+
+revoke insert, update, delete on announcement_receipts from anon, authenticated;
+
+-- The notebook. One policy, and it is the whole privacy promise: a page is
+-- read by its owner and by nobody else. There is deliberately NO admin
+-- policy here -- every other table in this file has one, and this one must
+-- not, because the notebook's own screen tells the person "Only you can
+-- read this".
+create table if not exists notebook_pages (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references profiles(id) on delete cascade,
+  body text check (body is null or char_length(body) <= 30000),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists notebook_pages_user_idx
+  on notebook_pages (user_id, created_at);
+
+alter table notebook_pages enable row level security;
+
+drop policy if exists "notebook_pages_select_own" on notebook_pages;
+create policy "notebook_pages_select_own" on notebook_pages
+  for select using (user_id = (select auth.uid()));
+
+revoke insert, update, delete on notebook_pages from anon, authenticated;
 
 -- ---------------------------------------------------------------------
 -- service_role's EXECUTE, written out rather than inherited.

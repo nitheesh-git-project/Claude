@@ -1,11 +1,18 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import { EditorContent, useEditor, useEditorState, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import TextAlign from "@tiptap/extension-text-align";
 import { Placeholder } from "@tiptap/extensions";
-import { safeHref, toEditorJson, type RichDoc } from "@/lib/richText";
+import { TableKit } from "@tiptap/extension-table";
+import {
+  RICH_TABLE_MAX_COLUMNS,
+  RICH_TABLE_MAX_ROWS,
+  safeHref,
+  toEditorJson,
+  type RichDoc,
+} from "@/lib/richText";
 
 /**
  * A Docs-style editor for public copy: type, press Enter for a new
@@ -27,6 +34,14 @@ const CONTENT_CLASS = [
   "[&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-0.5",
   "[&_blockquote]:border-l-2 [&_blockquote]:border-slate-300 [&_blockquote]:pl-3 [&_blockquote]:italic",
   "[&_a]:text-teal-700 [&_a]:underline [&_a]:underline-offset-2",
+  // Tables (only where the caller allows them). The wrapper scrolls so a
+  // wide table never widens the editor.
+  "[&_.tableWrapper]:max-w-full [&_.tableWrapper]:overflow-x-auto",
+  "[&_table]:w-full [&_table]:border-collapse [&_table]:text-[13px]",
+  "[&_td]:border [&_td]:border-slate-300 [&_td]:px-2 [&_td]:py-1.5 [&_td]:align-top [&_td]:min-w-[4.5rem]",
+  "[&_th]:border [&_th]:border-slate-300 [&_th]:px-2 [&_th]:py-1.5 [&_th]:align-top [&_th]:min-w-[4.5rem]",
+  "[&_th]:bg-slate-100 [&_th]:text-left [&_th]:font-semibold",
+  "[&_.selectedCell]:bg-teal-50",
   "[&_p.is-editor-empty:first-child]:before:content-[attr(data-placeholder)]",
   "[&_p.is-editor-empty:first-child]:before:text-slate-400",
   "[&_p.is-editor-empty:first-child]:before:float-left",
@@ -72,12 +87,39 @@ const GROUPS: ToolButton[][] = [
 
 type BlockStyle = "paragraph" | "h2" | "h3";
 
+/** The table tools, shown only while the cursor is inside a table. Words
+ *  rather than icons: "add a column" has no icon anybody reads at a glance. */
+const TABLE_TOOLS: { key: string; label: string; danger?: boolean; run: (e: Editor) => void; can: (e: Editor) => boolean }[] = [
+  { key: "row", label: "Add row", run: (e) => e.chain().focus().addRowAfter().run(), can: (e) => e.can().addRowAfter() },
+  { key: "column", label: "Add column", run: (e) => e.chain().focus().addColumnAfter().run(), can: (e) => e.can().addColumnAfter() },
+  { key: "header", label: "Header row", run: (e) => e.chain().focus().toggleHeaderRow().run(), can: (e) => e.can().toggleHeaderRow() },
+  { key: "delete-row", label: "Delete row", run: (e) => e.chain().focus().deleteRow().run(), can: (e) => e.can().deleteRow() },
+  { key: "delete-column", label: "Delete column", run: (e) => e.chain().focus().deleteColumn().run(), can: (e) => e.can().deleteColumn() },
+  { key: "delete-table", label: "Delete table", danger: true, run: (e) => e.chain().focus().deleteTable().run(), can: (e) => e.can().deleteTable() },
+];
+
+function tableSize(e: Editor): { rows: number; columns: number } {
+  const { $from } = e.state.selection;
+  for (let depth = $from.depth; depth > 0; depth--) {
+    const node = $from.node(depth);
+    if (node.type.name === "table") {
+      return { rows: node.childCount, columns: node.firstChild?.childCount ?? 0 };
+    }
+  }
+  return { rows: 0, columns: 0 };
+}
+
 export default function RichTextEditor({
   initialDoc,
   onChange,
   label,
   placeholder,
   testId,
+  tables = false,
+  contentClassName,
+  contentWrapperClassName,
+  contentWrapperStyle,
+  chromeless = false,
 }: {
   initialDoc: RichDoc;
   /** Called with the editor's JSON on every change. */
@@ -86,6 +128,20 @@ export default function RichTextEditor({
   label: string;
   placeholder?: string;
   testId?: string;
+  /** Offer tables. Off for public copy (a bio); on for an announcement and
+   *  a notebook page -- and the route sanitising the result must allow them
+   *  too (`{ tables: true }`), or a table is dropped on save. */
+  tables?: boolean;
+  /** Replaces the writing area's own classes (the notebook's ruled page). */
+  contentClassName?: string;
+  /** Classes and style for the box around the writing area: the notebook
+   *  makes it the scrolling, ruled page, so the toolbar stays put above it. */
+  contentWrapperClassName?: string;
+  contentWrapperStyle?: CSSProperties;
+  /** No border, background or footer hint: the caller draws the surface,
+   *  and the toolbar is one row that scrolls sideways rather than wrapping
+   *  into three on a phone. */
+  chromeless?: boolean;
 }) {
   const linkInputId = useId();
   // Held in a ref so the editor, created once, always calls the latest
@@ -110,11 +166,14 @@ export default function RichTextEditor({
       }),
       TextAlign.configure({ types: ["heading", "paragraph"] }),
       Placeholder.configure({ placeholder: placeholder ?? "Start typing…" }),
+      // No resizing and no merged cells: the renderer draws a plain grid, so
+      // the editor must not offer a shape it would then flatten.
+      ...(tables ? [TableKit.configure({ table: { resizable: false } })] : []),
     ],
     content: toEditorJson(initialDoc),
     editorProps: {
       attributes: {
-        class: CONTENT_CLASS,
+        class: contentClassName ?? CONTENT_CLASS,
         role: "textbox",
         "aria-multiline": "true",
         "aria-label": label,
@@ -136,6 +195,11 @@ export default function RichTextEditor({
       return {
         block,
         link: e.isActive("link"),
+        inTable: tables && e.isActive("table"),
+        table: tables && e.isActive("table") ? tableSize(e) : { rows: 0, columns: 0 },
+        tableCan: Object.fromEntries(
+          tables && e.isActive("table") ? TABLE_TOOLS.map((t) => [t.key, t.can(e)]) : []
+        ) as Record<string, boolean>,
         active: Object.fromEntries(
           GROUPS.flat().map((b) => [b.key, b.isActive ? b.isActive(e) : false])
         ) as Record<string, boolean>,
@@ -186,11 +250,21 @@ export default function RichTextEditor({
   const btnOn = "bg-teal-100 text-teal-800 hover:bg-teal-100";
 
   return (
-    <div className="rounded-xl border border-slate-300 bg-white focus-within:border-teal-600 focus-within:ring-2 focus-within:ring-teal-600/20">
+    <div
+      className={
+        chromeless
+          ? "flex min-h-0 flex-1 flex-col"
+          : "rounded-xl border border-slate-300 bg-white focus-within:border-teal-600 focus-within:ring-2 focus-within:ring-teal-600/20"
+      }
+    >
       <div
         role="toolbar"
         aria-label={`${label} formatting`}
-        className="flex flex-wrap items-center gap-0.5 border-b border-slate-200 bg-slate-50 px-1.5 py-1 rounded-t-xl"
+        className={`flex items-center gap-0.5 border-b border-slate-200 bg-slate-50 px-1.5 py-1 ${
+          chromeless
+            ? "shrink-0 flex-nowrap overflow-x-auto rounded-xl border [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:shrink-0"
+            : "flex-wrap rounded-t-xl"
+        }`}
       >
         <select
           aria-label="Text style"
@@ -237,7 +311,56 @@ export default function RichTextEditor({
             )}
           </div>
         ))}
+        {tables && (
+          <div className="flex items-center gap-0.5 border-l border-slate-200 pl-1 ml-0.5">
+            <button
+              type="button"
+              aria-label="Insert table"
+              title="Insert table"
+              disabled={!editor || !!state?.inTable}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() =>
+                editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
+              }
+              className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-200 disabled:opacity-40 disabled:hover:bg-transparent"
+            >
+              <i className="fa-solid fa-table" aria-hidden="true" />
+              <span>Table</span>
+            </button>
+          </div>
+        )}
       </div>
+      {state?.inTable && (
+        <div
+          role="toolbar"
+          aria-label="Table tools"
+          className="flex flex-wrap items-center gap-1.5 border-b border-teal-100 bg-teal-50 px-2 py-1.5 text-xs"
+        >
+          <span className="mr-1 font-semibold text-teal-800">Table</span>
+          {TABLE_TOOLS.map((t) => {
+            const atLimit =
+              (t.key === "row" && state.table.rows >= RICH_TABLE_MAX_ROWS) ||
+              (t.key === "column" && state.table.columns >= RICH_TABLE_MAX_COLUMNS);
+            return (
+              <button
+                key={t.key}
+                type="button"
+                disabled={!state.tableCan[t.key] || atLimit}
+                title={atLimit ? "This table is as big as it can be" : undefined}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => editor && t.run(editor)}
+                className={`h-8 rounded-md border bg-white px-2.5 font-semibold transition disabled:opacity-40 ${
+                  t.danger
+                    ? "border-red-200 text-red-700 hover:bg-red-50"
+                    : "border-teal-200 text-teal-800 hover:bg-teal-100"
+                }`}
+              >
+                {t.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
       {linkOpen && (
         <div className="border-b border-slate-200 bg-white px-3 py-2 text-xs">
           <label htmlFor={linkInputId} className="block font-semibold text-slate-700 mb-1">
@@ -305,6 +428,8 @@ export default function RichTextEditor({
         </div>
       )}
       <div
+        className={contentWrapperClassName}
+        style={contentWrapperStyle}
         onKeyDown={(e) => {
           if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
             e.preventDefault();
@@ -318,9 +443,12 @@ export default function RichTextEditor({
           <div className="min-h-[10rem] px-3 py-2.5 text-sm text-slate-400">Loading editor…</div>
         )}
       </div>
-      <p className="border-t border-slate-100 px-3 py-1.5 text-[11px] text-slate-500">
-        Enter starts a new paragraph. Shift+Enter adds a line break.
-      </p>
+      {!chromeless && (
+        <p className="border-t border-slate-100 px-3 py-1.5 text-[11px] text-slate-500">
+          Enter starts a new paragraph. Shift+Enter adds a line break.
+          {tables ? " In a table, Tab moves to the next cell." : ""}
+        </p>
+      )}
     </div>
   );
 }

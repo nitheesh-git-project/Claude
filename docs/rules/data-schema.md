@@ -816,3 +816,14 @@ holds exactly a thousand rows. Any read that **sums money, counts for a
 decision, or reconciles two totals** goes through `readAllRows` and acts on
 its `truncated` flag — a partial total is not a smaller total, it is an
 unknown one, and the caller must say so rather than publish it.
+- **`notebook_pages` is the one table with no admin read, on purpose.**
+  "Every admin policy calls `is_admin()`" describes how an admin policy is
+  written, not a requirement that every table has one: the notebook's single
+  policy is `notebook_pages_select_own`, because its screen tells the person
+  only they can read it. Do not add an admin policy, an export or a
+  reporting view over it. `announcements` and `announcement_receipts` (same
+  block, end of `schema.sql`) are ordinary: admin read, plus a
+  live-for-your-role read on announcements; all three are written only by
+  the service role from routes, so insert/update/delete are revoked from
+  the browser roles, and none is append-only. The data reset truncates the
+  receipts and the pages and leaves the announcements, like the FAQs.

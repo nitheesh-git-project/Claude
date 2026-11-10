@@ -145,7 +145,8 @@
       "therapist-roster.spec.ts": 25,
       "therapist-specialty.spec.ts": 17,
       "unscheduled-purchases.spec.ts": 18,
-      "waitlist-serve-area.spec.ts": 20
+      "waitlist-serve-area.spec.ts": 20,
+      "announcements-notebook.spec.ts": 190
     }
   }
 }

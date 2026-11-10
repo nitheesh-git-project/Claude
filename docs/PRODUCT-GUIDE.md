@@ -878,6 +878,43 @@ payment, package or cash behind them.
 Nothing there is repaired automatically - each finding is either a data
 problem or someone working outside the normal flow, and both want a person.
 
+### Announcements and the notebook
+
+Two things sit on every patient, therapist and hospital dashboard, whatever
+screen the person is on.
+
+**Announcements.** An admin posts one on **Settings → Announcements**: a
+title, which dashboards see it (tick Patients, Therapists, Hospitals), an
+optional wide banner picture (6 : 1, cropped to shape in the form) and an
+optional pop-up picture (4 : 3), formatted text for the pop-up -- the same
+editor as a therapist's bio, plus **tables** -- an optional button with a
+destination per dashboard (a real screen of that dashboard, or an https
+link), and how long it stays: 24 hours, 3 days, 7 days, a number of hours or
+days, or until a date and time; it can start now or be scheduled. Two
+switches decide behaviour: *People can close this banner*, and *Open the
+pop-up once by itself*. A live preview shows the banner, the one-line strip
+and the real pop-up before anything is published.
+
+On the dashboard's home it is a banner above the page, aligned with the
+content; on every other screen it is one line, so it never pushes a booking
+down the page. Several live at once share one slot and slide (swipe, dots,
+arrows, a pause button); an admin orders them with the arrows in the list.
+Tapping one blurs the page and opens the pop-up. It leaves by itself when
+its time ends, or at once with **End now**; an ended one can be reused with
+**Use again**. Rules: `src/lib/announcements.ts`; tables `announcements`,
+`announcement_receipts`; routes `/api/admin/announcements` (+ `/end`,
+`/delete`, `/reorder`, `/upload-image`) and `/api/announcements/receipt`.
+
+**The notebook.** A small notebook floats at the bottom right of each
+dashboard. Tapping it opens it like a real diary -- the cover turns, or
+lifts on its rings on a phone -- onto dated pages the person writes on with
+the same formatting, tables included. It saves by itself, pages turn with
+the arrows, **All pages** lists them with their first words, and a page can
+be deleted. It is private: only its owner reads it, there is no admin
+screen for it, and an admin signed in as the person is not shown it. It is
+not part of the clinical record (the patient diary is a different thing).
+Rules: `src/lib/notebook.ts`; table `notebook_pages`; route `/api/notebook`.
+
 ### System Health
 
 **Settings → System Health** is the app reporting on itself: nothing there is

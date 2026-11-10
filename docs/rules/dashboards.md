@@ -743,3 +743,77 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   format and version words, and a decoder in the test; text that does not fit
   returns null and the QR is simply absent. The waiting screen adds *Keep your
   video call open.* `e2e/assessment-cockpit.spec.ts` AC-001 / AC-005b.
+- **Announcements are read once by the layout and drawn by the shell: a
+  banner on the dashboard's home, one line everywhere else.** An admin posts
+  one on Settings -> Announcements (`announcements`, `announcement_receipts`;
+  every judgement is in `src/lib/announcements.ts`). Each role's
+  `dashboard/layout.tsx` mounts `DashboardExtrasGate`, which works out who is
+  looking, reads what is live for that role with the service role (the same
+  rule is also an RLS policy), and hands it down a context;
+  `DashboardShell` renders `AnnouncementBar` above the page -- `full` (the
+  6:1 banner) on the base path, `slim` (one line) on every other screen,
+  because a hero-height banner on each step of a booking pushes the task
+  down the page. What follows from that shape:
+  - **Live is worked out from the clock, never stored.** `announcementStatus`
+    reads `published_at` / `starts_at` / `ends_at` against now; nothing has
+    to run for one to end, and the bar re-checks once a minute so an open tab
+    drops it too. "End now" moves `ends_at` to this moment.
+  - **A failed read shows no banner**, logged on the server. "We couldn't
+    read the announcements" is not something to put in front of a patient,
+    and a missing banner costs nobody anything. A failed *receipt* read also
+    shows nothing: without it a closed banner would come back.
+  - **Closing and "seen once" are per person** (`/api/announcements/receipt`).
+    The route re-derives the person and the role, refuses a receipt for a
+    notice that is not live for that role, and refuses "close" for one the
+    admin marked as not closable -- in which case an older "closed" receipt
+    is ignored too. An admin signed in as the person changes nothing: their
+    visit must not close the person's banner or use up their one pop-up.
+    The tab also remembers a close in `sessionStorage`, because the receipt
+    lands a moment after the tap and the very next page could otherwise
+    render the banner once more -- that is a bridge, never the record.
+  - **A button leads to a screen that role can open, or to an https link.**
+    The admin picks from `ANNOUNCEMENT_DESTINATIONS` per dashboard (the
+    dashboards' own nav, minus the conditional entries); a free-typed in-app
+    path is refused on purpose, since a patient path on a therapist's banner
+    is a redirect to `/get-started`.
+  - **The slot is a native scroll-snap row**, so a swipe is the browser's own
+    gesture. It slides by itself only until somebody touches it, pauses on
+    hover and focus, never starts under "reduce motion", and has a Pause
+    button. The pop-up an admin asked to open once does not open over
+    another dialog (the first-visit tutorial, the session-timeout warning).
+  - **Pictures are optional and uploaded through a route**
+    (`/api/admin/announcements/upload-image`, into the public
+    `catalog-images` bucket under `announcements/`). The form crops to 6:1
+    (banner) or 4:3 (pop-up) in the browser before upload; with no banner
+    picture the banner is the title on a brand strip.
+  Guard: `e2e/announcements-notebook.spec.ts` ANN-001..006,
+  `src/lib/announcements.test.ts`.
+- **The notebook is private to its owner, and that is enforced in three
+  places.** Every patient, therapist and hospital dashboard carries a
+  floating notebook (`NotebookLauncher` in `DashboardShell`, `NotebookDialog`
+  loaded on first tap; `notebook_pages`, `src/lib/notebook.ts`). It is the
+  person's own scratch space and deliberately **not** a clinical record --
+  the patient diary (`patient_diary_entries`) is the opposite on every
+  count, so the two share nothing but a word. The promise on its cover is
+  "Only you can read this", kept by:
+  1. **One RLS policy and no admin policy.** `notebook_pages_select_own` is
+     the only policy on the table; every other table in the schema has an
+     `is_admin()` read and this one must not.
+  2. **`/api/notebook` filters every query by the session's own user id** --
+     an id in the body only ever names a page within that person's pages --
+     and nothing else in the app reads the table: no admin screen, no
+     export, no therapist view.
+  3. **An admin signed in as the person is refused** (403) and the button is
+     not rendered for them: a session swap is otherwise indistinguishable
+     from the owner.
+  It is a notebook, not evidence: pages are edited and deleted freely, with
+  no append-only guard, and deleting the account takes them with it. It
+  saves itself a moment after the last keystroke (`NOTEBOOK_AUTOSAVE_MS`),
+  before a page turn and before closing, retries a failed save by itself,
+  and never re-reads a page from the server while it is open -- so nothing
+  overwrites what is being typed. The opening cover is scenery, removed once
+  it has turned, so nothing typed ever sits on a 3D-transformed face; under
+  "reduce motion" there is no cover at all. Its colours are literal
+  (`bg-[#fbf7ec]`), because a notebook is teal with cream pages whatever the
+  theme. Guard: `e2e/announcements-notebook.spec.ts` NB-001 / NB-002,
+  `src/lib/notebook.test.ts`.

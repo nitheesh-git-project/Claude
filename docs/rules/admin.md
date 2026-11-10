@@ -1101,3 +1101,15 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   "people")`. Both routes refuse an unknown section and hiding a locked one
   (400), and an unreadable setting is "we couldn't check" on the screen,
   never a row of switches. Rules: `clinical.md`.
+- **Announcements is a Settings screen, so only a Master Admin posts one.**
+  Settings -> Announcements (`AnnouncementSettings`, self-fetching like the
+  Health Profile layout; `AdminAnnouncementsManager`) lists what is live,
+  scheduled, in draft and ended, and builds one with a live preview that
+  opens the real pop-up component. Every route under
+  `/api/admin/announcements` is `requireAdminScope("settings")`. Writes are
+  logged as `setting.update` with the title as the target and what happened
+  (`created`, `edited`, `ended`, `deleted`, `reordered`) in the details. A
+  live announcement cannot be deleted -- End now first -- so there is always
+  a row that says what was shown and when; an ended one is reused with
+  **Use again**, which copies it into a new draft with its own picture
+  folder. The dashboards' half of the rule is in `docs/rules/dashboards.md`.

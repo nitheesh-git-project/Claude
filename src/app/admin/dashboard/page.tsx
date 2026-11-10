@@ -160,6 +160,7 @@ import AdminMetricsTab from "@/components/admin/AdminMetricsTab";
 import QuestionBankManager from "@/components/admin/QuestionBankManager";
 import LicensedMeasureSettings from "@/components/admin/LicensedMeasureSettings";
 import ProfileWidgetSettings from "@/components/admin/ProfileWidgetSettings";
+import AnnouncementSettings from "@/components/admin/AnnouncementSettings";
 import SixMinuteWalkEquationSettings from "@/components/admin/SixMinuteWalkEquationSettings";
 import { parseAreaPain } from "@/lib/conditionIntake";
 import {
@@ -5789,6 +5790,9 @@ export default async function AdminDashboardPage({
     // Self-fetching; Settings is Master Admin only and its route is
     // requireAdminScope("settings").
     "settings:profile-layout": <ProfileWidgetSettings />,
+    // Self-fetching, for the same reason; its routes are
+    // requireAdminScope("settings") too.
+    "settings:announcements": <AnnouncementSettings />,
     "settings:access": settingsAccessTab,
     "settings:health": settingsHealthTab,
     "settings:advanced": settingsAdvancedTab,

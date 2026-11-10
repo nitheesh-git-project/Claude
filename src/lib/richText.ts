@@ -28,6 +28,14 @@
  * links and alignment. No colours, fonts or sizes -- the public page keeps
  * its own typography.
  *
+ * **Tables are opt-in.** An announcement and a notebook page may hold one
+ * (timings, a week of readings); a therapist's public bio may not, and the
+ * allow-list is how that is kept: every entry point takes `{ tables: true }`
+ * from the caller that wants them, and without it a table node is dropped
+ * like any other unknown one. A table is plain: no merged cells, no column
+ * widths, no table inside a table, and a ceiling on rows and columns so a
+ * pasted spreadsheet cannot become the page.
+ *
  * Dependency-free and unit-tested, like every other judgement in `src/lib`.
  */
 
@@ -49,7 +57,17 @@ export type RichBlock =
   | { type: "heading"; level: 2 | 3; align?: RichAlign; content: RichInline[] }
   | { type: "bulletList"; content: RichListItem[] }
   | { type: "orderedList"; start?: number; content: RichListItem[] }
-  | { type: "blockquote"; content: RichBlock[] };
+  | { type: "blockquote"; content: RichBlock[] }
+  | { type: "table"; rows: RichTableRow[] };
+
+export type RichTableCell = { header: boolean; content: RichBlock[] };
+export type RichTableRow = { cells: RichTableCell[] };
+
+/** What a caller may switch on. Everything is off unless asked for. */
+export type RichTextOptions = { tables?: boolean };
+
+export const RICH_TABLE_MAX_ROWS = 30;
+export const RICH_TABLE_MAX_COLUMNS = 8;
 
 export type RichListItem = { type: "listItem"; content: RichBlock[] };
 
@@ -128,12 +146,44 @@ function sanitizeInline(raw: unknown): RichInline[] {
   return out;
 }
 
-function sanitizeListItems(raw: unknown, depth: number): RichListItem[] {
+function sanitizeTable(raw: unknown, depth: number): RichTableRow[] {
+  const rows: RichTableRow[] = [];
+  for (const r of asArray(raw)) {
+    if (rows.length >= RICH_TABLE_MAX_ROWS) break;
+    const row = asRecord(r);
+    if (row?.type !== "tableRow") continue;
+    const cells: RichTableCell[] = [];
+    for (const c of asArray(row.content)) {
+      if (cells.length >= RICH_TABLE_MAX_COLUMNS) break;
+      const cell = asRecord(c);
+      if (cell?.type !== "tableCell" && cell?.type !== "tableHeader") continue;
+      // A cell holds ordinary blocks, never another table.
+      const content = sanitizeBlocks(cell.content, depth + 1, {});
+      cells.push({
+        header: cell.type === "tableHeader",
+        content: content.length ? content : [{ type: "paragraph", content: [] }],
+      });
+    }
+    if (cells.length) rows.push({ cells });
+  }
+  // Every row as wide as the widest, so the grid is a grid: a merged cell
+  // the editor produced (its span is dropped) would otherwise leave a row
+  // one cell short and the columns under it out of line.
+  const width = rows.reduce((w, row) => Math.max(w, row.cells.length), 0);
+  for (const row of rows) {
+    while (row.cells.length < width) {
+      row.cells.push({ header: false, content: [{ type: "paragraph", content: [] }] });
+    }
+  }
+  return rows;
+}
+
+function sanitizeListItems(raw: unknown, depth: number, options: RichTextOptions): RichListItem[] {
   const items: RichListItem[] = [];
   for (const n of asArray(raw)) {
     const node = asRecord(n);
     if (node?.type !== "listItem") continue;
-    const content = sanitizeBlocks(node.content, depth + 1);
+    const content = sanitizeBlocks(node.content, depth + 1, options);
     items.push({
       type: "listItem",
       content: content.length ? content : [{ type: "paragraph", content: [] }],
@@ -142,7 +192,7 @@ function sanitizeListItems(raw: unknown, depth: number): RichListItem[] {
   return items;
 }
 
-function sanitizeBlocks(raw: unknown, depth: number): RichBlock[] {
+function sanitizeBlocks(raw: unknown, depth: number, options: RichTextOptions): RichBlock[] {
   if (depth > MAX_DEPTH) return [];
   const out: RichBlock[] = [];
   for (const n of asArray(raw)) {
@@ -164,12 +214,12 @@ function sanitizeBlocks(raw: unknown, depth: number): RichBlock[] {
         break;
       }
       case "bulletList": {
-        const items = sanitizeListItems(node.content, depth);
+        const items = sanitizeListItems(node.content, depth, options);
         if (items.length) out.push({ type: "bulletList", content: items });
         break;
       }
       case "orderedList": {
-        const items = sanitizeListItems(node.content, depth);
+        const items = sanitizeListItems(node.content, depth, options);
         const start = typeof attrs?.start === "number" && Number.isInteger(attrs.start) && attrs.start > 1 && attrs.start < 10_000
           ? attrs.start
           : undefined;
@@ -177,8 +227,14 @@ function sanitizeBlocks(raw: unknown, depth: number): RichBlock[] {
         break;
       }
       case "blockquote": {
-        const content = sanitizeBlocks(node.content, depth + 1);
+        const content = sanitizeBlocks(node.content, depth + 1, options);
         if (content.length) out.push({ type: "blockquote", content });
+        break;
+      }
+      case "table": {
+        if (!options.tables) break;
+        const rows = sanitizeTable(node.content, depth);
+        if (rows.length) out.push({ type: "table", rows });
         break;
       }
       default:
@@ -233,13 +289,13 @@ function looksLikeStoredDoc(value: string): boolean {
 
 /** Whatever is in the column -- a stored document, old plain text, or
  *  nothing -- as a sanitised document. Never throws. */
-export function parseRichText(stored: string | null | undefined): RichDoc {
+export function parseRichText(stored: string | null | undefined, options: RichTextOptions = {}): RichDoc {
   if (!stored) return { type: "doc", content: [] };
   if (looksLikeStoredDoc(stored)) {
     try {
       const parsed = asRecord(JSON.parse(stored));
       if (parsed?.type === "doc") {
-        return { type: "doc", content: trimEmptyEdges(sanitizeBlocks(parsed.content, 0)) };
+        return { type: "doc", content: trimEmptyEdges(sanitizeBlocks(parsed.content, 0, options)) };
       }
     } catch {
       // Not JSON after all: somebody's bio that happens to start with "{".
@@ -249,10 +305,10 @@ export function parseRichText(stored: string | null | undefined): RichDoc {
 }
 
 /** Sanitises an editor document (from a request body) for storage. */
-export function sanitizeRichDoc(raw: unknown): RichDoc {
+export function sanitizeRichDoc(raw: unknown, options: RichTextOptions = {}): RichDoc {
   const doc = asRecord(raw);
   if (doc?.type !== "doc") return { type: "doc", content: [] };
-  return { type: "doc", content: trimEmptyEdges(sanitizeBlocks(doc.content, 0)) };
+  return { type: "doc", content: trimEmptyEdges(sanitizeBlocks(doc.content, 0, options)) };
 }
 
 function inlineText(content: RichInline[]): string {
@@ -269,6 +325,10 @@ function blockText(block: RichBlock): string {
       return block.content.map((item) => item.content.map(blockText).join("\n")).join("\n");
     case "blockquote":
       return block.content.map(blockText).join("\n");
+    case "table":
+      return block.rows
+        .map((row) => row.cells.map((cell) => cell.content.map(blockText).join(" ")).join("\t"))
+        .join("\n");
   }
 }
 
@@ -333,6 +393,17 @@ function blockToEditor(block: RichBlock): EditorNode {
       };
     case "blockquote":
       return { type: "blockquote", content: block.content.map(blockToEditor) };
+    case "table":
+      return {
+        type: "table",
+        content: block.rows.map((row) => ({
+          type: "tableRow",
+          content: row.cells.map((cell) => ({
+            type: cell.header ? "tableHeader" : "tableCell",
+            content: cell.content.map(blockToEditor),
+          })),
+        })),
+      };
   }
 }
 
@@ -358,16 +429,17 @@ export function serializeRichText(doc: RichDoc): string | null {
 /** A request body's `content` (the editor's JSON) as the value to store, or
  *  the reason it cannot be. Null means "cleared". */
 export function parseRichTextInput(
-  raw: unknown
+  raw: unknown,
+  options: RichTextOptions & { maxLength?: number; tooLong?: string } = {}
 ): { ok: true; value: string | null } | { ok: false; error: string } {
   if (raw === null || raw === undefined || raw === "") return { ok: true, value: null };
   const record = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null;
   if (record?.type !== "doc") {
     return { ok: false, error: "The text could not be read. Please try again." };
   }
-  const value = serializeRichText(sanitizeRichDoc(record));
-  if (value && value.length > RICH_TEXT_MAX_STORED_LENGTH) {
-    return { ok: false, error: "That is too long to show on a profile. Please shorten it." };
+  const value = serializeRichText(sanitizeRichDoc(record, options));
+  if (value && value.length > (options.maxLength ?? RICH_TEXT_MAX_STORED_LENGTH)) {
+    return { ok: false, error: options.tooLong ?? "That is too long to show on a profile. Please shorten it." };
   }
   return { ok: true, value };
 }

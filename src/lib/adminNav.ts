@@ -433,6 +433,17 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
         blurb: "Which sections a patient sees on their own Health Profile, for each condition type.",
         example: "Hide the measures table from every orthopaedic patient's page, while their physiotherapist still sees it.",
       },
+      // What the clinic says to everybody at once: a banner on top of the
+      // patient, therapist and hospital dashboards, with a pop-up behind it.
+      // Under "How the clinic runs" rather than "Your website" because none
+      // of it is public -- it is shown only to people who are signed in.
+      {
+        key: "announcements",
+        label: "Announcements",
+        group: "How the clinic runs",
+        blurb: "Banners on top of the patient, therapist and hospital dashboards, and the pop-up each one opens.",
+        example: "Wish everybody a happy Diwali for three days, or tell every therapist the payout day has moved.",
+      },
       {
         key: "access",
         label: "User Access",

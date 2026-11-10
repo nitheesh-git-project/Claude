@@ -235,6 +235,7 @@ total, which moves with every spec added.
 | `impersonation-exit` | 1 | "Exit and go back to admin" restores the admin's own session and lands on the dashboard, not the login page |
 | `country-pricing` | 3 | Countries & currency: the screen and its search, a US visitor reading dollars rounded up to .99 while the quote charges the rupee equal, no home visit offered abroad, and no country switched on without a rate |
 | `waitlist-serve-area` | 1 | marking an out-of-area request served, both answers |
+| `announcements-notebook` | 8 | announcements: only an admin publishes and an unworkable one is refused (no audience, an `http:` link, another role's screen, no end); a published one is a banner and pop-up (the admin's table and button) on its roles' dashboards and one line on other screens, and absent from a role not ticked; closing sticks for that person only, straight away and from a fresh browser; a must-see notice has no close button and its pop-up opens once; End now removes it; the Settings screen lists it and its form builds a table. The notebook: opens from its floating button, saves by itself, keeps its pages across a reload, and a page is read by its owner and nobody else - another patient, an admin and a therapist get 404/403 from the route and zero rows through RLS |
 
 ## Adding one
 
