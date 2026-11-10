@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import dynamic from "next/dynamic";
-import { useDashboardExtras } from "./DashboardExtrasProvider";
+import { WithDashboardExtras } from "./DashboardExtrasProvider";
 
 // The editor is the heaviest thing on a dashboard and most visits never
 // open the notebook, so it is fetched on the first tap rather than shipped
@@ -24,9 +24,17 @@ const NotebookDialog = dynamic(() => import("./NotebookDialog"), { ssr: false })
  * that could only refuse them.
  */
 export default function NotebookLauncher() {
-  const extras = useDashboardExtras();
+  return (
+    <WithDashboardExtras
+      render={(extras) =>
+        extras.notebook.enabled ? <Launcher ownerFirstName={extras.notebook.ownerFirstName} /> : null
+      }
+    />
+  );
+}
+
+function Launcher({ ownerFirstName }: { ownerFirstName: string | null }) {
   const [open, setOpen] = useState(false);
-  if (!extras?.notebook.enabled) return null;
 
   return (
     <>
@@ -68,7 +76,7 @@ export default function NotebookLauncher() {
         <span aria-hidden="true" className="absolute -bottom-[10%] left-[40%] h-[16%] w-[12%] bg-[#d97706]"></span>
       </button>
       {open && (
-        <NotebookDialog ownerFirstName={extras.notebook.ownerFirstName} onClose={() => setOpen(false)} />
+        <NotebookDialog ownerFirstName={ownerFirstName} onClose={() => setOpen(false)} />
       )}
     </>
   );

@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -33,7 +34,11 @@ export type DashboardViewer =
       fullName: string | null;
     };
 
-export async function readDashboardViewer(): Promise<DashboardViewer> {
+/** Once per request: the layout's announcements read and a route asking
+ *  the same question share one round trip. */
+export const readDashboardViewer = cache(readDashboardViewerUncached);
+
+async function readDashboardViewerUncached(): Promise<DashboardViewer> {
   const supabase = await createClient();
   const {
     data: { user },

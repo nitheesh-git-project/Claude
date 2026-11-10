@@ -4,13 +4,11 @@ import WordRollLoader from "@/components/system/WordRollLoader";
  * What a route with a loading boundary shows while its server work is in
  * flight: the word-roll loader, centred.
  *
- * The dashboards deliberately have no loading boundary any more. Each one
- * draws its sidebar inside its own page, so a `loading.tsx` replaced the
- * sidebar along with the content on every tab tap -- the dark rail people
- * saw flash until the page arrived. They are covered by NavigationLoader
- * instead, which waits *over* the old page with the chrome left in place.
- * What is left here is the routes with no chrome to keep: the /dashboard
- * role hop, and anything else that adds a boundary later.
+ * The dashboards do not use this: their `loading.tsx` is DashboardLoading,
+ * the same loader inside the dashboard's own frame, because each one draws
+ * its sidebar inside its page and a bare loader replaced the sidebar on
+ * every tab tap. What is left here is the routes with no chrome to keep:
+ * the /dashboard role hop, and anything else that adds a boundary later.
  */
 export default function RouteLoading({
   label = "Loading…",

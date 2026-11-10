@@ -1,3 +1,4 @@
+import { startEarly } from "@/lib/startEarly";
 import "server-only";
 import { formatClinicTime } from "@/lib/formatDateTime";
 import { loadProgrammeTags } from "@/lib/programmeTagsServer";
@@ -69,6 +70,51 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
     // mid-request. Throwing keeps the return type non-nullable.
     throw new Error("No signed-in therapist");
   }
+
+  // Reads that need nothing but who is signed in, started now and awaited
+  // where the code below uses them -- see startEarly.ts. Each keeps its own
+  // error handling at its await.
+  const admin = createAdminClient();
+  const summariesEarly = needNotes
+    ? startEarly(
+      readAllRowsAsData(() =>
+          supabase
+            .from("session_summaries")
+            .select(SESSION_SUMMARY_SELECT)
+            .eq("therapist_id", user.id)
+            .order("created_at", { ascending: false })
+            .order("id", { ascending: true })
+        ))
+    : null;
+  const maskContactsEarly = startEarly(readContactMaskingEnabled(admin));
+  const frozenRatesEarly = startEarly(readFrozenTherapistRates(supabase, user.id));
+  const answeredPlansEarly =
+    screen === "overview"
+      ? startEarly(
+          admin
+            .from("care_plans")
+            .select("id, patient_id, status, accepted_at, declined_at, current_version_id")
+            .eq("therapist_id", user.id)
+            .in("status", ["accepted", "declined"])
+            .order("updated_at", { ascending: false })
+            .limit(10)
+        )
+      : null;
+  const openPlanRowsEarly = startEarly(admin.from("care_plans").select("patient_id, status").eq("therapist_id", user.id));
+  const carePlanRequiresApprovalEarly = startEarly(readCarePlanRequiresApproval(admin));
+  const decidedPlansEarly =
+    screen === "overview"
+      ? startEarly(
+          admin
+            .from("care_plans")
+            .select("id, patient_id, status, reviewed_at, current_version_id")
+            .eq("therapist_id", user.id)
+            .not("reviewed_at", "is", null)
+            .order("reviewed_at", { ascending: false })
+            .limit(10)
+        )
+      : null;
+  const recommendableRatesEarly = startEarly(loadRecommendableRates(admin));
 
   // All of these are independent of each other -- run in parallel instead
   // of one at a time, since router.refresh() re-runs this whole page on
@@ -292,14 +338,7 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
   let summariesLoadFailed = false;
   if (needNotes) {
     try {
-      const { data: summaryRows, error: summaryError } = await readAllRowsAsData(() =>
-        supabase
-          .from("session_summaries")
-          .select(SESSION_SUMMARY_SELECT)
-          .eq("therapist_id", user.id)
-          .order("created_at", { ascending: false })
-          .order("id", { ascending: true })
-      );
+      const { data: summaryRows, error: summaryError } = await (summariesEarly as NonNullable<typeof summariesEarly>);
       if (summaryError) throw summaryError;
       for (const r of (summaryRows ?? []) as SessionSummaryRow[]) summaryByAppointmentId.set(r.appointment_id, r);
     } catch (error) {
@@ -367,10 +406,30 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
         .filter((id): id is string => !!id)
     ),
   ];
-  const admin = createAdminClient();
   // The patient's active Home exercises as a line for a NEW session note's
   // free-text field (the dialog prefills only an empty field).
-  const homeExercisePrefillByPatientId = needNotes ? await loadHomeExerciseNotePrefills(admin, patientIds) : new Map<string, string>();
+  // Everything that needs the patient list, started together.
+  const homeExercisePrefillEarly = needNotes ? startEarly(loadHomeExerciseNotePrefills(admin, patientIds)) : null;
+  const programmeTagsEarly = startEarly(
+    loadProgrammeTags(admin, {
+      packages: (appointments ?? []).map((a) => a.package_purchase_id).filter((id): id is string => !!id),
+      homeVisits: homeVisitPurchaseIds,
+    })
+  );
+  const needOnboarding = screen === "overview" || screen === "sessions";
+  const conditionProfilesEarly =
+    needOnboarding && patientIds.length > 0
+      ? startEarly(
+          readAllRowsByIds(patientIds, (chunk) =>
+            supabase
+              .from("patient_condition_profiles")
+              .select("patient_id, data")
+              .in("patient_id", chunk)
+              .order("patient_id")
+          ).then((r) => ({ data: r.error ? null : r.rows }))
+        )
+      : null;
+  const homeExercisePrefillByPatientId = homeExercisePrefillEarly ? await homeExercisePrefillEarly : new Map<string, string>();
   const [
     { data: upcomingOverrides, error: upcomingOverridesError },
     { data: patients },
@@ -418,10 +477,7 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
   // Which programme each session was drawn from, as its ID with progress
   // (PED_PKG001-2/6) -- the reference the clinic and the patient both use.
   // Tolerant: a failure costs the chip, never the card.
-  const programmeTagByPurchase = await loadProgrammeTags(admin, {
-    packages: (appointments ?? []).map((a) => a.package_purchase_id).filter((id): id is string => !!id),
-    homeVisits: homeVisitPurchaseIds,
-  });
+  const programmeTagByPurchase = await programmeTagsEarly;
   const programmeTagByAppointment = new Map<string, ProgrammeTag>();
   for (const a of appointments ?? []) {
     const tag = a.package_purchase_id ? programmeTagByPurchase.get(a.package_purchase_id) : undefined;
@@ -432,7 +488,7 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
     if (tag) programmeTagByAppointment.set(v.id, tag);
   }
 
-  const maskContacts = await readContactMaskingEnabled(admin);
+  const maskContacts = await maskContactsEarly;
   const patientMap = new Map(
     (patients ?? []).map((p) => [
       p.id,
@@ -454,17 +510,9 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
   // than off the specialty column: `specialty` defaults to ortho, and an
   // autosaved draft creates the row before anyone has decided anything.
   // Isolated for the usual migration-tolerance reason.
-  const needOnboarding = screen === "overview" || screen === "sessions";
-  const { data: conditionProfileRows } =
-    needOnboarding && patientIds.length > 0
-      ? await readAllRowsByIds(patientIds, (chunk) =>
-          supabase
-            .from("patient_condition_profiles")
-            .select("patient_id, data")
-            .in("patient_id", chunk)
-            .order("patient_id")
-        ).then((r) => ({ data: r.error ? null : r.rows }))
-      : { data: [] as { patient_id: string; data: Record<string, string> | null }[] };
+  const { data: conditionProfileRows } = conditionProfilesEarly
+    ? await conditionProfilesEarly
+    : { data: [] as { patient_id: string; data: Record<string, string> | null }[] };
   // Who still needs onboarding, for the Home banner, the feed item and the
   // session card's flag. Empty when the read failed: "we couldn't check" is
   // not "every patient needs onboarding", which is what an empty
@@ -509,7 +557,7 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
   // The rate each delivered session was frozen at -- what it pays, on this
   // screen exactly as on the Pay button. Best-effort here: a failed read
   // falls back to the live rate per row rather than blanking the dashboard.
-  const frozenRates = await readFrozenTherapistRates(supabase, user.id);
+  const frozenRates = await frozenRatesEarly;
   const earningInputs = (appointments ?? []).map((a) => ({
     ...a,
     therapist_share_percent_at_completion: frozenRates.byId.get(a.id) ?? null,
@@ -589,16 +637,9 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
   // Recommendations this therapist wrote that the patient has now answered.
   // Overview only, and in its own call: it is one feed item, and every
   // other screen would pay for a query it never renders.
-  const { data: answeredPlans } =
-    screen === "overview"
-      ? await admin
-          .from("care_plans")
-          .select("id, patient_id, status, accepted_at, declined_at, current_version_id")
-          .eq("therapist_id", user.id)
-          .in("status", ["accepted", "declined"])
-          .order("updated_at", { ascending: false })
-          .limit(10)
-      : {
+  const { data: answeredPlans } = answeredPlansEarly
+    ? await answeredPlansEarly
+    : {
           data: [] as {
             id: string;
             patient_id: string;
@@ -616,10 +657,7 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
   // was carried only by an aggregate figure, which reads as a score rather
   // than as a list of people waiting to hear. One item per patient, most
   // recently seen first, capped like the note nudge beside it.
-  const { data: openPlanRows } = await admin
-    .from("care_plans")
-    .select("patient_id, status")
-    .eq("therapist_id", user.id);
+  const { data: openPlanRows } = await openPlanRowsEarly;
 
   // A patient with a live, queued or already-purchased recommendation is not
   // waiting to hear; a declined, withdrawn or rejected one means the thread
@@ -652,7 +690,7 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
   // Its own call, for the reason above: the copy in the recommendation panel
   // has to match what actually happens on submit, and a database missing the
   // column must lose neither.
-  const carePlanRequiresApproval = await readCarePlanRequiresApproval(admin);
+  const carePlanRequiresApproval = await carePlanRequiresApprovalEarly;
 
   const patientsAwaitingClinic = new Set(
     (openPlanRows ?? [])
@@ -689,16 +727,9 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
   // call, Overview only, and failure-tolerant: the review tables are new, so
   // a database one apply behind must lose the notice rather than the
   // dashboard it appears on.
-  const { data: decidedPlans } =
-    screen === "overview"
-      ? await admin
-          .from("care_plans")
-          .select("id, patient_id, status, reviewed_at, current_version_id")
-          .eq("therapist_id", user.id)
-          .not("reviewed_at", "is", null)
-          .order("reviewed_at", { ascending: false })
-          .limit(10)
-      : {
+  const { data: decidedPlans } = decidedPlansEarly
+    ? await decidedPlansEarly
+    : {
           data: [] as {
             id: string;
             patient_id: string;
@@ -709,7 +740,9 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
         };
 
   const decidedPlanIds = (decidedPlans ?? []).map((p) => p.id);
-  const reviewsByPlan = await loadCarePlanReviews(admin, decidedPlanIds);
+  // The reviews and the plans' versions need only the two lists above, so
+  // they are read together.
+  const reviewsByPlanEarly = startEarly(loadCarePlanReviews(admin, decidedPlanIds));
 
   const answeredVersionIds = (answeredPlans ?? [])
     .map((p) => p.current_version_id)
@@ -724,6 +757,7 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
         .select("id, offer_snapshot")
         .in("id", planVersionIds)
     : { data: [] as { id: string; offer_snapshot: unknown }[] };
+  const reviewsByPlan = await reviewsByPlanEarly;
   const answeredTitleByVersion = new Map(
     (answeredVersions ?? []).map((v) => [
       v.id,
@@ -881,7 +915,7 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
   // dashboard rather than per session card. Its own call and failure
   // tolerant: `recommendable` is a new column, and losing it must cost the
   // recommend control rather than the dashboard.
-  const recommendableRates = await loadRecommendableRates(admin);
+  const recommendableRates = await recommendableRatesEarly;
 
   const availabilityLoadFailed =
     needAvailability && (!!scheduleStateError || !!availabilitySlotsError || !!upcomingOverridesError);

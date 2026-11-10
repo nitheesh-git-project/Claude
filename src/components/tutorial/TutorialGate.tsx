@@ -15,6 +15,9 @@ import TutorialProvider from "./TutorialProvider";
  *   "you haven't": a tour that sprang open over somebody's working
  *   dashboard every time the database blinked would be worse than missing
  *   one first visit, and the (i) buttons still reach it.
+ * The read is handed to the provider as a promise rather than awaited here,
+ * so no dashboard waits for it.
+ *
  * - **An admin viewing as this person.** The admin can still open it from
  *   any (i), but their visit neither opens it nor uses up the person's own.
  */
@@ -23,26 +26,33 @@ export default async function TutorialGate({ role, children }: { role: TutorialR
   const marker = parseMarker(jar.get(IMPERSONATION_COOKIE)?.value);
   const impersonating = !!marker && !isExpired(marker, nowTimestamp());
 
-  let autoStart = false;
-  if (!impersonating) {
-    const supabase = await createClient();
-    const { data: userData } = await supabase.auth.getUser();
-    const user = userData?.user ?? null;
-    if (user) {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("role, onboarding_seen_at")
-        .eq("id", user.id)
-        .maybeSingle();
-      autoStart = !error && data?.role === role && !data.onboarding_seen_at;
-    }
-  }
+  // Not awaited: the dashboard renders now, and the provider opens the tour
+  // once this answers. Holding the page for a flag that matters only on a
+  // first visit was a round trip on every dashboard load.
+  const autoStart = impersonating ? Promise.resolve(false) : readAutoStart(role);
 
   return (
     <TutorialProvider role={role} autoStart={autoStart} canMarkSeen={!impersonating}>
       {children}
     </TutorialProvider>
   );
+}
+
+async function readAutoStart(role: TutorialRole): Promise<boolean> {
+  try {
+    const supabase = await createClient();
+    const { data: userData } = await supabase.auth.getUser();
+    const user = userData?.user ?? null;
+    if (!user) return false;
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("role, onboarding_seen_at")
+      .eq("id", user.id)
+      .maybeSingle();
+    return !error && data?.role === role && !data.onboarding_seen_at;
+  } catch {
+    return false;
+  }
 }
 
 function nowTimestamp() {

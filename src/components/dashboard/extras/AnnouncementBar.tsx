@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useToast } from "@/lib/toast";
 import { stillLive, type DashboardAnnouncement } from "@/lib/announcements";
-import { useDashboardExtras } from "./DashboardExtrasProvider";
+import { WithDashboardExtras } from "./DashboardExtrasProvider";
 import AnnouncementDialog from "./AnnouncementDialog";
 
 /**
@@ -97,8 +97,16 @@ function TextBanner({ title }: { title: string }) {
 }
 
 export default function AnnouncementBar({ variant }: { variant: "full" | "slim" }) {
-  const extras = useDashboardExtras();
-  const source = extras?.announcements ?? EMPTY;
+  return (
+    <WithDashboardExtras
+      render={(extras) =>
+        extras.announcements.length > 0 ? <Bar variant={variant} source={extras.announcements} /> : null
+      }
+    />
+  );
+}
+
+function Bar({ variant, source = EMPTY }: { variant: "full" | "slim"; source?: DashboardAnnouncement[] }) {
   const { show } = useToast();
 
   // Closed by this person on this page; the receipt makes it stick.

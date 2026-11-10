@@ -42,7 +42,9 @@ export default function TutorialProvider({
   children,
 }: {
   role: TutorialRole;
-  autoStart: boolean;
+  /** A promise from the layout, so the dashboard is not held while the
+   *  person's first-visit flag is read; a plain boolean also works. */
+  autoStart: boolean | Promise<boolean>;
   canMarkSeen: boolean;
   children: ReactNode;
 }) {
@@ -50,16 +52,26 @@ export default function TutorialProvider({
   const started = useRef(false);
 
   useEffect(() => {
-    if (!autoStart || started.current) return;
-    // Never over the guided assessment's live screens.
-    if (!tutorialMayAutoStart(window.location.pathname)) return;
-    started.current = true;
-    // A beat after the page paints, so the tour arrives over the dashboard
-    // rather than in place of it.
-    const id = window.setTimeout(() => {
-      setTour({ chapters: tutorialFor(role), firstRun: true, single: false });
-    }, 450);
-    return () => window.clearTimeout(id);
+    let cancelled = false;
+    let id: number | null = null;
+    // A read that failed is "don't open it", the same as the gate decides.
+    void Promise.resolve(autoStart)
+      .catch(() => false)
+      .then((open) => {
+        if (cancelled || !open || started.current) return;
+        // Never over the guided assessment's live screens.
+        if (!tutorialMayAutoStart(window.location.pathname)) return;
+        started.current = true;
+        // A beat after the page paints, so the tour arrives over the
+        // dashboard rather than in place of it.
+        id = window.setTimeout(() => {
+          setTour({ chapters: tutorialFor(role), firstRun: true, single: false });
+        }, 450);
+      });
+    return () => {
+      cancelled = true;
+      if (id !== null) window.clearTimeout(id);
+    };
   }, [autoStart, role]);
 
   const openTour = useCallback(

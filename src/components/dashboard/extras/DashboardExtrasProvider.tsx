@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, Suspense, use, useContext, type ReactNode } from "react";
 import type { AnnouncementAudience, DashboardAnnouncement } from "@/lib/announcements";
 
 /**
@@ -9,8 +9,11 @@ import type { AnnouncementAudience, DashboardAnnouncement } from "@/lib/announce
  *
  * A context rather than props because `DashboardShell` is rendered by each
  * page for itself -- twenty-odd call sites -- and the banner and the
- * notebook are not any one page's business. The layout reads once
- * (DashboardExtrasGate), the shell draws.
+ * notebook are not any one page's business. The layout starts the read
+ * (DashboardExtrasGate) and hands over the **promise**, so no dashboard
+ * waits for it: the two pieces that need the answer read it inside their
+ * own Suspense boundary (`WithDashboardExtras`) and stream in beside the
+ * page.
  */
 export type DashboardExtras = {
   role: AnnouncementAudience;
@@ -24,20 +27,40 @@ export type DashboardExtras = {
   };
 };
 
-const DashboardExtrasContext = createContext<DashboardExtras | null>(null);
+const DashboardExtrasContext = createContext<Promise<DashboardExtras | null> | null>(null);
 
 export default function DashboardExtrasProvider({
   value,
   children,
 }: {
-  value: DashboardExtras;
+  value: Promise<DashboardExtras | null>;
   children: ReactNode;
 }) {
   return <DashboardExtrasContext.Provider value={value}>{children}</DashboardExtrasContext.Provider>;
 }
 
-/** Null outside a dashboard layout (a shell rendered in a test, or a page
- *  that has no gate): the banner and the notebook then simply are not there. */
-export function useDashboardExtras(): DashboardExtras | null {
-  return useContext(DashboardExtrasContext);
+function Resolved({
+  pending,
+  render,
+}: {
+  pending: Promise<DashboardExtras | null>;
+  render: (extras: DashboardExtras) => ReactNode;
+}) {
+  const extras = use(pending);
+  return extras ? <>{render(extras)}</> : null;
+}
+
+/**
+ * Renders `render(extras)` once the layout's read answers, and nothing
+ * until then (or outside a dashboard layout, or when the read failed).
+ * Its own Suspense boundary, so waiting for it never holds the page.
+ */
+export function WithDashboardExtras({ render }: { render: (extras: DashboardExtras) => ReactNode }) {
+  const pending = useContext(DashboardExtrasContext);
+  if (!pending) return null;
+  return (
+    <Suspense fallback={null}>
+      <Resolved pending={pending} render={render} />
+    </Suspense>
+  );
 }

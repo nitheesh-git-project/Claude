@@ -274,11 +274,20 @@ Dates in the clinic's zone, voice, no browser default ever speaking to a person,
     for real `<Link>` navigations, which the public Navbar uses. Next's
     `useLinkStatus` only works *inside* a Link, so the reporter is a child
     component rendering nothing rather than a hook the wrapper could call.
-  **And the wait is the word-roll loader, over the old page - never a
-  `loading.tsx` in a dashboard.** Each dashboard draws its sidebar inside its
-  own page, so a loading boundary replaced the sidebar with the content: every
-  tab tap showed a placeholder rail (it was dark, the old design) until the
-  page arrived. So the dashboards have none. Both reporters above call
+  **And the wait is the word-roll loader: over the old page while the next
+  one is requested, then in the dashboard's own frame while it is built.**
+  Each dashboard has a `loading.tsx` rendering `DashboardLoading`
+  (`src/components/dashboard/`): the phone top bar and tab bar, the laptop
+  rail and the desktop sidebar as blank outlines in the shell's exact sizes
+  and places, with `WordRollLoader` in the content area. It is streamed
+  before any of the page's reads finish, so a slow dashboard shows its frame
+  within the first round trips instead of a frozen screen. A plain loader
+  is still wrong there -- each shell draws its sidebar inside its page, and
+  a bare `RouteLoading` replaced the sidebar on every tab tap (it was a dark
+  rail in the old design) -- which is why the frame is drawn, light, in the
+  same places the real chrome lands. Its entries are blank on purpose: they
+  differ by role and by what the person has. Guard: `e2e/chrome-and-loader.spec.ts`
+  CHROME-002 / CHROME-005. Both reporters above call
   `begin("navigation")`, and `NavigationLoader` (root layout) draws
   `WordRollLoader` - Move, Stretch, Strengthen, Recover, Restore scrolling
   past one a beat, the current word dark with three teal dots hopping in
@@ -286,8 +295,8 @@ Dates in the clinic's zone, voice, no browser default ever speaking to a person,
   after 300 ms, at `z-20`, **under** every nav, sidebar, rail and tab bar
   (`z-30`+), with the old page faintly behind it. A refresh after a button
   press is `begin()` and gets the teal bar only: the page is staying put.
-  `RouteLoading` is the same loader, for the one boundary left with no
-  chrome to keep (the `/dashboard` role hop). **The admin `@modal`
+  `RouteLoading` is the same loader without the frame, for the boundary
+  with no chrome to keep (the `/dashboard` role hop). **The admin `@modal`
   slot keeps its own `loading.tsx`**, and it is the case both loading signals miss: tapping a
   patient name is a `<Link>` into a parallel-route slot, which is not a
   `useRouter` transition (so no bar) and is not covered by an ancestor

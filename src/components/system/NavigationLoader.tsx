@@ -16,7 +16,8 @@ const APPEAR_AFTER_MS = 300;
  * public nav, every dashboard's sidebar, rail, top bar and phone tab bar are
  * z-30 and up -- so the navigation you just used stays exactly where it was,
  * and only the content area waits. That is the whole reason the dashboards
- * have no `loading.tsx` any more: a loading boundary replaces the page, and
+ * draw their frame in `loading.tsx` (DashboardLoading) rather than a bare
+ * loader: a loading boundary replaces the page, and
  * each dashboard's sidebar lives inside its page, so every tab tap blanked
  * the sidebar until the new one arrived.
  *

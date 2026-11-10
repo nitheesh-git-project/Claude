@@ -1,3 +1,4 @@
+import { startEarly } from "@/lib/startEarly";
 import type { Metadata } from "next";
 import { buildRecommendationPulse, PAID_UNBOOKED_AFTER_MS, type RecommendationPulseRow } from "@/lib/recommendationPulse";
 import AdminRecommendationPulse from "@/components/admin/AdminRecommendationPulse";
@@ -346,9 +347,13 @@ export default async function AdminDashboardPage({
   // Deliberately not awaited here: `await` is the thing that makes a
   // promise serial. `authoringDataPromise` further down is the same
   // pattern, already in use in this file.
-  const conditionSpecialtyPromise = admin
-    .from("patient_condition_profiles")
-    .select("patient_id, specialty");
+  //
+  // A Supabase query is lazy: it is sent when something awaits it, not when
+  // it is built. These two were built here and awaited at their use, so
+  // until they went through startEarly() neither actually left before then.
+  const conditionSpecialtyPromise = startEarly(
+    admin.from("patient_condition_profiles").select("patient_id, specialty")
+  );
 
   // The rows behind Today -> Health Profile reviews, started with the rest of
   // the early reads and awaited where the screen is built. Every desk can open
@@ -359,12 +364,54 @@ export default async function AdminDashboardPage({
   // The claims count that follows this one at its use site genuinely does
   // depend on the result -- it is narrowed to the ids returned here -- so
   // that query stays where it is and is simply reached sooner.
-  const promoCodesPromise = admin
-    .from("promo_codes")
-    .select(
-      "id, code, kind, value, active, starts_at, ends_at, max_redemptions, max_per_patient, min_spend_paise, first_session_only, description"
-    )
-    .order("created_at", { ascending: false });
+  const promoCodesPromise = startEarly(
+    admin
+      .from("promo_codes")
+      .select(
+        "id, code, kind, value, active, starts_at, ends_at, max_redemptions, max_per_patient, min_spend_paise, first_session_only, description"
+      )
+      .order("created_at", { ascending: false })
+  );
+
+  // How many bookings and purchases claimed each promo code, and which codes
+  // are valid on programmes: all need only the codes' ids, so they are read
+  // the moment the code list arrives rather than where the screen is built.
+  const promoClaimsEarly = startEarly(
+    promoCodesPromise.then(({ data }) => {
+      const codeIds = ((data ?? []) as { id: string }[]).map((row) => row.id);
+      if (codeIds.length === 0) return null;
+      return Promise.all([
+        readAllRows<{ promo_code_id: string | null }>(() =>
+          admin.from("appointments").select("promo_code_id").in("promo_code_id", codeIds)
+        ),
+        Promise.all(
+          (["patient_package_purchases", "home_visit_package_purchases"] as const).map((table) =>
+            readAllRows<{ promo_code_id: string | null }>(() =>
+              admin.from(table).select("promo_code_id").in("promo_code_id", codeIds)
+            )
+          )
+        ),
+        admin.from("promo_codes").select("id, valid_on_programmes").in("id", codeIds),
+      ]);
+    })
+  );
+
+  // Which service booking opens on (the "Default on booking" switch), for
+  // Catalog. Its own tolerant read: without the column the switch is simply
+  // not drawn. Started here with the other early reads; awaited where the
+  // Catalog screen is built.
+  const defaultServiceRead = (async () => {
+    try {
+      const { data, error } = await admin
+        .from("treatment_categories")
+        .select("id")
+        .eq("is_default", true)
+        .limit(1);
+      return error ? undefined : ((data?.[0]?.id as string | undefined) ?? null);
+    } catch {
+      return undefined;
+    }
+  })();
 
   // The locked accounts the booking wizards made (People -> Abandoned
   // checkouts). Read beside the batch below because the approvals queue is
@@ -952,6 +999,104 @@ export default async function AdminDashboardPage({
       return null;
     }
   })();
+
+  // Three groups the page reads much further down -- Today -> Risk, the
+  // recommendations queue, and the everyone-activity feed -- each needing
+  // nothing but the viewer's scope. Started here so they overlap everything
+  // in between instead of waiting for it (startEarly.ts); each is awaited,
+  // and its errors handled, exactly where it was before.
+  const viewerRiskRules = riskRulesForSections(workableSections);
+  const viewerCanSeeRisk = viewerScope === "full" || viewerRiskRules.length > 0;
+  // Four reads that need nothing from each other, so they go together. They
+  // were four awaits in a row, which on this host is four round trips of
+  // latency (~320ms each) inside a page render that already has its data --
+  // the "isolated is not the same as sequential" rule, in the block where it
+  // cost the most. Each one keeps its own guard and its own empty fallback,
+  // so the isolation is unchanged and only the waiting is gone.
+  // Open signals are read in full and only the closed history is capped:
+  // one newest-200 read across every status hid an older open signal behind
+  // two hundred decided ones -- the queue said less was waiting than was.
+  // The two evidence trails keep their newest-200 window, and the screen
+  // says when it is showing a window rather than everything (see
+  // RiskSignalsTab). Every read's error is kept: a failed read is said,
+  // never drawn as an empty list.
+  const RISK_SIGNAL_COLUMNS =
+    "id, rule_key, subject_kind, subject_id, severity, summary, evidence, status, detected_at";
+  const RISK_TRAIL_WINDOW = 200;
+  const riskFirstWaveEarly = startEarly(
+    Promise.all([
+      viewerCanSeeRisk
+        ? readAllRowsAsData<RiskSignalQueryRow>(() =>
+            admin
+              .from("risk_signals")
+              .select(RISK_SIGNAL_COLUMNS)
+              .in("status", ["open", "reviewing"])
+              .order("detected_at", { ascending: false })
+              .order("id", { ascending: true })
+          )
+        : Promise.resolve({ data: [] as RiskSignalQueryRow[], error: null }),
+      viewerCanSeeRisk
+        ? admin
+            .from("risk_signals")
+            .select(RISK_SIGNAL_COLUMNS)
+            .in("status", ["dismissed", "actioned"])
+            .order("detected_at", { ascending: false })
+            .limit(RISK_TRAIL_WINDOW)
+        : Promise.resolve({ data: [] as RiskSignalQueryRow[], error: null }),
+      viewerCanSeeRisk
+        ? admin
+            .from("risk_rules")
+            .select("rule_key, label, description, enabled, config")
+            .order("rule_key")
+        : Promise.resolve({ data: [] as RiskRuleQueryRow[] }),
+      // The evidence itself, read only for a scope that can see the queue, on
+      // its own so a database without the tables renders an empty panel rather
+      // than blanking the dashboard.
+      viewerCanSeeRisk
+        ? admin
+            .from("communication_flags")
+            .select(
+              "id, surface, author_id, patient_id, tier, findings, blocked, content, created_at"
+            )
+            .order("created_at", { ascending: false })
+            .limit(RISK_TRAIL_WINDOW)
+        : Promise.resolve({ data: [] as CommunicationFlagQueryRow[], error: null }),
+      viewerCanSeeRisk
+        ? admin
+            .from("contact_reveal_log")
+            .select("id, therapist_id, patient_id, field, reason, created_at")
+            .order("created_at", { ascending: false })
+            .limit(RISK_TRAIL_WINDOW)
+        : Promise.resolve({ data: [] as ContactRevealQueryRow[], error: null }),
+      viewerCanSeeRisk
+        ? readLastRiskSweep(admin)
+        : Promise.resolve({ report: null, readFailed: false }),
+    ])
+  );
+  const CARE_PLAN_COLUMNS =
+    "id, patient_id, therapist_id, status, category_id, current_version_id, created_at";
+  const carePlansFirstEarly = canSeeProgrammes
+    ? startEarly(
+        Promise.all([
+        readAllRowsAsData<AdminCarePlanQueryRow>(() =>
+          admin
+            .from("care_plans")
+            .select(CARE_PLAN_COLUMNS)
+            .eq("status", "pending_review")
+            .order("created_at", { ascending: false })
+            .order("id", { ascending: true })
+        ),
+        admin
+          .from("care_plans")
+          .select(CARE_PLAN_COLUMNS)
+          .neq("status", "pending_review")
+          .order("created_at", { ascending: false })
+          .limit(200),
+        ])
+      )
+    : null;
+  const userActivityEarly =
+    viewerScope === "full" ? startEarly(fetchUserActivityRows(admin, { limit: 200 })) : null;
 
   // The second batch: everything the migration-tolerance rule keeps OUT of
   // the big Promise.all above.
@@ -1586,6 +1731,7 @@ export default async function AdminDashboardPage({
     // recorded on the booking -- one place, which cannot disagree with the
     // money. Delete is only offered where this is zero.
     const claims = new Map<string, number>();
+    let validOnProgrammesRead: { data: unknown[] | null; error: unknown } | null = null;
     if (rows.length > 0) {
       // Paged through readAllRows, and narrowed to the codes actually on
       // screen.
@@ -1604,14 +1750,14 @@ export default async function AdminDashboardPage({
       // belonging to a code being displayed, rather than every promo-coded
       // appointment the clinic has ever taken.
       const codeIds = rows.map((row) => row.id);
-      const { rows: claimed, truncated } = await readAllRows<{
-        promo_code_id: string | null;
-      }>(() =>
-        admin
-          .from("appointments")
-          .select("promo_code_id")
-          .in("promo_code_id", codeIds)
-      );
+      // The claims on bookings, the two purchase walks and the "valid on
+      // programmes" switches all need only these ids, so they are read
+      // together rather than one after another.
+      // Read early (promoClaimsEarly), against the same list of codes.
+      const claimsRead = await promoClaimsEarly;
+      if (!claimsRead) throw new Error("promo claims were not read");
+      const [{ rows: claimed, truncated }, walks, switchesRead] = claimsRead;
+      validOnProgrammesRead = switchesRead;
       for (const row of claimed) {
         if (!row.promo_code_id) continue;
         claims.set(row.promo_code_id, (claims.get(row.promo_code_id) ?? 0) + 1);
@@ -1621,10 +1767,7 @@ export default async function AdminDashboardPage({
       // walk: a database one apply behind has no promo_code_id on them
       // (42703), which is a real zero rather than an unread count.
       let purchaseWalkFailed = false;
-      for (const table of ["patient_package_purchases", "home_visit_package_purchases"] as const) {
-        const walked = await readAllRows<{ promo_code_id: string | null }>(() =>
-          admin.from(table).select("promo_code_id").in("promo_code_id", codeIds)
-        );
+      for (const walked of walks) {
         if (walked.error) {
           if ((walked.error as { code?: string }).code !== "42703") purchaseWalkFailed = true;
           continue;
@@ -1650,14 +1793,8 @@ export default async function AdminDashboardPage({
     // on promo_codes, so a database one apply behind loses this one switch
     // (read as off, which is its default) rather than the whole list.
     const validOnProgrammes = new Set<string>();
-    if (rows.length > 0) {
-      const { data: switches, error: switchError } = await admin
-        .from("promo_codes")
-        .select("id, valid_on_programmes")
-        .in(
-          "id",
-          rows.map((row) => row.id)
-        );
+    if (rows.length > 0 && validOnProgrammesRead) {
+      const { data: switches, error: switchError } = validOnProgrammesRead;
       if (!switchError) {
         for (const row of (switches ?? []) as { id: string; valid_on_programmes: boolean | null }[]) {
           if (row.valid_on_programmes === true) validOnProgrammes.add(row.id);
@@ -3747,21 +3884,8 @@ export default async function AdminDashboardPage({
 
   // Conditions is the one catalogue: each condition is sold as one video
   // session at its own price, and as one home visit at its home-visit price.
-  // Which service booking opens on (the "Default on booking" switch). Its
-  // own tolerant read like the codes above: without the column the switch is
-  // simply not drawn.
-  const defaultServiceRead = (async () => {
-    try {
-      const { data, error } = await admin
-        .from("treatment_categories")
-        .select("id")
-        .eq("is_default", true)
-        .limit(1);
-      return error ? undefined : ((data?.[0]?.id as string | undefined) ?? null);
-    } catch {
-      return undefined;
-    }
-  })();
+  // Which service booking opens on: defaultServiceRead, started with the
+  // early reads at the top.
   // A course of either is a therapist's recommendation, priced from these
   // same figures -- which is why the old Packages screen went.
   // Null when the column is not there yet: the form then hides the field.
@@ -4169,6 +4293,10 @@ export default async function AdminDashboardPage({
     { scope: viewerScope, workableSections },
     allActivityRows
   );
+  // Its enrichment (sessions, programmes, names) is three short reads of
+  // its own; started now rather than after the screens below are built.
+  const enrichedAdminEarly =
+    viewerScope === "full" ? startEarly(enrichAdminRows(admin, activityRows)) : null;
 
   // Read on its own rather than inside the ~40-query batch above, per the
   // migration-dependent rule: a database that has not applied the risk
@@ -4279,24 +4407,6 @@ export default async function AdminDashboardPage({
   // as it did when these reads sat inline.
   authoringDataPromise.catch(() => {});
 
-  const viewerRiskRules = riskRulesForSections(workableSections);
-  const viewerCanSeeRisk = viewerScope === "full" || viewerRiskRules.length > 0;
-  // Four reads that need nothing from each other, so they go together. They
-  // were four awaits in a row, which on this host is four round trips of
-  // latency (~320ms each) inside a page render that already has its data --
-  // the "isolated is not the same as sequential" rule, in the block where it
-  // cost the most. Each one keeps its own guard and its own empty fallback,
-  // so the isolation is unchanged and only the waiting is gone.
-  // Open signals are read in full and only the closed history is capped:
-  // one newest-200 read across every status hid an older open signal behind
-  // two hundred decided ones -- the queue said less was waiting than was.
-  // The two evidence trails keep their newest-200 window, and the screen
-  // says when it is showing a window rather than everything (see
-  // RiskSignalsTab). Every read's error is kept: a failed read is said,
-  // never drawn as an empty list.
-  const RISK_SIGNAL_COLUMNS =
-    "id, rule_key, subject_kind, subject_id, severity, summary, evidence, status, detected_at";
-  const RISK_TRAIL_WINDOW = 200;
   const [
     { data: openRiskSignalRows, error: openRiskSignalsError },
     { data: closedRiskSignalRows, error: closedRiskSignalsError },
@@ -4304,54 +4414,7 @@ export default async function AdminDashboardPage({
     { data: flagRows, error: flagRowsError },
     { data: revealRows, error: revealRowsError },
     lastRiskSweep,
-  ] = await Promise.all([
-    viewerCanSeeRisk
-      ? readAllRowsAsData<RiskSignalQueryRow>(() =>
-          admin
-            .from("risk_signals")
-            .select(RISK_SIGNAL_COLUMNS)
-            .in("status", ["open", "reviewing"])
-            .order("detected_at", { ascending: false })
-            .order("id", { ascending: true })
-        )
-      : Promise.resolve({ data: [] as RiskSignalQueryRow[], error: null }),
-    viewerCanSeeRisk
-      ? admin
-          .from("risk_signals")
-          .select(RISK_SIGNAL_COLUMNS)
-          .in("status", ["dismissed", "actioned"])
-          .order("detected_at", { ascending: false })
-          .limit(RISK_TRAIL_WINDOW)
-      : Promise.resolve({ data: [] as RiskSignalQueryRow[], error: null }),
-    viewerCanSeeRisk
-      ? admin
-          .from("risk_rules")
-          .select("rule_key, label, description, enabled, config")
-          .order("rule_key")
-      : Promise.resolve({ data: [] as RiskRuleQueryRow[] }),
-    // The evidence itself, read only for a scope that can see the queue, on
-    // its own so a database without the tables renders an empty panel rather
-    // than blanking the dashboard.
-    viewerCanSeeRisk
-      ? admin
-          .from("communication_flags")
-          .select(
-            "id, surface, author_id, patient_id, tier, findings, blocked, content, created_at"
-          )
-          .order("created_at", { ascending: false })
-          .limit(RISK_TRAIL_WINDOW)
-      : Promise.resolve({ data: [] as CommunicationFlagQueryRow[], error: null }),
-    viewerCanSeeRisk
-      ? admin
-          .from("contact_reveal_log")
-          .select("id, therapist_id, patient_id, field, reason, created_at")
-          .order("created_at", { ascending: false })
-          .limit(RISK_TRAIL_WINDOW)
-      : Promise.resolve({ data: [] as ContactRevealQueryRow[], error: null }),
-    viewerCanSeeRisk
-      ? readLastRiskSweep(admin)
-      : Promise.resolve({ report: null, readFailed: false }),
-  ]);
+  ] = await riskFirstWaveEarly;
   const riskSignalRows: RiskSignalQueryRow[] = [
     ...((openRiskSignalRows ?? []) as RiskSignalQueryRow[]),
     ...((closedRiskSignalRows ?? []) as RiskSignalQueryRow[]),
@@ -4546,25 +4609,8 @@ export default async function AdminDashboardPage({
   // decided one simply vanished from the review queue -- nobody could
   // approve what nobody could see. Everything waiting is read in full
   // (paged); the decided history keeps its window of the newest 200.
-  const CARE_PLAN_COLUMNS =
-    "id, patient_id, therapist_id, status, category_id, current_version_id, created_at";
-  const [pendingCarePlans, recentCarePlans] = canSeeCarePlans
-    ? await Promise.all([
-        readAllRowsAsData<AdminCarePlanQueryRow>(() =>
-          admin
-            .from("care_plans")
-            .select(CARE_PLAN_COLUMNS)
-            .eq("status", "pending_review")
-            .order("created_at", { ascending: false })
-            .order("id", { ascending: true })
-        ),
-        admin
-          .from("care_plans")
-          .select(CARE_PLAN_COLUMNS)
-          .neq("status", "pending_review")
-          .order("created_at", { ascending: false })
-          .limit(200),
-      ])
+  const [pendingCarePlans, recentCarePlans] = carePlansFirstEarly
+    ? await carePlansFirstEarly
     : [
         { data: [] as AdminCarePlanQueryRow[], error: null },
         { data: [] as AdminCarePlanQueryRow[], error: null },
@@ -4946,8 +4992,8 @@ export default async function AdminDashboardPage({
   let everyoneUnavailable = false;
   if (viewerScope === "full") {
     const [userFeed, enrichedAdminRows] = await Promise.all([
-      fetchUserActivityRows(admin, { limit: 200 }),
-      enrichAdminRows(admin, activityRows),
+      userActivityEarly ?? fetchUserActivityRows(admin, { limit: 200 }),
+      enrichedAdminEarly ?? enrichAdminRows(admin, activityRows),
     ]);
     everyoneUnavailable = !userFeed.ok;
     everyoneRows = mergeActivityRows(

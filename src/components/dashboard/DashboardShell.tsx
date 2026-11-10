@@ -14,7 +14,6 @@ import { LOGIN_HREF_BY_BASE_PATH, TABS_BY_BASE_PATH } from "@/lib/dashboardNavIt
 import { isMoreActive, isNavItemActive, splitTabs } from "@/lib/dashboardTabs";
 import AnnouncementBar from "@/components/dashboard/extras/AnnouncementBar";
 import NotebookLauncher from "@/components/dashboard/extras/NotebookLauncher";
-import { useDashboardExtras } from "@/components/dashboard/extras/DashboardExtrasProvider";
 
 // `href` marks a real page navigation (e.g. "Edit Profile") rather than a
 // same-page anchor -- it always renders as a plain link to that page. An
@@ -100,7 +99,6 @@ export default function DashboardShell({
   children: ReactNode;
 }) {
   const pathname = usePathname();
-  const notebookShown = !!useDashboardExtras()?.notebook.enabled;
   // Every nav entry below is a hard anchor on purpose (see renderHomeLink),
   // so React never learns the navigation happened. This marks the page as
   // leaving on click, so the teal bar is up for the whole wait.
@@ -574,15 +572,9 @@ export default function DashboardShell({
         </div>
       )}
 
-      {/* With the notebook floating in the corner, the page ends a little
-          lower, so its last row can always be scrolled clear of the button. */}
-      <div
-        className={`lg:pl-[88px] 2xl:pl-64 ${
-          notebookShown
-            ? "pb-[calc(10.5rem+env(safe-area-inset-bottom))] lg:pb-28"
-            : "pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-0"
-        }`}
-      >
+      {/* The notebook floats in the corner, so the page ends a little lower
+          and its last row can always be scrolled clear of the button. */}
+      <div className="pb-[calc(10.5rem+env(safe-area-inset-bottom))] lg:pb-28 lg:pl-[88px] 2xl:pl-64">
         <div className="px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
           {/* Whatever the clinic is announcing to this role, above the page
               itself: the banner on the dashboard's home, one line everywhere

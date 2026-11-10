@@ -213,7 +213,7 @@ src/app/api/**           grouped by audience: admin/, appointments/, patient/,
 src/components/          UI by area: admin/ auth/ booking/ catalog/ dashboard/
                          home/ hospital/ marketing/ profile/ motion/ system/
                          visuals/
-src/lib/                 domain logic, formatting, Supabase clients (650 files)
+src/lib/                 domain logic, formatting, Supabase clients (652 files)
 src/lib/supabase/        client / server / admin / public, the bounded fetch,
                          the proxy session refresh, and the auth guards
 src/proxy.ts             auth proxy over the four dashboard route trees
@@ -237,7 +237,7 @@ the ones that matter for that area.
 npm run dev                  # Next dev server
 npm run verify               # lint + unit tests + build -- run before pushing
 npm run lint                 # 5 schema/asset checks, then eslint
-npm run test                 # Vitest, 3,331 tests over dependency-free src/lib
+npm run test                 # Vitest, 3,333 tests over dependency-free src/lib
 npm run build
 npm run start:cluster        # production on several Node workers
 

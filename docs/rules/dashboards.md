@@ -817,3 +817,33 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   (`bg-[#fbf7ec]`), because a notebook is teal with cream pages whatever the
   theme. Guard: `e2e/announcements-notebook.spec.ts` NB-001 / NB-002,
   `src/lib/notebook.test.ts`.
+- **A dashboard's reads start as soon as their inputs are known, and nothing
+  in a dashboard layout waits for data.** Every round trip to the database
+  is a few hundred milliseconds from a server that is not beside it, and the
+  loaders were written top to bottom, so each read waited for the one above
+  it whether it needed it or not: fifteen of them in a row was most of a
+  five-second therapist dashboard, and the admin's eleven seconds. The rules
+  that came out of fixing it:
+  1. **Start a read where its inputs exist, await it where it is used.**
+     `startEarly()` (`src/lib/startEarly.ts`) does both halves; each read
+     keeps its own error handling at its await. A Supabase query is
+     **lazy** -- built is not sent -- so a query "started early" by being
+     assigned to a variable and awaited later is not started at all; the
+     admin page had two of those, commented as early reads. Wrap it.
+  2. **Reads that need the same inputs go in one `Promise.all`**, never a
+     loop of awaits (the admin's storage check listed each patient's folder
+     one after another; it now lists eight at a time).
+  3. **A layout hands down promises, not answers.** `TutorialGate` and
+     `DashboardExtrasGate` start their reads and pass the promise to the
+     client (the tour opens when it answers; the banner and the notebook
+     button resolve inside their own Suspense boundary), so the page and the
+     loading frame are never held for them. The root layout reads the
+     home-visit supply alongside the settings rather than after them.
+  4. **The frame first.** Each dashboard's `loading.tsx` is the dashboard
+     frame with the loader (`frontend.md`), streamed before the page's data.
+  Measured on the production build against staging from a distant server:
+  patient 5.5s to 2.5s, therapist 5.5s to 2.2s, hospital 2.1s to 1.5s,
+  admin 11s to 6.3s, and the loading frame within about a second on all of
+  them. The admin page is still the slowest because it builds every screen
+  of the back office on each load, so tab switches need no request.
+

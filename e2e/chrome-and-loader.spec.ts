@@ -125,3 +125,43 @@ test("CHROME-004: /conditions lists the programmes before the areas of practice"
     expect(p!.y).toBeLessThan(a!.y);
   }
 });
+
+test("CHROME-005: every dashboard sends its loading frame before its data, and the page replaces it", async ({
+  request,
+  browser,
+}) => {
+  test.setTimeout(180_000);
+  // The frame (DashboardLoading) is the dashboard's loading.tsx: streamed in
+  // the first part of the response, before any of the page's reads finish,
+  // so a slow load shows the dashboard's outline and the word roll instead
+  // of a frozen screen. Read from the raw response: the frame comes first,
+  // the real page after it.
+  const cases = [
+    { email: QA_EMAILS.patientA, path: "/patient/dashboard" },
+    { email: QA_EMAILS.therapistA, path: "/therapist/dashboard" },
+    { email: QA_EMAILS.hospital, path: "/hospital/dashboard" },
+    { email: QA_EMAILS.admin, path: "/admin/dashboard" },
+  ];
+  for (const { email, path } of cases) {
+    const cookie = (await browserCookiesFor(email)).map((c) => `${c.name}=${c.value}`).join("; ");
+    const res = await request.get(`${BASE}${path}`, { headers: { cookie }, maxRedirects: 0 });
+    expect(res.status(), path).toBe(200);
+    const html = await res.text();
+    const frame = html.indexOf('data-testid="dashboard-loading"');
+    expect(frame, `${path} streams its loading frame`).toBeGreaterThan(-1);
+    // The word roll is in it, saying what is loading.
+    expect(html.slice(frame), path).toMatch(/Loading (your|the) dashboard/);
+  }
+
+  // In a browser the frame is gone once the page has arrived, and the real
+  // navigation is there.
+  await markDashboardTourSeen(QA_EMAILS.patientA);
+  const context = await browser.newContext();
+  await context.addCookies(await browserCookiesFor(QA_EMAILS.patientA));
+  const page = await context.newPage();
+  await page.goto(`${BASE}/patient/dashboard`);
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId("dashboard-loading")).toHaveCount(0);
+  await expect(page.getByRole("navigation", { name: /navigation$/ }).first()).toBeVisible();
+  await context.close();
+});
