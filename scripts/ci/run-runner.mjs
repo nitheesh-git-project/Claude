@@ -268,6 +268,22 @@ async function stopDevServer(server) {
   scrubDevLog();
 }
 
+// On a red runner, keep what the local stack's own services said. A spec that
+// waits on Realtime (the admin Refresh badge) can only report "nothing
+// arrived"; whether the change stream never started, stopped, or refused the
+// subscription is in the Realtime and Postgres logs and nowhere else. Last
+// 4000 lines each, through the same scrub as every other uploaded log.
+function keepStackLogs() {
+  const names = spawnSync("docker", ["ps", "--format", "{{.Names}}"], { encoding: "utf8" });
+  if (names.status !== 0) return;
+  for (const service of ["realtime", "db"]) {
+    const container = names.stdout.split("\n").find((n) => n.startsWith(`supabase_${service}_`));
+    if (!container) continue;
+    const out = spawnSync("docker", ["logs", "--timestamps", "--tail", "4000", container], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+    writeLog(`stack-${service}.log`, `${out.stdout ?? ""}${out.stderr ?? ""}`);
+  }
+}
+
 function finish(summary) {
   const clean = sanitizeDeep(summary);
   writeFileSync(path.join(artifacts, "summary.json"), `${JSON.stringify(clean, null, 2)}\n`);
@@ -525,4 +541,6 @@ try {
 if (restarts > 0) console.log(`dev server restarted ${restarts} time(s) between spec files`);
 
 const denials = existsSync(egressLog) ? readFileSync(egressLog, "utf8").split("\n").filter(Boolean) : [];
-finish(summarize({ runner, manifest, preflight, plan, playwright, scripts, egressDenials: denials, identity: id }));
+const summary = summarize({ runner, manifest, preflight, plan, playwright, scripts, egressDenials: denials, identity: id });
+if (!summary.passed) keepStackLogs();
+finish(summary);

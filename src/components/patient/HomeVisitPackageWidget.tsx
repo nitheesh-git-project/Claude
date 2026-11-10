@@ -90,10 +90,10 @@ export default function HomeVisitPackageWidget({
                 className="h-40"
                 testId="programme-cover"
               />
-              <div className="space-y-2 p-4 text-xs">
+              <div className="space-y-2 p-4 text-sm">
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-sm font-bold text-slate-900">{p.title}</p>
-                  <span className="shrink-0 capitalize text-[11px] font-semibold text-slate-500">{p.status}</span>
+                  <span className="shrink-0 capitalize text-[13px] font-semibold text-slate-500">{p.status}</span>
                 </div>
                 {p.programmeTag ? (
                   <p className="flex flex-wrap items-center gap-1.5 text-slate-500">
@@ -134,14 +134,14 @@ export default function HomeVisitPackageWidget({
                   {counts.pending > 0 && p.status === "active" && (
                     <button
                       onClick={() => setSchedulingId(p.id)}
-                      className="rounded-lg bg-teal-700 px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-teal-800"
+                      className="rounded-lg bg-teal-700 px-3 py-1.5 text-[13px] font-semibold text-white transition hover:bg-teal-800"
                     >
                       Schedule visits
                     </button>
                   )}
                   <button
                     onClick={() => setDetailId(p.id)}
-                    className="text-[11px] font-semibold text-teal-700 hover:underline"
+                    className="text-[13px] font-semibold text-teal-700 hover:underline"
                   >
                     Manage
                   </button>

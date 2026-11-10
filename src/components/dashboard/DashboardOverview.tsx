@@ -37,6 +37,7 @@ export default function DashboardOverview({
   feedEmptyBody,
   actions,
   aside,
+  queues,
   spotlight,
 }: {
   /** Anything that must be read before the dashboard itself -- today only the
@@ -56,6 +57,12 @@ export default function DashboardOverview({
   /** Anything role-specific that belongs beside the feed rather than in
    *  its own section - the admin's queue counts, a patient's next visit. */
   aside?: ReactNode;
+  /** The queues waiting on this person -- the admin's "what needs you". Its own
+   *  block, unlike `aside`, because on a phone it must be read BEFORE the
+   *  activity feed (the feed is a log of what happened; this is what to do),
+   *  while from a laptop up it still sits in the right-hand column under the
+   *  quick actions, where `aside` always was. */
+  queues?: ReactNode;
   /** A card that outranks the feed -- the admin's Recommendations, which is
    *  where the clinic's revenue starts. Rendered above the feed, in its
    *  column, so it is read before the log of what happened. */
@@ -72,7 +79,7 @@ export default function DashboardOverview({
       {(greeting || headline) && (
         <div className="ov-head rounded-2xl border border-slate-200 bg-gradient-to-br from-teal-50/80 via-white to-white p-5 shadow-sm sm:p-6">
           {greeting && (
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-teal-700">{greeting}</p>
+            <p className="text-[13px] font-semibold uppercase tracking-wide text-teal-700">{greeting}</p>
           )}
           {headline && (
             <div className="mt-1 font-display text-lg font-bold leading-snug text-slate-800 sm:text-xl">
@@ -85,6 +92,8 @@ export default function DashboardOverview({
       <div className="ov-strip">
         <StatStrip cells={cells} footer={stripFooter} />
       </div>
+
+      {queues && <div className="ov-queues space-y-5">{queues}</div>}
 
       <div className="ov-feed space-y-5">
         {spotlight}
@@ -116,7 +125,7 @@ export default function DashboardOverview({
                     <span className="block text-sm font-semibold">{action.label}</span>
                     {action.hint && (
                       <span
-                        className={`block text-[11px] ${action.primary ? "text-teal-50" : "text-slate-500"}`}
+                        className={`block text-[13px] ${action.primary ? "text-teal-50" : "text-slate-500"}`}
                       >
                         {action.hint}
                       </span>

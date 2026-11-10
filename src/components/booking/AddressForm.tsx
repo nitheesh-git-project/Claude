@@ -43,7 +43,7 @@ export default function AddressForm({
   return (
     <div className="space-y-4">
       <label className="block">
-        <span className="text-xs font-semibold text-slate-700">
+        <span className="text-sm font-semibold text-slate-700">
           Flat / house number and street
         </span>
         <input
@@ -57,7 +57,7 @@ export default function AddressForm({
       </label>
 
       <label className="block">
-        <span className="text-xs font-semibold text-slate-700">
+        <span className="text-sm font-semibold text-slate-700">
           Area / locality <span className="font-normal text-slate-500">(optional)</span>
         </span>
         <input
@@ -69,7 +69,7 @@ export default function AddressForm({
       </label>
 
       <label className="block">
-        <span className="text-xs font-semibold text-slate-700">Nearest landmark</span>
+        <span className="text-sm font-semibold text-slate-700">Nearest landmark</span>
         <input
           value={value.landmark ?? ""}
           onChange={(e) => set("landmark", e.target.value)}
@@ -77,14 +77,14 @@ export default function AddressForm({
           className={inputCls()}
           placeholder="Opposite the SBI branch"
         />
-        <span className="mt-1 block text-[11px] text-slate-500">
+        <span className="mt-1 block text-[13px] text-slate-500">
           This is what actually helps your therapist find you.
         </span>
       </label>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block">
-          <span className="text-xs font-semibold text-slate-700">City</span>
+          <span className="text-sm font-semibold text-slate-700">City</span>
           <input
             value={value.city ?? ""}
             onChange={(e) => set("city", e.target.value)}
@@ -93,7 +93,7 @@ export default function AddressForm({
           />
         </label>
         <label className="block">
-          <span className="text-xs font-semibold text-slate-700">State</span>
+          <span className="text-sm font-semibold text-slate-700">State</span>
           <input
             value={value.state ?? ""}
             onChange={(e) => set("state", e.target.value)}
@@ -108,10 +108,10 @@ export default function AddressForm({
           so this is additive precision rather than a missing requirement. */}
       <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-5 text-center">
         <i className="fa-solid fa-map-location-dot text-2xl text-slate-300" />
-        <p className="mt-2 text-xs font-semibold text-slate-600">
+        <p className="mt-2 text-sm font-semibold text-slate-600">
           Map pin coming soon
         </p>
-        <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
+        <p className="mt-1 text-[13px] leading-relaxed text-slate-500">
           Soon you&apos;ll be able to drop a pin on the exact spot. For now, the
           landmark above is what your therapist will navigate by - please make
           it as specific as you can.
@@ -119,7 +119,7 @@ export default function AddressForm({
       </div>
 
       <label className="block">
-        <span className="text-xs font-semibold text-slate-700">
+        <span className="text-sm font-semibold text-slate-700">
           Phone to call on arrival{" "}
           <span className="font-normal text-slate-500">(optional)</span>
         </span>
@@ -133,7 +133,7 @@ export default function AddressForm({
       </label>
 
       <label className="block">
-        <span className="text-xs font-semibold text-slate-700">
+        <span className="text-sm font-semibold text-slate-700">
           How to get in
         </span>
         <textarea
@@ -144,7 +144,7 @@ export default function AddressForm({
           className={inputCls()}
           placeholder="2nd floor, no lift. Ring the bell twice. Friendly dog in the yard."
         />
-        <span className="mt-1 block text-[11px] text-slate-500">
+        <span className="mt-1 block text-[13px] text-slate-500">
           Floor, lift, gate code, parking, pets - anything that saves a phone
           call at your door.
         </span>

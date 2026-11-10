@@ -6,6 +6,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { loadActiveCarePlan, loadCarePlanHistory } from "@/lib/carePlanServer";
 import { summariseVersion } from "@/lib/carePlans";
 import { buildSuggestedTeaser } from "@/lib/suggestedTeaser";
+import { loadLiveDisplay } from "@/lib/assessmentRunServer";
+import { companionMoment } from "@/lib/companionScreen";
 import {
   applyLedgerSessionBalances,
   applyLedgerVisitBalances,
@@ -13,9 +15,11 @@ import {
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { mergeSessionCodes } from "@/lib/sessionCode";
 import { mergeMeetLinks } from "@/lib/meetLink";
-import { countAnswered, patientIntakeGate, questionsForSpecialty } from "@/lib/conditionIntake";
+import { countAnswered, countedQuestions, patientIntakeGate, questionsForSpecialty } from "@/lib/conditionIntake";
 import { parseConditionSpecialty } from "@/lib/conditionSpecialty";
-import { buildPatientFeed } from "@/lib/dashboardFeed";
+import { buildPatientFeed, type HomeExercisesFeedInput } from "@/lib/dashboardFeed";
+import { loadActiveExercisePlan } from "@/lib/exercisePlanServer";
+import { exercisePlanView } from "@/lib/exercisePlan";
 import { isBookedAwaitingTherapist } from "@/lib/sessionRowStatus";
 import { computePackageCounts } from "@/lib/packageProgress";
 import { buildPatientNavItems } from "@/lib/dashboardNavItems";
@@ -33,6 +37,7 @@ import { loadConditionCovers } from "@/lib/catalogImageServer";
 import { programmeDisplay, type ProgrammeDisplay } from "@/lib/programmeDisplay";
 import { SESSION_SUMMARY_SELECT, type SessionSummaryRow } from "@/lib/sessionSummary";
 import { hasBookingHistory, noNextSessionNote } from "@/lib/patientOverviewCopy";
+import { pickJoinSession } from "@/lib/joinHeadline";
 
 // Everything the patient dashboard's screens read, loaded once per
 // request.
@@ -88,7 +93,11 @@ export type PatientScreen =
   | "home-visits"
   | "packages"
   | "receipts"
-  | "suggested";
+  | "suggested"
+  // The two stand-alone pages (Health Profile, Edit Profile): the core only,
+  // so they carry the same shell, bars and banner as their siblings.
+  | "health-profile"
+  | "profile";
 
 export async function loadPatientDashboard(screen: PatientScreen = "overview") {
   const needHub = screen === "book";
@@ -867,7 +876,11 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     string
   >) ?? {};
   const intakeAnswered = countAnswered(intakeQuestions, intakeAnswers);
-  const intakeTotal = intakeQuestions.length;
+  // Over the questions these answers ask, the same rule as the answered
+  // count beside it: the raw key count included the paediatric caregiver
+  // pair and (since neurological v2) the Parkinson's follow-ups, so a
+  // complete record could never read 100%.
+  const intakeTotal = countedQuestions(intakeQuestions, intakeAnswers).length;
   // The patient no longer opens their own record -- a therapist fills it
   // in at the first session. Until then there is nothing here for them to
   // do, and every nudge on this dashboard has to know that or it becomes a
@@ -891,6 +904,10 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     )
     .sort((a, b) => new Date(a.slot_time!).getTime() - new Date(b.slot_time!).getTime());
   const nextSession = upcoming[0] ?? null;
+  // The session the Home headline puts its big Join button on: the soonest
+  // online one that has not closed yet - which, unlike `nextSession`, still
+  // counts once it has started (src/lib/joinHeadline.ts).
+  const joinSession = pickJoinSession(onlineAppointments, nowMs, adminSettings.joinWindowAfterMinutes);
   // Whether "nothing booked" would be true, or a returning patient's
   // history being talked over -- see patientOverviewCopy.ts.
   const bookingHistory = hasBookingHistory(appointments);
@@ -942,6 +959,19 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
       ];
     });
 
+  // Home exercises for the Overview row: the patient's OWN client, so RLS is
+  // the gate; its own call, and anything but a readable plan shows nothing.
+  let homeExercises: HomeExercisesFeedInput | null = null;
+  if (needFeed) {
+    const read = await loadActiveExercisePlan(supabase, user.id);
+    if (read.status === "ok" && read.plan) {
+      const parent = intakeSpecialty === "pediatrics";
+      const view = exercisePlanView(read.plan, read.teaching, { parent });
+      const practised = view.items.flatMap((i) => (i.practised ? [i.practised.at] : [])).sort();
+      homeExercises = { planId: view.planId, count: view.items.length, publishedAt: view.publishedAt, lastPracticedAt: practised.at(-1) ?? null, parent };
+    }
+  }
+
   const patientFeed = buildPatientFeed({
     appointments: appointments.map((a) => ({
       id: a.id,
@@ -991,6 +1021,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     // other surface reads, so the feed cannot claim a balance the Packages
     // screen disagrees with.
     unscheduled,
+    homeExercises,
   });
 
   const overviewCells: StatCell[] = [
@@ -1001,7 +1032,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
         : "-",
       note: nextSession?.slot_time
         ? `${new Date(nextSession.slot_time).toLocaleTimeString([], { timeZone: "Asia/Kolkata", hour: "numeric", minute: "2-digit" })}${
-            nextSession.therapist_id ? ` · ${therapistMap.get(nextSession.therapist_id) ?? "therapist"}` : ""
+            nextSession.therapist_id ? ` · ${therapistMap.get(nextSession.therapist_id) ?? "physiotherapist"}` : ""
           }`
         : noNextSessionNote(bookingHistory),
       accent: "bg-teal-500",
@@ -1011,18 +1042,25 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
       label: "Sessions done",
       value: String(completedCount),
       unit: completedCount === 1 ? "session" : "sessions",
-      note: completedCount === 0 ? "Your history builds up here" : "Completed with your therapist",
+      note: completedCount === 0 ? "Your history builds up here" : "Completed with your physiotherapist",
       accent: "bg-emerald-500",
       href: "/patient/dashboard/sessions",
     },
-    {
-      label: "Package sessions left",
-      value: String(sessionsLeftInPackages),
-      unit: sessionsLeftInPackages === 1 ? "session" : "sessions",
-      note: hasOwnedPackages ? "Across the packages you own" : "You don't own a package yet",
-      accent: "bg-blue-500",
-      href: "/patient/dashboard/packages",
-    },
+    // Only for a patient who owns a programme. "0 sessions left - you don't
+    // own a package yet" was a tile that told most patients about something
+    // they had never been offered; with none to count, it is not on screen.
+    ...(hasOwnedPackages
+      ? [
+          {
+            label: "Programme sessions left",
+            value: String(sessionsLeftInPackages),
+            unit: sessionsLeftInPackages === 1 ? "session" : "sessions",
+            note: "Across your programme",
+            accent: "bg-blue-500",
+            href: "/patient/dashboard/packages",
+          } satisfies StatCell,
+        ]
+      : []),
     // Before a therapist has filled it in, this deliberately reads "-" on
     // a slate accent rather than "0%" on amber: an amber zero asserts the
     // patient is behind on something nobody has asked them for. Same
@@ -1031,7 +1069,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
       ? {
           label: "Health profile",
           value: "-",
-          note: "Your therapist fills this in at your first session",
+          note: "Your physiotherapist fills this in at your first session",
           accent: "bg-slate-400",
           href: "/patient/dashboard/health-profile",
         }
@@ -1040,7 +1078,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
           value: `${intakeTotal === 0 ? 0 : Math.round((intakeAnswered / intakeTotal) * 100)}%`,
           note:
             intakeAnswered === intakeTotal
-              ? "Your therapist has your answers"
+              ? "Your physiotherapist has your answers"
               : `${intakeTotal - intakeAnswered} question${
                   intakeTotal - intakeAnswered === 1 ? "" : "s"
                 } left`,
@@ -1154,6 +1192,9 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     payLater = await loadPatientPayLater(admin, user.id);
   }
 
+  const liveRead = await loadLiveDisplay(supabase, user.id);
+  const guidedCheck = liveRead.status === "ok" && companionMoment(liveRead.display, nowTimestamp()).kind === "live";
+
   return {
     // The one read every screen here is built from. A failure renders the
     // load banner rather than "no sessions yet" -- see AdminDataLoadBanner.
@@ -1184,6 +1225,10 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     // The one-line nudge every screen but Suggested Sessions carries.
     suggestedTeaser:
       screen === "suggested" ? null : buildSuggestedTeaser(activeCarePlan, pendingSuggestions.length, nowTimestamp()),
+    // The physiotherapist has a guided video assessment open for this patient
+    // right now: every screen offers the way to the companion screen. A read
+    // that could not be run offers nothing (the screen itself is the check).
+    guidedCheckLive: guidedCheck,
     ownedPackages: ownedPackagesForDisplay,
     ownedHomeVisitPackages: ownedHomeVisitPackagesForDisplay,
     bookableCategories: hubCategoriesWithCovers,
@@ -1213,6 +1258,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     intakeGate,
     intakeSpecialty,
     nextSession,
+    joinSession,
     bookingHistory,
     patientFeed,
     overviewCells,

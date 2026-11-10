@@ -12,7 +12,7 @@ import { loadConditionCovers } from "@/lib/catalogImageServer";
 import { parseOfferSnapshot } from "@/lib/carePlans";
 
 export const metadata: Metadata = {
-  title: "Suggested Sessions | MoveRestore",
+  title: "Recommendations | MoveRestore",
 };
 
 // Everything waiting on the patient's answer, in one place.
@@ -69,14 +69,14 @@ export default async function Page() {
   return (
     <PatientDashboardShell
       data={d}
-      title="Suggested Sessions"
-      subtitle="What your therapist has recommended, and times they've proposed."
+      title="Recommendations"
+      subtitle="What your physiotherapist has recommended, and times they've proposed."
     >
       {nothingWaiting && justPurchased && (
         <div className="mt-8">
           <SurfaceCard title="Your programme is ready" info="card:care-plan" icon="fa-circle-check">
             <p className="text-sm text-slate-700">
-              Your therapist&apos;s recommendation is paid for. Your sessions are waiting to
+              Your physiotherapist&apos;s recommendation is paid for. Your sessions are waiting to
               be booked - pick times that suit you.
             </p>
             <div className="mt-4 flex flex-wrap gap-3">
@@ -103,7 +103,7 @@ export default async function Page() {
             <EmptyState
               icon="fa-lightbulb"
               title="No recommendations right now"
-              body="After a session, your therapist may recommend a programme of treatment. It will appear here for you to accept or decline - nothing is ever charged without you choosing it."
+              body="After a session, your physiotherapist may recommend a programme of treatment. It will appear here for you to accept or decline - nothing is ever charged without you choosing it."
             />
           </SurfaceCard>
         </div>
@@ -116,7 +116,7 @@ export default async function Page() {
               planId: plan.id,
               planStatus: plan.status,
               versionId: version.id,
-              therapistName: authorNames.get(plan.therapistId) ?? "Your therapist",
+              therapistName: authorNames.get(plan.therapistId) ?? "Your physiotherapist",
               offerSnapshot: version.offerSnapshot,
               handsOnRequired: version.handsOnRequired,
               frequencyPerWeek: version.frequencyPerWeek,
@@ -139,7 +139,7 @@ export default async function Page() {
       {d.pendingSuggestions.length > 0 && (
         <div id="proposed-times" className="mt-8">
           <SurfaceCard
-            title="Times your therapist has proposed"
+            title="Times your physiotherapist has proposed"
             icon="fa-calendar-plus"
             subtitle="These are on a programme you already own - accepting books the time and uses one of your sessions. Nothing extra to pay."
           >

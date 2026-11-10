@@ -1,4 +1,9 @@
-import type { ConditionSpecialty } from "@/lib/conditionSpecialty";
+import {
+  CONDITION_SPECIALTY_KEYS,
+  DEFAULT_ENABLED_INTAKE_SPECIALTIES,
+  isConditionSpecialty,
+  type ConditionSpecialty,
+} from "@/lib/conditionSpecialty";
 
 import { DEFAULT_PAYMENT_GATEWAY_FEE_PERCENT } from "@/lib/operatingCosts";
 import {
@@ -129,9 +134,9 @@ export const DEFAULT_BOOKING_LANGUAGES = ["English"];
 // Footer, and checkout previously hardcoded, kept here as the fallback for
 // a database that hasn't run the migration adding these columns yet.
 export const DEFAULT_SITE_NAME = "MoveRestore Physiotherapy";
-export const DEFAULT_SITE_TAGLINE = "Global Telehealth Platform";
+export const DEFAULT_SITE_TAGLINE = "Physiotherapy at home or by video";
 export const DEFAULT_SITE_DESCRIPTION =
-  "Certified global telehealth physical therapy practice, restoring mobility from home.";
+  "Licensed physiotherapists, by video or at your home, helping you move well again.";
 export const DEFAULT_CONTACT_EMAIL = "hello@drpoojaphysio.com";
 export const DEFAULT_WHATSAPP_NUMBER = "+91 XXXXX XXXXX";
 export const DEFAULT_CONTACT_PHONE = "+91 XXXXX XXXXX";
@@ -143,7 +148,7 @@ export const DEFAULT_FOOTER_COPYRIGHT_TEXT = "MoveRestore Physiotherapy. All rig
 // suddenly start advertising home visits it cannot staff.
 export const DEFAULT_HOME_VISIT_PAGE_HEADING = "Physiotherapy at your doorstep";
 export const DEFAULT_HOME_VISIT_PAGE_SUBHEADING =
-  "A certified physiotherapist visits you at home, with the same assessment and recovery plan you would get in clinic.";
+  "A licensed physiotherapist visits you at home, with the same assessment and recovery plan you would get over video.";
 
 export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
   // Off until reconciliation has been clean over real traffic.
@@ -204,7 +209,9 @@ export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
   abandonedBookingAccountDays: 3,
   patientCancelCutoffMinutes: 15,
   paymentGatewayFeePercent: DEFAULT_PAYMENT_GATEWAY_FEE_PERCENT,
-  enabledIntakeSpecialties: ["ortho", "neuro", "pediatrics"],
+  // The three original types; Strength and balance care and Heart and lung
+  // rehabilitation (phase 6a) are off until an admin switches them on.
+  enabledIntakeSpecialties: [...DEFAULT_ENABLED_INTAKE_SPECIALTIES],
   journeyStepSeconds: 4,
   splashEnabled: true,
   followDeviceTheme: false,
@@ -315,11 +322,11 @@ export function parseEnabledIntakeSpecialties(raw: unknown): ConditionSpecialty[
   if (!Array.isArray(raw)) return DEFAULT_ADMIN_SETTINGS.enabledIntakeSpecialties;
   const seen = new Set<ConditionSpecialty>(["ortho"]);
   for (const entry of raw) {
-    if (entry === "ortho" || entry === "neuro" || entry === "pediatrics") seen.add(entry);
+    if (isConditionSpecialty(entry)) seen.add(entry);
   }
   // Stable order, so the toggles and the triage picker never disagree
   // about which comes first.
-  return (["ortho", "neuro", "pediatrics"] as const).filter((s) => seen.has(s));
+  return CONDITION_SPECIALTY_KEYS.filter((s) => seen.has(s));
 }
 
 // A stored-but-blank string (e.g. a field an admin cleared and never

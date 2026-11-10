@@ -4,6 +4,7 @@ import { JoinWindowProvider } from "@/lib/joinWindowContext";
 import type { PatientDashboardData } from "@/lib/patientDashboardData";
 import { isDebugNavVisible } from "@/lib/debugNavVisible";
 import AdminDataLoadBanner from "@/components/admin/AdminDataLoadBanner";
+import GuidedCheckBar from "@/components/patient/GuidedCheckBar";
 import SuggestedTeaserBar from "@/components/patient/SuggestedTeaserBar";
 
 /**
@@ -19,11 +20,15 @@ export default function PatientDashboardShell({
   title,
   subtitle,
   children,
+  extraRealtimeTables = [],
 }: {
   data: PatientDashboardData;
   title: string;
   subtitle?: ReactNode;
   children: ReactNode;
+  /** A screen's own live tables on top of the shared list (the Health
+   *  Profile's measurements, diary, layout choices). */
+  extraRealtimeTables?: readonly string[];
 }) {
   const showDebugNav = isDebugNavVisible();
 
@@ -37,7 +42,7 @@ export default function PatientDashboardShell({
       completedAfterMinutes={data.adminSettings.sessionCompletedAfterMinutes}
     >
     <DashboardShell
-      brandLabel="Patient Panel"
+      brandLabel={data.adminSettings.siteName}
       brandIcon="fa-user-injured"
       basePath="/patient/dashboard"
       navItems={data.navItems}
@@ -62,6 +67,12 @@ export default function PatientDashboardShell({
         "care_plan_versions",
         // A session summary lands as the therapist finishes the session.
         "session_summaries",
+        // The physiotherapist starting a guided video assessment offers the
+        // companion screen without the patient reloading.
+        "assessment_live_display",
+        // A plan published in the session shows its Overview row without a reload.
+        "exercise_plans",
+        ...extraRealtimeTables,
       ]}
       headerTitle={title}
       headerSubtitle={subtitle}
@@ -71,6 +82,7 @@ export default function PatientDashboardShell({
           <AdminDataLoadBanner missing={data.loadIssues.missing} />
         </div>
       )}
+      {data.guidedCheckLive && <GuidedCheckBar />}
       {data.suggestedTeaser && <SuggestedTeaserBar teaser={data.suggestedTeaser} />}
       {children}
     </DashboardShell>

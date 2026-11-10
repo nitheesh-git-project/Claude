@@ -41,7 +41,7 @@ export function isDirectlyPurchasable(sessionCount: number | null | undefined): 
 
 /** The refusal, worded for a patient rather than for a developer. */
 export const PROGRAMME_NEEDS_RECOMMENDATION =
-  "A course of treatment is arranged by your therapist after they've seen you, so it can be matched to what you actually need. Book a first session and they'll recommend the right programme.";
+  "A course of treatment is arranged by your physiotherapist after they've seen you, so it can be matched to what you actually need. Book a first session and they'll recommend the right programme.";
 
 /**
  * What a public catalog card says instead of a Buy button.

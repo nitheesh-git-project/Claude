@@ -15,9 +15,6 @@ export default async function Page() {
     <HospitalDashboardShell data={d} title="Refer a Patient" subtitle="Send a patient across and the clinic takes it from there.">
         <SurfaceCard
           id="refer"
-          title="Refer a Patient"
-          icon="fa-user-plus"
-          subtitle="Send a patient across and the clinic takes it from there."
         >
           <SubmitReferralForm
             homeVisitEnabled={d.adminSettings.homeVisitEnabled}

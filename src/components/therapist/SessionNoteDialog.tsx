@@ -1,5 +1,8 @@
 "use client";
 
+import { homeExerciseInitialValue } from "@/lib/exercisePlan";
+import { fillEmptyOnly, type FinishProgress } from "@/lib/finishFromRun";
+import { revealField } from "@/lib/revealField";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useToast } from "@/lib/toast";
 import { debugNowHeaders } from "@/lib/debugNow";
@@ -55,8 +58,11 @@ export default function SessionNoteDialog({
   recommendationNeedsApproval,
   recommendationAwaitingClinic,
   summary,
+  homeExercisePrefill = null,
   completeOnSave = false,
   sessionStartIso = null,
+  prefill,
+  onProgress,
   onClose,
 }: {
   appointmentId: string;
@@ -78,6 +84,9 @@ export default function SessionNoteDialog({
    *  the patient reads. Its own record (session_summaries), never part of
    *  the note. */
   summary: SummaryForDialog;
+  /** The patient's active Home exercises as one line, for a NEW note's empty
+   *  home-exercise field only (never over text already there). */
+  homeExercisePrefill?: string | null;
   /** When the session was, for the dialog's own subtitle. */
   sessionLabel: string;
   existing: SessionNoteRow | null;
@@ -91,21 +100,31 @@ export default function SessionNoteDialog({
   completeOnSave?: boolean;
   /** The session's start, for "updated during this session". */
   sessionStartIso?: string | null;
+  /** Words to start from (the end of a guided assessment): written only into
+   *  fields that are blank, never over the physiotherapist's own text, and the
+   *  summary only when none was shared yet (fillEmptyOnly). */
+  prefill?: { note?: Partial<Record<string, string | null>>; summary?: Partial<SessionSummaryText> };
+  /** What has been saved so far: the note, the summary, the session closed. */
+  onProgress?: (progress: FinishProgress) => void;
   onClose: () => void;
 }) {
   const { show } = useToast();
   const [values, setValues] = useState<SessionNoteData>(() => {
     const initial: SessionNoteData = {};
     for (const f of SESSION_NOTE_FIELDS) initial[f.key] = existing?.data?.[f.key] ?? "";
-    return initial;
+    initial.home_exercise = homeExerciseInitialValue({ existingText: initial.home_exercise, isNewNote: !existing, prefill: homeExercisePrefill });
+    return prefill?.note && !locked ? fillEmptyOnly(initial, prefill.note) : initial;
   });
   const [freeText, setFreeText] = useState(existing?.free_text ?? "");
   // The patient's half. Locked with the note, or on its own window -- and
   // never offered at all when the read behind it failed, since a blank box
   // over a summary that exists would invite the therapist to overwrite it.
   const savedSummary: SessionSummaryText | null = summary.row ? summaryTextOf(summary.row) : null;
-  const [summaryValues, setSummaryValues] = useState<SessionSummaryText>(
-    () => savedSummary ?? { whatWeDid: null, beforeNextTime: null }
+  const [summaryValues, setSummaryValues] = useState<SessionSummaryText>(() =>
+    savedSummary ??
+    (prefill?.summary && !locked && !summary.loadFailed
+      ? fillEmptyOnly<SessionSummaryText>({ whatWeDid: null, beforeNextTime: null }, prefill.summary)
+      : { whatWeDid: null, beforeNextTime: null })
   );
   const summaryLocked = locked || summary.loadFailed || !summary.editable;
   const firstName = patientName.split(" ")[0] || "the patient";
@@ -138,11 +157,31 @@ export default function SessionNoteDialog({
   });
   const close = useCallback(() => onCloseRef.current(), []);
 
+  // A written note is not thrown away by a stray tap: Cancel, the cross, the
+  // backdrop and Escape all ask first when anything differs from how the
+  // dialog opened (prefilled words included - they are the starting point).
+  const [opened] = useState(() => JSON.stringify({ values, freeText, summaryValues }));
+  const dirty = !locked && (plan !== null || JSON.stringify({ values, freeText, summaryValues }) !== opened);
+  const [confirmingDiscard, setConfirmingDiscard] = useState(false);
+  function requestClose() {
+    if (isPending) return;
+    if (dirty && !confirmingDiscard) {
+      setConfirmingDiscard(true);
+      return;
+    }
+    close();
+  }
+  // Escape reads the latest of it (the key handler below is set up once).
+  const requestCloseRef = useRef(requestClose);
+  useEffect(() => {
+    requestCloseRef.current = requestClose;
+  });
+
   useEffect(() => {
     lastFocused.current = document.activeElement as HTMLElement | null;
     dialogRef.current?.focus();
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") close();
+      if (e.key === "Escape") requestCloseRef.current();
     };
     document.addEventListener("keydown", onKey);
     const prevOverflow = document.body.style.overflow;
@@ -154,12 +193,21 @@ export default function SessionNoteDialog({
     };
   }, [close]);
 
+  function showError(message: string, field?: string) {
+    setError(message);
+    // The banner, or the first field it names, scrolled into view and focused.
+    requestAnimationFrame(() => {
+      if (!field || !revealField(`note-${field}`)) revealField(document.querySelector<HTMLElement>("[data-session-note-error]"));
+    });
+  }
+
   function handleSubmit() {
+    setConfirmingDiscard(false);
     setError(null);
     const missingKeys = missingRequiredNoteFields(values);
     if (missingKeys.length > 0) {
       setMissing(new Set(missingKeys));
-      setError("Fill in what you treated, how they responded, and the plan for next time.");
+      showError("Fill in what you treated, how they responded, and the plan for next time.", missingKeys[0]);
       return;
     }
     // Checked before anything is saved: a bad count found after the note
@@ -170,7 +218,7 @@ export default function SessionNoteDialog({
         plan.sessionCount < MIN_COURSE_SESSIONS ||
         plan.sessionCount > MAX_COURSE_SESSIONS)
     ) {
-      setError(`Recommend between ${MIN_COURSE_SESSIONS} and ${MAX_COURSE_SESSIONS} sessions, or remove the recommendation.`);
+      showError(`Recommend between ${MIN_COURSE_SESSIONS} and ${MAX_COURSE_SESSIONS} sessions, or remove the recommendation.`);
       return;
     }
     // The summary is checked before the note is saved, for the same reason
@@ -178,11 +226,11 @@ export default function SessionNoteDialog({
     const summaryCheck = validateSessionSummary(summaryValues);
     if (!summaryLocked) {
       if (!summaryCheck.ok) {
-        setError(summaryCheck.error);
+        showError(summaryCheck.error);
         return;
       }
       if (savedSummary && summaryCheck.empty) {
-        setError(`${firstName} may already have read the summary, so it can be corrected but not removed.`);
+        showError(`${firstName} may already have read the summary, so it can be corrected but not removed.`);
         return;
       }
     }
@@ -194,7 +242,7 @@ export default function SessionNoteDialog({
         ? summaryCheck.value
         : null;
     if (completeOnSave && !exam.recorded) {
-      setError(
+      showError(
         exam.kind
           ? sessionExamMissingMessage(exam.kind)
           : "Checking which examination this session needs - try again in a moment."
@@ -219,9 +267,10 @@ export default function SessionNoteDialog({
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        setError(body.error ?? "Could not save the note. Please try again.");
+        showError(body.error ?? "Could not save the note. Please try again.");
         return;
       }
+      onProgress?.({ noteSaved: true, summarySaved: false, sessionClosed: false });
 
       // Finishing: the note is saved, so the session can close now. A refusal
       // here leaves the note safely stored and says why the session is still
@@ -243,7 +292,7 @@ export default function SessionNoteDialog({
         });
         if (!summaryRes.ok) {
           const body = await summaryRes.json().catch(() => ({}));
-          setError(
+          showError(
             `Your note was saved, but the summary for ${firstName} wasn't: ${
               body.error ?? "please try again."
             }${completeOnSave ? " The session is still open." : ""}`
@@ -251,6 +300,7 @@ export default function SessionNoteDialog({
           router.refresh();
           return;
         }
+        onProgress?.({ noteSaved: true, summarySaved: true, sessionClosed: false });
       }
 
       if (completeOnSave) {
@@ -261,7 +311,7 @@ export default function SessionNoteDialog({
         });
         if (!doneRes.ok) {
           const body = await doneRes.json().catch(() => ({}));
-          setError(
+          showError(
             `Your note was saved, but the session isn't finished yet: ${
               body.error ?? "please try again."
             }`
@@ -269,6 +319,7 @@ export default function SessionNoteDialog({
           router.refresh();
           return;
         }
+        onProgress?.({ noteSaved: true, summarySaved: !!summaryToSend || !!savedSummary, sessionClosed: true });
       }
 
       // The plan is submitted after the note, and its failure is reported
@@ -325,7 +376,7 @@ export default function SessionNoteDialog({
         exit={{ opacity: 0 }}
         transition={{ duration: 0.2 }}
         className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-0 backdrop-blur-sm sm:items-center sm:p-4"
-        onClick={close}
+        onClick={requestClose}
       >
         <motion.div
           ref={dialogRef}
@@ -353,14 +404,14 @@ export default function SessionNoteDialog({
               </div>
               <button
                 type="button"
-                onClick={close}
+                onClick={requestClose}
                 aria-label="Close"
-                className="shrink-0 text-2xl leading-none text-slate-500 transition hover:text-slate-700"
+                className="flex h-11 w-11 shrink-0 items-center justify-center text-2xl leading-none text-slate-500 transition hover:text-slate-700"
               >
                 &times;
               </button>
             </div>
-            <p className="mt-3 flex items-start gap-2 rounded-xl bg-slate-50 px-3 py-2 text-[11px] leading-relaxed text-slate-500">
+            <p className="mt-3 flex items-start gap-2 rounded-xl bg-slate-50 px-3 py-2 text-[13px] leading-relaxed text-slate-600">
               <i aria-hidden className="fa-solid fa-lock mt-0.5 text-[10px] text-slate-500" />
               <span>
                 Only you and the clinic&apos;s admin can read the note. The patient never sees it - write it the
@@ -405,10 +456,10 @@ export default function SessionNoteDialog({
                     {field.label}
                     {field.required && <span className="text-red-500"> *</span>}
                   </label>
-                  {field.help && <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">{field.help}</p>}
+                  {field.help && <p className="mt-0.5 text-[13px] leading-relaxed text-slate-600">{field.help}</p>}
                   <div className="mt-2">
                     {field.type === "select" ? (
-                      <div className="flex flex-wrap gap-2">
+                      <div id={`note-${field.key}`} role="group" aria-label={field.label} className="flex flex-wrap gap-2">
                         {(field.options ?? []).map((option) => {
                           const selected = values[field.key] === option;
                           return (
@@ -418,7 +469,7 @@ export default function SessionNoteDialog({
                               disabled={locked}
                               aria-pressed={selected}
                               onClick={() => setValues((v) => ({ ...v, [field.key]: option }))}
-                              className={`rounded-xl px-3.5 py-2 text-xs font-semibold transition disabled:opacity-60 ${
+                              className={`min-h-[44px] rounded-xl px-3.5 py-2 text-sm font-semibold transition disabled:opacity-60 ${
                                 selected
                                   ? "bg-teal-700 text-white"
                                   : "border border-slate-200 bg-white text-slate-600 hover:border-teal-300"
@@ -459,7 +510,7 @@ export default function SessionNoteDialog({
               <label htmlFor="note-free" className="block text-sm font-bold text-slate-800">
                 Anything else
               </label>
-              <p className="mt-0.5 text-[11px] text-slate-500">
+              <p className="mt-0.5 text-[13px] text-slate-600">
                 Free text, for whatever the fields above don&apos;t cover.
               </p>
               <textarea
@@ -496,15 +547,43 @@ export default function SessionNoteDialog({
               />
             )}
 
-            {error && <p className="text-xs font-semibold text-red-600">{error}</p>}
-            {planError && <p className="text-xs font-semibold text-amber-700">{planError}</p>}
+            {error && (
+              <p role="alert" data-form-error data-session-note-error className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-800">
+                {error}
+              </p>
+            )}
+            {planError && (
+              <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
+                {planError}
+              </p>
+            )}
           </div>
 
+          {confirmingDiscard ? (
+            <div role="alertdialog" aria-label="Discard this note?" data-testid="note-discard-confirm" className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 px-6 py-4">
+              <p className="mr-auto text-sm font-semibold text-slate-800">Discard what you have written? Nothing is saved.</p>
+              <button
+                type="button"
+                autoFocus
+                onClick={() => setConfirmingDiscard(false)}
+                className="min-h-[44px] rounded-xl px-4 text-sm font-semibold text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
+              >
+                Keep writing
+              </button>
+              <button
+                type="button"
+                onClick={close}
+                className="min-h-[44px] rounded-xl border border-red-200 px-4 text-sm font-semibold text-red-700 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"
+              >
+                Discard
+              </button>
+            </div>
+          ) : (
           <div className="flex items-center justify-between gap-3 border-t border-slate-100 px-6 py-4">
             <button
               type="button"
-              onClick={close}
-              className="text-sm font-semibold text-slate-500 transition hover:text-slate-800"
+              onClick={requestClose}
+              className="min-h-[44px] text-sm font-semibold text-slate-600 transition hover:text-slate-800"
             >
               {locked ? "Close" : "Cancel"}
             </button>
@@ -513,7 +592,7 @@ export default function SessionNoteDialog({
                 type="button"
                 onClick={handleSubmit}
                 disabled={isPending}
-                className="rounded-lg bg-teal-700 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:opacity-50"
+                className="min-h-[44px] rounded-lg bg-teal-700 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:opacity-50"
               >
                 {isPending
                   ? "Saving..."
@@ -529,6 +608,7 @@ export default function SessionNoteDialog({
               </button>
             )}
           </div>
+          )}
         </motion.div>
       </motion.div>
     </AnimatePresence>
@@ -570,11 +650,11 @@ function PatientSummaryFields({
         <i aria-hidden className="fa-solid fa-eye text-[10px]" />
         Shared with the patient
       </p>
-      <p className="mt-1 text-[11px] leading-relaxed text-slate-600">
+      <p className="mt-1 text-[13px] leading-relaxed text-slate-600">
         {`Optional. ${firstName} reads this on their session card, with your name and the date - plain words, no clinical shorthand. Nothing else in this dialog reaches them.`}
       </p>
       {recommending && (
-        <p className="mt-2 text-[11px] leading-relaxed text-teal-800">
+        <p className="mt-2 text-[13px] leading-relaxed text-teal-800">
           Your recommendation reaches them on its own, with its instructions - no need to repeat it here.
         </p>
       )}

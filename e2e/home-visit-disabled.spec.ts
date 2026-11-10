@@ -205,3 +205,36 @@ test("HV-OFF-002: switching off asks first only when something is owed", async (
     }
   }
 });
+
+// HV-OFF-003: the switch alone is not "bookable". With home visits switched
+// on but no service area active, the public site announces the mode and sells
+// nothing: no "Check my pincode" button to a dead end, no pincode box, no
+// Home visit item in the nav -- the same rule the switch-off case above
+// enforces, one step earlier. The areas are put back exactly as they were.
+test("HV-OFF-003: switched on with no area served is announced, not sold", async ({ page, request }) => {
+  test.setTimeout(120_000);
+  const admin = adminClient();
+  const { data: active } = await admin.from("home_visit_areas").select("id").eq("active", true);
+  const ids = (active ?? []).map((a) => a.id as string);
+  await admin.from("site_settings").update({ home_visit_enabled: true }).not("id", "is", null);
+  try {
+    if (ids.length > 0) await admin.from("home_visit_areas").update({ active: false }).in("id", ids);
+
+    const res = await request.get(`${BASE}/home-visit`);
+    expect(res.status()).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("Home visits are on their way");
+    // Nothing on the page leads into the booking funnel or asks for a pincode.
+    expect(html).not.toContain('href="/book-home-visit"');
+    expect(html).not.toContain("hero-pincode-check");
+
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto(`${BASE}/`);
+    await expect(page.getByRole("navigation").first().getByRole("link", { name: "Home visit" })).toHaveCount(0);
+    const band = page.getByText("Home visits are coming soon.");
+    await expect(band).toHaveCount(1);
+    await expect(page.locator('a[href="/book-home-visit"]')).toHaveCount(0);
+  } finally {
+    if (ids.length > 0) await admin.from("home_visit_areas").update({ active: true }).in("id", ids);
+  }
+});

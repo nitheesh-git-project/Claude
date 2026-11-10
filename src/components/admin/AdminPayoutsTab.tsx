@@ -8,6 +8,7 @@ import { Fragment, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import TherapistPayoutButton from "@/components/admin/TherapistPayoutButton";
+import InfoNote from "@/components/admin/InfoNote";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import {
   computeTherapistPayoutSummary,
@@ -209,14 +210,17 @@ export default function AdminPayoutsTab({
             · Net payable: <strong className="text-teal-700">{formatInr(totalNetPayablePaise)}</strong>
           </p>
         </div>
-        <p className="text-[11px] text-slate-500 mb-4">
-          All-time, not date-filtered - a payout balance can&apos;t depend on which dates happen
-          to be in view. Revenue billed counts a session once the patient pays; a therapist&apos;s
-          share is only earned once they have actually delivered it, matching how payouts settle.
-          Net payable subtracts any cash the therapist is currently holding from home-visit
-          collections - that is the figure the Pay button transfers, and settling records that
-          cash as remitted.
-        </p>
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <p className="text-[11px] text-slate-500">All-time balances, not date-filtered.</p>
+          <InfoNote label="How these payout figures are worked out">
+            All-time, not date-filtered - a payout balance can&apos;t depend on which dates happen
+            to be in view. Revenue billed counts a session once the patient pays; a therapist&apos;s
+            share is only earned once they have actually delivered it, matching how payouts settle.
+            Net payable subtracts any cash the therapist is currently holding from home-visit
+            collections - that is the figure the Pay button transfers, and settling records that
+            cash as remitted.
+          </InfoNote>
+        </div>
 
         {rows.length > 1 && (
           <FilterChips

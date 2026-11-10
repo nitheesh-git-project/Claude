@@ -44,7 +44,7 @@ const ADMIN_REALTIME_TABLES = [
   "therapist_payout_requests",
   "patient_referrals",
   "b2b_leads",
-  // The developer's own inbox (Settings -> Dev Reachouts): a new message
+  // The developer's own inbox (Settings -> Developer messages): a new message
   // should show up without a reload, like a new B2B lead does.
   "dev_reachouts",
   // ...and the notes on those messages, so a second admin's note appears too.

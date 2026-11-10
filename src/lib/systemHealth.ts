@@ -549,10 +549,10 @@ function accountingCheck(health: AccountingHealth): HealthCheck {
     return {
       ...base,
       status: "unknown",
-      headline: "Cannot be checked - this database has not had the latest tables applied yet.",
+      headline: "Cannot be checked yet - the latest database update has not been applied.",
       fix: [
-        "Run scripts/run-schema.mjs against this database, or push to main, which applies it for you.",
-        "Reload this page. The check starts reporting straight away.",
+        "Tell your developer: the latest database update has not been applied to this project.",
+        "Once they have, reload this page. The check starts reporting straight away.",
       ],
       count: 0,
       evidence: [],
@@ -874,8 +874,8 @@ function settlementsCheck(
     return {
       ...base,
       status: "unknown",
-      headline: "Cannot be checked - this database has not had the latest changes applied yet.",
-      fix: ["Apply `supabase/schema.sql` to this project, then reload this page."],
+      headline: "Cannot be checked yet - the latest database update has not been applied.",
+      fix: ["Tell your developer: the latest database update has not been applied to this project. Once they have, reload this page."],
       count: 0,
       evidence: [],
     };
@@ -905,7 +905,7 @@ function settlementsCheck(
         "Come back here: if this still says nothing has been recorded, the recording is not working and no figure below can be trusted against it.",
       ],
       count: 0,
-      evidence: ["No settlement has been recorded on this database"],
+      evidence: ["No settlement has been recorded yet"],
     };
   }
 
@@ -951,10 +951,8 @@ function refundsCheck(health: RefundHealth | null): HealthCheck {
     return {
       ...base,
       status: "unknown",
-      headline: "Cannot be checked - this database has not had the latest changes applied yet.",
-      fix: [
-        "Apply `supabase/schema.sql` to this project, then reload this page.",
-      ],
+      headline: "Cannot be checked yet - the latest database update has not been applied.",
+      fix: ["Tell your developer: the latest database update has not been applied to this project. Once they have, reload this page."],
       count: 0,
       evidence: [],
     };
@@ -1044,7 +1042,7 @@ function activityLogCheck(health: ActivityLogHealth | null): HealthCheck {
       ...base,
       status: "unknown",
       headline: "Cannot be checked right now - the list of unrecorded actions could not be read.",
-      fix: ["Reload this page. If it persists, apply `supabase/schema.sql` to this project."],
+      fix: ["Reload this page. If it persists, tell your developer: the latest database update may not have been applied to this project."],
       count: 0,
       evidence: [],
     };
@@ -1096,7 +1094,7 @@ function checkoutSpeedCheck(health: CheckoutSpeedHealth | null): HealthCheck {
       ...base,
       status: "unknown",
       headline: "Cannot be checked right now - the timings could not be read.",
-      fix: ["Reload this page. If it persists, apply `supabase/schema.sql` to this project."],
+      fix: ["Reload this page. If it persists, tell your developer: the latest database update may not have been applied to this project."],
       count: 0,
       evidence: [],
     };
@@ -1226,10 +1224,10 @@ function payLaterCheck(health: PayLaterHealth | null): HealthCheck {
     return {
       ...base,
       status: "unknown",
-      headline: "Cannot be checked - this database has not had the latest columns applied yet.",
+      headline: "Cannot be checked yet - the latest database update has not been applied.",
       fix: [
-        "Run scripts/run-schema.mjs against this database, or push to main, which applies it for you.",
-        "Reload this page. The check starts reporting straight away.",
+        "Tell your developer: the latest database update has not been applied to this project.",
+        "Once they have, reload this page. The check starts reporting straight away.",
       ],
       count: 0,
       evidence: [],

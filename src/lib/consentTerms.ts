@@ -69,7 +69,7 @@ export function consentTerms(serviceTitle: string | null | undefined): ConsentTe
       },
       {
         heading: "Not for emergencies",
-        body: "This service is not for emergencies. For chest pain, difficulty breathing, sudden weakness or numbness, a serious injury or any other urgent problem, call your local emergency number (112 in India) or go to the nearest emergency department.",
+        body: "This service is not for emergencies. For chest pain, difficulty breathing, sudden weakness or numbness, a serious injury or any other urgent problem, call your local emergency number (108 in India) or go to the nearest emergency department.",
       },
       {
         heading: "Your information",

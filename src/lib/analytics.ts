@@ -17,6 +17,11 @@ export const ANALYTICS_CONSENT_KEY = "mr_analytics_consent";
 /** Dispatched by the footer link to ask for the consent card again. */
 export const ANALYTICS_REOPEN_EVENT = "mr-analytics-reopen";
 
+/** The footer link's href. A tap before the page has hydrated has no click
+ *  handler to run, so the link also lands on this hash, and the consent card
+ *  opens for it on mount or on hashchange. */
+export const ANALYTICS_SETTINGS_HASH = "#analytics-settings";
+
 export type AnalyticsConsent = "granted" | "denied";
 
 /** Route trees nothing is ever recorded on. `/hospital` is the referral

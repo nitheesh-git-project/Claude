@@ -43,7 +43,7 @@ export default function ConfirmDialog({
           className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6"
           onClick={(e) => e.stopPropagation()}
         >
-          <p id={messageId} className="text-sm text-slate-700 leading-relaxed">
+          <p id={messageId} className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">
             {message}
           </p>
           <div className="flex justify-end gap-2 mt-6">

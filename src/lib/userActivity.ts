@@ -121,6 +121,34 @@ export const USER_ACTIVITY_META = {
   },
   "pain_assessment.recorded": { label: "Recorded a Pain Map exam", group: "clinical", verb: "recorded a Pain Map exam" },
   "neuro_assessment.recorded": { label: "Recorded a neurological exam", group: "clinical", verb: "recorded a neurological exam" },
+  "peds_assessment.recorded": { label: "Recorded a paediatric exam", group: "clinical", verb: "recorded a paediatric exam" },
+  "outcome_measurement.recorded": { label: "Recorded a measurement", group: "clinical", verb: "recorded a measurement" },
+  "care_goal.saved": { label: "Saved a patient's goal", group: "clinical", verb: "saved a patient's goal" },
+  "care_milestone.saved": { label: "Planned a milestone", group: "clinical", verb: "planned a milestone" },
+  "care_milestone.reached": { label: "Marked a milestone reached", group: "clinical", verb: "marked a milestone reached" },
+  "care_status.set": {
+    label: "Set a patient's phase, status or summary",
+    group: "clinical",
+    verb: "set a patient's phase, overruled their status or wrote where things stand",
+  },
+  "patient_diary.added": { label: "Wrote in their diary", group: "clinical", verb: "wrote in their diary" },
+  "patient_diary.corrected": { label: "Said a diary entry was a mistake", group: "clinical", verb: "said a diary entry was saved by mistake" },
+  "patient_diary.confirmed": { label: "Confirmed a diary entry", group: "clinical", verb: "confirmed a patient's diary entry" },
+  "assessment_run.started": {
+    label: "Started a guided video assessment",
+    group: "clinical",
+    verb: "started a guided video assessment",
+  },
+  "assessment_run.ended": {
+    label: "Ended a guided video assessment",
+    group: "clinical",
+    verb: "ended a guided video assessment",
+  },
+  "exercise_plan.published": {
+    label: "Published a home exercise plan",
+    group: "clinical",
+    verb: "published a home exercise plan",
+  },
   // feedback
   "feedback.submitted": { label: "Left session feedback", group: "feedback", verb: "left feedback on a session" },
   // referral

@@ -1,4 +1,5 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
+import { unitForValue } from "@/lib/unitPlural";
 import {
   PAIN_MAP_REGIONS,
   formatPainOutOfTen,
@@ -11,9 +12,12 @@ import {
   formatAreaPainForText,
   parseAreaPain,
   parseMultiSelect,
+  visibleQuestions,
   type IntakeQuestion,
 } from "@/lib/conditionIntake";
 import { toWinAnsi, toWinAnsiTidy, wrapText } from "@/lib/pdfText";
+import type { ProgressExport } from "@/lib/progressExport";
+import type { DiaryExport } from "@/lib/diaryExport";
 
 // The patient's own copy of their record, as a document they can hand to
 // another clinician -- which is what "export my data" actually means to a
@@ -81,6 +85,49 @@ export type HealthProfilePdfInput = {
    *  learns a scale. */
   showNeuroExaminations?: boolean;
   neuroExams?: { created_at: string; submitted_by_role: string; lines: string[] }[];
+  /** True for a paediatric profile: the LATEST paediatric examination is
+   *  printed (milestones with seen or parent-reported, the GMFCS level, the
+   *  equipment note), with the child's age line. Lines arrive as text
+   *  (`describePedsExamForText` in pedsExam.ts), so this module never learns
+   *  a milestone. Null `pedsExam` prints "No examinations recorded yet". */
+  showPedsExamination?: boolean;
+  pedsExam?: {
+    created_at: string;
+    submitted_by_role: string;
+    lines: string[];
+    /** Examinations before this one, on file and in the JSON export. */
+    earlierCount: number;
+  } | null;
+  /** "14 months (11.7 months corrected, born at 30 weeks)", or a sentence
+   *  saying why there is no age. */
+  pedsAgeLine?: string | null;
+  /** Clinicians' threshold note under the milestones. */
+  pedsVerificationNote?: string | null;
+  /** The goal, its steps and the measures table, already as text
+   *  (`buildProgressExport` in progressExport.ts). Omitted only by callers
+   *  that predate the measurement layer. */
+  progress?: ProgressExport;
+  /** The patient's diary as counts (diaryExport.ts), for a record whose
+   *  profile kind keeps one. Null/absent prints nothing. */
+  diary?: DiaryExport | null;
+  /** Strength and balance care / Heart and lung rehabilitation (phase 6a):
+   *  the fall-risk level with the rule that decided it, daily living and
+   *  standing blood pressure, or the oxygen stop limit, the latest vitals,
+   *  effort and the surgeon's precautions -- already as text
+   *  (geriatricProfile.ts `geriatricExportSection`, cardioProfile.ts
+   *  `cardioExportSection`), so this module never learns a rule. */
+  conditionSection?: { heading: string; lines: string[]; note?: string | null } | null;
+  /** "Ramesh, the patient's son, helps at home": the geriatric carer
+   *  pre-step, printed in the header block beside the condition type. */
+  carerLine?: string | null;
+  /** The clinic's Health Profile layout (profileWidgets.ts `exportPlan`):
+   *  a line naming the sections left out because the patient's own page does
+   *  not show them, so an omission never reads as "none recorded". */
+  layoutNote?: string | null;
+  /** False when the clinic hides the answers from this patient's page. */
+  showAnswers?: boolean;
+  /** False when the clinic hides reports and scans from this patient's page. */
+  showDocuments?: boolean;
 };
 
 // Renders one stored answer the way a person reads it, driven off the
@@ -177,6 +224,28 @@ class Cursor {
     this.y -= gap;
   }
 
+  /**
+   * One table row: each cell wraps inside its own column and the row is as
+   * tall as its tallest cell. A row is never split across pages.
+   */
+  row(
+    cells: { text: string; x: number; width: number }[],
+    { size = 9, bold = false, color = INK, gap = 4 }: { size?: number; bold?: boolean; color?: ReturnType<typeof rgb>; gap?: number } = {}
+  ) {
+    const font = bold ? this.bold : this.regular;
+    const lineHeight = size * 1.3;
+    const wrapped = cells.map((c) => wrapText(toWinAnsi(c.text), font, size, c.width));
+    const lines = Math.max(1, ...wrapped.map((w) => w.length));
+    this.need(lines * lineHeight + gap);
+    const top = this.y;
+    wrapped.forEach((cellLines, i) => {
+      cellLines.forEach((line, n) => {
+        this.page().drawText(line, { x: MARGIN + cells[i].x, y: top - lineHeight * (n + 1), size, font, color });
+      });
+    });
+    this.y = top - lines * lineHeight - gap;
+  }
+
   rule() {
     this.need(10);
     this.y -= 6;
@@ -247,13 +316,18 @@ export async function buildHealthProfilePdf(input: HealthProfilePdfInput): Promi
       { size: 10, color: MUTED, gap: 1 }
     );
   }
+  if (input.carerLine) cur.text(toWinAnsiTidy(input.carerLine, ""), { size: 10, color: MUTED, gap: 1 });
   cur.text(`Downloaded ${formatDate(input.exportedAt)}  |  Intake status: ${input.status}`, {
     size: 9,
     color: MUTED,
   });
+  if (input.layoutNote) cur.text(toWinAnsiTidy(input.layoutNote, ""), { size: 9, color: MUTED });
 
+  if (input.showAnswers !== false) {
   cur.heading("What the patient told us");
-  const answered = input.questions.filter((q) => (input.answers[q.key] ?? "").trim());
+  // Only the questions these answers ask: a follow-up the condition group
+  // has since closed is kept on file, not printed as part of this record.
+  const answered = visibleQuestions(input.questions, input.answers).filter((q) => (input.answers[q.key] ?? "").trim());
   if (answered.length === 0) {
     cur.text("No intake answers on record yet.", { size: 10, color: MUTED });
   } else {
@@ -279,6 +353,110 @@ export async function buildHealthProfilePdf(input: HealthProfilePdfInput): Promi
         cur.text(entry.label, { size: 9.5, bold: true, color: MUTED, gap: 1 });
         cur.text(entry.value, { size: 10.5, gap: 7 });
       }
+    }
+  }
+  }
+
+  // The goal in the patient's own words, the steps towards it, and the
+  // measures table. Already shaped to text, so this draws and never learns
+  // the registry. A section is always printed: "nothing recorded yet" is a
+  // fact a receiving clinician needs, and a heading that vanishes reads as
+  // the section having been left out.
+  if (input.progress) {
+    const progress = input.progress;
+    cur.heading("Goal and progress");
+    // The phase and any overrule of the computed status are the treating
+    // physiotherapist's own judgement, so they are printed with the date they
+    // were made and, for an overrule, the reason given.
+    cur.text(
+      progress.care.phase
+        ? `Current phase of care: ${progress.care.phase.name} (set ${progress.care.phase.setOn})`
+        : "Current phase of care: not set",
+      { size: 10, bold: !!progress.care.phase, gap: 2 }
+    );
+    if (progress.care.override) {
+      cur.text(
+        `Status overruled by the physiotherapist: ${progress.care.override.statusLabel} (${progress.care.override.setOn})`,
+        { size: 10, bold: true, gap: 1 }
+      );
+      cur.text(`Reason: ${progress.care.override.reason}`, { size: 9, color: MUTED, gap: 6 });
+    } else {
+      cur.space(4);
+    }
+    // Only what a person wrote; the screen's generated wording is not a
+    // clinician's statement and is never printed as one.
+    if (progress.care.summary) {
+      cur.text(
+        `Where things stand (${progress.care.summary.byClinic ? "written by the clinic" : "written by the physiotherapist"}, ${progress.care.summary.setOn})`,
+        { size: 9, bold: true, color: MUTED, gap: 1 }
+      );
+      for (const paragraph of progress.care.summary.text.split("\n").filter((line) => line.trim())) {
+        cur.text(paragraph, { size: 10, gap: 1 });
+      }
+      cur.space(6);
+    }
+    if (progress.goal) {
+      cur.text("Goal, in the patient's own words", { size: 9, bold: true, color: MUTED, gap: 1 });
+      cur.text(`\u201C${progress.goal.text}\u201D`, { size: 12, bold: true, gap: 2 });
+      cur.text(
+        [progress.goal.status, progress.goal.targetDate ? `aiming for ${progress.goal.targetDate}` : null].filter(Boolean).join("  |  "),
+        { size: 9, color: MUTED, gap: 6 }
+      );
+    } else {
+      cur.text("No goal recorded yet.", { size: 10, color: MUTED });
+    }
+
+    if (progress.milestones.length > 0) {
+      cur.space(4);
+      cur.text("Steps towards the goal", { size: 9, bold: true, color: MUTED, gap: 2 });
+      for (const step of progress.milestones) {
+        cur.need(40);
+        cur.text(`${step.title}  -  ${step.status}${step.when ? `, ${step.when.charAt(0).toLowerCase()}${step.when.slice(1)}` : ""}`, {
+          size: 10,
+          bold: true,
+          indent: 12,
+          gap: 1,
+        });
+        cur.text(step.criterion + (step.measure ? `  (measured by: ${step.measure})` : ""), { size: 9.5, indent: 12, gap: 4 });
+      }
+    } else if (progress.goal) {
+      cur.text("No steps planned yet.", { size: 10, color: MUTED });
+    }
+
+    cur.space(6);
+    cur.text("Measures", { size: 9, bold: true, color: MUTED, gap: 2 });
+    if (progress.measures.length === 0) {
+      cur.text("No measurements recorded yet.", { size: 10, color: MUTED });
+    } else {
+      const cols = [
+        { label: "Measure", x: 0, width: 150 },
+        { label: "First", x: 156, width: 100 },
+        { label: "Latest", x: 262, width: 100 },
+        { label: "Goal", x: 368, width: 60 },
+        { label: "Change", x: 434, width: CONTENT_WIDTH - 434 },
+      ];
+      cur.need(60);
+      cur.row(
+        cols.map((c) => ({ text: c.label, x: c.x, width: c.width })),
+        { size: 8.5, bold: true, color: MUTED, gap: 2 }
+      );
+      cur.rule();
+      for (const m of progress.measures) {
+        cur.row(
+          [
+            { text: m.name, x: cols[0].x, width: cols[0].width },
+            { text: m.first, x: cols[1].x, width: cols[1].width },
+            { text: m.now, x: cols[2].x, width: cols[2].width },
+            { text: m.goal, x: cols[3].x, width: cols[3].width },
+            { text: m.change, x: cols[4].x, width: cols[4].width },
+          ],
+          { size: 9, gap: 6 }
+        );
+      }
+      cur.text(
+        "Each reading is the newest taken at that review. A change inside the measurement error of a test is shown as no real change.",
+        { size: 8, color: MUTED }
+      );
     }
   }
 
@@ -320,6 +498,46 @@ export async function buildHealthProfilePdf(input: HealthProfilePdfInput): Promi
   }
   }
 
+  if (input.conditionSection && input.conditionSection.lines.length > 0) {
+    const section = input.conditionSection;
+    cur.heading(toWinAnsiTidy(section.heading, "Safety and risk"));
+    for (const line of section.lines) {
+      cur.need(16);
+      cur.text(toWinAnsiTidy(line, ""), { size: 10, gap: 2 });
+    }
+    if (section.note) cur.text(toWinAnsiTidy(section.note, ""), { size: 9, color: MUTED, gap: 4 });
+  }
+
+  // The diary, as counts only and always saying whose word it is. The route
+  // refuses the whole export when the diary cannot be read, so what prints
+  // here is the diary, not a part of it.
+  if (input.diary) {
+    const diary = input.diary;
+    cur.heading("Diary kept by the patient");
+    cur.text(
+      "Counts only. These are the patient's own account (patient reported) unless a physiotherapist has confirmed them. Nothing the patient wrote in a note is printed here.",
+      { size: 9, color: MUTED, gap: 4 }
+    );
+    if (diary.firstOn === null) {
+      cur.text("Nothing has been written in the diary yet.", { size: 10, color: MUTED });
+    } else {
+      cur.text(`Entries from ${diary.firstOn} to ${diary.lastOn}.`, { size: 9, color: MUTED, gap: 4 });
+      for (const line of diary.lines) {
+        cur.need(30);
+        cur.text(`${line.label}: ${line.total} ${unitForValue(line.unit, line.total)}`, { size: 11, bold: true, gap: 1 });
+        cur.text(`${line.patientReported} patient reported, ${line.confirmed} confirmed by a physiotherapist`, { size: 9.5, indent: 12, gap: 4 });
+      }
+      if (diary.freezingWeeks.length > 0) {
+        cur.space(2);
+        cur.text("Freezing episodes by week (weeks with an entry; a blank week means nothing was written down)", { size: 9, bold: true, color: MUTED, gap: 2 });
+        for (const w of diary.freezingWeeks) {
+          cur.text(`Week of ${w.weekOf}: ${w.episodes}  (${w.confirmed ? "confirmed" : "patient reported"}${w.partial ? ", week in progress" : ""})`, { size: 9.5, indent: 12, gap: 1 });
+        }
+      }
+    }
+    cur.space(8);
+  }
+
   if (input.showNeuroExaminations) {
     cur.heading("Neurological examinations by the therapist");
     const exams = input.neuroExams ?? [];
@@ -339,9 +557,36 @@ export async function buildHealthProfilePdf(input: HealthProfilePdfInput): Promi
     }
   }
 
+  if (input.showPedsExamination) {
+    cur.heading("Paediatric examination by the therapist");
+    if (input.pedsAgeLine) cur.text(`Age: ${input.pedsAgeLine}`, { size: 10, gap: 4 });
+    const exam = input.pedsExam ?? null;
+    if (!exam) {
+      cur.text("No examinations recorded yet.", { size: 10, color: MUTED });
+    } else {
+      cur.need(44);
+      cur.text(`Latest examination, ${formatDate(exam.created_at)}`, { size: 11, bold: true, gap: 1 });
+      cur.text(`Recorded by the ${exam.submitted_by_role}`, { size: 9, color: MUTED, gap: 4 });
+      for (const line of exam.lines) {
+        const indented = line.startsWith("  ");
+        cur.text(line.trim(), { size: 10, indent: indented ? 24 : 12, gap: 1 });
+      }
+      if (exam.earlierCount > 0) {
+        cur.space(2);
+        cur.text(
+          `${exam.earlierCount} earlier ${exam.earlierCount === 1 ? "examination is" : "examinations are"} on file.`,
+          { size: 9, color: MUTED, gap: 1 }
+        );
+      }
+      if (input.pedsVerificationNote) cur.text(input.pedsVerificationNote, { size: 8, color: MUTED, gap: 1 });
+    }
+    cur.space(8);
+  }
+
   // Listed, not embedded: the files themselves live in storage and are
   // downloaded individually. A patient handing this to another clinician
   // still needs to see what is on file.
+  if (input.showDocuments !== false) {
   cur.heading("Test reports and scans on file");
   if (input.documents.length === 0) {
     cur.text("No reports uploaded.", { size: 10, color: MUTED });
@@ -350,6 +595,7 @@ export async function buildHealthProfilePdf(input: HealthProfilePdfInput): Promi
       const dated = document.taken_on ? `taken ${formatDate(document.taken_on)}` : `uploaded ${formatDate(document.created_at)}`;
       cur.text(`${document.title}  -  ${document.document_type}, ${dated}`, { size: 10, gap: 2 });
     }
+  }
   }
 
   cur.space(10);

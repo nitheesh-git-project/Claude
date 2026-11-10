@@ -100,7 +100,7 @@ test.describe("CFG -- Settings information architecture", () => {
       "Sign-in & Security",
       "System Health",
       "Advanced",
-      "Dev Reachouts",
+      "Developer messages",
     ]) {
       await expect(onScreen(page, label).first()).toBeVisible();
     }
@@ -186,7 +186,7 @@ test.describe("CFG -- Settings information architecture", () => {
       await patient.addCookies(await browserCookiesFor(QA_EMAILS.patientA));
       const book = await patient.newPage();
       await book.goto(`${BASE}/book`, { waitUntil: "domcontentloaded" });
-      // The note under "Preferred Date" quotes the rule in force, and the
+      // The note under "Date" quotes the rule in force, and the
       // calendar filters on the same value -- it printed the constant and
       // filtered on the constant before this.
       await expect(book.getByText(/at least 72 hours from now/)).toBeVisible({ timeout: 60_000 });

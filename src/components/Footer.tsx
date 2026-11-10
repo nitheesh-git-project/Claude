@@ -6,7 +6,8 @@ import { usePricing } from "@/components/pricing/PricingProvider";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { isDashboardShellRoute, isDeveloperRoute } from "@/lib/dashboardShellRoutes";
-import { MARKETING_PAGES } from "@/lib/marketingNav";
+import { BOOK_CONNECTOR, visibleMarketingPages } from "@/lib/marketingNav";
+import { digitsOnly, hasRealEmail, hasRealPhone } from "@/lib/contactLinks";
 import BrandMark from "@/components/BrandMark";
 import type { ReactNode } from "react";
 import {
@@ -26,6 +27,9 @@ const SOCIAL_GLYPHS: Record<SocialPlatform, () => ReactNode> = {
   whatsapp: () => <WhatsAppGlyph />,
 };
 
+/** A footer row: a full 44px tall target, not an inline word. */
+const FOOTER_LINK = "flex min-h-11 items-center hover:text-teal-400 transition";
+
 export default function Footer({
   siteName,
   siteDescription,
@@ -36,6 +40,7 @@ export default function Footer({
   socialLinks = [],
   homeVisitEnabled: homeVisitSwitch = false,
   devCreditEnabled = true,
+  teamVisible = true,
 }: {
   siteName: string;
   siteDescription: string;
@@ -50,6 +55,8 @@ export default function Footer({
   /** Whether the developer credit line shows. Off when an admin switches the
    *  /developer pages off, so the line never links to a page that 404s. */
   devCreditEnabled?: boolean;
+  /** Someone is published on /team. */
+  teamVisible?: boolean;
 }) {
   // Off outside India unless an admin allows it (Countries & currency).
   const { homeVisitsOffered } = usePricing();
@@ -59,8 +66,8 @@ export default function Footer({
   // wordmark above already links there). Hardcoding these was how the footer
   // ended up offering four of the seven pages under labels the rest of the
   // site had stopped using.
-  const links = MARKETING_PAGES.filter(
-    (page) => page.key !== "home" && (homeVisitEnabled || !page.requiresHomeVisit)
+  const links = visibleMarketingPages(homeVisitEnabled, teamVisible).filter(
+    (page) => page.key !== "home"
   );
   // See Navbar's matching check -- each role dashboard is its own
   // full-height app shell with no page scroll, so a footer below it
@@ -87,7 +94,8 @@ export default function Footer({
             // where the practice is, not ways to reach it about a booking.
             // A new tab, because each leaves this site for someone else's
             // app -- a patient half-way through reading should not lose
-            // their place. 36px targets clear WCAG 2.2's 24px minimum.
+            // their place. 44px, like every other footer link: a 36px
+            // circle cleared WCAG's 24px minimum but not this footer's rule.
             <ul className="mt-4 flex flex-wrap gap-2" aria-label={`${siteName} on social media`}>
               {socialLinks.map((link) => (
                 <li key={link.platform}>
@@ -97,7 +105,7 @@ export default function Footer({
                     rel="noopener noreferrer"
                     aria-label={`${link.label} (opens in a new tab)`}
                     title={link.label}
-                    className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-800 text-base text-slate-300 transition hover:bg-teal-700 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400"
+                    className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-800 text-base text-slate-300 transition hover:bg-teal-700 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400"
                   >
                     {SOCIAL_GLYPHS[link.platform]()}
                   </a>
@@ -108,15 +116,14 @@ export default function Footer({
         </div>
 
         <div>
-          {/* The links below carry py-1 so each one clears WCAG 2.2's 24px
-              minimum target on a phone. At 12px type they were 15px tall --
-              the inline-link exception does not cover a navigation list, and
-              a 15px target between two others is a mis-tap. */}
-          <h4 className="text-white text-sm font-semibold mb-3">Explore</h4>
-          <ul className="space-y-2 text-xs">
+          {/* Every link below is a 44px-tall row (FOOTER_LINK): at 12px type
+              with py-1 they were 24px, a mis-tap waiting between two others
+              on a phone. */}
+          <h4 className="text-white text-sm font-semibold mb-2">Explore</h4>
+          <ul className="text-sm">
             {links.map((link) => (
               <li key={link.href}>
-                <Link href={link.href} className="inline-block py-1 hover:text-teal-400 transition">
+                <Link href={link.href} className={FOOTER_LINK}>
                   {link.label}
                 </Link>
               </li>
@@ -125,16 +132,48 @@ export default function Footer({
         </div>
 
         <div>
-          <h4 className="text-white text-sm font-semibold mb-3">Get Started</h4>
-          <ul className="space-y-2 text-xs">
-            <li><Link href="/get-started" className="inline-block py-1 hover:text-teal-400 transition">Book a Consultation</Link></li>
-            <li><Link href="/book" className="inline-block py-1 hover:text-teal-400 transition">Booking Enquiry</Link></li>
+          <h4 className="text-white text-sm font-semibold mb-2">Book</h4>
+          <ul className="text-sm">
+            <li>
+              <Link href={BOOK_CONNECTOR.href} className={FOOTER_LINK}>
+                {BOOK_CONNECTOR.label}
+              </Link>
+            </li>
+            {homeVisitEnabled && (
+              <li>
+                <Link href="/book-home-visit" className={FOOTER_LINK}>
+                  Book a home visit
+                </Link>
+              </li>
+            )}
+          </ul>
+          {/* The /get-started hub's other doors -- the therapist and partner
+              sign-ins -- live here rather than in the header: a patient
+              opening the menu should meet one primary button, and clinicians
+              know where their own entrance is. */}
+          <h4 className="text-white text-sm font-semibold mb-2 mt-5">For clinicians and partners</h4>
+          <ul className="text-sm">
+            <li>
+              <Link href="/therapist/login" className={FOOTER_LINK}>
+                Therapist sign in or apply
+              </Link>
+            </li>
+            <li>
+              <Link href="/hospital/login" className={FOOTER_LINK}>
+                Hospital partner sign in
+              </Link>
+            </li>
+            <li>
+              <Link href="/get-started" className={FOOTER_LINK}>
+                All sign-in options
+              </Link>
+            </li>
           </ul>
         </div>
 
         <div>
-          <h4 className="text-white text-sm font-semibold mb-3">Contact</h4>
-          <ul className="space-y-2 text-xs text-slate-400">
+          <h4 className="text-white text-sm font-semibold mb-2">Contact</h4>
+          <ul className="text-sm text-slate-400">
             <ContactLine
               icon={<i aria-hidden="true" className="fa-solid fa-envelope" />}
               value={contactEmail}
@@ -175,11 +214,10 @@ export default function Footer({
           <p className="mt-1 px-4">
             Researched, designed and hand-built to make care easier for patients and therapists — by{" "}
             <span className="font-semibold text-slate-300">Nitheesh M</span> ·{" "}
-            {/* py-1 keeps the target at 24px tall on a phone, the same as the
-                footer's other links. */}
+            {/* 44px tall on a phone, the same as the footer's other links. */}
             <Link
               href="/developer"
-              className="inline-block py-1 font-semibold text-slate-300 underline-offset-2 hover:text-teal-400 hover:underline transition"
+              className="inline-flex min-h-11 items-center font-semibold text-slate-300 underline-offset-2 hover:text-teal-400 hover:underline transition"
             >
               Contact me
             </Link>
@@ -188,35 +226,6 @@ export default function Footer({
       </div>
     </footer>
   );
-}
-
-/**
- * `site_settings` ships both numbers as the literal string "+91 XXXXX XXXXX"
- * -- a placeholder for an admin to replace, which the footer printed as
- * though it were the clinic's number. On the one page a hesitant patient
- * looks for evidence there is a real practice behind this, the answer was a
- * row of X's. Nothing is better than a fake: the same reading `refundState`
- * already applies, where "none" renders nothing rather than an empty chip.
- *
- * Counted rather than matched against the placeholder string, which would go
- * stale the moment somebody edited it to "+91 XXXXXXXXXX". An Indian mobile
- * with its country code is twelve digits; the shipped placeholder has two.
- * Seven is comfortably below any real number and far above any placeholder.
- */
-const MIN_REAL_PHONE_DIGITS = 7;
-
-function hasRealPhone(value: string): boolean {
-  return (value ?? "").replace(/[^0-9]/g, "").length >= MIN_REAL_PHONE_DIGITS;
-}
-
-function hasRealEmail(value: string): boolean {
-  return /.+@.+\..+/.test(value ?? "");
-}
-
-/** wa.me takes digits with the country code and no punctuation. */
-function digitsOnly(value: string, keepPlus = false): string {
-  const digits = (value ?? "").replace(/[^0-9]/g, "");
-  return keepPlus && value?.trim().startsWith("+") ? `+${digits}` : digits;
 }
 
 function ContactLine({
@@ -248,7 +257,10 @@ function ContactLine({
         href={href}
         aria-label={label}
         {...(newTab ? { target: "_blank", rel: "noopener noreferrer" } : {})}
-        className="inline-block py-1 hover:text-teal-400 transition"
+        // A real address is longer than a footer column at the md
+        // breakpoint (~164px at 800px wide): unbroken, it pushed the whole
+        // page 10px wider than the screen (layout-audit, 800x480).
+        className={`${FOOTER_LINK} min-w-0 [overflow-wrap:anywhere]`}
       >
         {/* The glyph is a node rather than a class string: the WhatsApp one
             is now inline SVG (see BrandGlyphs.tsx), which saved pulling the

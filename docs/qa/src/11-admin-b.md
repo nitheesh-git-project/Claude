@@ -86,18 +86,34 @@ Check the Logs section afterwards: an added, edited, removed or reordered row ea
 | **Hold (seconds)** | A longer hold visibly holds longer |
 | **Away minutes** | Set `1`. Open a tab, switch away for 90 seconds, switch back → greeted again. Set `0` → **first load only**, and returning is never greeted. **There is deliberately no value meaning "greet on every tab focus".** |
 
-**Expected Result also to check:** a **reload** of an already-greeted tab is **not** greeted. Someone who has asked for **reduced motion is skipped outright**. The overlay's markup is present in every page's HTML and visibility is driven by a `data-splash` attribute on `<html>` - not React state - so there must be **no hydration warning** in the console.
+**Expected Result also to check:** a **reload** of an already-greeted tab is **not** greeted. Someone who has asked for **reduced motion is skipped outright**. On a **public** page the hold is clipped so hold + fade stay under about 0.6 seconds, however long the admin set it (the signed-in workspaces keep the full hold), and it is a CSS animation started by the boot script - not a timer after hydration. The overlay's markup is present in every page's HTML and visibility is driven by a `data-splash` attribute on `<html>` - not React state - so there must be **no hydration warning** in the console.
 
 #### `ADM-SET-007` - Testimonials · P1
 **Steps.** Create a testimonial with patient name `QA Story` and quote `The exercises made a real difference in six weeks.` Save. Open `/` and `/mission`.
 **Expected Result.** It appears **immediately** in the same band on **both** pages (the route invalidates `/` and `/mission`, both ISR-cached) - one component serves both, because the two bands make the same claim and a visitor may see both in one session. The avatar is optional; with none, the **patient's initial** is shown, never a generic silhouette.
-**Critical check:** the five rows the schema seeds are **illustrative copy, not real patients**, and the admin form must **say so at the point of entry**. Never present a seeded testimonial as real. The only place a **real** number is quoted is the public rating summary.
+**Critical check:** the five rows the schema seeds are **illustrative copy, not real patients**, and the admin form must **say so at the point of entry**. Never present a seeded testimonial as real: the public pages **do not render those five at all** (matched by their text), and with only them in the table the Reviews / Patient stories band and its rail entry are not drawn. Rewrite one's quote and it counts as yours. The only place a **real** number is quoted is the public rating summary.
 **Negatives:** `Missing patientName or quote`; editing requires `Missing id, patientName, or quote`.
 
 #### `ADM-SET-008` - FAQ · P2
 **Steps.** Create, edit, reorder and delete an FAQ. Open `/faq`.
-**Expected Result.** The public accordion reflects each change **immediately** - `/faq` is ISR-cached and every FAQ route invalidates it. Negatives: `Missing question or answer`, `Missing id, question, or answer`.
+**Expected Result.** The public accordion reflects each change **immediately** - `/faq` is ISR-cached and every FAQ route invalidates it. With **no active FAQ row** the page shows the shipped default questions (built from the live notice and refund settings, quoting no price) instead of "No questions posted yet"; publish one and they step aside. Negatives: `Missing question or answer`, `Missing id, question, or answer`.
 
+---
+
+#### `ADM-HPL-001` - Health Profile layout: per condition type and per patient · P0 **[UI] [API]**
+**Preconditions.** A Master Admin; a Clinical-desk admin; an orthopaedic and a geriatric patient with records; their assigned Therapist A.
+**Steps.**
+1. As the Master Admin open **Settings → Health Profile layout**, choose *Orthopaedic*, switch **Measures table** off.
+2. Choose *Geriatric*: look at **Fall-risk level** and **Standing blood pressure**; post `{ profileKind: "geriatric", widgetKey: "fall_risk", visible: false }` to `/api/admin/profile-widgets/kind`.
+3. Open the orthopaedic patient's record (People → the patient → Health Profile): **Sections for this patient** → **Choose sections**; switch **Measures table** back on for this patient and **Reports and scans** off.
+4. As the patient open My progress; as Therapist A open the chart; download the patient's PDF.
+5. Back on the record tap **Reset to condition default** on both. Then repeat step 3 as the Clinical-desk admin (People at view only, if set up so).
+**Expected Result.**
+* Step 1: the count updates live (*N of M sections shown*); a `profile_widgets.set_kind` row is in the log with from and to.
+* Step 2: both carry a lock and *Always shown* with the reason; the post answers 400 `locked_widget`.
+* Step 3: each row reads *Inherited from the condition type · Off/On* or *Set for this patient*; a `profile_widgets.set_patient` row with the section, from, to.
+* Step 4: the patient sees *Your measures* with the table, and no *Reports and scans* block. The chart shows the same, with *1 section hidden for this patient - show* opening to name it (reports still listed on the chart). The admin record names *Hidden for the patient: Reports and scans* above the chart and still draws everything. The PDF has no reports section and a line *Left out because the clinic does not show them on this patient's own profile: Reports and scans...*.
+* Step 5: both back to inherited. A desk that cannot manage People sees the list read-only (no switches); a Settings screen is never shown to a limited desk. A failed read says *We couldn't check...* rather than drawing switches.
 ---
 
 ### 15.3 Settings → Booking Rules, Offers & Discounts, Programmes & Home Visits
@@ -116,7 +132,7 @@ Where a case below still says "Settings → Booking Rules", that is correct - it
 
 #### `ADM-SET-009` - Every Settings screen says what it is · P2
 
-**Steps.** Open each of the eleven Settings screens in turn, in sidebar order and under their four captions - *Your website:* Brand & Contact, Public Site; *How the clinic runs:* Booking Rules, Offers & Discounts, Programmes & Home Visits, Clinical Questions; *Who gets in:* User Access, Sign-in & Security; *Technical:* System Health, Advanced, Dev Reachouts. Then open both Logs screens: All Activity and Archive & Clear.
+**Steps.** Open each of the eleven Settings screens in turn, in sidebar order and under their four captions - *Your website:* Brand & Contact, Public Site; *How the clinic runs:* Booking Rules, Offers & Discounts, Programmes & Home Visits, Clinical Questions; *Who gets in:* User Access, Sign-in & Security; *Technical:* System Health, Advanced, Developer messages. Then open both Logs screens: All Activity and Archive & Clear.
 
 **Expected Result.** Under the page heading, each one shows **two lines**: one plain sentence saying what the screen is, and a second beginning **"For example:"** with one concrete thing you would come there to do. The sentences differ per screen - none of them says "How the product behaves", which is the section's line and is what every one of these screens used to show. No jargon, no database column names, no feature names.
 
@@ -302,6 +318,26 @@ The screen warns you to turn it on only once System Health has been clean.
 * `schema_version` is **per specialty**, so changing a neuro question must **not** fire the "we've changed some of these questions" banner at orthopaedic patients.
 * Pain Map templates edit per region and question; unknown values are refused with `Unknown region` / `Unknown questionKey for this region`.
 
+
+#### `ADM-SET-020a` - Switching on Strength and balance care and Heart and lung rehabilitation · P0
+
+**Steps**
+1. On a database where nobody has touched the setting, open **Settings → Clinical Questions** and read **Condition types offered at triage**.
+2. As Therapist A, open triage for a new patient aged 65 or older referred for falls.
+3. As the admin tick **Geriatric** and **Cardiopulmonary**; open the question bank's **Geriatric** and **Cardiopulmonary** tabs; reword *Do you worry about falling?* and save.
+4. Repeat step 2.
+5. `POST /api/admin/update-setting` `{"key":"enabled_intake_specialties","value":["geriatric","elderly"]}`, then `{"key":"enabled_intake_specialties","value":["cardiopulmonary"]}`.
+6. On **Catalog → Conditions** edit a condition and open **Condition type**.
+7. Open the public home page and `/how-it-works`.
+
+**Expected Result**
+* Step 1: five types; **Geriatric** and **Cardiopulmonary** are **unticked** (off until an admin chooses them); Orthopaedic is ticked and locked.
+* Step 2: neither new type is offered; the suggestion names the switched-off type in its reason.
+* Step 3: the questions are listed from the code: on **Geriatric** the optional carer pair first, then the seven; on **Cardiopulmonary** the seven with three follow-ups, noted *Asked only when "Condition" is "Heart bypass or valve surgery (open-heart)"* under the two precautions questions and *Asked only when "Home oxygen" is "Yes"* under the prescription. The new wording saves (no 500: the template table accepts the new type).
+* Step 4: both types are offered; Geriatric is suggested with its reason.
+* Step 5: the unknown type is a 400 *Unknown condition type.*; the second saves as Orthopaedic + Cardiopulmonary (Orthopaedic is always kept).
+* Step 6: Geriatric and Cardiopulmonary are offered, for grouping the therapist's recommendation picker only.
+* Step 7: after step 4 the public health-profile showcase (home band and `/how-it-works`) gains a **Strength and balance care** tab (and **Heart and lung rehabilitation** once that is ticked); while a type is unticked it has no tab. Orthopaedic is always there. The figures are labelled *Sample patient - figures are made up*.
 #### `ADM-SET-025` - User Access: scopes · P0
 
 **Steps**
@@ -564,7 +600,7 @@ Covered by `ADM-SESS-003`.
 **Steps**
 1. Open **Logs → All Activity**.
 2. Confirm each of these earlier actions appears with actor, action, target and timestamp: account approval, therapist revenue-share change, care-plan withdrawal, care-plan authored on behalf, payout settlement, cash amount correction, credit adjustment, hospital onboarding, password reset.
-2a. Confirm the same for the actions that used to leave no trace at all: `Changed a patient's contact details` (`ADM-PEOP-003`'s contact edit), `Edited notes on a patient`, `Changed whether a therapist appears on Team`, `Excluded a session rating from the average`, `Changed a home visit's address`, `Decided a record-access request` and `Decided a health-profile change` (`ADM-PEOP-004`), `Reworded an intake question` (`ADM-SET-020`), `Reviewed a risk signal` (`ADM-RISK-002`) and `Retried a Meet sync` (`ADM-SET-031`).
+2a. Confirm the same for the actions that used to leave no trace at all: `Changed a patient's contact details` (`ADM-PEOP-003`'s contact edit), `Edited notes on a patient`, `Changed whether a therapist appears on Team`, `Excluded a session rating from the average`, `Changed a home visit's address`, `Decided a therapist's access to a Health Profile` and `Decided Health Profile answers` (`ADM-PEOP-004`), `Reworded an intake question` (`ADM-SET-020`), `Reviewed a risk signal` (`ADM-RISK-002`) and `Retried a Meet sync` (`ADM-SET-031`).
 3. Search the log for any of the generated passwords from `ADM-SET-026` or `ADM-PEOP-009`.
 4. **[SQL]** Attempt `insert into admin_activity_log …` as an authenticated (non-service-role) session, and attempt `update`/`delete`.
 
@@ -698,11 +734,11 @@ The Logs section is **Master Admin only**. Operations, Finance and Clinical have
 * Step 3: Settings has **eleven** screens under four captions, and Activity Log is **not** among them; it moved to the Logs section, which is the whole of it in one place.
 * Step 4: the matrix carries a **Logs** group with a read row and a clear row, ticked for Master Admin and blank for the other three - derived from the same module the routes enforce with, so it cannot claim access nobody has.
 
-#### `ADM-SET-038` - Dev Reachouts · P1
-**Feature.** The developer credit under the footer's copyright ("Contact me") leads to `/developer` and `/developer/lets-talk`. Whatever a visitor sends lands on **Settings → Dev Reachouts**, which is **Master Admin only** and also holds the two switches that publish the page. See `PUB-DEV-001` for the visitor's side.
+#### `ADM-SET-038` - Developer messages · P1
+**Feature.** The developer credit under the footer's copyright ("Contact me") leads to `/developer` and `/developer/lets-talk`. Whatever a visitor sends lands on **Settings → Developer messages**, which is **Master Admin only** and also holds the two switches that publish the page. See `PUB-DEV-001` for the visitor's side.
 
 **Steps**
-1. Complete `PUB-DEV-001` so there is at least one message, then sign in as the Master Admin and open **Settings → Dev Reachouts** (`?section=settings&tab=reachouts`). Check the sidebar badge counts the **new** messages.
+1. Complete `PUB-DEV-001` so there is at least one message, then sign in as the Master Admin and open **Settings → Developer messages** (`?section=settings&tab=reachouts`). Check the sidebar badge counts the **new** messages.
 2. On the message, confirm the name, a `mailto:` email link, a `tel:` number link (when one was given), the message with its line breaks kept, and the received time **in the clinic's zone**.
 3. Under **Add a note**, type a note and tap **Save note**. Add a second note the same way. On the first note tap **Edit**, change the text and tap **Save**. On the second tap **Delete**, then **No**; tap **Delete** again, then **Yes**. Then tap **Mark as contacted**. Then tap **Move back to new**.
 4. In **Show the developer credit and contact page**, tap the switch. Read the dialog, tap **No**. Tap it again and tap **Yes**. Open `/developer`, then switch it back on the same way (dialog again, **No**, then **Yes**).
@@ -767,7 +803,7 @@ Every row here is a required test. The **Verify** column is what proves the chan
 | 36 | Walkthrough seconds | Settings → Public Site | The home page walkthrough | Pace changes; 0 = static | `ADM-SET-005` |
 | 36a | Mission & Vision | Settings → Public Site | `/` and `/mission` | Both update at once; blank restores the shipped line | `ADM-SET-036` |
 | 36b | Promises and limits | Settings → Public Site | `/` chips and both `/mission` bands | Rows publish at once; empty band restores the shipped set; all-off drops the band and its rail entry | `ADM-SET-037` |
-| 36c | Developer credit switch + published email | Settings → Dev Reachouts | Footer credit line, `/developer`, `/developer/lets-talk`, `/api/developer/reachout` | Off ⇒ line hidden and all three 404; email blank ⇒ **Prefer email?** line hidden; **both directions confirm first** | `ADM-SET-038`, `PUB-DEV-001` |
+| 36c | Developer credit switch + published email | Settings → Developer messages | Footer credit line, `/developer`, `/developer/lets-talk`, `/api/developer/reachout` | Off ⇒ line hidden and all three 404; email blank ⇒ **Prefer email?** line hidden; **both directions confirm first** | `ADM-SET-038`, `PUB-DEV-001` |
 | 37 | Splash (5 settings) | Settings → Public Site | The opening splash | Each behaves as documented | `ADM-SET-006` |
 | 38 | Testimonials | Settings → Public Site | `/` and `/mission` bands | Both update from one component | `ADM-SET-007` |
 | 39 | FAQ | Settings → Public Site | `/faq` | Accordion updates | `ADM-SET-008` |

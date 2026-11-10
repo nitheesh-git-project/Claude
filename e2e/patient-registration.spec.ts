@@ -96,6 +96,19 @@ test.describe("Self-registration without email confirmation", () => {
     await expect(page).toHaveURL(/\/pending-approval/);
     // Nothing on that screen may send them to their inbox.
     await expect(page.getByText(/confirm your email|check your email/i)).toHaveCount(0);
+    // A patient is not made to wait: the primary button books their first
+    // session (checkout opens the account), the wait is said in words, and
+    // the page speaks of "the clinic", never "an admin".
+    const book = page.getByTestId("pending-book-first");
+    await expect(book).toHaveText("Book your first session");
+    await expect(book).toHaveAttribute("href", "/book");
+    await expect(page.getByText(/usually within \d+ working days?/)).toBeVisible();
+    // The page's own words: the pre-launch debug bar above it (on in every
+    // environment, src/lib/debugNavVisible.ts) lists the admin routes by
+    // name, and is a developer tool rather than anything this screen says.
+    await expect(page.getByRole("main").getByText(/\badmin\b/i)).toHaveCount(0);
+    const fontPx = await book.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+    expect(fontPx).toBeGreaterThanOrEqual(16);
     await ctx.close();
   });
 

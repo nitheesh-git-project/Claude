@@ -1,5 +1,5 @@
 // DEV: the developer credit under the footer, its "Say hello" flow, and the
-// Master-Admin-only Dev Reachouts screen that reads what it collects.
+// Master-Admin-only Developer messages screen that reads what it collects.
 //
 // Three things are held here, and each has a reason to be driven in a browser
 // rather than only unit tested (`devReachout.test.ts` holds the rules):
@@ -15,7 +15,7 @@
 // Every row this makes carries E2E_MARKERS.devReachoutName and is deleted in a
 // finally, and both settings are put back as they were found.
 import { test, expect, type Page } from "@playwright/test";
-import { BASE, browserCookiesFor, QA_EMAILS, adminClient, E2E_MARKERS } from "./helpers";
+import { BASE, browserCookiesFor, QA_EMAILS, adminClient, E2E_MARKERS, waitForSplashToClear } from "./helpers";
 
 const NAME = E2E_MARKERS.devReachoutName;
 const SCREEN = `${BASE}/admin/dashboard?section=settings&tab=reachouts`;
@@ -59,6 +59,11 @@ test.describe("DEV -- the developer credit and its reachouts", () => {
     try {
       // The credit sits under the copyright on a public page.
       await page.goto(`${BASE}/faq`, { waitUntil: "domcontentloaded" });
+      // A cold open paints the splash, and a click sent while it is up --
+      // before the page has hydrated -- was lost: the URL stayed on /faq
+      // every run, while the same click once the splash had cleared went
+      // through. Every other public walk waits for it the same way.
+      await waitForSplashToClear(page);
       const credit = page.getByRole("contentinfo");
       await expect(credit).toContainText("Nitheesh M");
       await credit.getByRole("link", { name: "Contact me" }).click();

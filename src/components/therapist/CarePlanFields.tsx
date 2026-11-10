@@ -14,7 +14,7 @@ import { formatRupees } from "@/lib/formatMoney";
  *  server (`loadRecommendableRates`) so every number here is the catalog's. */
 export type RecommendableOption = RecommendableRate;
 
-/** Clinician-facing names for the three condition types. Kept here rather
+/** Clinician-facing names for the condition types. Kept here rather
  *  than imported from conditionSpecialty.ts because that module is the
  *  health-profile vocabulary and this is a catalogue picker -- they happen
  *  to agree today, and coupling them would make a change to one a change to
@@ -23,6 +23,8 @@ const SPECIALTY_LABELS: Record<string, string> = {
   ortho: "Orthopaedic",
   neuro: "Neurological",
   pediatrics: "Paediatric",
+  geriatric: "Geriatric",
+  cardiopulmonary: "Cardiopulmonary",
 };
 
 export type CarePlanDraft = {
@@ -170,7 +172,7 @@ export default function CarePlanFields({
   // Grouped by condition type where an admin has tagged them, and under
   // **General** where they have not.
   const groups = (() => {
-    const order = ["ortho", "neuro", "pediatrics", null] as const;
+    const order = ["ortho", "neuro", "pediatrics", "geriatric", "cardiopulmonary", null] as const;
     const out: { label: string; items: RecommendableOption[] }[] = [];
     for (const specialty of order) {
       const items = conditions

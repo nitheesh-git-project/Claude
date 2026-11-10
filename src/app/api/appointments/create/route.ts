@@ -22,6 +22,7 @@ import {
 } from "@/lib/bookingSlots";
 import { guardCommunication } from "@/lib/communicationFlags";
 import { enforceRateLimit } from "@/lib/rateLimitServer";
+import { BOOKING_NOTES_MAX, composeBookingNotes, validateBookingFor } from "@/lib/bookingFor";
 
 // Creates the pre-payment appointment row for a single online session --
 // the row /api/razorpay/create-order then mints a Razorpay order against.
@@ -51,6 +52,11 @@ type Body = {
   slotTime?: string;
   timezone?: string | null;
   notes?: string | null;
+  /** "Who is this for?": `{ who: "me" }` or a family member's name, age,
+   *  relationship and whether someone is with them. Validated and written
+   *  into the notes by this route (src/lib/bookingFor.ts) -- the browser
+   *  never sends the finished line. */
+  bookingFor?: unknown;
   preferredTherapistId?: string | null;
   preferredLanguage?: string | null;
   /** When present, the response carries the payment screen's quote for the
@@ -127,6 +133,24 @@ export async function POST(request: NextRequest) {
   const slotMs = new Date(slotTime).getTime();
   if (Number.isNaN(slotMs)) {
     return NextResponse.json({ error: "That date and time isn't valid." }, { status: 400 });
+  }
+
+  // Validated before any database work: a malformed answer is a 400 the
+  // patient can fix, and the notes it becomes are length-capped below.
+  const bookingFor = validateBookingFor(body.bookingFor);
+  if (!bookingFor.ok) {
+    return NextResponse.json({ error: bookingFor.error }, { status: 400 });
+  }
+  if (body.notes !== undefined && body.notes !== null && typeof body.notes !== "string") {
+    return NextResponse.json({ error: "Your notes couldn't be read." }, { status: 400 });
+  }
+
+  const notes = composeBookingNotes(bookingFor.value, body.notes);
+  if (notes && notes.length > BOOKING_NOTES_MAX) {
+    return NextResponse.json(
+      { error: `Please keep your notes under ${BOOKING_NOTES_MAX} characters.` },
+      { status: 400 }
+    );
   }
 
   const admin = createAdminClient();
@@ -305,7 +329,8 @@ export async function POST(request: NextRequest) {
   // same way the therapist's text is -- but recorded rather than refused.
   // A patient is not the party this control exists to catch, and a 400 at
   // the last step of checkout costs a real booking.
-  const notes = body.notes?.trim() || null;
+  // Composed and capped up front (see the validation above), so a refusal
+  // never lands after a replaced draft.
   // Record-only, so it decides nothing about the insert: it runs alongside
   // it rather than in front of it, and is still awaited before responding.
   const guarded = guardCommunication(admin, [{ surface: "appointment_notes", text: notes }], {

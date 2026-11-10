@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from "motion/react";
 import { TUTORIAL_FIXTURES as F } from "@/lib/tutorial";
-import { questionsForSpecialty } from "@/lib/conditionIntake";
+import { questionsForSpecialty, visibleQuestions } from "@/lib/conditionIntake";
 import {
   CONDITION_SPECIALTIES,
   TRIAGE_QUESTIONS,
@@ -151,9 +151,7 @@ export function OnboardTriageScene() {
   const c = TRIAGE_CASES[caseIndex];
   const suggestion = suggestSpecialtyFromTriage(c.answers);
   const def = specialty(suggestion.suggested);
-  const shown = TRIAGE_QUESTIONS.filter(
-    (q) => !q.showWhen || c.answers[q.showWhen.key] === q.showWhen.equals
-  );
+  const shown = visibleQuestions(TRIAGE_QUESTIONS, c.answers);
   return (
     <Frame title={`Triage · ${c.who}`} icon="fa-clipboard-question">
       <AnimatePresence mode="wait">
@@ -200,7 +198,9 @@ export function OnboardTriageScene() {
  *  list on the left fills in, the current question's help line -- the one
  *  written to be read aloud -- on the right. */
 function QuestionSetScene({ kind }: { kind: ConditionSpecialty }) {
-  const questions = questionsForSpecialty(kind);
+  // The questions asked with nothing answered yet: a follow-up that waits
+  // on an answer (the Parkinson's ones) is not part of the walk-through.
+  const questions = visibleQuestions(questionsForSpecialty(kind), {});
   const counted = questions.filter((q) => !q.excludeFromCount).length;
   const phase = usePhase(questions.length + 1, 1500, 2);
   const current = questions[Math.min(phase, questions.length - 1)];

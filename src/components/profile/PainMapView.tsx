@@ -69,7 +69,7 @@ const MIN_SPACE_ABOVE = 160; // rough floor for "popup fits above without help"
 // RegionStandingsList, rendered once by PainMapExplorer -- this component
 // is only ever the figure, so the comparison view can swap in beside it
 // without the list appearing twice.
-export default function PainMapView({ assessments }: { assessments: PainAssessmentRow[] }) {
+export default function PainMapView({ assessments, sideWords = "short" }: { assessments: PainAssessmentRow[]; sideWords?: "short" | "patient" }) {
   const [selection, setSelection] = useState<Selection | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
@@ -125,6 +125,7 @@ export default function PainMapView({ assessments }: { assessments: PainAssessme
           latestByKey={latestByKey}
           selected={selection}
           onSelect={handleSelect}
+          sideWords={sideWords}
         />
 
         {selection && selectedRegionDef && (

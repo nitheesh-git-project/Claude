@@ -22,7 +22,7 @@ export default function AdminInboxQueues({
   allowedSections: AdminSectionKey[];
 }) {
   const visibleGroups = groups
-    .map((g) => ({ ...g, items: g.items.filter((i) => i.count > 0 && allowedSections.includes(i.section)) }))
+    .map((g) => ({ ...g, items: g.items.filter((i) => i.count > 0 && allowedSections.includes(i.workSection ?? i.section)) }))
     .filter((g) => g.items.length > 0);
 
   return (

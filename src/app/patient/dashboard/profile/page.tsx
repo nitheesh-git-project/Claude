@@ -6,13 +6,11 @@ import AccountCreatedNote from "@/components/profile/AccountCreatedNote";
 import InstantProfileFields from "@/components/profile/InstantProfileFields";
 import GatedProfileFields from "@/components/profile/GatedProfileFields";
 import AccountSecuritySection from "@/components/profile/AccountSecuritySection";
-import DashboardShell from "@/components/dashboard/DashboardShell";
+import PatientDashboardShell from "@/components/patient/PatientDashboardShell";
+import { loadPatientDashboard } from "@/lib/patientDashboardData";
 import { computeFieldStatus } from "@/lib/computeFieldStatus";
 import { LANGUAGE_OPTIONS } from "@/lib/languageOptions";
-import { buildPatientNavItems } from "@/lib/dashboardNavItems";
 import MyAddresses from "@/components/profile/MyAddresses";
-import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
-import { isDebugNavVisible } from "@/lib/debugNavVisible";
 
 export const metadata: Metadata = {
   title: "Edit Profile | MoveRestore",
@@ -27,18 +25,15 @@ export default async function PatientProfilePage() {
   if (!user) {
     return null;
   }
+  // The shared patient shell (A9): the same sidebar, load banner, guided-check
+  // bar and "Suggested for you" bar as every sibling screen. The core only.
+  const d = await loadPatientDashboard("profile");
 
   // Independent of each other -- run in parallel instead of one at a time.
   // See admin/dashboard/page.tsx's identical Promise.all for the reasoning.
   const [
     { data: profile, error: profileError },
-    { data: patientCodeRow },
     { data: changeRequests, error: changeRequestsError },
-    { count: ownedPackagesCount },
-    { data: settingsRow },
-    { count: onlineSessionCount },
-    { count: homeVisitCount },
-    { count: ownedHomeVisitCount },
     { data: savedAddresses, error: savedAddressesError },
   ] = await Promise.all([
     supabase
@@ -49,54 +44,13 @@ export default async function PatientProfilePage() {
       .eq("id", user.id)
       .single(),
 
-    // patient_code is new/migration-dependent -- kept isolated (see
-    // sessionCode.ts's comment / this codebase's established convention) so
-    // an unknown-column error here only degrades this one badge.
-    supabase.from("profiles").select("patient_code").eq("id", user.id).maybeSingle(),
-
     supabase
       .from("profile_change_requests")
       .select("id, status, admin_notes, changes, created_at")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false }),
 
-    // Cheap existence-only check, not the full rows the dashboard page
-    // itself fetches -- this page only needs to know whether to show that
-    // sidebar nav item, so the dashboard page and this one always agree on
-    // what's in the sidebar (see buildPatientNavItems).
-    supabase
-      .from("patient_package_purchases")
-      .select("id", { count: "exact", head: true })
-      .eq("patient_id", user.id)
-      .eq("payment_status", "paid"),
 
-    // These site_settings columns are new/migration-dependent -- isolated
-    // so a missing migration only disables Feature Control's effects, not
-    // the whole page.
-    supabase
-      .from("site_settings")
-      .select(SITE_SETTINGS_SELECT)
-      .maybeSingle(),
-
-    // The Home Visit nav entries are conditional, and every page rendering
-    // this shell has to pass the same booleans or the sidebar gains and
-    // loses entries as you move between them. Count-only queries: a round
-    // trip each, no rows.
-    supabase
-      .from("appointments")
-      .select("id", { count: "exact", head: true })
-      .eq("patient_id", user.id)
-      .not("visit_mode", "eq", "home_visit"),
-    supabase
-      .from("appointments")
-      .select("id", { count: "exact", head: true })
-      .eq("patient_id", user.id)
-      .eq("visit_mode", "home_visit"),
-    supabase
-      .from("home_visit_package_purchases")
-      .select("id", { count: "exact", head: true })
-      .eq("patient_id", user.id)
-      .eq("payment_status", "paid"),
     // The My Addresses sub-tab. RLS scopes this to the caller's own rows,
     // so no ownership filter beyond patient_id is needed.
     supabase
@@ -110,59 +64,18 @@ export default async function PatientProfilePage() {
       .order("created_at", { ascending: false }),
   ]);
   const fieldStatus = computeFieldStatus(changeRequests ?? []);
-  const adminSettings = parseAdminSettings(settingsRow);
   // A failed read is not a blank profile -- see ProfileLoadFailed. Each
   // section withholds only what it could not read: the addresses card can
   // fail on its own and leave the details editable, and Account Security
   // depends on neither.
   const profileUnreadable = !!profileError || !!changeRequestsError;
 
-  // The sidebar must have the same shape on every screen, so these two
-  // stand-alone pages resolve the Suggested Sessions entry the same way the
-  // loader does. Counted rather than loaded -- the entry only needs to know
-  // whether anything is waiting. Isolated and failure-tolerant: without the
-  // care_plans table the entry is simply absent.
-  const [{ count: activePlanCount }, { count: pendingSuggestionCount }] = await Promise.all([
-    supabase
-      .from("care_plans")
-      .select("id", { count: "exact", head: true })
-      .eq("patient_id", user.id)
-      .eq("status", "active"),
-    supabase
-      .from("session_suggestions")
-      .select("id", { count: "exact", head: true })
-      .eq("patient_id", user.id)
-      .eq("status", "pending"),
-  ]);
-
-  const navItems = buildPatientNavItems({
-    hasSuggestions: (activePlanCount ?? 0) > 0 || (pendingSuggestionCount ?? 0) > 0,
-    suggestionsWaiting: ((activePlanCount ?? 0) > 0 ? 1 : 0) + (pendingSuggestionCount ?? 0),
-    hasOwnedPackages: !!ownedPackagesCount && ownedPackagesCount > 0,
-    hasOnlineSessions: (onlineSessionCount ?? 0) > 0,
-    hasHomeVisits: (homeVisitCount ?? 0) > 0,
-    hasOwnedHomeVisitPackages: (ownedHomeVisitCount ?? 0) > 0,
-  });
-
-  // This page hides the shared Navbar entirely, so it needs the debug
-  // bar's own top offset for its fixed sidebar. See DashboardShell's offsetTop prop.
-  const showDebugNav = isDebugNavVisible();
-
   return (
-    <DashboardShell
-      brandLabel="Patient Panel"
-      brandIcon="fa-user-injured"
-      basePath="/patient/dashboard"
-      navItems={navItems}
-      userName={profile?.full_name ?? "Patient"}
-      userEmail={profile?.email ?? user.email ?? ""}
-      userAvatarUrl={profile?.avatar_url ?? null}
-      userCode={patientCodeRow?.patient_code ?? null}
-      offsetTop={showDebugNav}
-      sessionTimeoutMinutes={adminSettings.sessionTimeoutMinutes}
-      realtimeTables={["appointments", "profile_change_requests"]}
-      headerTitle="Edit Profile"
-      headerSubtitle="Update your personal details, contact info, and account security."
+    <PatientDashboardShell
+      data={d}
+      title="Edit Profile"
+      subtitle="Update your personal details, contact info, and account security."
+      extraRealtimeTables={["profile_change_requests"]}
     >
       <div className="max-w-2xl mx-auto">
       {profileUnreadable ? (
@@ -264,6 +177,6 @@ export default async function PatientProfilePage() {
         <AccountSecuritySection email={profile?.email ?? user.email ?? ""} />
       </div>
       </div>
-    </DashboardShell>
+    </PatientDashboardShell>
   );
 }

@@ -8,6 +8,7 @@ import { writeCatalogFocal } from "@/lib/catalogImageServer";
 import { writeCatalogFeatured } from "@/lib/catalogFeaturedServer";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { serverError } from "@/lib/apiError";
+import { isConditionSpecialty } from "@/lib/conditionSpecialty";
 
 export async function POST(request: NextRequest) {
   const adminUser = await requireAdminScope("catalog");
@@ -168,9 +169,7 @@ async function writeSpecialty(
   specialty: unknown
 ): Promise<void> {
   const value =
-    specialty === "ortho" || specialty === "neuro" || specialty === "pediatrics"
-      ? specialty
-      : null;
+    isConditionSpecialty(specialty) ? specialty : null;
   try {
     const { error } = await admin
       .from("treatment_categories")

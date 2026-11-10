@@ -11,6 +11,9 @@ import {
   MIN_SPLASH_HOLD_SECONDS,
 } from "@/lib/splashScreen";
 import { isContactScanMode } from "@/lib/adminSettings";
+import { normaliseLicensedMeasureSelection } from "@/lib/licensedMeasures";
+import { normaliseSixMinuteWalkEquationChoice } from "@/lib/sixMinuteWalkEquation";
+import { CONDITION_SPECIALTY_KEYS, isConditionSpecialty } from "@/lib/conditionSpecialty";
 import { MAX_MISSION_LENGTH, MAX_VISION_LENGTH } from "@/lib/mission";
 import { isRunRateBasis } from "@/lib/financeMetrics";
 import {
@@ -64,6 +67,15 @@ const ALLOWED_COLUMNS = new Set([
   "session_completed_after_minutes",
   "booking_languages",
   "enabled_intake_specialties",
+  // Which licensed outcome measures the clinic has confirmed it holds a
+  // licence for (Settings -> Clinical Questions). Read everywhere else in
+  // its own call, failing closed (loadEnabledLicensedMeasures).
+  "enabled_licensed_measures",
+  // The six-minute walk's predicted-distance equation (Settings -> Clinical
+  // Questions). Null is the value and the default: "not chosen yet", which
+  // predicts nothing. Read elsewhere in its own call
+  // (loadSixMinuteWalkEquation).
+  "six_minute_walk_equation",
   "package_default_validity_days",
   "package_therapist_lock_enabled",
   "package_bulk_schedule_max",
@@ -79,7 +91,7 @@ const ALLOWED_COLUMNS = new Set([
   // that network's icon. See src/lib/socialLinks.ts.
   ...SOCIAL_LINK_COLUMNS,
   // The developer credit under the footer, and the address its contact page
-  // publishes. Their own screen is Settings -> Dev Reachouts.
+  // publishes. Their own screen is Settings -> Developer messages.
   "dev_contact_enabled",
   "dev_contact_email",
   "home_visit_enabled",
@@ -539,7 +551,7 @@ export async function POST(request: NextRequest) {
   // Which specialties triage offers. Normalised rather than trusted for
   // the same reason as booking_languages, plus two invariants the parser
   // in adminSettings.ts also enforces: never empty, and always containing
-  // ortho. An admin who switched all three off would leave the therapist's
+  // ortho. An admin who switched every type off would leave the therapist's
   // onboarding picker with nothing to pick and no way to onboard anybody.
   if (key === "enabled_intake_specialties") {
     if (!Array.isArray(value)) {
@@ -547,12 +559,38 @@ export async function POST(request: NextRequest) {
     }
     const picked = new Set<string>(["ortho"]);
     for (const entry of value) {
-      if (entry !== "ortho" && entry !== "neuro" && entry !== "pediatrics") {
+      if (!isConditionSpecialty(entry)) {
         return NextResponse.json({ error: "Unknown condition type." }, { status: 400 });
       }
       picked.add(entry);
     }
-    nextValue = ["ortho", "neuro", "pediatrics"].filter((s) => picked.has(s));
+    nextValue = CONDITION_SPECIALTY_KEYS.filter((s) => picked.has(s));
+  }
+
+  // Licensed scales the clinic has switched on. Normalised against the
+  // registry rather than trusted: every key must be a measure that is
+  // licensed (a free measure is always on and a typo must not read as
+  // saved), stored once each in registry order. Empty is the default and a
+  // legitimate value -- it switches every licensed scale back off.
+  if (key === "enabled_licensed_measures") {
+    const selection = normaliseLicensedMeasureSelection(value);
+    if (!selection.ok) {
+      return NextResponse.json({ error: selection.error }, { status: 400 });
+    }
+    nextValue = selection.keys;
+  }
+
+  // Validated against the equation table rather than trusted: a key that
+  // predicts, or null (blank and the placeholder key are normalised to it)
+  // to go back to "formula not chosen yet". Never defaulted to the US
+  // equation -- choosing it is a deliberate act, and this is where it is
+  // recorded (setting.update, from and to).
+  if (key === "six_minute_walk_equation") {
+    const choice = normaliseSixMinuteWalkEquationChoice(value);
+    if (!choice.ok) {
+      return NextResponse.json({ error: choice.error }, { status: 400 });
+    }
+    nextValue = choice.value;
   }
 
   if (BRAND_TEXT_FIELDS.has(key) || LONG_TEXT_FIELDS.has(key) || CONTACT_FIELDS.has(key)) {

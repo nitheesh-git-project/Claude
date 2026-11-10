@@ -238,7 +238,7 @@ test.describe("Finishing payment for an unpaid booking", () => {
     try {
       await page.goto(`${BASE}/admin/dashboard?section=sessions&tab=all&view=awaiting_payment`);
       await waitForSplashToClear(page);
-      await page.getByPlaceholder("Session ID").filter({ visible: true }).first().fill(sessionCode);
+      await page.getByPlaceholder(/Search patient, therapist, session ID/).filter({ visible: true }).first().fill(sessionCode);
       const rowLocator = page.locator("tr", { hasText: sessionCode }).filter({ visible: true }).first();
       await expect(rowLocator).toBeVisible({ timeout: 60_000 });
       await expect(rowLocator).toContainText("Awaiting payment");
@@ -246,7 +246,7 @@ test.describe("Finishing payment for an unpaid booking", () => {
 
       await page.goto(`${BASE}/admin/dashboard?section=sessions&tab=all&view=unassigned`);
       await waitForSplashToClear(page);
-      await page.getByPlaceholder("Session ID").filter({ visible: true }).first().fill(sessionCode);
+      await page.getByPlaceholder(/Search patient, therapist, session ID/).filter({ visible: true }).first().fill(sessionCode);
       await expect(page.locator("tr", { hasText: sessionCode }).filter({ visible: true })).toHaveCount(0, {
         timeout: 30_000,
       });

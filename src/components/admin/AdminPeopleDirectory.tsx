@@ -7,6 +7,7 @@ import Link from "next/link";
 import AvatarThumbnail from "@/components/profile/AvatarThumbnail";
 import { formatClinicDateTimeWithZone } from "@/lib/formatDateTime";
 import SpecialtyChip from "@/components/SpecialtyChip";
+import { CONDITION_SPECIALTIES, type ConditionSpecialty } from "@/lib/conditionSpecialty";
 import { matchSearchRef, SEARCH_REF_LABEL, type SearchRef } from "@/lib/paymentSearch";
 import {
   SPECIALTY_FILTER_ALL,
@@ -27,12 +28,15 @@ type Person = {
   // supabase/schema.sql's "Unique display IDs" section) -- null until the
   // migration backfilling it has run.
   code?: string | null;
-  // Where this patient's care intake has got to, when the caller has it
-  // (therapists have no intake, so they pass nothing). Folded in here rather
-  // than living on its own screen: intake status is a fact about a patient,
-  // and a separate tab meant holding a patient's identity in your head while
-  // switching screens to look it up.
+  // Where this patient's Health Profile has got to, when the caller has it
+  // (therapists have none, so they pass nothing). Folded into the directory
+  // rather than listed again on a second screen: a patient used to appear
+  // twice in People -> Patients, once here and once as "Patient Conditions".
+  // One of HEALTH_PROFILE_STATES below.
   careStatus?: string | null;
+  // The condition type of that Health Profile (ortho, neuro, ...); null until a
+  // therapist has written the first record. Patients only.
+  conditionType?: ConditionSpecialty | null;
   // What this therapist is a specialist in, when the caller has it
   // (patients and partners have none, so they pass nothing). Same shape as
   // careStatus above: undefined means "this directory is not about that",
@@ -45,19 +49,28 @@ type Person = {
   searchRefs?: SearchRef[];
 };
 
+// The Health Profile states a patient can be in, in the words used on the
+// profile itself (conditionIntake's CONDITION_STATUS_LABEL says the same
+// things). "awaiting_onboarding" is not a stored status: it is a patient no
+// therapist has written a record for yet, which is the operational question
+// this column answers.
 const CARE_STATUS_LABELS: Record<string, string> = {
-  not_started: "No intake yet",
-  pending: "Waiting on review",
-  approved: "Intake live",
-  rejected: "Intake rejected",
+  awaiting_onboarding: "Awaiting first record",
+  not_started: "Not started",
+  draft: "Draft",
+  pending_review: "Waiting on review",
+  active: "Complete",
 };
 
 const CARE_STATUS_STYLES: Record<string, string> = {
+  awaiting_onboarding: "text-amber-800 bg-amber-100",
   not_started: "text-slate-600 bg-slate-100",
-  pending: "text-amber-700 bg-amber-100",
-  approved: "text-teal-700 bg-teal-50",
-  rejected: "text-red-700 bg-red-100",
+  draft: "text-slate-600 bg-slate-100",
+  pending_review: "text-amber-700 bg-amber-100",
+  active: "text-emerald-700 bg-emerald-100",
 };
+
+const CONDITION_TYPE_LABEL = new Map(CONDITION_SPECIALTIES.map((c) => [c.key, c.label]));
 
 export default function AdminPeopleDirectory({
   people,
@@ -79,6 +92,7 @@ export default function AdminPeopleDirectory({
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [careFilter, setCareFilter] = useState("all");
+  const [conditionTypeFilter, setConditionTypeFilter] = useState("all");
   const [specialtyFilter, setSpecialtyFilter] = useState<string>(SPECIALTY_FILTER_ALL);
 
   const hasCareStatus = people.some((p) => p.careStatus !== undefined);
@@ -115,6 +129,7 @@ export default function AdminPeopleDirectory({
       return p.active && p.approved !== false;
     })
     .filter((p) => careFilter === "all" || (p.careStatus ?? "not_started") === careFilter)
+    .filter((p) => conditionTypeFilter === "all" || p.conditionType === conditionTypeFilter)
     .filter((p) => !hasSpecialty || matchesSpecialtyFilter(p.specialization, specialtyFilter));
 
   // Both views page off the same filtered list, so switching grid/list
@@ -200,18 +215,33 @@ export default function AdminPeopleDirectory({
           </select>
         )}
         {hasCareStatus && (
-          <select
-            aria-label="Filter by care status"
-            value={careFilter}
-            onChange={(e) => setCareFilter(e.target.value)}
-            className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs"
-          >
-            <option value="all">Any care intake</option>
-            <option value="pending">Intake waiting on review</option>
-            <option value="approved">Intake live</option>
-            <option value="not_started">No intake yet</option>
-            <option value="rejected">Intake rejected</option>
-          </select>
+          <>
+            <select
+              aria-label="Filter by Health Profile status"
+              value={careFilter}
+              onChange={(e) => setCareFilter(e.target.value)}
+              className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs"
+            >
+              <option value="all">Any Health Profile</option>
+              <option value="pending_review">Waiting on review</option>
+              <option value="awaiting_onboarding">Awaiting first record</option>
+              <option value="draft">Draft</option>
+              <option value="active">Complete</option>
+            </select>
+            <select
+              aria-label="Filter by condition type"
+              value={conditionTypeFilter}
+              onChange={(e) => setConditionTypeFilter(e.target.value)}
+              className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs"
+            >
+              <option value="all">All condition types</option>
+              {CONDITION_SPECIALTIES.map((c) => (
+                <option key={c.key} value={c.key}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          </>
         )}
         <div className="inline-flex rounded-lg border border-slate-200 overflow-hidden text-[11px] font-semibold">
           <button
@@ -243,13 +273,16 @@ export default function AdminPeopleDirectory({
             <Link
               key={p.id}
               href={`${basePath}/${p.id}`}
-              className="flex flex-col items-center text-center p-4 rounded-xl border border-slate-200 hover:border-teal-300 hover:shadow-sm transition relative"
+              // min-w-0 and a truncated subtitle: an email is one unbreakable
+              // word, and a long one ran out of a two-column card on a phone
+              // and over its neighbour (layout-audit, people/patients at 360px).
+              className="flex min-w-0 flex-col items-center text-center p-4 rounded-xl border border-slate-200 hover:border-teal-300 hover:shadow-sm transition relative"
             >
               {badge(p) && <span className="absolute top-2 right-2">{badge(p)}</span>}
               <AvatarThumbnail url={p.avatar_url} name={p.full_name ?? "U"} size={56} />
               <p className="font-bold text-slate-900 text-xs mt-2 line-clamp-1">{p.full_name}</p>
               {p.code && <p className="text-slate-500 text-[10px] font-mono">{p.code}</p>}
-              <p className="text-slate-500 text-[11px] line-clamp-1">{p.subtitle}</p>
+              <p className="max-w-full truncate text-slate-500 text-[11px]" title={p.subtitle ?? undefined}>{p.subtitle}</p>
               {refChip(p)}
               {p.specialization && (
                 <span className="mt-1">
@@ -262,6 +295,7 @@ export default function AdminPeopleDirectory({
                     CARE_STATUS_STYLES[p.careStatus] ?? "text-slate-600 bg-slate-100"
                   }`}
                 >
+                  {p.conditionType ? `${CONDITION_TYPE_LABEL.get(p.conditionType) ?? ""} · ` : ""}
                   {CARE_STATUS_LABELS[p.careStatus] ?? p.careStatus}
                 </span>
               )}
@@ -278,6 +312,7 @@ export default function AdminPeopleDirectory({
                 <th className="py-2 pr-3 font-semibold">Name</th>
                 <th className="py-2 pr-3 font-semibold">Details</th>
                 {hasSpecialty && <th className="py-2 pr-3 font-semibold">Specialist in</th>}
+                {hasCareStatus && <th className="py-2 pr-3 font-semibold">Health Profile</th>}
                 <th className="py-2 pr-3 font-semibold">Status</th>
                 <th className="py-2 pr-3 font-semibold">Joined (IST)</th>
               </tr>
@@ -300,6 +335,25 @@ export default function AdminPeopleDirectory({
                   {hasSpecialty && (
                     <td className="py-2 pr-3 text-slate-500">
                       {specialtyLabel(p.specialization) ?? "-"}
+                    </td>
+                  )}
+                  {hasCareStatus && (
+                    <td className="py-2 pr-3">
+                      <Link
+                        href={`/admin/dashboard/conditions/${p.id}`}
+                        className="inline-flex flex-wrap items-center gap-1.5 hover:underline"
+                      >
+                        {p.conditionType && (
+                          <span className="text-slate-600">{CONDITION_TYPE_LABEL.get(p.conditionType)}</span>
+                        )}
+                        <span
+                          className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                            CARE_STATUS_STYLES[p.careStatus ?? "not_started"] ?? "text-slate-600 bg-slate-100"
+                          }`}
+                        >
+                          {CARE_STATUS_LABELS[p.careStatus ?? "not_started"] ?? p.careStatus}
+                        </span>
+                      </Link>
                     </td>
                   )}
                   <td className="py-2 pr-3">{badge(p) ?? <span className="text-slate-500">Active</span>}</td>

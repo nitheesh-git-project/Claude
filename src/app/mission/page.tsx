@@ -11,7 +11,10 @@ import Testimonials, {
 import ExploreSection from "@/components/marketing/ExploreSection";
 import ClosingCta from "@/components/marketing/ClosingCta";
 import { Reveal, Stagger, StaggerItem } from "@/components/motion/primitives";
-import { readBookingLanguages, readHomeVisitEnabled } from "@/lib/homeVisitFlag";
+import { readBookingLanguages, readHomeVisitBookable } from "@/lib/homeVisitFlag";
+import { publicTestimonials } from "@/lib/testimonialTrust";
+import { readPublicTeam } from "@/lib/publicTeam";
+import { oneToOneLine } from "@/lib/sessionLengthCopy";
 import { readMissionCopy, readMissionPrinciples } from "@/lib/missionCopy";
 
 export const metadata: Metadata = {
@@ -44,7 +47,10 @@ export default async function MissionPage() {
   const avatarById = new Map(
     (avatarRows ?? []).map((row) => [row.id, row.avatar_url as string | null])
   );
-  const testimonials: PublicTestimonial[] = (testimonialRows ?? []).map((t) => ({
+  // The five rows schema.sql seeds are illustrative copy, never real
+  // patients, and they are not shown -- see testimonialTrust.ts. With only
+  // those in the table the band (and its rail entry) is simply not drawn.
+  const testimonials: PublicTestimonial[] = publicTestimonials(testimonialRows).map((t) => ({
     ...t,
     avatar_url: avatarById.get(t.id) ?? null,
   }));
@@ -58,10 +64,17 @@ export default async function MissionPage() {
     .single();
   const hasRealRatings = !!ratingSummary && ratingSummary.rating_count > 0;
 
-  const [homeVisitEnabled, bookingLanguages] = await Promise.all([
-    readHomeVisitEnabled(),
+  const [homeVisitEnabled, bookingLanguages, { initials: teamInitials }] = await Promise.all([
+    readHomeVisitBookable(),
     readBookingLanguages(),
+    readPublicTeam(),
   ]);
+
+  // The session length is the catalogue's, not "an hour" typed into a page.
+  const { data: lengthRows } = await supabase
+    .from("treatment_categories")
+    .select("duration_minutes")
+    .eq("active", true);
 
   // The two lines this page is built around. Read on its own like the flag
   // above, and falling back to the wording in mission.ts, so a database that
@@ -104,7 +117,7 @@ export default async function MissionPage() {
         eyebrow="Our mission"
         title="Distance was never the clinical problem"
         subtitle="Physiotherapy needs someone watching you move. It never needed the same room."
-        primary={{ href: "/book", label: "Book an assessment", icon: "fa-calendar-check" }}
+        primary={{ href: "/book", label: "Book a video session", icon: "fa-calendar-check" }}
         secondary={{ href: "/team", label: "Meet the team" }}
         photoId="hero-mission"
         alt="Two patients following their exercise plan together at home, laptop open in front of them"
@@ -119,7 +132,7 @@ export default async function MissionPage() {
         eyebrow="Why choose us"
         title="Six reasons patients pick us"
       >
-        <WhyChooseUsGrid languages={bookingLanguages} />
+        <WhyChooseUsGrid languages={bookingLanguages} teamInitials={teamInitials} />
       </Section>
 
       <Section
@@ -223,8 +236,8 @@ export default async function MissionPage() {
 
       <ClosingCta
         title="The assessment is where this gets tested."
-        body="An hour, one-to-one. If it is not right for you, we say so."
-        primary={{ href: "/book", label: "Book an assessment", icon: "fa-calendar-check" }}
+        body={`${oneToOneLine(lengthRows ?? [])} If it is not right, we say so.`}
+        primary={{ href: "/book", label: "Book a video session", icon: "fa-calendar-check" }}
         secondary={{ href: "/how-it-works", label: "See how it works" }}
         photoId="cta-mission"
         photoAlt="Two people on a sofa in a bright room, one following a session on a laptop"

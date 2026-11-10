@@ -33,8 +33,8 @@ export function PatientFeedScene() {
       <div className="space-y-2">
         <FeedRow icon="fa-credit-card" tone="warn" title="Payment not completed" detail="This session isn't booked until payment goes through." needsYou highlight={phase === 0} />
         <FeedRow icon="fa-calendar-check" tone="good" title={`Video session confirmed with ${F.therapist}`} detail={F.when} highlight={phase === 1} delay={0.1} />
-        <FeedRow icon="fa-circle-check" tone="good" title="Your health profile is ready" detail="Your therapist has filled it in - you can read it and add to it now." highlight={phase === 2} delay={0.2} />
-        <FeedRow icon="fa-layer-group" tone="info" title="Your therapist recommended a programme" detail={F.programme} highlight={phase === 3} delay={0.3} />
+        <FeedRow icon="fa-circle-check" tone="good" title="Your health profile is ready" detail="Your physiotherapist has filled it in - you can read it and add to it now." highlight={phase === 2} delay={0.2} />
+        <FeedRow icon="fa-layer-group" tone="info" title="Your physiotherapist recommended a programme" detail={F.programme} highlight={phase === 3} delay={0.3} />
       </div>
     </Frame>
   );
@@ -121,7 +121,7 @@ export function PatientBookScene() {
 
 const JOURNEY = [
   { tone: "warn" as const, icon: "fa-credit-card", title: "Payment not completed", detail: "This session isn't booked until payment goes through." },
-  { tone: "info" as const, icon: "fa-hourglass-half", title: "Video session waiting for a therapist", detail: "The clinic is assigning someone - you'll see the joining details here once it's confirmed." },
+  { tone: "info" as const, icon: "fa-hourglass-half", title: "Video session waiting for a physiotherapist", detail: "The clinic is assigning someone - you'll see the joining details here once it's confirmed." },
   { tone: "good" as const, icon: "fa-calendar-check", title: `Video session confirmed with ${F.therapist}`, detail: F.when },
   { tone: "good" as const, icon: "fa-video", title: "It's time - join your session", detail: "The Join button lights up shortly before it starts." },
   { tone: "good" as const, icon: "fa-clipboard-check", title: "Session completed", detail: "How was it? Rate your session." },
@@ -186,7 +186,7 @@ export function PatientJourneyScene({ stepId }: { stepId: string }) {
         </motion.div>
       </Frame>
       <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-lg shadow-slate-900/5">
-        <Stepper steps={["Paid", "Waiting for a therapist", "Confirmed", "Join", "Completed & rated"]} current={phase} />
+        <Stepper steps={["Paid", "Waiting for a physiotherapist", "Confirmed", "Join", "Completed & rated"]} current={phase} />
       </div>
     </div>
   );
@@ -195,7 +195,7 @@ export function PatientJourneyScene({ stepId }: { stepId: string }) {
 export function PatientSuggestedScene() {
   const phase = usePhase(3, 1800, 2);
   return (
-    <Frame title="Suggested" icon="fa-lightbulb">
+    <Frame title="Recommendations" icon="fa-lightbulb">
       <AnimatePresence mode="wait">
         {phase < 2 ? (
           <motion.div key="card" {...swap} className="rounded-xl border border-slate-200 p-3">
@@ -210,7 +210,7 @@ export function PatientSuggestedScene() {
           <motion.div key="booked" {...swap}>
             {/* Accepting books it; the clinic then confirms the therapist, as
                 for every programme session (the screens' own words). */}
-            <FeedRow icon="fa-hourglass-half" tone="info" title="Video session booked - confirming your therapist" detail={F.whenNext} highlight />
+            <FeedRow icon="fa-hourglass-half" tone="info" title="Video session booked - confirming your physiotherapist" detail={F.whenNext} highlight />
             <p className="mt-2 text-center text-[10px] text-slate-500"><Chip tone="info" icon="fa-check">Accepted - clinic confirming</Chip></p>
           </motion.div>
         )}
@@ -223,11 +223,11 @@ export function PatientProgrammeScene() {
   const phase = usePhase(4, 1700, 3);
   const booked = phase >= 3 ? 2 : 0;
   return (
-    <Frame title="Programmes" icon="fa-layer-group">
+    <Frame title="My programme" icon="fa-layer-group">
       <AnimatePresence mode="wait">
         {phase === 0 && (
           <motion.div key="rec" {...swap}>
-            <FeedRow icon="fa-layer-group" tone="info" title="Your therapist recommended a programme" detail={F.programme} needsYou highlight />
+            <FeedRow icon="fa-layer-group" tone="info" title="Your physiotherapist recommended a programme" detail={F.programme} needsYou highlight />
           </motion.div>
         )}
         {phase === 1 && (
@@ -244,7 +244,7 @@ export function PatientProgrammeScene() {
           <motion.div key="book" {...swap} className="space-y-2">
             <FeedRow icon="fa-calendar-plus" tone="warn" title={`${6 - booked} sessions still to book`} detail={`${F.programme} - you've paid for these. Pick your times whenever suits you.`} highlight />
             {booked > 0 && (
-              <FeedRow icon="fa-hourglass-half" tone="info" title="Video session booked - confirming your therapist" detail={F.whenNext} delay={0.2} />
+              <FeedRow icon="fa-hourglass-half" tone="info" title="Video session booked - confirming your physiotherapist" detail={F.whenNext} delay={0.2} />
             )}
             <div className="flex justify-center gap-1.5 pt-1">
               {[0, 1, 2, 3, 4, 5].map((i) => (
@@ -310,11 +310,11 @@ export function PatientPaymentsScene() {
 export function PatientHealthLockedScene() {
   const phase = usePhase(4, 1500, 2);
   return (
-    <Frame title="Health Profile" icon="fa-file-medical">
+    <Frame title="My progress" icon="fa-file-medical">
       <div className="space-y-2.5">
         <div className="flex items-start gap-2 rounded-xl border border-sky-200 bg-sky-50 p-2.5">
           <motion.i className="fa-solid fa-lock mt-0.5 text-sky-700" aria-hidden="true" animate={{ rotate: [0, -12, 12, 0] }} transition={{ duration: 0.8, repeat: Infinity, repeatDelay: 2 }} />
-          <p className="min-w-0 break-words text-[10px] leading-snug text-sky-900">Your therapist fills this in with you at your first session. Any scans or reports you already have can go here now.</p>
+          <p className="min-w-0 break-words text-[10px] leading-snug text-sky-900">Your physiotherapist fills this in with you at your first session. Any scans or reports you already have can go here now.</p>
         </div>
         <div className="grid grid-cols-3 gap-1.5 opacity-50">
           {["Your condition", "Pain Map", "Progress"].map((t) => (
@@ -349,11 +349,11 @@ export function PatientHealthLockedScene() {
 export function PatientHealthReadyScene() {
   const phase = usePhase(4, 1800, 3);
   return (
-    <Frame title="Health Profile" icon="fa-file-medical">
+    <Frame title="My progress" icon="fa-file-medical">
       <AnimatePresence mode="wait">
         {phase === 0 ? (
           <motion.div key="notice" {...swap} className="py-4">
-            <FeedRow icon="fa-circle-check" tone="good" title="Your health profile is ready" detail="Your therapist has filled it in - you can read it and add to it now." highlight />
+            <FeedRow icon="fa-circle-check" tone="good" title="Your health profile is ready" detail="Your physiotherapist has filled it in - you can read it and add to it now." highlight />
           </motion.div>
         ) : (
           <motion.div key="profile" {...swap} className="grid gap-2 sm:grid-cols-3">
@@ -385,7 +385,7 @@ export function PatientHealthReadyScene() {
 export function PatientHealthUpdateScene() {
   const phase = usePhase(5, 1700, 2);
   return (
-    <Frame title="Health Profile" icon="fa-file-medical">
+    <Frame title="My progress" icon="fa-file-medical">
       <div className="space-y-2.5">
         <Field label="What makes it worse?" active={phase === 0}>
           {phase === 0 ? <Typed text="Sitting long, bending forward" /> : "Sitting long, bending forward"}
@@ -402,7 +402,7 @@ export function PatientHealthUpdateScene() {
         </div>
         <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-2">
           <div className="rounded-lg bg-slate-50 p-2">
-            <p className="text-[9px] font-bold uppercase text-slate-500">Your therapist sees</p>
+            <p className="text-[9px] font-bold uppercase text-slate-500">Your physiotherapist sees</p>
             <AnimatePresence mode="wait">
               <motion.p key={phase === 4 ? "new" : "old"} {...swap} className="text-[10px] text-slate-700">
                 {phase === 4 ? "Sitting long, bending forward" : "Sitting long"}

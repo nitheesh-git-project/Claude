@@ -177,6 +177,26 @@ function workable(scope: Parameters<typeof sectionsForScope>[0]) {
   return sectionsForScope(scope).filter((s) => scopeCanManage(scope, s));
 }
 
+describe("visibleQueueTotal and approvals", () => {
+  // Approvals open on Today (every desk) but approving is people:manage, and
+  // Finance holds People at view: it is not waiting on them.
+  const approvals: InboxGroup[] = [
+    {
+      title: "Approvals",
+      icon: "fa-user-check",
+      domain: "approvals",
+      items: [{ label: "Accounts", count: 4, section: "today", tab: "approvals", workSection: "people", hint: "" }],
+    },
+  ];
+
+  it("counts a row by the section that works it, not the one it opens", () => {
+    expect(visibleQueueTotal(approvals, workable("finance"))).toBe(0);
+    expect(visibleQueueTotal(approvals, workable("operations"))).toBe(4);
+    expect(visibleQueueTotal(approvals, workable("clinical"))).toBe(4);
+    expect(visibleQueueTotal(approvals, workable("full"))).toBe(4);
+  });
+});
+
 describe("visibleQueueTotal", () => {
   it("counts only rows whose screen the viewer can open", () => {
     // A clinical admin used to be told 27 things were waiting over a list

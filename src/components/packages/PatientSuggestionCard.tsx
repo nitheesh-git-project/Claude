@@ -104,10 +104,10 @@ export default function PatientSuggestionCard({
         </p>
         <p className="mt-1 text-xs text-teal-800">
           {done === "accepted"
-            ? // Accepting books it; the clinic then confirms your therapist,
+            ? // Accepting books it; the clinic then confirms your physiotherapist,
               // and the invite follows the confirmation, not the accept.
               `${when} is in your sessions now. ${patientInviteLine("suggestion_accepted", inviteDelivery)}`
-            : "Your therapist will suggest another time."}
+            : "Your physiotherapist will suggest another time."}
         </p>
       </div>
     );
@@ -116,7 +116,7 @@ export default function PatientSuggestionCard({
   return (
     <div className="rounded-2xl border border-teal-200 bg-white p-5 shadow-sm">
       <p className="text-[11px] font-bold uppercase tracking-wider text-teal-700">
-        Suggested by your therapist
+        Suggested by your physiotherapist
       </p>
       <p className="font-display mt-1.5 text-lg font-bold text-slate-900">{when}</p>
       <p className="mt-1 text-xs text-slate-500">
@@ -131,7 +131,7 @@ export default function PatientSuggestionCard({
 
       {state === "lapsed" ? (
         <p className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
-          This time is too close now to book. Your therapist can suggest another, or you can pick
+          This time is too close now to book. Your physiotherapist can suggest another, or you can pick
           one yourself from your package below.
         </p>
       ) : (

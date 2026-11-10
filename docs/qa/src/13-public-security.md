@@ -45,7 +45,7 @@ The site's own index lives in **one array**, which the header nav, the footer's 
 
 #### `PUB-HOME-001` - The home page · P1
 **Steps.** Open `/`. Scroll to the bottom.
-**Expected Result.** Hero → trust bar → care-area showcase → walkthrough → programmes → testimonials → mission band → connector grid. The **mission band gives the mission and vision in full** (they are two sentences; paraphrasing would make the home page a weaker version of the same claim) while the **four promises appear as titles only**, each linking to the mission page's promises anchor. The connector grid shows the other seven pages **plus booking** - the index of the site always ends on the one action the site exists for.
+**Expected Result.** Hero (headline "Physiotherapy for you or your parent", tappable condition chips that open booking with that condition chosen, and - only when a WhatsApp number is set - "Not sure which to book? WhatsApp us") → trust bar → two ways to start → **programmes directly after it** → walkthrough → a **short health-profile teaser** (one sample patient's headline change and a link to the full tour on `/how-it-works`) → care-area showcase → **real** testimonials (hidden entirely while only the five seeded illustrations exist) → mission band → connector grid (compact icon-and-label rows on a phone). **Home visit (Option two)** is shown as bookable only when the switch is on, at least one area is active and a visit is priced; switched on but not ready it reads "Home visits are coming to <cities>" with no button; switched off it is absent. On a phone the hero shows a short photo crop above the figures. The **mission band gives the mission and vision in full** (they are two sentences; paraphrasing would make the home page a weaker version of the same claim) while the **four promises appear as titles only**, each linking to the mission page's promises anchor. The connector grid shows the other seven pages **plus booking** - the index of the site always ends on the one action the site exists for.
 
 #### `PUB-COND-001` - Care areas show one photograph at a time · P1
 **Steps.** On `/` and `/conditions`, use the care-area showcase: swipe, the arrow buttons, and the picker.
@@ -79,8 +79,12 @@ The site's own index lives in **one array**, which the header nav, the footer's 
 * There is **no admin switch** for any of this. "Show programme prices publicly" no longer exists on Settings; if you find it, that is a defect.
 
 #### `PUB-COPY-001` - The site promises the session summary, never the therapist's notes · P1
-**Steps.** Read `/how-it-works`, `/mission`, the home page's Why choose us band and the health-profile showcase.
+**Steps.** Read `/how-it-works`, `/mission`, the home page's Why choose us band and the health-profile showcase (every tab).
 **Expected Result.** Patients are promised **a short summary after each session and your exercise plan** (How it works: *Your exercise plan, and a short summary after each session.*). Nothing offers the reader "each session's notes", "every session's notes" or "a written record, updated every session" - the therapist's notes are clinician-only. Saying the physiotherapist's own notes shape the next session is fine.
+
+#### `PUB-HP-001` - The health-profile showcase shows real components with sample data · P1
+**Steps.** On `/how-it-works` and on the home page (desktop, then a phone width under 768px), open every tab of the health-profile showcase; watch the home band untouched for 12 seconds, press the pause button, then pick a tab. Repeat with reduced motion on. Toggle Strength and balance and Heart and lung in Settings -> Clinical Questions and reload.
+**Expected Result.** Only enabled condition types have a tab (Orthopaedic always; the others vanish when unticked). Every tab shows *Sample patient - figures are made up*, the headline change, the progress graph with its green goal band, and the milestone cards with **Reached**, **Working on** and **Planned**. On a phone the home band is compact (pitch, tabs, headline change, graph, milestone cards; no "What this profile watches" list or Parkinson's example buttons), while `/how-it-works` and desktop keep them and the condition picture; the page below does not shift as it rotates. It rotates only while on screen, pauses on the button, stops for good once a tab is picked, and does not move at all under reduced motion (no pause button). Tabs and buttons are 44px targets and the arrow keys, Home and End move between tabs. Nothing promises an outcome; wording says what the profile shows.
 
 #### `PUB-TEAM-001` - Team · P2
 **Expected Result.** Only approved, active, team-visible therapists appear. Tapping one opens a popup with their profile and a **Book with …** action carrying `?therapist=` into the wizard.
@@ -99,19 +103,19 @@ Covered by `PAT-HV-001` and `ADM-SET-013`.
 3. On `/developer/lets-talk`, tap **Let's talk ↗** with the form empty. Then fill **Full name**, **Email** and **Message**, leave **Contact number** blank, and tap it again.
 4. Repeat with a contact number of `abc`, and with a number that is too short for the country shown.
 5. Resize to 375px wide and repeat step 3.
-6. Open Settings → Dev Reachouts (`ADM-SET-038`) and switch the credit off. Reload the footer on a public page and open `/developer` and `/developer/lets-talk` by address.
+6. Open Settings → Developer messages (`ADM-SET-038`) and switch the credit off. Reload the footer on a public page and open `/developer` and `/developer/lets-talk` by address.
 
 **Expected Result.**
 * Step 1: the line reads *Researched, designed and hand-built to make care easier for patients and therapists — by **Nitheesh M** · Contact me*, in muted text that is still readable on the dark footer, with a link tall enough to tap. It is **not** in the navbar, the Explore grid or any page's "where next" band. Dashboards show no footer, so it appears on public pages only.
 * Step 3: the empty form is stopped by the browser's own validation on the first required field and nothing is sent. The valid one replaces the form with a check and **Thanks, <first name>.** / **Nitheesh will be reaching you shortly.** The button reads **Sending…** and is disabled only while that request is in flight.
-* Step 4: a number that cannot be dialled is refused with a sentence that does not blame the visitor; leaving the field blank is always fine. The **Prefer email?** line shows only when an address has been set on Dev Reachouts - on a fresh database it is absent and the form still works.
+* Step 4: a number that cannot be dialled is refused with a sentence that does not blame the visitor; leaving the field blank is always fine. The **Prefer email?** line shows only when an address has been set on Developer messages - on a fresh database it is absent and the form still works.
 * Step 5: the split card stacks, with no sideways scroll, and every control is reachable.
 * Step 6: the credit line is gone and both pages are **404**.
 **Negative:** dropping the connection and submitting shows `Could not reach us just now. Please check your connection and try again.` and keeps what was typed.
 
 #### `PUB-DEV-002` - The Say hello door resists scripts and floods · P1
 **Steps.** In DevTools → Console on `/developer/lets-talk`, post to `/api/developer/reachout` (a) with a body that is not JSON, (b) with a valid body that also carries `website: "http://spam.example"`, and (c) six valid bodies in a row from one address.
-**Expected Result.** (a) is a **400**, not a 500. (b) answers `{ "success": true }` exactly as a real submission does but **writes nothing** - no row appears on Dev Reachouts. (c) The sixth is refused with **429** and `Retry-After`, in words with no number in them and no blame; the form tells the visitor roughly when to try again. With the credit switched off, every call answers **404**. The table cannot be written from a browser with the publishable key at all - there is no insert policy.
+**Expected Result.** (a) is a **400**, not a 500. (b) answers `{ "success": true }` exactly as a real submission does but **writes nothing** - no row appears on Developer messages. (c) The sixth is refused with **429** and `Retry-After`, in words with no number in them and no blame; the form tells the visitor roughly when to try again. With the credit switched off, every call answers **404**. The table cannot be written from a browser with the publishable key at all - there is no insert policy.
 
 ---
 

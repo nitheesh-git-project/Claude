@@ -17,9 +17,10 @@ import type { ConditionSpecialty } from "@/lib/conditionSpecialty";
  *
  * Step three differs by specialty because the examination layer does. The
  * body map is the ORTHOPAEDIC instrument and the neurological examination
- * chart is the neurological one; the paediatric exam layer is not built
- * yet, and the honest thing is to say where those findings live in the
- * meantime rather than to imply a chart that will never fill in.
+ * chart is the neurological one; the paediatric one is the milestones.
+ * Strength and balance care and heart and lung rehabilitation have no exam
+ * layer -- their progress is the timed tests and the vitals the therapist
+ * records -- so step three says that.
  */
 
 type Step = { icon: string; title: string; body: string };
@@ -51,6 +52,16 @@ const STEP_THREE_BY_SPECIALTY: Record<ConditionSpecialty, Step> = {
     icon: "fa-child-reaching",
     title: "Milestones get ticked off",
     body: "As your child manages more on their own, the milestone list grows. That is how progress is measured here.",
+  },
+  geriatric: {
+    icon: "fa-person-cane",
+    title: "Your therapist checks your balance",
+    body: "They time a few simple tests of balance, strength and walking, and each new check shows what has changed since the last.",
+  },
+  cardiopulmonary: {
+    icon: "fa-heart-pulse",
+    title: "Your therapist checks your fitness",
+    body: "They check your heart rate, blood pressure and oxygen before you exercise, and time a walking test to show how your stamina is coming back.",
   },
 };
 

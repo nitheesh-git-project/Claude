@@ -1,10 +1,12 @@
 import "server-only";
+import { formatClinicTime } from "@/lib/formatDateTime";
 import { loadProgrammeTags } from "@/lib/programmeTagsServer";
 import type { ProgrammeTag } from "@/lib/programmeId";
 import { readAllRowsAsData, readAllRowsByIds } from "@/lib/supabase/readAllRows";
 import { readFrozenTherapistRates } from "@/lib/frozenTherapistRatesServer";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { loadHomeExerciseNotePrefills } from "@/lib/exercisePlanServer";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { mergeSessionCodes } from "@/lib/sessionCode";
 import { mergeMeetLinks } from "@/lib/meetLink";
@@ -366,6 +368,9 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
     ),
   ];
   const admin = createAdminClient();
+  // The patient's active Home exercises as a line for a NEW session note's
+  // free-text field (the dialog prefills only an empty field).
+  const homeExercisePrefillByPatientId = needNotes ? await loadHomeExerciseNotePrefills(admin, patientIds) : new Map<string, string>();
   const [
     { data: upcomingOverrides, error: upcomingOverridesError },
     { data: patients },
@@ -828,7 +833,7 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
       value: String(todayCount),
       unit: todayCount === 1 ? "session" : "sessions",
       note: nextSession?.slot_time
-        ? `Next at ${new Date(nextSession.slot_time).toLocaleTimeString([], { timeZone: "Asia/Kolkata", hour: "numeric", minute: "2-digit" })}`
+        ? `Next at ${formatClinicTime(nextSession.slot_time)}`
         : "Nothing scheduled today",
       accent: "bg-teal-500",
       href: "/therapist/dashboard/sessions",
@@ -994,6 +999,7 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
     noteByAppointmentId,
     summaryByAppointmentId,
     summariesLoadFailed,
+    homeExercisePrefillByPatientId,
     recommendableRates,
     patientsAwaitingClinic,
     carePlanRequiresApproval,

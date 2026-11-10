@@ -3,9 +3,12 @@
 import { useEffect, useRef } from "react";
 import {
   SPLASH_ATTR,
-  SPLASH_FADE_MS,
+  SPLASH_FADE_VAR,
   SPLASH_HIDDEN_AT_KEY,
+  SPLASH_HOLD_VAR,
   SPLASH_SHOWN_KEY,
+  splashSkipsPath,
+  splashTimings,
   type SplashConfig,
 } from "@/lib/splashScreen";
 
@@ -56,20 +59,36 @@ export default function SplashScreen({ config }: { config: SplashConfig }) {
       timers.current = [];
     };
 
-    // Hold, fade, then take the overlay out of the page entirely. Removing
-    // the attribute (rather than leaving it at "leaving") is what returns
-    // the sheet to `visibility: hidden`, so it cannot swallow a click on
-    // the hero button underneath a moment after it has visually gone.
+    // The hold and the fade are the stylesheet's animation (globals.css),
+    // started the instant the boot script set the attribute and timed by two
+    // custom properties on <html> -- nothing here waits on hydration for the
+    // sheet to leave. All this does is clear the attribute once the animation
+    // has certainly finished, which is what returns the sheet to
+    // `visibility: hidden` for good and lets a later replay restart the
+    // animation (it only restarts when the selector stops matching first).
+    const timingsNow = () => splashTimings(settings.current.holdMs, window.location.pathname);
+
     const play = () => {
       clearTimers();
+      const { holdMs, fadeMs } = timingsNow();
+      // Restart from nothing: a sheet already on "on" would not replay.
+      root.removeAttribute(SPLASH_ATTR);
+      void root.offsetWidth;
+      root.style.setProperty(SPLASH_HOLD_VAR, `${holdMs}ms`);
+      root.style.setProperty(SPLASH_FADE_VAR, `${fadeMs}ms`);
       root.setAttribute(SPLASH_ATTR, "on");
       timers.current.push(
-        window.setTimeout(() => {
-          root.setAttribute(SPLASH_ATTR, "leaving");
-          timers.current.push(
-            window.setTimeout(() => root.removeAttribute(SPLASH_ATTR), SPLASH_FADE_MS)
-          );
-        }, settings.current.holdMs)
+        window.setTimeout(() => root.removeAttribute(SPLASH_ATTR), holdMs + fadeMs + 80)
+      );
+    };
+
+    // The boot script owns the first decision and has already started the
+    // animation; this only schedules the clean-up, from the timings it used.
+    const clearAfterBoot = () => {
+      clearTimers();
+      const { holdMs, fadeMs } = timingsNow();
+      timers.current.push(
+        window.setTimeout(() => root.removeAttribute(SPLASH_ATTR), holdMs + fadeMs + 80)
       );
     };
 
@@ -83,7 +102,7 @@ export default function SplashScreen({ config }: { config: SplashConfig }) {
         // Private-mode storage refusing a write only costs a repeat
         // greeting on the next reload; never worth failing a page over.
       }
-      play();
+      clearAfterBoot();
     }
 
     // Coming back to a tab that has been sitting in the background for a
@@ -102,6 +121,7 @@ export default function SplashScreen({ config }: { config: SplashConfig }) {
       }
 
       if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      if (splashSkipsPath(window.location.pathname)) return;
 
       // 0 is the admin saying "greet the first load only" - no amount of
       // time away earns a replay then.

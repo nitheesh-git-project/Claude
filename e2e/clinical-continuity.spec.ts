@@ -12,8 +12,7 @@ import {
   cookieHeaderFor,
   profileIdFor,
   waitForSplashToClear,
-  markDashboardTourSeen,
-} from "./helpers";
+  markDashboardTourSeen, openProfileBlocks } from "./helpers";
 
 /**
  * One patient's clinical record, carried across all three roles in the order
@@ -94,6 +93,7 @@ async function patientPageText(browser: Browser, path: string): Promise<string> 
     await waitForSplashToClear(page);
     await expect(page.getByRole("heading").first()).toBeVisible({ timeout: 60_000 });
     await page.waitForLoadState("networkidle");
+    if (path.includes("/patient/dashboard/health-profile")) await openProfileBlocks(page);
     return await page.locator("main").innerText();
   } finally {
     await ctx.close();

@@ -15,6 +15,7 @@ import PatientActiveToggle from "@/components/admin/PatientActiveToggle";
 import ViewAsUserButton from "@/components/admin/ViewAsUserButton";
 import PatientContactEditForm from "@/components/admin/PatientContactEditForm";
 import PatientNotesForm from "@/components/admin/PatientNotesForm";
+import ReadOnlyDeskNote from "@/components/admin/ReadOnlyDeskNote";
 import ResetPatientPasswordButton from "@/components/admin/ResetPatientPasswordButton";
 import DeleteAccountButton from "@/components/admin/DeleteAccountButton";
 import PatientProfitChart from "@/components/admin/PatientProfitChart";
@@ -37,8 +38,9 @@ import { computeRatingAggregate } from "@/lib/ratingAggregate";
 import { computeNoShowRate, computeCancellationRate } from "@/lib/adminMetrics";
 import { mergeSessionCodes } from "@/lib/sessionCode";
 import { mergeMeetLinks } from "@/lib/meetLink";
-import { parseAdminSettings } from "@/lib/adminSettings";
+import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { JoinWindowProvider } from "@/lib/joinWindowContext";
+import { CancellationWindowProvider } from "@/lib/cancellationWindowContext";
 import {
   sessionTherapistCutPaise,
   type PayoutAppointment,
@@ -74,7 +76,15 @@ export default async function PatientDetailContent({ id }: { id: string }) {
   // Cancel, Reopen and the rating actions all call routes guarded by
   // requireAdminScope("sessions"), which a finance admin does not have
   // even though they can open this page.
-  const canManageSessions = viewer !== null && scopeCanOpen(viewer.scope, "sessions");
+  // Manage, not open: Finance opens Sessions at `view` and the routes behind
+  // Reassign / Cancel / Reopen ask for manage, so `scopeCanOpen` here offered a
+  // finance desk four buttons that answered 403.
+  const canManageSessions = viewer !== null && scopeCanManage(viewer.scope, "sessions");
+  // People is the same story: every control that changes THIS person (approve,
+  // suspend, contact details, password link, admin notes) is
+  // requireAdminScope("people"), and Finance reads People at `view`. A control
+  // the server would refuse is not rendered; the page says why instead.
+  const canManagePeople = viewer !== null && scopeCanManage(viewer.scope, "people");
   // And the stricter test for the one control on this page that CHANGES
   // money rather than showing it. `canSeeMoney` above is scopeCanOpen, which
   // Operations fails and Finance passes -- right for hiding figures, wrong
@@ -90,9 +100,10 @@ export default async function PatientDetailContent({ id }: { id: string }) {
   const [{ data: settingsRow }, { data: patient }, { data: patientCodeRow }, { data: conditionProfile }] =
     await Promise.all([
       // Isolated query, same migration-dependent convention as everything
-      // else on this page -- only feeds the Join button's window here, never
-      // blocks the rest of the detail page if the columns aren't migrated yet.
-      admin.from("site_settings").select("join_window_minutes").maybeSingle(),
+      // else on this page -- feeds the Join button's window and the cancel
+      // dialog's refund windows, never blocks the rest of the detail page if
+      // the columns aren't migrated yet.
+      admin.from("site_settings").select(SITE_SETTINGS_SELECT).maybeSingle(),
 
       admin
         .from("profiles")
@@ -398,6 +409,10 @@ export default async function PatientDetailContent({ id }: { id: string }) {
       afterMinutes={adminSettings.joinWindowAfterMinutes}
       completedAfterMinutes={adminSettings.sessionCompletedAfterMinutes}
     >
+      <CancellationWindowProvider
+        onlineHours={adminSettings.onlineCancellationRefundHours}
+        homeVisitHours={adminSettings.homeVisitCancellationRefundHours}
+      >
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="flex min-w-0 items-center gap-4">
@@ -450,27 +465,40 @@ export default async function PatientDetailContent({ id }: { id: string }) {
                 userName={patient.full_name ?? "this patient"}
               />
             )}
-            {!patient.approved && <ApproveAccountButton userId={patient.id} />}
-            <PatientActiveToggle
-              patientId={patient.id}
-              active={patient.active}
-              upcomingSessionCount={upcomingSessionCount}
-            />
+            {canManagePeople ? (
+              <>
+                {!patient.approved && <ApproveAccountButton userId={patient.id} />}
+                <PatientActiveToggle
+                  patientId={patient.id}
+                  active={patient.active}
+                  upcomingSessionCount={upcomingSessionCount}
+                />
+              </>
+            ) : (
+              // Status as text, so a read-only desk still learns whether the
+              // account works -- it just cannot change it.
+              <p className="text-xs font-semibold text-slate-600" data-testid="patient-status-text">
+                {patient.active ? "Account active" : "Account suspended"}
+                {!patient.approved ? " - waiting for approval" : ""}
+              </p>
+            )}
           </div>
         </div>
+        {!canManagePeople && <ReadOnlyDeskNote className="mt-4" />}
       </div>
 
-      {/* Care Record is a fact about this patient, so it belongs on this
-          page rather than on a screen of its own -- it keeps its own route
-          because the record is long enough to deserve the whole width. */}
+      {/* The Health Profile is a fact about this patient, so it belongs on
+          this page rather than on a screen of its own -- it keeps its own
+          route (/admin/dashboard/conditions/[id]) because the record is long
+          enough to deserve the whole width. */}
       <Link
         href={`/admin/dashboard/conditions/${id}`}
         className="mb-6 flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-teal-300"
       >
         <span>
-          <span className="block text-sm font-bold text-slate-800">Care Record</span>
+          <span className="block text-sm font-bold text-slate-800">Health Profile</span>
           <span className="block text-xs text-slate-500">
-            Health Profile answers, therapist access requests, and the Pain Map history.
+            The patient&apos;s answers, who can see the profile, session notes and the Pain Map history.
           </span>
         </span>
         <i className="fa-solid fa-chevron-right text-xs text-slate-300"></i>
@@ -496,11 +524,24 @@ export default async function PatientDetailContent({ id }: { id: string }) {
             </p>
           </div>
           <h2 className="font-bold text-sm text-slate-800 mb-3">Contact Info</h2>
-          <PatientContactEditForm
-            patientId={patient.id}
-            currentPhone={patient.phone}
-            currentEmail={patient.email}
-          />
+          {canManagePeople ? (
+            <PatientContactEditForm
+              patientId={patient.id}
+              currentPhone={patient.phone}
+              currentEmail={patient.email}
+            />
+          ) : (
+            <div className="text-xs space-y-1">
+              <p>
+                <span className="text-slate-500">Email:</span>{" "}
+                <span className="font-semibold text-slate-800">{patient.email}</span>
+              </p>
+              <p>
+                <span className="text-slate-500">Phone:</span>{" "}
+                <span className="font-semibold text-slate-800">{patient.phone || "Not set"}</span>
+              </p>
+            </div>
+          )}
           <div className="mt-4 pt-4 border-t border-slate-100 text-xs space-y-1">
             <p className="font-semibold text-slate-700">Emergency Contact</p>
             {patient.emergency_contact_name || patient.emergency_contact_phone ? (
@@ -519,9 +560,7 @@ export default async function PatientDetailContent({ id }: { id: string }) {
               No password is shown or stored: the button issues a one-time
               link for them to set their own -- see src/lib/accessLink.ts.
             */}
-            <ResetPatientPasswordButton
-              patientId={patient.id}
-            />
+            {canManagePeople && <ResetPatientPasswordButton patientId={patient.id} />}
             {/* Master Admin only, and the route checks it again -- deleting
                 an account is irreversible, where every desk that manages
                 People can already suspend. */}
@@ -538,7 +577,13 @@ export default async function PatientDetailContent({ id }: { id: string }) {
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
           <h2 className="font-bold text-sm text-slate-800 mb-1">Admin Notes</h2>
           <p className="text-[11px] text-slate-500 mb-3">Private - never shown to the patient.</p>
-          <PatientNotesForm patientId={patient.id} currentNote={note?.note ?? ""} />
+          {canManagePeople ? (
+            <PatientNotesForm patientId={patient.id} currentNote={note?.note ?? ""} />
+          ) : (
+            <p className="whitespace-pre-line text-xs text-slate-700">
+              {note?.note?.trim() ? note.note : "No notes yet."}
+            </p>
+          )}
         </div>
       </div>
 
@@ -777,6 +822,7 @@ export default async function PatientDetailContent({ id }: { id: string }) {
       <div className="mt-6">
         <ActivityTimeline personId={id} title="Activity log" />
       </div>
+      </CancellationWindowProvider>
     </JoinWindowProvider>
   );
 }

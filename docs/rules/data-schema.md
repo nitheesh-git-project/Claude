@@ -143,7 +143,18 @@ before.
   `drop policy if exists` under **its own** name (not just the name it
   replaces), and `alter publication ... add table` needs the
   `do $$ ... exception when duplicate_object then null; end $$` wrapper every
-  other publication line in the file uses. Re-apply the file twice after
+  other publication line in the file uses. **A CHECK widened later must not
+  be narrowed by an earlier re-add on re-apply**: a re-run executes every
+  drop-and-re-add of a constraint in file order, so once a row uses a value
+  only the later, wider list allows, the earlier narrower re-add fails with
+  `check_violation` and takes the whole apply with it - and on an evidence
+  table the row cannot be deleted to make room. `communication_flags_surface_check`
+  did exactly that (six re-adds, each a longer list): it is now **one**
+  re-add near the end of the file listing every surface, and the one
+  staging-era re-add before it is wrapped in `do $$ begin ... exception when
+  check_violation then null; end $$`, so it leaves the wider constraint in
+  place. A new surface goes into that last list, never into another re-add.
+  Re-apply the file twice after
   touching it - the schema-apply workflow runs it on every push to `main`,
   which is the **live** branch. A schema change merged to `staging`, the
   default branch, reaches staging's own database only when a person applies
@@ -168,6 +179,7 @@ before.
   must return no rows. Then apply, once per new project:
 
   ```sql
+  -- and afterwards re-apply schema.sql: see the note below
   grant usage on schema public to anon, authenticated, service_role;
   grant all on all tables in schema public to authenticated, service_role;
   grant select on all tables in schema public to anon;
@@ -177,6 +189,13 @@ before.
   alter default privileges in schema public grant all on sequences to authenticated, service_role;
   ```
 
+  **Then re-apply `schema.sql`.** `grant all on all tables ... to
+  authenticated` is a table-wide SELECT, which overrides the column-level
+  grants the file relies on - it re-opens `exercise_teaching_events`'
+  hidden correction columns (`kind`, `corrects_event_id`,
+  `correction_reason`) to every browser session. The file's own
+  `revoke select ... from anon, authenticated` and column grant put that
+  back, so the grants are only safe followed by a re-apply.
   Tables and sequences only: function EXECUTE for `anon` and
   `authenticated` is deliberately left alone, because the schema revokes it
   from `public`, `anon` and `authenticated` and re-granting it wholesale
@@ -230,6 +249,124 @@ before.
      `session_note_revisions` takes neither. Verified with
      `scripts/append-only-sql-checks.sql`. A new table whose value is that it
      cannot be rewritten gets its guard in the same change.
+     `outcome_measurements` is the newest: append-only by trigger with one
+     permitted mutation, `appointment_id` cleared by `on delete set null`
+     (compared as the whole row minus that column, so nothing rides along).
+     A nullable link to a row that can be deleted needs exactly this
+     allowance, or the parent's delete raises on the child's trigger. Its
+     plan-side neighbour `care_milestones` is editable but freezes
+     `reached_at` once set, the same "one fact in a plan" shape the care-plan
+     window stamp has. Its guard (the newest `care_milestones_guard()`) also
+     runs `before insert`, so a milestone cannot **arrive** reached; it
+     **stamps `reached_at` itself** when a milestone becomes reached - the
+     proving measurement's `measured_at` when there is one, `now()`
+     otherwise, never the caller's value; it requires
+     `reached_measurement_id` to be one of the same patient's measurements
+     and keeps a reached milestone's proof as it was; and it freezes
+     `authored_by` (`care_goals_guard()` freezes `authored_by` and
+     `authored_by_role`). Both tables' UPDATE policies carry a `with check`
+     pinning the new row's author to the caller, as their insert policies do. **When a frozen fact needs correcting, add a recorded
+     door, never a looser guard.** A mistaken "reached" is undone only by
+     `reopen_care_milestone()` (security definer, revoked from all three
+     roles), which writes an append-only `care_milestone_events` row and
+     clears `reached_at` in one transaction; the guard checks for that event
+     with `xact_id = txid_current()`, so no pair of PostgREST calls - each its
+     own transaction - and no other route can open it. Exempting the service
+     role instead would exempt every route in this app.
+     `care_status_events` (phase 3a) is the plain case beside it: a
+     judgement's history - the phase and the status override - kept as rows
+     with no permitted mutation at all, so "the current value" is shaped from
+     them (`careStatus.ts`) rather than stored in a cell someone can edit.
+     Phase 4a widened it with a fourth kind, `summary`, by dropping and
+     re-adding `care_status_events_kind_check` (Postgres's name for the
+     inline column CHECK) and `care_status_events_shape` under their own
+     names - **a CHECK is widened at the end of the file, never edited where
+     it was declared.** Phase 6a did the same for the four condition-type
+     CHECKs (`patient_condition_profiles_specialty_check`,
+     `condition_change_requests_proposed_specialty_check`,
+     `intake_question_templates_specialty_check`,
+     `treatment_categories_specialty_check`), which now list `geriatric` and
+     `cardiopulmonary` beside the original three. `patient_diary_entries` (phase 4a) is the
+     third shape: a patient-written record whose one permitted change is a
+     *stamp by somebody else* - the confirmation, once, on a patient's own
+     entry, with every other column compared unchanged and the time set by
+     the trigger rather than taken from the caller. The trigger also runs
+     `before insert`, so an entry cannot arrive already confirmed; and a
+     unique index over the content (`md5(details::text)`, the note) is what
+     makes a double tap one row rather than two falls.
+     The guided video assessment (phase 7a) adds the fourth and fifth
+     shapes. `assessment_run_events` is plain append-only with one extra
+     rule in the guard: an event is written only into a run that is still
+     **in progress**, because the measurement route allows a save from these
+     rows (the set-up confirmed, the helper, the red flags answered) - a late
+     or rewritten event would rewrite why a reading was allowed. Its
+     `measurement_id` takes the `on delete set null` allowance and a unique
+     index links one reading to a run once. `assessment_runs` is a record with
+     one permitted transition - in progress to completed or abandoned, once,
+     with the end time set by the trigger - and no delete; the session's
+     `on delete set null` is allowed. Their live neighbour
+     `assessment_live_display` is mutable (a screen, not evidence) and holds
+     its patient-safe guarantee in a CHECK on its jsonb keys. Checked in
+     `scripts/append-only-sql-checks.sql`.
+     Home exercises (phase 7d) add three more. `exercise_plans` is a version
+     record: it lands `active` (its own `created_at` stamped by the guard), the
+     one change is `active` to `replaced` with `replaced_at` set by the
+     trigger (plus the session's `on delete set null`), and it is never
+     deleted; a partial unique index keeps one active per patient.
+     `exercise_plan_items` is append-only and **written only in the
+     transaction that publishes its plan** - the guard compares the plan's
+     `created_at` with `now()`, the transaction's own time - so the one
+     writer is `publish_exercise_plan()`, which retires, inserts and fills a
+     version under a per-patient advisory lock (security definer, revoked
+     from all three roles, fixed `search_path`). `exercise_teaching_events`
+     is append-only and written only into the run's own therapist's run **in
+     progress**, for an exercise in the patient's **active** plan. A mistaken
+     mark is **corrected by a new row** (phase 7d-3): `kind = 'correction'`,
+     `corrects_event_id` (no action: nothing here is deleted, so
+     `clean-e2e-residue.mjs` has nothing to learn) and `correction_reason`
+     from a fixed list, the shape CHECK requiring both iff it is a correction.
+     The guard admits one only for a row of the same run, plan, exercise,
+     patient and therapist; a partial unique index on `corrects_event_id`
+     makes the fixes one chain (each row one successor, race-safe), and the
+     one-mark index kept its name and became partial (`where kind = 'mark'`)
+     so the earlier `create unique index if not exists` stays a no-op on a
+     re-run. **Column privileges, not RLS, hide the correction columns from
+     a browser session**: `select` on the table is revoked from `anon` and
+     `authenticated` and granted back on the original columns only - RLS
+     chooses rows, never columns. That hides the **reason and the link**,
+     not the fact of a correction: the original mark and its correction are
+     both the patient's own rows, so a browser session reading the table
+     directly sees two outcomes for one exercise in one run and can infer
+     that one replaced the other. `reason_key` (the not-attempted reason)
+     stays in the grant because the patient's own read selects it
+     (`EXERCISE_TEACHING_EVENT_SELECT`), though their plan does not show it.
+     The clinician's reads use the service role.
+     Same file, same both-halves check, with a negative control.
+     **The diary takes a correction the same way (E1).** A
+     `patient_diary_entries` row of kind `correction` with
+     `corrects_entry_id` (no action) points at the patient's own,
+     unconfirmed, non-correction entry, written by that patient, with details
+     exactly `{"reason": "saved_by_mistake"}` and no note
+     (`patient_diary_entries_correction_shape`); a partial unique index makes
+     it once per entry; the newest `patient_diary_entries_guard()` locks the
+     original (`for update`) so a racing confirmation either waits and is
+     refused or wins and the correction is refused, and it refuses to confirm
+     a correction or a corrected entry. `patient_diary_entries_kind_check` was
+     widened at the end of the file by one drop-and-re-add. `corrects_entry_id`
+     is a newer column, so it is read in its own call (`loadDiaryCorrections`).
+     **The Health Profile layout is two settings tables, not evidence.**
+     `profile_widget_kind_settings` (profile kind, widget) and
+     `patient_profile_widget_overrides` (patient, widget, optional reason) are
+     admin-read, service-role-written, rewritten and deleted (the history is
+     the admin log); `profile_widget_choice_guard()` stamps `set_at` and
+     freezes the key, and a `*_locked_shown` CHECK refuses hiding a locked
+     widget for any caller. The data reset truncates the per-patient
+     overrides and leaves the kind settings, like every setting.
+     `assessment_companion_seen` (one row per guided run: when the patient's
+     companion screen last fetched) is a mutable heartbeat, readable by the
+     run's own active therapist and an admin, written only by the service
+     role; truncated by the reset. Checked in
+     `scripts/append-only-sql-checks.sql`.
 
      **`user_activity_log` is the same rule for everyone who is not an admin**
      -- patients, therapists, hospitals and the system (All Logs is both
@@ -551,7 +688,9 @@ before.
 - **Business math lives in dependency-free `src/lib/` modules** (`pricing`,
   `adminMetrics`, `therapistEarnings`, `therapistPayouts`, `ratingAggregate`,
   `packageProgress`, `homeVisitPricing`, `homeVisitProgress`,
-  `therapistCashLedger`, `healthProfileSummary`) so it can be reasoned about
+  `therapistCashLedger`, `healthProfileSummary`, `outcomeMeasures`,
+  `clinicalCalculators`, `milestones`, `outcomeSeries`, `careGoals`,
+  `profileKind`, `licensedMeasures`) so it can be reasoned about
   without rendering. Keep new math there rather than inside components.
 - **Isolated is not the same as sequential.** The admin dashboard keeps its
   migration-dependent reads out of the big `Promise.all` so one

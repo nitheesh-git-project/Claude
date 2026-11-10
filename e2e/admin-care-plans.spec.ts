@@ -106,6 +106,9 @@ test.describe("Admin reach over recommendations", () => {
   // old Sessions -> Recommendations link still lands on the screen, and the
   // address bar is rewritten to where it lives now.
   test("ACP-007: the Recommendations screen is on Programmes, and the old link lands on it", async ({ browser }) => {
+    // An admin dashboard load is 12-15s against a hosted project; this case
+    // waits up to 30s for its content, the whole default budget (testing.md).
+    test.setTimeout(90_000);
     const ctx = await browser.newContext();
     await ctx.addCookies(await browserCookiesFor(QA_EMAILS.admin));
     const page = await ctx.newPage();
@@ -1097,6 +1100,9 @@ test.describe("The clinic approves a recommendation", () => {
   });
 
   test("ACP-020: the queue renders on the Recommendations screen", async ({ browser }) => {
+    // An admin dashboard load is 12-15s against a hosted project; this case
+    // waits up to 30s for its content, the whole default budget (testing.md).
+    test.setTimeout(90_000);
     await clearOpenPlans();
     await submitAsTherapist();
 

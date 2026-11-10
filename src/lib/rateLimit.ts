@@ -225,6 +225,101 @@ export const RATE_LIMITS = {
     windowSeconds: 3600,
     message: "We've taken a lot of referrals from this account just now.",
   },
+
+  /**
+   * A patient (or the family member holding their phone) writing in their
+   * diary -- a fall, a freezing episode, a near-miss.
+   *
+   * Its own scope on the one-scope-per-flow rule. Keyed on the account, and
+   * loose: a family catching up on a week of episodes writes several in a
+   * sitting, and refusing one is a fall missing from the chart. The ceiling
+   * bounds the table, it does not judge anybody. Fails open (the default):
+   * a limiter that cannot be asked must not cost a patient their entry.
+   */
+  patientDiary: {
+    scope: "patient-diary",
+    limit: 60,
+    windowSeconds: 3600,
+    message: "We've saved a lot of diary entries from this account just now.",
+  },
+
+  /**
+   * The guided video assessment's live display: the therapist's cockpit
+   * telling the patient's companion screen which step, phase and clock to
+   * show (/api/therapist/assessment-runs/display).
+   *
+   * Called on every step and phase change -- get ready, go, done, rest --
+   * but never once a second (the screen runs the clock itself from a start
+   * time), so a whole assessment is a few dozen calls. Its own
+   * scope on the one-scope-per-flow rule, so a busy session can never spend
+   * the allowance the run's saves need. Keyed on the therapist's account;
+   * generous, and fails open: refusing it costs the patient their screen in
+   * the middle of a test, which is worse than the burst.
+   */
+  assessmentDisplay: {
+    scope: "assessment-display",
+    limit: 300,
+    windowSeconds: 600,
+    message: "The patient's screen has been updated a lot just now.",
+  },
+
+  /**
+   * The guided video assessment's other writes: start, the step events
+   * (set-up, safety, saved, skipped, stopped, opened) and end. Keyed on the
+   * therapist's account. A run is tens of events, so the ceiling bounds the
+   * tables, not a person. Fails open (the default).
+   */
+  assessmentRun: {
+    scope: "assessment-run",
+    limit: 400,
+    windowSeconds: 3600,
+    message: "We've recorded a lot of assessment steps from this account just now.",
+  },
+
+  /**
+   * The patient's companion screen asking for its row when live updates are
+   * not reaching it (/api/patient/assessment-display): once every three
+   * seconds for as long as the fallback is in use, so a 40-minute session is
+   * about 800 reads. Keyed on the patient's account, in its own scope so it
+   * can never spend an allowance something else needs, and it fails open:
+   * refusing it blanks a screen in front of a person mid-test.
+   */
+  assessmentDisplayRead: {
+    scope: "assessment-display-read",
+    limit: 1500,
+    windowSeconds: 3600,
+    message: "This screen has asked for updates a lot just now.",
+  },
+
+  /**
+   * The cockpit asking whether the patient's screen is open
+   * (/api/therapist/assessment-runs/companion-seen, E12): every fifteen
+   * seconds while a run is open, so a long session is a few hundred reads.
+   * Its own scope so it never spends the display or the run's allowance;
+   * keyed on the therapist, failing open (a refusal only hides the line).
+   */
+  assessmentCompanionSeen: {
+    scope: "assessment-companion-seen",
+    limit: 600,
+    windowSeconds: 3600,
+    message: "We've checked the patient's screen a lot just now.",
+  },
+
+  /**
+   * Publishing a home exercise plan (/api/therapist/exercise-plans/publish,
+   * phase 7d). A session publishes one or two versions; a correction is a
+   * new version, so the ceiling only bounds a runaway client filling the
+   * patient's history. Its own scope on the one-scope-per-flow rule, keyed on
+   * the therapist's account, failing open (the default). Teaching marks and
+   * the demo display share the run's own limits (assessmentRun,
+   * assessmentDisplay).
+   */
+  exercisePlan: {
+    scope: "exercise-plan",
+    limit: 60,
+    windowSeconds: 3600,
+    message: "We've saved a lot of exercise plans from this account just now.",
+  },
 } as const satisfies Record<string, RateLimit>;
 
 export type RateLimitName = keyof typeof RATE_LIMITS;

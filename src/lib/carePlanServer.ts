@@ -8,6 +8,7 @@ import {
 } from "@/lib/carePlans";
 import { effectiveHomeVisitRate } from "@/lib/homeVisitRates";
 import { loadHomeVisitPriceRows } from "@/lib/homeVisitRatesServer";
+import { isConditionSpecialty } from "@/lib/conditionSpecialty";
 
 export type { RecommendableRate };
 
@@ -91,7 +92,7 @@ export async function loadRecommendableRates(admin: AdminClient): Promise<Recomm
   for (const c of categories ?? []) {
     if (!(c.price_paise > 0)) continue;
     const raw = specialtyById.get(c.id) ?? null;
-    const specialty = raw === "ortho" || raw === "neuro" || raw === "pediatrics" ? raw : null;
+    const specialty = isConditionSpecialty(raw) ? raw : null;
     const imageUrl = imageById.get(c.id) ?? null;
     out.push({
       id: `session_package:${c.id}`,

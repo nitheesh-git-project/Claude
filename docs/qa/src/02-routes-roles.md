@@ -8,7 +8,7 @@ Every route below is covered by at least one test. The rightmost column names th
 
 | Route | What it is | Auth | Covered by |
 | --- | --- | --- | --- |
-| `/` | Home. Hero, care-area showcase, walkthrough, programmes, testimonials, mission band, connector grid | Public | `PUB-HOME-001` |
+| `/` | Home. Hero with condition chips, two ways to start, programmes, walkthrough, health-profile teaser, care-area showcase, real testimonials, mission band, connector grid | Public | `PUB-HOME-001` |
 | `/conditions` | What we treat, plus the programme cards per condition | Public | `PUB-COND-001` |
 | `/how-it-works` | Booking to recovery in four steps | Public | `PUB-NAV-001` |
 | `/home-visit` | Home-visit landing page. **404s while the admin master switch is off** | Public | `PUB-HV-001` |
@@ -16,7 +16,7 @@ Every route below is covered by at least one test. The rightmost column names th
 | `/mission` | Mission, vision, four promises, testimonials | Public | `PUB-NAV-001` |
 | `/faq` | Admin-managed FAQ accordion | Public | `PUB-FAQ-001` |
 | `/hospitals` | Partner pitch plus the hospital enquiry form | Public | `HOS-LEAD-001` |
-| `/developer` | "Say hello!" - the developer credit's landing card. Reached only from the footer's "Contact me" link; not in the nav. **404s while Settings → Dev Reachouts has the credit switched off** | Public | `PUB-DEV-001` |
+| `/developer` | "Say hello!" - the developer credit's landing card. Reached only from the footer's "Contact me" link; not in the nav. **404s while Settings → Developer messages has the credit switched off** | Public | `PUB-DEV-001` |
 | `/developer/lets-talk` | "Let's talk" - the contact form (name, email, optional number, message). **404s while the credit is switched off** | Public | `PUB-DEV-001`, `PUB-DEV-002` |
 | `/get-started` | Role hub - where a signed-in user of the wrong role is sent | Public | `SEC-ROUTE-003` |
 
@@ -41,6 +41,7 @@ Every route below is covered by at least one test. The rightmost column names th
 | `/patient/dashboard/packages` | Owned programmes and their remaining credits | `PAT-PKG-001` |
 | `/patient/dashboard/payments` | Receipts | `PAT-PAY-010` |
 | `/patient/dashboard/health-profile` | Health Profile: intake answers, snapshot, documents, care-plan history | `PAT-HP-001` |
+| `/patient/dashboard/session` | The guided check's companion screen: dark, large, display only; follows the physiotherapist live and polls every 3 seconds if the live connection is down. **Not in the sidebar** - a bar on every patient screen offers it while a check is live | `PAT-HP-006` |
 | `/patient/dashboard/profile` | Edit Profile: photo, personal, contact, addresses, account security | `PAT-PROF-001` |
 
 ### 3.4 Therapist portal
@@ -54,6 +55,7 @@ Every route below is covered by at least one test. The rightmost column names th
 | `/therapist/dashboard/earnings` | Earnings, payout requests, receipts | `THR-EARN-001` |
 | `/therapist/dashboard/health-profile` | My Patients (Patients / Programmes toggle) | `THR-PAT-001` |
 | `/therapist/dashboard/health-profile/[patientId]` | One patient's chart: intake, Pain Map (orthopaedic) or neurological examination, care plans, notes | `THR-HP-001`, `THR-HP-005b` |
+| `/therapist/dashboard/assessment/[patientId]` | The session cockpit for a guided video assessment: a standalone second screen next to Google Meet (steps, one card, Stop test / Skip / Save and next, results, a preview of the patient's screen). **Not in the sidebar**: reached from *Start guided assessment* on a video session's card and on the chart | `THR-HP-005r` |
 | `/therapist/dashboard/profile` | Edit Profile | `THR-PROF-001` |
 
 ### 3.5 Hospital portal
@@ -75,6 +77,7 @@ Every route below is covered by at least one test. The rightmost column names th
 | --- | --- | --- | --- |
 | Today | `overview` | Today | `ADM-TODAY-001` |
 | Today | `approvals` | Approvals | `ADM-APPR-001` |
+| Today | `health-reviews` | Health Profile reviews | `ADM-PEOP-004` |
 | Today | `risk` | Risk | `ADM-RISK-001` |
 | Sessions | `schedule` | Schedule (calendar) | `ADM-SCHED-001` |
 | Sessions | `all` | All Sessions | `ADM-SESS-001` |
@@ -109,7 +112,7 @@ Every route below is covered by at least one test. The rightmost column names th
 | Settings | `health` | System Health | `ADM-SET-030` |
 | Settings | `security` | Sign-in & Security | `ADM-SET-035` |
 | Settings | `advanced` | Advanced | `ADM-SET-019` |
-| Settings | `reachouts` | Dev Reachouts (Master Admin only) | `ADM-SET-038` |
+| Settings | `reachouts` | Developer messages (Master Admin only) | `ADM-SET-038` |
 
 Detail routes (open as an overlay from the dashboard, and as a full page on direct navigation):
 
@@ -117,7 +120,7 @@ Detail routes (open as an overlay from the dashboard, and as a full page on dire
 | --- | --- |
 | `/admin/dashboard/patients/[id]` | `ADM-PEOP-003` |
 | `/admin/dashboard/therapists/[id]` | `ADM-PEOP-006` |
-| `/admin/dashboard/conditions/[id]` | `ADM-PEOP-004` |
+| `/admin/dashboard/conditions/[id]` (the patient's Health Profile) | `ADM-PEOP-004` |
 
 ### 3.7 System routes
 
@@ -126,6 +129,7 @@ Detail routes (open as an overlay from the dashboard, and as a full page on dire
 | `/dashboard` | Server-side role router. Sends each role to its own dashboard. The admin path never reaches a public bundle. | `SEC-ROUTE-006` |
 | `/pending-approval` | Where an unapproved patient/therapist lands | `PAT-AUTH-003` |
 | `/account-suspended` | Where a suspended account lands | `SEC-AUTH-006` |
+| `/screen` | Short link (a redirect) to the patient's companion screen, for typing or scanning on a second device during a guided check | `PAT-GUIDED` / AC-005b |
 | `/reset-password` | Password reset landing | `PAT-AUTH-006` |
 
 ### 3.8 API routes

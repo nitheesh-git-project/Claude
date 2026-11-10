@@ -48,7 +48,7 @@ Consultation first, how a course of treatment is bought, the therapist lock, wha
      Sessions rows and the session drawer ("Part of ..."), a patient's
      admin page (Programmes card and Booking History), a therapist's admin
      page, Money -> Transactions, Today's recommendation pulse, the
-     review queue, the patient's Your Programmes and session cards, and the
+     review queue, the patient's My programme and session cards, and the
      therapist's session cards and Programmes view. On a database without
      the columns every reader falls back to the old code.
   4. **Old codes still find it.** `SP`/`HS` codes are on receipts already
@@ -123,7 +123,7 @@ Consultation first, how a course of treatment is bought, the therapist lock, wha
 
 - **A programme the patient owns shows its condition's photo and name.**
   A recommendation is bought against a hidden `care_plan_course` package row
-  with no photo and an internal title, so Your Programmes showed a
+  with no photo and an internal title, so My programme showed a
   placeholder and "<condition> - recommended course" right after the patient
   paid for a card carrying the condition's photograph. `programmeDisplay`
   (`src/lib/programmeDisplay.ts`) names a course "<condition> programme" and
@@ -161,7 +161,7 @@ Consultation first, how a course of treatment is bought, the therapist lock, wha
   longer free at this time - pick someone else or move it" in place of the
   one tap; the assign route re-checks regardless. Payment is untouched: a
   prepaid session is `paid` from the purchase, a cash visit `unpaid`. The
-  patient reads **"Booked - confirming your therapist"** on the session card,
+  patient reads **"Booked - confirming your physiotherapist"** on the session card,
   the Sessions list, the Home feed and the scheduler's result rows
   (`patientSessionStatus` / `isBookedAwaitingTherapist`,
   `src/lib/sessionRowStatus.ts`). A single first consultation is not a

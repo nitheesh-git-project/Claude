@@ -48,6 +48,12 @@ export type MarketingPage = {
    * rather than link into a dead end.
    */
   requiresHomeVisit?: boolean;
+  /**
+   * The page is a roster of published therapist profiles. With none, the page
+   * says "being updated", and linking to it from the nav, footer and Explore
+   * tiles advertises an empty room -- so every list drops it (readPublicTeam).
+   */
+  requiresTeam?: boolean;
 };
 
 export const MARKETING_PAGES: MarketingPage[] = [
@@ -101,6 +107,7 @@ export const MARKETING_PAGES: MarketingPage[] = [
     photo: "hero-team",
     photoAlt: "A physiotherapist smiling mid-consultation, her tablet set up for the call",
     action: "Meet the team",
+    requiresTeam: true,
   },
   {
     key: "mission",
@@ -155,11 +162,24 @@ export function marketingPage(key: MarketingPageKey): MarketingPage {
  */
 export function otherMarketingPages(
   current: MarketingPageKey,
-  homeVisitEnabled: boolean
+  homeVisitEnabled: boolean,
+  hasTeam = true
 ): MarketingPage[] {
   return MARKETING_PAGES.filter(
     (page) =>
-      page.key !== current && (homeVisitEnabled || !page.requiresHomeVisit)
+      page.key !== current &&
+      (homeVisitEnabled || !page.requiresHomeVisit) &&
+      (hasTeam || !page.requiresTeam)
+  );
+}
+
+/**
+ * The pages a header or footer may list: Home Visit only while it is
+ * bookable, Our team only while someone is on it.
+ */
+export function visibleMarketingPages(homeVisitEnabled: boolean, hasTeam = true): MarketingPage[] {
+  return MARKETING_PAGES.filter(
+    (page) => (homeVisitEnabled || !page.requiresHomeVisit) && (hasTeam || !page.requiresTeam)
   );
 }
 
@@ -200,11 +220,12 @@ export const BOOK_CONNECTOR: MarketingConnector = {
  */
 export function exploreConnectors(
   current: MarketingPageKey,
-  homeVisitEnabled: boolean
+  homeVisitEnabled: boolean,
+  hasTeam = true
 ): MarketingConnector[] {
-  return [...otherMarketingPages(current, homeVisitEnabled), BOOK_CONNECTOR];
+  return [...otherMarketingPages(current, homeVisitEnabled, hasTeam), BOOK_CONNECTOR];
 }
 
-export function homeConnectors(homeVisitEnabled: boolean): MarketingConnector[] {
-  return exploreConnectors("home", homeVisitEnabled);
+export function homeConnectors(homeVisitEnabled: boolean, hasTeam = true): MarketingConnector[] {
+  return exploreConnectors("home", homeVisitEnabled, hasTeam);
 }

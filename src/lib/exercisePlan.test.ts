@@ -1,0 +1,507 @@
+import { describe, expect, it } from "vitest";
+import { exerciseByKey } from "@/lib/exerciseLibrary";
+import { sessionProtocol, protocolStep } from "@/lib/sessionProtocols";
+import { runStateFromEvents, type RunEvent } from "@/lib/assessmentRun";
+import { CARDIO_CONDITION_OPEN_HEART } from "@/lib/intakeCardio";
+import { sternalPrecautions } from "@/lib/cardioSafety";
+import { clinicDateKey } from "@/lib/clinicWeek";
+import { GERI_FALLS_TWO_PLUS } from "@/lib/intakeGeriatric";
+import {
+  COACHING_CUES,
+  CORRECTION_REASONS,
+  EXERCISE_REFUSAL_TEXT,
+  EXERCISE_TEACHING_EVENT_CLINICIAN_SELECT,
+  EXERCISE_TEACHING_EVENT_SELECT,
+  allExercisesMarked,
+  latestTeachingEvents,
+  planCorrection,
+  sameOriginalMark,
+  checkTeachExercise,
+  checkTeachStep,
+  teachAction,
+  contraFlagsFromIntake,
+  doseText,
+  exercisePlanView,
+  homeExerciseNotePrefill,
+  parsePlanItemRow,
+  parsePlanRow,
+  parseTeachingEventRow,
+  planItemsJson,
+  practisedLine,
+  homeExerciseInitialValue,
+  teachingSummarySentence,
+  validateDose,
+  validatePlanItems,
+  validateTeachRequest,
+  type ExercisePlan,
+  type TeachingEvent,
+} from "@/lib/exercisePlan";
+
+const NOW = Date.parse("2026-10-27T10:00:00Z");
+const ctx = { profileKind: "geriatric" as const, contraFlags: new Set<never>(), helper: "confirmed" as const };
+
+function event(over: Partial<TeachingEvent>): TeachingEvent {
+  return {
+    id: "e1",
+    kind: "mark",
+    correctsEventId: null,
+    correctionReason: null,
+    runId: "run-1",
+    planId: "plan-1",
+    patientId: "p",
+    exerciseKey: "sit_to_stand",
+    outcome: "performed_correctly",
+    cueKey: null,
+    reasonKey: null,
+    helperPresent: false,
+    actor: "t",
+    createdAt: "2026-10-27T09:00:00Z",
+    ...over,
+  };
+}
+
+const PLAN: ExercisePlan = parsePlanRow(
+  {
+    id: "plan-1",
+    patient_id: "p",
+    version: 3,
+    authored_by: "t",
+    run_id: "run-1",
+    appointment_id: null,
+    profile_kind: "geriatric",
+    status: "active",
+    created_at: "2026-10-27T09:00:00Z",
+    replaced_at: null,
+  },
+  [
+    parsePlanItemRow({ id: "i2", plan_id: "plan-1", exercise_key: "heel_to_toe_stand", sort_order: 1, dose: { sets: 3, reps: null, holdSeconds: 10, minutes: null, timesPerDay: 1, daysPerWeek: 3, note: null }, milestone_id: null })!,
+    parsePlanItemRow({ id: "i1", plan_id: "plan-1", exercise_key: "sit_to_stand", sort_order: 0, dose: { sets: 2, reps: 10, holdSeconds: null, minutes: null, timesPerDay: 1, daysPerWeek: 5, note: "Use the kitchen chair." }, milestone_id: null })!,
+  ]
+)!;
+
+describe("contraindications from the intake", () => {
+  it("raises only what the answers on file say", () => {
+    expect([...contraFlagsFromIntake({}, NOW)]).toEqual([]);
+    expect([...contraFlagsFromIntake(null, NOW)]).toEqual([]);
+    expect(contraFlagsFromIntake({ cardio_condition: CARDIO_CONDITION_OPEN_HEART }, NOW).has("sternal_precautions")).toBe(true);
+    expect(
+      contraFlagsFromIntake({ cardio_condition: CARDIO_CONDITION_OPEN_HEART, cardio_sternal_precautions_until: "1 Jan 2026" }, NOW).has("sternal_precautions")
+    ).toBe(false);
+    expect(
+      contraFlagsFromIntake({ cardio_condition: CARDIO_CONDITION_OPEN_HEART, cardio_sternal_precautions_until: "when the surgeon says" }, NOW).has(
+        "sternal_precautions"
+      )
+    ).toBe(true);
+    expect(contraFlagsFromIntake({ geri_falls_12m: GERI_FALLS_TWO_PLUS }, NOW).has("high_fall_risk")).toBe(true);
+    expect(contraFlagsFromIntake({ neuro_pd_freezing: "Most days" }, NOW).has("high_fall_risk")).toBe(true);
+    expect(contraFlagsFromIntake({ neuro_mobility: "Use a wheelchair" }, NOW).has("cannot_stand")).toBe(true);
+  });
+});
+
+describe("sternal precautions agree with the Cardio profile for every input", () => {
+  const open = (until: string) => ({ cardio_condition: CARDIO_CONDITION_OPEN_HEART, cardio_sternal_precautions_until: until });
+  const at = (iso: string) => Date.parse(iso);
+  const holds = (until: string, nowMs: number) => contraFlagsFromIntake(open(until), nowMs).has("sternal_precautions");
+
+  it("reads a day-first date as day first, not as a month", () => {
+    // 05/09/2026 is 5 September; on 20 August it is still ahead.
+    expect(holds("05/09/2026", at("2026-08-20T10:00:00Z"))).toBe(true);
+    // ... and on 10 September it is over. Date.parse read it as 9 May, which is past on 1 June, so
+    // it lifted the precautions months early.
+    expect(holds("05/09/2026", at("2026-06-01T10:00:00Z"))).toBe(true);
+    expect(holds("05/09/2026", at("2026-09-10T10:00:00Z"))).toBe(false);
+  });
+
+  it("holds through the whole of the last day in the clinic's zone", () => {
+    // 2026-09-20 18:29 UTC is 23:59 IST on the 20th; 18:31 UTC is 00:01 on the 21st.
+    expect(holds("2026-09-20", at("2026-09-20T00:30:00Z"))).toBe(true);
+    expect(holds("2026-09-20", at("2026-09-20T18:29:00Z"))).toBe(true);
+    expect(holds("2026-09-20", at("2026-09-20T18:31:00Z"))).toBe(false);
+    // The ISO date used to lift at 05:30 IST on the day (UTC midnight).
+    expect(holds("2026-09-20", at("2026-09-20T00:01:00Z"))).toBe(true);
+    expect(holds("20 Sep 2026", at("2026-09-20T12:00:00Z"))).toBe(true);
+  });
+
+  it("keeps the precautions active for a date it cannot read", () => {
+    for (const raw of ["six weeks after surgery", "ask the surgeon", "31/02/2026", "", "   ", "2026-13-40"]) {
+      expect(holds(raw, at("2030-01-01T00:00:00Z"))).toBe(true);
+    }
+    expect(contraFlagsFromIntake({ cardio_condition: CARDIO_CONDITION_OPEN_HEART, cardio_sternal_precautions_until: 20260920 }, NOW).has("sternal_precautions")).toBe(true);
+  });
+
+  it("gives the same answer as sternalPrecautions for every input and instant", () => {
+    const inputs = ["2026-09-20", "20/09/2026", "05/09/2026", "20 Sep 2026", "September 20, 2026", "20th September 2026", "next month", ""];
+    const instants = ["2026-09-04T20:00:00Z", "2026-09-05T10:00:00Z", "2026-09-20T00:30:00Z", "2026-09-20T18:29:00Z", "2026-09-20T18:31:00Z", "2026-10-01T00:00:00Z"];
+    for (const raw of inputs) {
+      for (const iso of instants) {
+        const profile = sternalPrecautions({ ...open(raw), cardio_sternal_precautions: "No lifting" }, clinicDateKey(at(iso)));
+        expect(holds(raw, at(iso)), `${raw} @ ${iso}`).toBe(profile.status === "active" || profile.status === "end_date_unknown");
+      }
+    }
+  });
+});
+
+describe("the dose", () => {
+  const sit = exerciseByKey("sit_to_stand")!;
+  it("defaults what is left out and refuses what is out of bounds or the wrong shape", () => {
+    const d = validateDose(sit, { reps: 8 });
+    expect(d.ok && d.dose).toMatchObject({ sets: 2, reps: 8, holdSeconds: null, timesPerDay: 1, daysPerWeek: 5, note: null });
+    expect(validateDose(sit, { reps: 2.5 }).ok).toBe(false);
+    expect(validateDose(sit, { reps: 31 }).ok).toBe(false);
+    expect(validateDose(sit, { holdSeconds: 5 }).ok).toBe(false);
+    expect(validateDose(sit, { price: 1 }).ok).toBe(false);
+    expect(validateDose(sit, "two sets").ok).toBe(false);
+  });
+  it("keeps a short plain note and refuses a long one", () => {
+    const d = validateDose(sit, { note: "  Use the   kitchen chair. " });
+    expect(d.ok && d.dose.note).toBe("Use the kitchen chair.");
+    const long = validateDose(sit, { note: "One. Two. Three." });
+    expect(!long.ok && long.refusal.code).toBe("note_not_plain");
+  });
+  it("says the dose in plain words", () => {
+    expect(doseText({ sets: 2, reps: 10, holdSeconds: null, minutes: null, timesPerDay: 1, daysPerWeek: 5, note: null })).toBe(
+      "2 sets of 10. Once a day, 5 days a week."
+    );
+    expect(doseText({ sets: 1, reps: 10, holdSeconds: 5, minutes: null, timesPerDay: 2, daysPerWeek: 7, note: null })).toBe(
+      "10 times, holding each for 5 seconds. Twice a day, every day."
+    );
+    expect(doseText({ sets: 3, reps: null, holdSeconds: 10, minutes: null, timesPerDay: 1, daysPerWeek: 3, note: null })).toBe(
+      "Hold for 10 seconds, 3 times. Once a day, 3 days a week."
+    );
+    expect(doseText({ sets: 1, reps: null, holdSeconds: null, minutes: 10, timesPerDay: 1, daysPerWeek: 1, note: null })).toBe(
+      "10 minutes. Once a day, 1 day a week."
+    );
+  });
+});
+
+describe("the publish request", () => {
+  it("takes library keys for this kind of patient, in order, with their doses", () => {
+    const v = validatePlanItems([{ exerciseKey: "sit_to_stand", dose: { reps: 8 } }, { exerciseKey: "heel_raise" }], ctx);
+    expect(v.ok).toBe(true);
+    if (!v.ok) return;
+    expect(planItemsJson(v.items).map((i) => i.exercise_key)).toEqual(["sit_to_stand", "heel_raise"]);
+    expect(planItemsJson(v.items)[0].dose).toEqual({ sets: 2, reps: 8, holdSeconds: null, minutes: null, timesPerDay: 1, daysPerWeek: 5, note: null });
+  });
+  it("refuses an unknown key, another kind's exercise, a duplicate, none, and too many", () => {
+    const code = (raw: unknown, c = ctx) => {
+      const v = validatePlanItems(raw, c);
+      return v.ok ? null : v.refusal.code;
+    };
+    expect(code([{ exerciseKey: "made_up" }])).toBe("unknown_exercise");
+    expect(code([{ exerciseKey: "big_steps" }])).toBe("exercise_not_for_profile");
+    expect(code([{ exerciseKey: "heel_raise" }, { exerciseKey: "heel_raise" }])).toBe("duplicate_exercise");
+    expect(code([])).toBe("no_exercises");
+    expect(code(Array.from({ length: 13 }, () => ({ exerciseKey: "heel_raise" })))).toBe("too_many_exercises");
+    expect(code([{ exerciseKey: "heel_raise", price: 10 }])).toBe("bad_request");
+    expect(code([{ exerciseKey: "heel_raise", milestoneId: "not-a-uuid" }])).toBe("bad_request");
+  });
+  it("refuses what the intake rules out, and a helper exercise without a confirmed helper", () => {
+    const code = (raw: unknown, c: Parameters<typeof validatePlanItems>[1]) => {
+      const v = validatePlanItems(raw, c);
+      return v.ok ? null : v.refusal.code;
+    };
+    expect(code([{ exerciseKey: "one_leg_stand" }], { ...ctx, contraFlags: new Set(["high_fall_risk"]) })).toBe("contraindicated");
+    expect(code([{ exerciseKey: "sit_to_stand_hands" }], { ...ctx, contraFlags: new Set(["sternal_precautions"]) })).toBe("contraindicated");
+    expect(code([{ exerciseKey: "heel_to_toe_stand" }], { ...ctx, helper: "no_run" })).toBe("helper_needs_run");
+    expect(code([{ exerciseKey: "heel_to_toe_stand" }], { ...ctx, helper: "not_confirmed" })).toBe("helper_not_confirmed");
+    expect(code([{ exerciseKey: "heel_raise" }], { ...ctx, helper: "no_run" })).toBeNull();
+  });
+});
+
+describe("the teach request", () => {
+  it("is a phase to show or an outcome to record, keys only", () => {
+    expect(validateTeachRequest({ runId: "r", exerciseKey: "heel_raise", phase: "demo" }).ok).toBe(true);
+    expect(validateTeachRequest({ runId: "r", exerciseKey: "heel_raise", outcome: "performed_correctly" }).ok).toBe(true);
+    expect(validateTeachRequest({ runId: "r", exerciseKey: "heel_raise", outcome: "needs_practice", cueKey: "slow_down" }).ok).toBe(true);
+    expect(validateTeachRequest({ runId: "r", exerciseKey: "heel_raise", outcome: "not_attempted", reasonKey: "too_painful" }).ok).toBe(true);
+    const bad = (raw: unknown) => !validateTeachRequest(raw).ok;
+    expect(bad({ runId: "r", exerciseKey: "heel_raise" })).toBe(true);
+    expect(bad({ runId: "r", exerciseKey: "heel_raise", phase: "demo", outcome: "performed_correctly" })).toBe(true);
+    expect(bad({ runId: "r", exerciseKey: "heel_raise", phase: "rest" })).toBe(true);
+    expect(bad({ runId: "r", exerciseKey: "heel_raise", outcome: "needs_practice" })).toBe(true);
+    expect(bad({ runId: "r", exerciseKey: "heel_raise", outcome: "needs_practice", cueKey: "say what you like" })).toBe(true);
+    expect(bad({ runId: "r", exerciseKey: "heel_raise", outcome: "not_attempted" })).toBe(true);
+    expect(bad({ runId: "r", exerciseKey: "heel_raise", outcome: "performed_correctly", cueKey: "slow_down" })).toBe(true);
+    expect(bad({ runId: "r", exerciseKey: "heel_raise", outcome: "performed_correctly", note: "well done" })).toBe(true);
+    expect(bad({ runId: "r", exerciseKey: "nope", phase: "demo" })).toBe(true);
+  });
+  it("teaches only what is in the active plan, and a helper exercise only with the helper ticked", () => {
+    const plan = { id: "plan-1", exerciseKeys: ["sit_to_stand", "heel_to_toe_stand"] };
+    const tandem = exerciseByKey("heel_to_toe_stand")!;
+    const go = validateTeachRequest({ exerciseKey: "heel_to_toe_stand", phase: "go" });
+    const demo = validateTeachRequest({ exerciseKey: "heel_to_toe_stand", phase: "demo" });
+    const notAttempted = validateTeachRequest({ exerciseKey: "heel_to_toe_stand", outcome: "not_attempted", reasonKey: "no_helper" });
+    if (!go.ok || !demo.ok || !notAttempted.ok) throw new Error("setup");
+    const r = (request = go.request, helperConfirmed = false, p: typeof plan | null = plan) =>
+      checkTeachExercise({ plan: p, exercise: tandem, request, helperConfirmed });
+    expect(r(go.request, false, null)).toMatchObject({ ok: false, refusal: { code: "no_active_plan" } });
+    expect(checkTeachExercise({ plan, exercise: exerciseByKey("heel_raise")!, request: go.request, helperConfirmed: true })).toMatchObject({
+      ok: false,
+      refusal: { code: "not_in_plan" },
+    });
+    expect(r(go.request, false)).toMatchObject({ ok: false, refusal: { code: "helper_not_confirmed" } });
+    expect(r(demo.request, false)).toEqual({ ok: true, index: 1, total: 2 });
+    expect(r(notAttempted.request, false).ok).toBe(true);
+    expect(r(go.request, true).ok).toBe(true);
+  });
+  it("words every refusal code", () => {
+    for (const t of Object.values(EXERCISE_REFUSAL_TEXT)) {
+      expect(t.message.length).toBeGreaterThan(0);
+      expect(t.fix.length).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("the patient's plan", () => {
+  it("is the library's pictures and steps, the dose in words, and when it was practised", () => {
+    expect(PLAN.items.map((i) => i.exerciseKey)).toEqual(["sit_to_stand", "heel_to_toe_stand"]);
+    const view = exercisePlanView(PLAN, [
+      event({ id: "a", exerciseKey: "heel_to_toe_stand", outcome: "needs_practice", cueKey: "hold_support", createdAt: "2026-10-27T09:10:00Z" }),
+      event({ id: "b", exerciseKey: "sit_to_stand", planId: "other-plan" }),
+    ]);
+    expect(view.version).toBe(3);
+    expect(view.items[0]).toMatchObject({ key: "sit_to_stand", dose: "2 sets of 10. Once a day, 5 days a week.", note: "Use the kitchen chair.", practised: null, helperLine: null });
+    expect(view.items[1].practised).toEqual({ at: "2026-10-27T09:10:00Z", outcome: "needs_practice", cue: COACHING_CUES.hold_support });
+    expect(view.items[1].helperLine).toBe("Do this with another adult beside you.");
+    expect(practisedLine(view.items[1].practised, "27 Oct")).toBe(
+      "Practised with your physiotherapist on 27 Oct. Remember: Keep a hand on the support."
+    );
+    expect(practisedLine(null, "")).toMatch(/go through this with you/);
+    expect(practisedLine(null, "", { parent: true })).toMatch(/with your child/);
+    const parentLine = practisedLine({ at: "x", outcome: "needs_practice", cue: "Go slower and keep it smooth." }, "27 Oct", { parent: true });
+    expect(parentLine).toBe("Practised with the physiotherapist on 27 Oct. Remember: Go slower and keep it smooth.");
+    expect(practisedLine({ at: "x", outcome: "performed_correctly", cue: null }, "27 Oct", { parent: true })).toMatch(/^Your child did this well/);
+    expect(practisedLine({ at: "x", outcome: "not_attempted", cue: null }, "", { parent: true })).toMatch(/Your child will practise/);
+  });
+  it("parses rows and refuses a malformed one", () => {
+    expect(parsePlanRow({ id: "x" })).toBeNull();
+    expect(parsePlanItemRow({ id: "i", plan_id: "p", exercise_key: "k", sort_order: 0, dose: { sets: "two" } })).toBeNull();
+    expect(
+      parseTeachingEventRow({
+        id: "e", run_id: "r", plan_id: "p", patient_id: "pt", exercise_key: "heel_raise", outcome: "needs_practice",
+        cue_key: "slow_down", reason_key: null, helper_present: true, actor: "t", created_at: "2026-10-27T09:00:00Z",
+      })
+    ).toMatchObject({ outcome: "needs_practice", cueKey: "slow_down", helperPresent: true });
+    expect(parseTeachingEventRow({ id: "e", outcome: "great" })).toBeNull();
+  });
+});
+
+describe("the summary and the session note", () => {
+  const events = [
+    event({ id: "1", exerciseKey: "sit_to_stand", outcome: "performed_correctly" }),
+    event({ id: "2", exerciseKey: "heel_raise", outcome: "needs_practice", cueKey: "hold_support" }),
+    event({ id: "3", exerciseKey: "heel_to_toe_stand", outcome: "not_attempted", reasonKey: "no_helper" }),
+  ];
+  it("says what was taught, honest about needs practice and not attempted", () => {
+    expect(teachingSummarySentence([], "patient")).toBeNull();
+    expect(teachingSummarySentence(events, "patient")).toBe(
+      "We practised 2 home exercises together: sit to stand went well, and heel raise needs more practice. We will try heel-to-toe stand next time."
+    );
+    expect(teachingSummarySentence(events, "clinician")).toBe(
+      "Home exercises taught: 2 of 3; did it correctly: sit to stand; needs practice: heel raise (keep a hand on the support); not attempted: heel-to-toe stand (no one could stand beside the patient)."
+    );
+  });
+  it("prefills a new note's home exercise field from the plan", () => {
+    expect(homeExerciseNotePrefill(PLAN)).toBe(
+      "Home exercises, version 3: Sit to stand: 2 sets of 10. Once a day, 5 days a week (Use the kitchen chair); Heel-to-toe stand: Hold for 10 seconds, 3 times. Once a day, 3 days a week."
+    );
+  });
+});
+
+describe("the Home exercises step's own gate", () => {
+  const knee = sessionProtocol("ortho_knee")!;
+  const cardio = sessionProtocol("cardiopulmonary")!;
+  const step = protocolStep(knee, "exercises")!;
+  let n = 0;
+  const ev = (stepId: string, kind: RunEvent["kind"], details: Record<string, unknown> = {}): RunEvent => ({
+    id: `e${++n}`,
+    runId: "run-1",
+    stepId,
+    kind,
+    measurementId: null,
+    details,
+    actor: "t",
+    createdAt: new Date(Date.parse("2026-10-27T09:00:00Z") + n * 1000).toISOString(),
+  });
+  const clear = ev("safety", "safety_confirmed", { gate: "red_flags", answers: {}, flagged: [] });
+  const flagged = ev("safety", "safety_confirmed", { gate: "red_flags", answers: { unwell_or_fever: true }, flagged: ["unwell_or_fever"] });
+  const setup = ev("exercises", "setup_confirmed", { items: ["whole_body_in_view", "clear_space"], helperPresent: false });
+  const gate = (events: RunEvent[], action: "demo" | "doing" | "not_attempted", protocol = knee, s = step) =>
+    checkTeachStep({ protocol, step: s, state: runStateFromEvents(events), action, preExercise: null })?.code ?? null;
+
+  it("follows the clinical order", () => {
+    expect(gate([], "demo")).toBe("red_flags_unanswered");
+    expect(gate([], "not_attempted")).toBe("red_flags_unanswered");
+    expect(gate([clear], "demo")).toBeNull();
+    expect(gate([clear], "doing")).toBe("setup_not_confirmed");
+    expect(gate([clear, setup], "doing")).toBeNull();
+    expect(gate([flagged], "demo")).toBe("red_flag_present");
+    expect(gate([flagged, setup], "doing")).toBe("red_flag_present");
+    expect(gate([flagged], "not_attempted")).toBeNull();
+    // Heart and lung: the patient's turn waits on the resting check.
+    expect(gate([clear, setup], "doing", cardio, protocolStep(cardio, "exercises")!)).toBe("cardio_check_not_recorded");
+  });
+
+  it("maps each request to its gate, and Save and next needs every exercise marked", () => {
+    const r = (raw: unknown) => {
+      const v = validateTeachRequest(raw);
+      if (!v.ok) throw new Error("bad");
+      return teachAction(v.request);
+    };
+    expect(r({ exerciseKey: "heel_raise", phase: "demo" })).toBe("demo");
+    expect(r({ exerciseKey: "heel_raise", phase: "go" })).toBe("doing");
+    expect(r({ exerciseKey: "heel_raise", outcome: "needs_practice", cueKey: "slow_down" })).toBe("doing");
+    expect(r({ exerciseKey: "heel_raise", outcome: "not_attempted", reasonKey: "out_of_time" })).toBe("not_attempted");
+    const plan = { id: "plan-1", exerciseKeys: ["sit_to_stand", "heel_raise"] };
+    expect(allExercisesMarked(plan, [event({ exerciseKey: "sit_to_stand" })], "run-1")).toBe(false);
+    expect(allExercisesMarked(plan, [event({ exerciseKey: "sit_to_stand" }), event({ id: "2", exerciseKey: "heel_raise", runId: "other" })], "run-1")).toBe(false);
+    expect(allExercisesMarked(plan, [event({ exerciseKey: "sit_to_stand" }), event({ id: "2", exerciseKey: "heel_raise" })], "run-1")).toBe(true);
+    expect(allExercisesMarked({ id: "plan-1", exerciseKeys: [] }, [], "run-1")).toBe(false);
+  });
+});
+
+describe("homeExerciseInitialValue", () => {
+  const prefill = "Home exercises, version 2: Bottom lift: 2 sets of 10.";
+  it("prefills an empty field on a new note", () => {
+    expect(homeExerciseInitialValue({ existingText: "", isNewNote: true, prefill })).toBe(prefill);
+    expect(homeExerciseInitialValue({ existingText: null, isNewNote: true, prefill })).toBe(prefill);
+    expect(homeExerciseInitialValue({ existingText: "  ", isNewNote: true, prefill })).toBe(prefill);
+  });
+  it("never overwrites text already there", () => {
+    expect(homeExerciseInitialValue({ existingText: "Wall slides daily", isNewNote: true, prefill })).toBe("Wall slides daily");
+    expect(homeExerciseInitialValue({ existingText: "Wall slides daily", isNewNote: false, prefill })).toBe("Wall slides daily");
+  });
+  it("leaves an existing note's empty field empty, and no prefill gives none", () => {
+    expect(homeExerciseInitialValue({ existingText: "", isNewNote: false, prefill })).toBe("");
+    expect(homeExerciseInitialValue({ existingText: "", isNewNote: true, prefill: null })).toBe("");
+  });
+});
+
+describe("correcting a mark (phase 7d-3)", () => {
+  const mark = event({ id: "m", exerciseKey: "sit_to_stand", outcome: "performed_correctly", createdAt: "2026-10-27T09:10:00Z" });
+  const fix1 = event({
+    id: "f1", kind: "correction", correctsEventId: "m", correctionReason: "wrong_button",
+    exerciseKey: "sit_to_stand", outcome: "needs_practice", cueKey: "slow_down", createdAt: "2026-10-27T09:11:00Z",
+  });
+  const fix2 = event({
+    id: "f2", kind: "correction", correctsEventId: "f1", correctionReason: "tried_again_correctly",
+    exerciseKey: "sit_to_stand", outcome: "performed_correctly", createdAt: "2026-10-27T09:12:00Z",
+  });
+  const valid = (raw: unknown) => validateTeachRequest(raw);
+  const code = (raw: unknown) => {
+    const v = valid(raw);
+    return v.ok ? null : v.refusal.code;
+  };
+
+  it("takes a correction as `correct` with one of the three reasons, keys only", () => {
+    const v = valid({ runId: "r", exerciseKey: "sit_to_stand", correct: { outcome: "needs_practice", cueKey: "slow_down", correctionReason: "wrong_button" } });
+    expect(v.ok && v.request).toEqual({
+      kind: "correction", exerciseKey: "sit_to_stand", outcome: "needs_practice", cueKey: "slow_down", reasonKey: null, correctionReason: "wrong_button",
+    });
+    expect(Object.keys(CORRECTION_REASONS)).toEqual(["wrong_button", "tried_again_correctly", "see_summary"]);
+    expect(code({ exerciseKey: "sit_to_stand", correct: { outcome: "performed_correctly" } })).toBe("bad_correction_reason");
+    expect(code({ exerciseKey: "sit_to_stand", correct: { outcome: "performed_correctly", correctionReason: "because" } })).toBe("bad_correction_reason");
+    expect(code({ exerciseKey: "sit_to_stand", correct: { outcome: "needs_practice", correctionReason: "wrong_button" } })).toBe("bad_request");
+    expect(code({ exerciseKey: "sit_to_stand", correct: { outcome: "performed_correctly", correctionReason: "see_summary", note: "x" } })).toBe("bad_request");
+    expect(code({ exerciseKey: "sit_to_stand", outcome: "performed_correctly", correct: { outcome: "performed_correctly", correctionReason: "see_summary" } })).toBe("bad_request");
+    expect(code({ exerciseKey: "sit_to_stand", cueKey: "slow_down", correct: { outcome: "needs_practice", cueKey: "slow_down", correctionReason: "see_summary" } })).toBe("bad_request");
+    expect(code({ exerciseKey: "sit_to_stand", correct: "performed_correctly" })).toBe("bad_request");
+    expect(EXERCISE_REFUSAL_TEXT.correction_needs_mark.fix).toBeTruthy();
+    expect(EXERCISE_REFUSAL_TEXT.bad_correction_reason.fix).toBeTruthy();
+  });
+
+  it("passes the same gate as the mark it now says (only not attempted on a red-flag day)", () => {
+    const action = (outcome: string, extra: Record<string, unknown> = {}) => {
+      const v = valid({ exerciseKey: "heel_raise", correct: { outcome, ...extra, correctionReason: "wrong_button" } });
+      if (!v.ok) throw new Error("bad");
+      return teachAction(v.request);
+    };
+    expect(action("performed_correctly")).toBe("doing");
+    expect(action("needs_practice", { cueKey: "slow_down" })).toBe("doing");
+    expect(action("not_attempted", { reasonKey: "out_of_time" })).toBe("not_attempted");
+    // The helper rule: a fix to something done needs the helper ticked, like a mark.
+    const v = valid({ exerciseKey: "heel_to_toe_stand", correct: { outcome: "performed_correctly", correctionReason: "tried_again_correctly" } });
+    if (!v.ok) throw new Error("bad");
+    const ex = exerciseByKey("heel_to_toe_stand")!;
+    const plan = { id: "plan-1", exerciseKeys: ["heel_to_toe_stand"] };
+    if (ex.needsHelper) {
+      expect(checkTeachExercise({ plan, exercise: ex, request: v.request, helperConfirmed: false })).toMatchObject({ ok: false, refusal: { code: "helper_not_confirmed" } });
+    }
+    expect(checkTeachExercise({ plan, exercise: ex, request: v.request, helperConfirmed: true }).ok).toBe(true);
+  });
+
+  it("is refused with no earlier mark in this run, a no-op when it changes nothing, else references the latest", () => {
+    const input = { runId: "run-1", planId: "plan-1", exerciseKey: "sit_to_stand", outcome: "needs_practice" as const, cueKey: "slow_down" as const, reasonKey: null };
+    expect(planCorrection([], input)).toEqual({ kind: "no_mark" });
+    expect(planCorrection([event({ id: "x", runId: "other-run" })], input)).toEqual({ kind: "no_mark" });
+    expect(planCorrection([event({ id: "x", planId: "old-plan" })], input)).toEqual({ kind: "no_mark" });
+    expect(planCorrection([mark], input)).toEqual({ kind: "write", correctsEventId: "m" });
+    // A retry after it landed: nothing new is written.
+    expect(planCorrection([mark, fix1], input)).toEqual({ kind: "same", event: fix1 });
+    // A second fix references the latest row, the first fix.
+    expect(planCorrection([mark, fix1], { ...input, outcome: "performed_correctly", cueKey: null })).toEqual({ kind: "write", correctsEventId: "f1" });
+    expect(planCorrection([fix2, mark, fix1], { ...input, outcome: "not_attempted", cueKey: null, reasonKey: "out_of_time" })).toEqual({
+      kind: "write",
+      correctsEventId: "f2",
+    });
+  });
+
+  it("a retried plain mark matches the ORIGINAL mark; a different one is already_marked", () => {
+    const base = { runId: "run-1", planId: "plan-1", exerciseKey: "sit_to_stand", cueKey: null, reasonKey: null };
+    expect(sameOriginalMark([mark, fix1], { ...base, outcome: "performed_correctly" })).toBe(mark);
+    expect(sameOriginalMark([mark, fix1], { ...base, outcome: "needs_practice", cueKey: "slow_down" })).toBeNull();
+  });
+
+  it("the latest per exercise wins: the chain over the clock, newest otherwise, across runs", () => {
+    expect(latestTeachingEvents([mark, fix1, fix2]).map((e) => e.id)).toEqual(["f2"]);
+    // A correction stamped in the same instant as its original still wins.
+    const tie = { ...fix1, createdAt: mark.createdAt, id: "a-fix" };
+    expect(latestTeachingEvents([mark, { ...tie, correctsEventId: "m" }]).map((e) => e.id)).toEqual(["a-fix"]);
+    const later = event({ id: "n", runId: "run-2", exerciseKey: "sit_to_stand", outcome: "not_attempted", reasonKey: "too_tired", createdAt: "2026-10-28T09:00:00Z" });
+    expect(latestTeachingEvents([mark, fix1, later]).map((e) => e.id)).toEqual(["n"]);
+    const other = event({ id: "o", exerciseKey: "heel_to_toe_stand" });
+    expect(latestTeachingEvents([mark, fix1, other]).map((e) => e.id).sort()).toEqual(["f1", "o"]);
+  });
+
+  it("the patient's plan shows the latest outcome and never that a correction happened", () => {
+    const view = exercisePlanView(PLAN, [mark, fix1]);
+    const item = view.items.find((i) => i.key === "sit_to_stand")!;
+    expect(item.practised).toEqual({ at: fix1.createdAt, outcome: "needs_practice", cue: COACHING_CUES.slow_down });
+    expect(JSON.stringify(view)).not.toMatch(/correct(ion|ed)|wrong_button|wrong button/i);
+    expect(practisedLine(item.practised, "27 Oct")).not.toMatch(/correct|fix|mistake/i);
+    // The patient's own read has no correction columns: newest first gives the same answer.
+    const asPatient = [mark, fix1].map((e) => ({ ...e, kind: "mark" as const, correctsEventId: null, correctionReason: null }));
+    expect(exercisePlanView(PLAN, asPatient).items.find((i) => i.key === "sit_to_stand")!.practised).toEqual(item.practised);
+  });
+
+  it("the summary draft uses the latest; only the clinician's says a mark was corrected", () => {
+    const patient = teachingSummarySentence([mark, fix1], "patient")!;
+    expect(patient).toMatch(/sit to stand needs more practice/);
+    expect(patient).not.toMatch(/went well|correct/i);
+    const clinician = teachingSummarySentence([mark, fix1], "clinician")!;
+    expect(clinician).toMatch(/needs practice: sit to stand/);
+    expect(clinician).toMatch(/mark corrected during the session: sit to stand/);
+    expect(teachingSummarySentence([mark], "clinician")).not.toMatch(/corrected/);
+  });
+
+  it("parses a correction row; the patient-safe select carries no correction column", () => {
+    const row = {
+      id: "f", run_id: "r", plan_id: "p", patient_id: "pt", exercise_key: "heel_raise", outcome: "performed_correctly", cue_key: null, reason_key: null,
+      helper_present: false, actor: "t", created_at: "2026-10-27T09:00:00Z",
+    };
+    expect(parseTeachingEventRow(row)).toMatchObject({ kind: "mark", correctsEventId: null, correctionReason: null });
+    expect(parseTeachingEventRow({ ...row, kind: "correction", corrects_event_id: "m", correction_reason: "see_summary" })).toMatchObject({
+      kind: "correction", correctsEventId: "m", correctionReason: "see_summary",
+    });
+    expect(parseTeachingEventRow({ ...row, kind: "correction", corrects_event_id: null, correction_reason: "see_summary" })).toBeNull();
+    expect(parseTeachingEventRow({ ...row, kind: "correction", corrects_event_id: "m", correction_reason: "because" })).toBeNull();
+    expect(parseTeachingEventRow({ ...row, kind: "edit" })).toBeNull();
+    expect(EXERCISE_TEACHING_EVENT_SELECT).not.toMatch(/kind|corrects_event_id|correction_reason/);
+    expect(EXERCISE_TEACHING_EVENT_CLINICIAN_SELECT).toMatch(/kind, corrects_event_id, correction_reason$/);
+  });
+
+  it("Save and next counts a corrected exercise once, as marked", () => {
+    const plan = { id: "plan-1", exerciseKeys: ["sit_to_stand"] };
+    expect(allExercisesMarked(plan, [mark, fix1, fix2], "run-1")).toBe(true);
+  });
+});

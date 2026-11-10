@@ -142,11 +142,11 @@ test.describe("Suites A/B/C/K: the admin dashboard in a browser", () => {
     // Located by role and name, never by bare text. This page now renders the
     // *real* dashboard behind the overlay (see AdminDetailDashboard), and the
     // dashboard mounts all 34 screens at once behind `hidden` -- so a loose
-    // `getByText("Care Record")` also matches the two scope blurbs reading
-    // "Patients, sessions and care records", and fails on a strict-mode
-    // violation describing a working page.
+    // `getByText("Health Profile")` also matches the scope blurbs and the
+    // Health Profile chips, and fails on a strict-mode violation describing a
+    // working page.
     await expect(
-      page.getByRole("link", { name: /^Care Record/ })
+      page.getByRole("link", { name: /The patient.s answers, who can see the profile/ })
     ).toBeVisible();
     await expect(
       page.getByRole("heading", { name: "Personal Details" })
@@ -221,8 +221,14 @@ test.describe("Suites A/B/C/K: the admin dashboard in a browser", () => {
     await page.goto(`${BASE}/admin/dashboard?section=sessions&tab=all`);
     await expect(page.getByRole("heading", { level: 2, name: /^All Sessions/ })).toBeVisible();
 
-    await page.getByRole("combobox", { name: "Filter by delivery mode" }).selectOption("home_visit");
-    await page.waitForTimeout(500);
+    // A choice made before React has hydrated the select is dropped (the
+    // controlled value snaps back), so choose until the screen says a filter
+    // is active -- only React's own state draws "Clear filters".
+    const mode = page.getByRole("combobox", { name: "Filter by delivery mode" });
+    await expect(async () => {
+      await mode.selectOption("home_visit");
+      await expect(page.getByRole("button", { name: "Clear filters" })).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 30_000 });
 
     // A reload is the test: a filter an admin has to re-set on every visit is
     // the friction this removes.

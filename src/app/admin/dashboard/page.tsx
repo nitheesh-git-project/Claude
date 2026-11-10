@@ -151,10 +151,16 @@ import { SOCIAL_LINKS_SELECT, SOCIAL_LINK_COLUMNS } from "@/lib/socialLinks";
 import ProfileChangeRequestActions from "@/components/admin/ProfileChangeRequestActions";
 import AdminPeopleDirectory from "@/components/admin/AdminPeopleDirectory";
 import PagedList from "@/components/dashboard/PagedList";
+import ReadOnlyDeskNote from "@/components/admin/ReadOnlyDeskNote";
+import AdminScreenLink from "@/components/admin/AdminScreenLink";
+import HealthProfileReviewsTab from "@/components/admin/HealthProfileReviewsTab";
+import { loadHealthProfileReviews } from "@/lib/healthProfileReviewsServer";
 import AdminCalendarTab from "@/components/admin/AdminCalendarTab";
 import AdminMetricsTab from "@/components/admin/AdminMetricsTab";
 import QuestionBankManager from "@/components/admin/QuestionBankManager";
-import ConditionsListFilter from "@/components/admin/ConditionsListFilter";
+import LicensedMeasureSettings from "@/components/admin/LicensedMeasureSettings";
+import ProfileWidgetSettings from "@/components/admin/ProfileWidgetSettings";
+import SixMinuteWalkEquationSettings from "@/components/admin/SixMinuteWalkEquationSettings";
 import { parseAreaPain } from "@/lib/conditionIntake";
 import {
   DEFAULT_CONDITION_SPECIALTY,
@@ -215,6 +221,7 @@ import type {
 import { summariseFindings, type LeakFinding } from "@/lib/contactLeakScan";
 import type { RiskSeverity, RiskStatus, RiskSubjectKind } from "@/lib/riskSignals";
 import { JoinWindowProvider } from "@/lib/joinWindowContext";
+import { CancellationWindowProvider } from "@/lib/cancellationWindowContext";
 import { isDebugNavVisible } from "@/lib/debugNavVisible";
 import { readReferralAttributionHealth } from "@/lib/referralAttribution";
 import { readRefundHealth } from "@/lib/refundHealthServer";
@@ -341,6 +348,12 @@ export default async function AdminDashboardPage({
   const conditionSpecialtyPromise = admin
     .from("patient_condition_profiles")
     .select("patient_id, specialty");
+
+  // The rows behind Today -> Health Profile reviews, started with the rest of
+  // the early reads and awaited where the screen is built. Every desk can open
+  // People (Finance at view), so this is read for all; the buttons are what
+  // follow people:manage.
+  const healthReviewsPromise = loadHealthProfileReviews(admin);
 
   // The claims count that follows this one at its use site genuinely does
   // depend on the result -- it is narrowed to the ids returned here -- so
@@ -902,6 +915,12 @@ export default async function AdminDashboardPage({
   // refuses them regardless -- the flag is what stops a 403 being the way
   // they find out.
   const canManageSessions = scopeCanManage(viewerScope, "sessions");
+  // People is held at `view` by Finance, and every control that changes a
+  // person, an application or a partner is requireAdminScope("people"). The
+  // Approvals and Partners screens key their buttons off this so a read-only
+  // desk sees the queue as text and a sentence saying who can act, not a
+  // button that answers 403.
+  const canManagePeople = scopeCanManage(viewerScope, "people");
   // Programmes: every recommendation and the purchase it became, joined into
   // one row each with one ID and its progress (PED_PKG001-2/6). Started here
   // and awaited where it is used, so its reads run inside the rest of the
@@ -1400,7 +1419,7 @@ export default async function AdminDashboardPage({
         (n) => n,
         () => null
       ),
-    // The developer's own inbox, behind Settings -> Dev Reachouts. Read only
+    // The developer's own inbox, behind Settings -> Developer messages. Read only
     // for a viewer whose scope can open Settings: anything in this response
     // reaches the browser whether or not the screen is drawn, and these rows
     // are a stranger's name, email and number. Guarded for the usual reason --
@@ -2013,6 +2032,7 @@ export default async function AdminDashboardPage({
   // Sessions now, and nowhere else.
   const approvalsTab = (
     <>
+      {!canManagePeople && <ReadOnlyDeskNote className="mb-6" />}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-8">
         <h2 className="font-display font-bold text-lg text-slate-800 mb-4 flex items-center gap-2">
           Pending Approvals
@@ -2103,6 +2123,7 @@ export default async function AdminDashboardPage({
                       })()}
                     </div>
                   </div>
+                  {canManagePeople ? (
                   <div className="flex items-center gap-2">
                     <DeclineAccountButton
                       userId={p.id}
@@ -2126,6 +2147,9 @@ export default async function AdminDashboardPage({
                       canOpenRoster={scopeCanOpen(viewerScope, "sessions")}
                     />
                   </div>
+                  ) : (
+                    <p className="text-[11px] font-semibold text-amber-700">Waiting for approval</p>
+                  )}
                 </div>
               ),
               };
@@ -2188,7 +2212,11 @@ export default async function AdminDashboardPage({
                       })}
                     </ul>
                   </div>
-                  <ProfileChangeRequestActions requestId={r.id} />
+                  {canManagePeople ? (
+                    <ProfileChangeRequestActions requestId={r.id} />
+                  ) : (
+                    <p className="text-[11px] font-semibold text-amber-700">Waiting for a decision</p>
+                  )}
                 </div>
               ),
               };
@@ -2200,11 +2228,58 @@ export default async function AdminDashboardPage({
     </>
   );
 
+  // The three counts a partner desk opens People -> Partners to find, ahead of
+  // three long lists: new leads, partners, and referrals nobody has triaged.
+  // The two that are work link to the rows they counted (?view=); the screen's
+  // lists apply the preset on arrival.
+  const newLeadCount = b2bLeads?.filter((l) => l.status === "new").length ?? 0;
+  const referralsToTriageCount =
+    referrals?.filter((r) => r.status === "pending_review").length ?? 0;
+  const partnersSummaryStrip = (
+    <div className="mb-6" data-testid="partners-summary">
+      <StatStrip
+        cells={[
+          {
+            label: "Referrals to triage",
+            value: String(referralsToTriageCount),
+            accent: referralsToTriageCount > 0 ? "bg-amber-500" : "bg-slate-300",
+            note: "Hospitals waiting on an answer",
+            href:
+              referralsToTriageCount > 0
+                ? adminScreenHref("people", "partners", "triage")
+                : undefined,
+          },
+          {
+            label: "New leads",
+            value: String(newLeadCount),
+            accent: newLeadCount > 0 ? "bg-amber-500" : "bg-slate-300",
+            note: "Organisations that asked about partnering",
+            href:
+              newLeadCount > 0 ? adminScreenHref("people", "partners", "new_leads") : undefined,
+          },
+          {
+            label: "Partners",
+            value: String(hospitals.length),
+            accent: "bg-teal-500",
+            note: `${hospitals.filter((h) => h.active !== false).length} active`,
+          },
+        ]}
+      />
+    </div>
+  );
+
+  const healthReviews = await healthReviewsPromise;
+  const healthReviewsTab = (
+    <HealthProfileReviewsTab reviews={healthReviews} canManage={canManagePeople} nowMs={nowTimestamp()} />
+  );
+
   const b2bPartners = (
     <>
+      {partnersSummaryStrip}
+      {!canManagePeople && <ReadOnlyDeskNote className="mb-6" />}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-8">
         <h2 className="font-display font-bold text-lg text-slate-800 mb-4 flex items-center gap-2">
-          B2B Leads
+          Hospital enquiries
           {b2bLeads &&
             b2bLeads.filter((l) => l.status === "new").length > 0 && (
               <span className="text-xs font-bold text-amber-700 bg-amber-100 px-2 py-1 rounded-full">
@@ -2214,12 +2289,13 @@ export default async function AdminDashboardPage({
         </h2>
         {!b2bLeads || b2bLeads.length === 0 ? (
           <p className="text-xs text-slate-500 py-4 text-center">
-            No B2B inquiries yet.
+            No hospital enquiries yet.
           </p>
         ) : (
           <PagedList
             noun="lead"
             storageKey="admin-leads"
+            viewPresets={{ new_leads: "new" }}
             className="space-y-3"
             filters={[
               { key: "new", label: "New" },
@@ -2293,7 +2369,7 @@ export default async function AdminDashboardPage({
                       : null;
                     return prior ? <PriorDeclineChip decline={prior} /> : null;
                   })()}
-                {lead.status !== "onboarded" && (
+                {lead.status !== "onboarded" && canManagePeople && (
                   <div className="flex items-center gap-3 flex-wrap">
                     <OnboardHospitalForm
                       lead={{
@@ -2326,6 +2402,7 @@ export default async function AdminDashboardPage({
             noun="partner"
             nounPlural="partners"
             storageKey="admin-partners"
+            focusPrefix="partner:"
             className="space-y-3"
             filters={[
               { key: "active", label: "Active" },
@@ -2465,7 +2542,7 @@ export default async function AdminDashboardPage({
                         userName={h.full_name ?? "this hospital"}
                       />
                     )}
-                    <ResetHospitalPasswordButton hospitalId={h.id} />
+                    {canManagePeople && <ResetHospitalPasswordButton hospitalId={h.id} />}
                     {/* Same rule as the button above: Master Admin only,
                         re-checked by the route. A partner with referrals on
                         file is refused and offered the suspend toggle
@@ -2477,11 +2554,17 @@ export default async function AdminDashboardPage({
                         compact
                       />
                     )}
-                    <HospitalActiveToggle
-                      hospitalId={h.id}
-                      active={h.active !== false}
-                      sharePercent={sharePercent}
-                    />
+                    {canManagePeople ? (
+                      <HospitalActiveToggle
+                        hospitalId={h.id}
+                        active={h.active !== false}
+                        sharePercent={sharePercent}
+                      />
+                    ) : (
+                      <span className="text-xs font-semibold text-slate-600">
+                        {h.active === false ? "Suspended" : "Active"}
+                      </span>
+                    )}
                   </div>
                   </div>
                 ),
@@ -2512,9 +2595,11 @@ export default async function AdminDashboardPage({
             noun="referral"
             storageKey="admin-referrals"
             className="space-y-3"
+            viewPresets={{ triage: "pending_review" }}
             filters={[
               { key: "pending_review", label: "Needs triage" },
               { key: "therapist_assigned", label: "Therapist assigned" },
+              { key: "invite_sent", label: "Invite sent" },
               { key: "converted", label: "Booked" },
               { key: "declined", label: "Declined" },
               { key: "withdrawn", label: "Withdrawn" },
@@ -2535,6 +2620,10 @@ export default async function AdminDashboardPage({
               const referralPhone = referralPhoneMap.get(r.id) ?? null;
               return {
                 id: r.id,
+                // The status is the group, which is what makes the chips
+                // above this list appear at all: the filters were declared
+                // and no row carried a group, so they never rendered.
+                group: r.status,
                 node: (
                 <div className="p-4 rounded-xl border border-slate-200 text-xs space-y-2">
                   <div className="flex items-center justify-between flex-wrap gap-2">
@@ -2604,11 +2693,11 @@ export default async function AdminDashboardPage({
                           </span>
                         )}
                       </p>
-                      {r.status === "invite_sent" && r.invite_token && (
+                      {r.status === "invite_sent" && r.invite_token && canManagePeople && (
                         <CopyInviteLinkButton inviteToken={r.invite_token} />
                       )}
                     </div>
-                  ) : (
+                  ) : canManagePeople ? (
                     <div className="space-y-2">
                       <div className="flex items-center gap-3 flex-wrap">
                         <AssignReferralForm
@@ -2627,6 +2716,8 @@ export default async function AdminDashboardPage({
                         />
                       )}
                     </div>
+                  ) : (
+                    <p className="text-slate-500">Not assigned to a therapist yet.</p>
                   )}
                 </div>
               ),
@@ -2735,12 +2826,42 @@ export default async function AdminDashboardPage({
 
   const patientsTab = (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-      <h2 className="font-display font-bold text-lg text-slate-800 mb-4">
+      <h2 className="font-display font-bold text-lg text-slate-800 mb-1">
         Patients
         <span className="ml-2 text-xs font-normal text-slate-500">
           {patients.length} total
         </span>
       </h2>
+      <p className="text-xs text-slate-500 mb-4">
+        Each patient&apos;s Health Profile status and condition type is on their card.
+        {(conditionRequestsPendingCount ?? 0) + (conditionAccessPendingCount ?? 0) > 0 && (
+          <>
+            {" "}
+            <AdminScreenLink
+              href={adminScreenHref("today", "health-reviews")}
+              className="font-semibold text-teal-700 hover:underline"
+            >
+              {(conditionRequestsPendingCount ?? 0) + (conditionAccessPendingCount ?? 0)} waiting on review
+            </AdminScreenLink>
+            .
+          </>
+        )}
+        {/* The question wording is a clinic setting, not a patient fact: it
+            lived in a fold-out on this list, which every desk could open and
+            only Master Admin can save. Settings is where it is edited. */}
+        {scopeCanOpen(viewerScope, "settings") && (
+          <>
+            {" "}
+            <AdminScreenLink
+              href={adminScreenHref("settings", "clinical")}
+              className="font-semibold text-teal-700 hover:underline"
+            >
+              Edit questions in Settings → Clinical Questions
+            </AdminScreenLink>
+            .
+          </>
+        )}
+      </p>
       {patients.length === 0 ? (
         <p className="text-xs text-slate-500 py-4 text-center">
           No patients have signed up yet.
@@ -2770,55 +2891,19 @@ export default async function AdminDashboardPage({
               approved: p.approved,
               created_at: p.created_at,
               code: roleCodeMap.get(p.id)?.patient_code ?? null,
-              careStatus: conditionStatusByPatientId.get(p.id) ?? "not_started",
+              // One row per patient: the Health Profile's state rides on the
+              // directory instead of a second list of the same people. A
+              // patient no therapist has written a record for yet is
+              // "awaiting first record" -- the question that list answered.
+              careStatus: onboardedPatientIds.has(p.id)
+                ? conditionStatusByPatientId.get(p.id) ?? "not_started"
+                : "awaiting_onboarding",
+              conditionType: onboardedPatientIds.has(p.id)
+                ? conditionSpecialtyByPatientId.get(p.id) ?? DEFAULT_CONDITION_SPECIALTY
+                : null,
               searchRefs: searchRefsByPatientId.get(p.id),
             };
           })}
-        />
-      )}
-    </div>
-  );
-
-  const conditionUpdatedAtByPatientId = new Map(
-    (conditionProfiles ?? []).map((c) => [c.patient_id, c.updated_at as string])
-  );
-  const conditionsBadgeCount = (conditionRequestsPendingCount ?? 0) + (conditionAccessPendingCount ?? 0);
-
-  const conditionsTab = (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-      <h2 className="font-display font-bold text-lg text-slate-800 mb-1">
-        Patient Conditions
-        {conditionsBadgeCount > 0 && (
-          <span className="ml-2 rounded-full bg-amber-300 px-1.5 py-0.5 text-[11px] font-bold text-amber-900">
-            {conditionsBadgeCount} pending
-          </span>
-        )}
-      </h2>
-      <p className="text-xs text-slate-500 mb-4">
-        Health Profile answers and Pain Map data for every patient. Open a patient to review
-        submissions, therapist access requests, and pain assessments.
-      </p>
-
-      <details className="mb-6 rounded-xl border border-slate-200 p-4">
-        <summary className="text-sm font-bold text-slate-700 cursor-pointer">Manage Questions</summary>
-        <div className="mt-4">
-          <QuestionBankManager />
-        </div>
-      </details>
-
-      {patients.length === 0 ? (
-        <p className="text-xs text-slate-500 py-4 text-center">No patients have signed up yet.</p>
-      ) : (
-        <ConditionsListFilter
-          rows={patients.map((p) => ({
-            id: p.id,
-            full_name: p.full_name,
-            email: p.email,
-            status: conditionStatusByPatientId.get(p.id) ?? "not_started",
-            updatedAt: conditionUpdatedAtByPatientId.get(p.id) ?? null,
-            specialty: conditionSpecialtyByPatientId.get(p.id) ?? DEFAULT_CONDITION_SPECIALTY,
-            onboarded: onboardedPatientIds.has(p.id),
-          }))}
         />
       )}
     </div>
@@ -2968,6 +3053,7 @@ export default async function AdminDashboardPage({
       appointments={appointmentsWithSessionCode}
       homeVisits={homeVisitRows}
       people={allPeople}
+      patientOptions={patients.map((p) => ({ id: p.id, full_name: p.full_name }))}
       categories={categoriesForReassign}
       therapists={approvedTherapists ?? []}
       programmePicks={programmePicks}
@@ -3334,7 +3420,7 @@ export default async function AdminDashboardPage({
 
   const payoutRequestRows: PayoutRequestRow[] = (payoutRequests ?? []).map((r) => {
     const therapist = profileMap.get(r.therapist_id);
-    const currentlyOwedPaise =
+    const summary =
       r.status === "pending" || r.status === "reviewing"
         ? computeTherapistPayoutSummary(
             r.therapist_id,
@@ -3342,8 +3428,8 @@ export default async function AdminDashboardPage({
             appointmentsForPayouts.filter((a) => a.therapist_id === r.therapist_id),
             nowTimestamp(),
             homeVisitShareById.get(r.therapist_id) ?? null
-          ).owedPaise
-        : 0;
+          )
+        : null;
     return {
       id: r.id,
       therapistId: r.therapist_id,
@@ -3353,14 +3439,21 @@ export default async function AdminDashboardPage({
       requestedAt: r.requested_at,
       status: r.status as "pending" | "reviewing" | "completed",
       completedAt: r.completed_at,
-      currentlyOwedPaise,
+      currentlyOwedPaise: summary?.owedPaise ?? 0,
+      cashHeldPaise: summary?.cashHeldPaise ?? 0,
+      shareSet: (therapist?.revenue_share_percent ?? null) !== null,
     };
   });
   const payoutRequestsBadgeCount = payoutRequestRows.filter(
     (r) => r.status === "pending" || r.status === "reviewing"
   ).length;
 
-  const payoutRequestsTab = <AdminPayoutRequestsTab requests={payoutRequestRows} />;
+  // The open requests lead the Payouts screen and the history follows the
+  // balances table, so the work is above the fold on a phone.
+  const payoutRequestsOpenTab = <AdminPayoutRequestsTab requests={payoutRequestRows} part="open" />;
+  const payoutRequestsCompletedTab = (
+    <AdminPayoutRequestsTab requests={payoutRequestRows} part="completed" />
+  );
 
   const paymentHistoryTab = (
     <AdminPaymentHistoryTab
@@ -3945,6 +4038,18 @@ export default async function AdminDashboardPage({
         untouched.
       </p>
       <QuestionBankManager />
+      {/* The licensed-scale switch lives here and only here: Settings is
+          Master Admin only, the route it calls (update-setting) is
+          requireAdminScope("settings"), and the Patient Conditions screen
+          that also shows the question banks is open to other scopes. */}
+      <div className="mt-6 border-t border-slate-100 pt-6">
+        <LicensedMeasureSettings />
+      </div>
+      {/* Same screen and the same reasoning: a clinical rule the Master
+          Admin sets through update-setting ("settings" scope). */}
+      <div className="mt-6 border-t border-slate-100 pt-6">
+        <SixMinuteWalkEquationSettings />
+      </div>
     </div>
   );
 
@@ -4961,6 +5066,9 @@ export default async function AdminDashboardPage({
           count: pendingAccounts?.length ?? 0,
           section: "today",
           tab: "approvals",
+          // Today opens it, People:manage works it (approve-account,
+          // approve-profile-change): a read-only desk is not waiting on it.
+          workSection: "people",
           hint: "Patients and therapists who signed up themselves.",
         },
         {
@@ -4968,6 +5076,9 @@ export default async function AdminDashboardPage({
           count: pendingProfileChanges?.length ?? 0,
           section: "today",
           tab: "approvals",
+          // Today opens it, People:manage works it (approve-account,
+          // approve-profile-change): a read-only desk is not waiting on it.
+          workSection: "people",
           hint: "Someone wants a detail on their profile changed.",
         },
       ],
@@ -5021,6 +5132,9 @@ export default async function AdminDashboardPage({
           count: referrals?.filter((r) => r.status === "pending_review").length ?? 0,
           section: "people",
           tab: "partners",
+          // Opens the referral list on "Needs triage" -- exactly the rows
+          // this figure counted, not the leads and partners above them.
+          view: "triage",
           hint: "A hospital sent a patient and is waiting on an answer.",
         },
       ],
@@ -5064,18 +5178,22 @@ export default async function AdminDashboardPage({
           urgent: true,
         },
         {
-          label: "Care intake submissions to review",
+          label: "Health Profile answers to review",
           count: conditionRequestsPendingCount ?? 0,
-          section: "people",
-          tab: "patients",
-          hint: "Patient history waiting to go live.",
+          // The screen that lists exactly these rows, with Approve and
+          // Decline on each -- the patients directory listed everyone.
+          section: "today",
+          tab: "health-reviews",
+          workSection: "people",
+          hint: "Patient answers waiting to go live on their Health Profile.",
         },
         {
           label: "Therapist access requests",
           count: conditionAccessPendingCount ?? 0,
-          section: "people",
-          tab: "patients",
-          hint: "A therapist wants write access to a patient's records.",
+          section: "today",
+          tab: "health-reviews",
+          workSection: "people",
+          hint: "A therapist wants to edit a patient's Health Profile.",
         },
       ],
     },
@@ -5135,10 +5253,11 @@ export default async function AdminDashboardPage({
       domain: "growth",
       items: [
         {
-          label: "New B2B leads",
+          label: "New hospital enquiries",
           count: b2bLeads?.filter((l) => l.status === "new").length ?? 0,
           section: "people",
           tab: "partners",
+          view: "new_leads",
           hint: "An organisation asked about partnering.",
         },
         {
@@ -5423,7 +5542,10 @@ export default async function AdminDashboardPage({
       feed={adminFeed}
       feedTitle="Activity"
       feedEmptyBody="Admin actions and anything waiting on a person appear here."
-      aside={
+      // Its own block rather than `aside`: on a phone "what needs you" is
+      // read before the activity feed, and from a laptop up it still sits
+      // under the quick actions as before.
+      queues={
         <>
           <AdminInboxQueues groups={scopedInboxGroups} allowedSections={workableSections} />
           {home.accessNote && <AdminAccessCard note={home.accessNote} />}
@@ -5464,7 +5586,8 @@ export default async function AdminDashboardPage({
       label: h.organization_name ?? h.full_name ?? "Partner",
       terms: [h.email ?? "", h.referral_code ?? "", roleCodeMap.get(h.id)?.hospital_code ?? ""],
       kind: "Partner" as const,
-      href: adminScreenHref("people", "partners"),
+      // The exact partner, not the list it is somewhere in.
+      href: adminScreenHref("people", "partners", `partner:${h.id}`),
       hint: h.full_name,
     })),
     ...(canOpenSessionsSection ? appointmentsWithSessionCode : [])
@@ -5479,7 +5602,8 @@ export default async function AdminDashboardPage({
           programmeTagsByAppointment[a.id]?.code ?? "",
         ],
         kind: "Session" as const,
-        href: adminScreenHref("sessions", "all"),
+        // Opens All Sessions on this session's own row and drawer.
+        href: adminScreenHref("sessions", "all", `session:${a.session_code}`),
         hint: `${profileMap.get(a.patient_id)?.full_name ?? "Unknown"} · ${a.status}`,
       })),
     // One entry per programme, under its ID with progress. The old SP/HS
@@ -5501,17 +5625,13 @@ export default async function AdminDashboardPage({
   const screens: AdminScreens = {
     "today:overview": adminOverviewTab,
     "today:approvals": approvalsTab,
+    "today:health-reviews": healthReviewsTab,
     "today:risk": todayRiskTab,
     "sessions:schedule": calendarTab,
     "sessions:all": allSessionsTab,
     "sessions:roster": rosterTab,
     "sessions:new": newBookingTab,
-    "people:patients": (
-      <div className="space-y-8">
-        {patientsTab}
-        {conditionsTab}
-      </div>
-    ),
+    "people:patients": patientsTab,
     "people:therapists": therapistsTab,
     "people:partners": b2bPartners,
     "people:declined": (
@@ -5556,8 +5676,9 @@ export default async function AdminDashboardPage({
     "money:payouts": (
       <div className="space-y-8">
         {moneyAlerts}
+        {payoutRequestsOpenTab}
         {payoutsTab}
-        {payoutRequestsTab}
+        {payoutRequestsCompletedTab}
         <HomeVisitCashLedger visits={homeVisitRows} nowMs={nowTimestamp()} />
         <MoneyGlossary />
       </div>
@@ -5665,6 +5786,9 @@ export default async function AdminDashboardPage({
     "settings:offers": settingsOffersTab,
     "settings:programmes": settingsProgrammesTab,
     "settings:clinical": settingsClinicalTab,
+    // Self-fetching; Settings is Master Admin only and its route is
+    // requireAdminScope("settings").
+    "settings:profile-layout": <ProfileWidgetSettings />,
     "settings:access": settingsAccessTab,
     "settings:health": settingsHealthTab,
     "settings:advanced": settingsAdvancedTab,
@@ -5690,7 +5814,7 @@ export default async function AdminDashboardPage({
     "programmes:all": recommendationPulse.counts.paidUnbooked,
     "today:approvals": (pendingAccounts?.length ?? 0) + (pendingProfileChanges?.length ?? 0),
     "today:risk": openRiskCount,
-    "people:patients": conditionsBadgeCount,
+    "today:health-reviews": (conditionRequestsPendingCount ?? 0) + (conditionAccessPendingCount ?? 0),
     "people:partners": b2bBadgeCount,
     "people:abandoned": abandonedCheckouts?.length ?? 0,
     "money:payouts": payoutRequestsBadgeCount + manualRefundsPending,
@@ -5717,6 +5841,10 @@ export default async function AdminDashboardPage({
       afterMinutes={adminSettings.joinWindowAfterMinutes}
       completedAfterMinutes={adminSettings.sessionCompletedAfterMinutes}
     >
+      <CancellationWindowProvider
+        onlineHours={adminSettings.onlineCancellationRefundHours}
+        homeVisitHours={adminSettings.homeVisitCancellationRefundHours}
+      >
       <AdminShell
         initialSection={sectionParam ?? null}
         initialTab={tabParam ?? null}
@@ -5732,6 +5860,7 @@ export default async function AdminDashboardPage({
         scopeLabel={ADMIN_SCOPE_LABELS[viewerScope]}
         offsetTop={showDebugNav}
       />
+      </CancellationWindowProvider>
     </JoinWindowProvider>
   );
 }

@@ -1,0 +1,136 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import type { LiveDisplayText, LiveDisplayView } from "@/lib/assessmentRun";
+import { clockShown } from "@/lib/companionScreen";
+import { useToast } from "@/lib/toast";
+import ExercisePicture from "@/components/exercises/ExercisePicture";
+
+export type PreviewStatus = "idle" | "sending" | "live" | "failed";
+
+/** What the server accepted, never what the patient saw: "Sent" means the
+ *  display route stored it. Whether the patient's screen is actually open is
+ *  a separate line (companion seen, E12). */
+export const PREVIEW_STATUS_LABEL: Record<PreviewStatus, string> = {
+  idle: "Not sent yet",
+  sending: "Sending",
+  live: "Sent",
+  failed: "Not sent",
+};
+
+const PATIENT_SCREEN_PATH = "/patient/dashboard/session";
+
+/**
+ * "What the patient sees": a small preview of the display-only screen and
+ * how to put it in front of the patient (share this one, or have them open
+ * the page on a second device). What it shows is chosen from the sticky
+ * action bar (get ready, go, done, rest: only a phase and whether the clock
+ * starts, never words). Nothing on the patient's own screen can be pressed.
+ */
+export default function PatientPreview({
+  firstName,
+  text,
+  view,
+  serverOffsetMs,
+  status,
+  onRetry,
+  seen = null,
+}: {
+  firstName: string;
+  text: LiveDisplayText;
+  view: LiveDisplayView | null;
+  serverOffsetMs: number;
+  status: PreviewStatus;
+  onRetry: () => void;
+  /** Whether the patient's screen is open (E12), in words; null when ended. */
+  seen?: string | null;
+}) {
+  const { show } = useToast();
+  // The mini clock reads the same server-corrected time as the patient's own
+  // screen. Read in an effect, never during render.
+  const [now, setNow] = useState<number | null>(null);
+  const ticking = !!view?.clock;
+  useEffect(() => {
+    if (!ticking) return;
+    const tick = () => setNow(Date.now());
+    tick();
+    const id = window.setInterval(tick, 500);
+    return () => window.clearInterval(id);
+  }, [ticking]);
+  const clock = view && now !== null ? clockShown(view, now, serverOffsetMs) : null;
+
+  async function copyLink() {
+    const url = `${window.location.origin}${PATIENT_SCREEN_PATH}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      show("Link to the patient screen copied");
+    } catch {
+      show(url);
+    }
+  }
+
+  return (
+    <section aria-labelledby="preview-heading" className="rounded-2xl bg-[#0f172a] p-3.5 text-white">
+      <div className="mb-2.5 flex items-center justify-between gap-2">
+        <h3 id="preview-heading" className="font-display text-base font-bold">
+          What {firstName} sees
+        </h3>
+        <span
+          role="status"
+          data-testid="preview-status"
+          className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+            status === "failed" ? "bg-red-900 text-red-100" : "bg-[#1e293b] text-blue-200"
+          }`}
+        >
+          {PREVIEW_STATUS_LABEL[status]}
+          {seen ? ` · ${seen}` : ""}
+        </span>
+      </div>
+
+      <div data-testid="preview-card" className="rounded-xl bg-[#1e293b] p-4 text-center">
+        <div className="text-xs font-bold uppercase tracking-wider text-slate-300">
+          {text.exercise ? `${text.exercise.counter} · ${text.title}` : text.progress}
+        </div>
+        {text.exercise && (
+          <div className="mx-auto mt-2 w-28" data-testid="preview-exercise">
+            <ExercisePicture picture={text.exercise.picture} name={text.title} tone="dark" />
+          </div>
+        )}
+        <div className="mt-1.5 font-display text-xl font-bold leading-snug">{text.line}</div>
+        {text.sub && <div className="mt-1 text-sm text-slate-300">{text.sub}</div>}
+        {clock && (
+          <div className="mt-2" aria-hidden="true">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-slate-300">{clock.label}</div>
+            <div className={`font-display text-4xl font-extrabold leading-none ${clock.tone === "ready" ? "text-amber-300" : clock.tone === "finished" ? "text-teal-300" : "text-white"}`}>
+              {clock.text}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {status === "failed" && (
+        <p role="alert" className="mt-2 text-sm text-red-200">
+          {firstName}{"'"}s screen could not be updated.{" "}
+          <button type="button" onClick={onRetry} className="min-h-[44px] font-semibold underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300">
+            Try again
+          </button>
+        </p>
+      )}
+
+      <p className="mt-3 text-[13px] leading-relaxed text-slate-300">
+        <strong className="text-white">Open the patient screen.</strong> {firstName} only watches; nothing on it can be pressed. Ask them to open{" "}
+        <span className="font-semibold text-white [overflow-wrap:anywhere]">{PATIENT_SCREEN_PATH}</span> on a second device or window, signed in as
+        themselves. It follows this page by itself.
+      </p>
+      <button
+        type="button"
+        data-testid="open-patient-screen"
+        onClick={() => void copyLink()}
+        className="mt-2 min-h-[44px] rounded-lg border border-slate-600 bg-[#334155] px-3 text-sm font-semibold text-white hover:border-teal-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300"
+      >
+        <i aria-hidden="true" className="fa-solid fa-copy mr-1.5" />
+        Copy the patient screen link
+      </button>
+    </section>
+  );
+}

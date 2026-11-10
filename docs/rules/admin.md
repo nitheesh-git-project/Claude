@@ -248,7 +248,7 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   than what it sells -- the test the ledger switch fails on both counts
   elsewhere, since its own help text sends the reader to System Health.
   Settings is `full` scope only, so Advanced needs no further gate.
-  **Dev Reachouts is the one screen under Settings that is not about the
+  **Developer messages is the one screen under Settings that is not about the
   clinic.** It is the developer's own inbox -- messages left through the
   "Contact me" link in the footer's credit line (`/developer/lets-talk` ->
   `/api/developer/reachout` -> `dev_reachouts`) -- plus the two switches that
@@ -719,6 +719,96 @@ The eight sections, scopes and levels, User Access, the Settings information arc
 - **Approvals are a queue, not a person.** Pending signups and profile
   change requests live under Today, beside the inbox that counts them, not
   on the patients directory.
+- **A desk that can only read a page is told so, and shown no button.**
+  Finance holds People (and Sessions, Programmes) at `view`
+  (`adminScope.ts`), and every control that changes a person, an
+  application or a partner is `requireAdminScope("people")`. So the patient
+  and therapist pages, Today -> Approvals, People -> Partners and the
+  Health Profile screen key every such control off
+  `scopeCanManage(scope, "people")` (sessions controls off
+  `scopeCanManage(scope, "sessions")` -- the person pages used
+  `scopeCanOpen`, which offered Finance four buttons that answered 403),
+  show the status as text, and print `ReadOnlyDeskNote`: "Your desk can read
+  this page. Operations or Clinical make changes." Presentation only; the
+  routes are the rule. An inbox row carries `workSection` when the section
+  that works it differs from the one it opens (Approvals open on Today and
+  are worked with `people:manage`), and `visibleQueueTotal`, the queue list
+  and the Today figures all count by it -- Finance is not told two accounts
+  are waiting on it.
+- **Today -> Health Profile reviews lists the rows the Today counts
+  counted.** Pending intake answers (`condition_change_requests`) and
+  therapist access requests (`condition_access_grants`) are rows -- patient,
+  who filled it in or asked, how long it has waited, overdue after
+  `REVIEW_OVERDUE_AFTER_DAYS` -- with Approve and Decline on the row
+  (`ConditionRequestActions` / `ConditionAccessActions`, the same routes the
+  patient's own screen uses, `people`). Both Today inbox rows link there
+  (`healthProfileReviews.ts`, `healthProfileReviewsServer.ts`). Each read
+  carries its own verdict: unreadable is "couldn't load", never an empty
+  list. Approving intake answers says it puts them live on the patient's
+  Health Profile; granting a therapist access and removing it each ask first
+  in both names ("Remove Dr X's access to Y's Health Profile? They stop
+  seeing it immediately; their notes stay.") and the toast afterwards names
+  them. `await confirm()` happens before the transition, never inside it.
+- **The admin's Health Profile record reads in a fixed order**
+  (`ConditionDetailContent`): summary (type, status, phase, anything
+  waiting) -> `HEALTH-PROFILE-WIDGET-CONTROLS-SLOT` (the patient's widget
+  controls, added by the widgets change) -> waiting for review -> the chart
+  -> Home exercises -> Session notes -> Documents -> Therapist access ->
+  **Intake answers**, folded. The answers are the reference, not the first
+  thing a reviewer needs; they are editable only after an explicit **Edit
+  answers**, and Save shows exactly what will change (before -> after,
+  `intakeAnswerDiff.ts`) and asks first. All nine reads (and the two
+  specialty reads) carry their error: a failed read says "Couldn't load
+  <thing> - reload the page to try again" and **never** draws the empty
+  state, and editing is not offered on answers that did not load (it sends
+  the whole set back and would save blanks over the record). A neurological
+  patient whose condition-type read failed is not drawn as orthopaedic.
+  Names come from `profiles`; a raw id is never a name.
+- **People -> Patients lists each patient once.** The Health Profile state
+  and condition type are a column and two filters on the directory
+  (`AdminPeopleDirectory`: Waiting on review, Awaiting first record, Draft,
+  Complete; condition type), not a second "Patient Conditions" list, which is
+  gone along with its fold-out question editor. The question wording is
+  Settings -> Clinical Questions; Master Admin sees a link to it from the
+  directory.
+- **Partner referrals filter by status, and a count opens what it
+  counted.** Each referral row carries `group = status`, so the chips
+  (Needs triage, Therapist assigned, Invite sent, Booked, Declined,
+  Withdrawn) show. `PagedList` takes `viewPresets` (a `?view=` value ->
+  chip) and `focusPrefix` (`?view=partner:<id>` shows that one item with a
+  way back to the list); Today's "Referrals waiting on triage" links with
+  `view=triage` and "New hospital enquiries" with `view=new_leads`. The
+  screen opens on a three-figure strip (referrals to triage, new leads,
+  partners).
+- **The cancel dialog names the outcome and the amount.**
+  `describeCancelOutcome` (`cancelOutcome.ts`) mirrors the branches of
+  `cancelAppointmentAndRefund` -- the clinic's own online or home-visit
+  refund window (`CancellationWindowProvider`, from site settings; never
+  `CANCELLATION_FULL_REFUND_HOURS` in the copy), then card refund (the
+  amount still refundable), programme session back, cash to hand back, or no
+  refund -- so "₹1,200 goes back to the patient's card" or "No refund -
+  within 48 h of the slot" is said before the admin confirms. It explains the
+  rule; the route stays the rule.
+- **Phone order, and the screens that put work first.** On a phone Today
+  reads: banner, headline, figures, **queues**, then the activity feed
+  (`DashboardOverview`'s `queues` block; from a laptop up the queues sit
+  under the quick actions as before). Money -> Payouts opens on the open
+  payout requests with **Pay** on the row
+  (`TherapistPayoutButton`, `money`), then the balances table, then the
+  completed requests; the long how-it-is-worked-out paragraph is behind an
+  (i) (`InfoNote`). Global search opens the exact item:
+  `view=session:<code>` filters All Sessions to it and opens its drawer,
+  `view=partner:<id>` shows that partner alone.
+- **All Sessions has one search box.** A patient, a therapist, a session ID
+  or a programme ID (new, old SP/HS, or pasted with progress) in the same
+  type-to-search field; the patient filter lists patients only (the screen
+  still receives everyone, to name rows); below `sm` each session is a card.
+- **No internal terms on a back-office screen.** Health Profile, not Care
+  Record / Patient Conditions / care intake / condition data; the person's
+  name, not "Submitted by therapist"; no "People scope", "append-only",
+  "Question set v2" or raw ids; "Tell your developer: ..." instead of
+  "Apply supabase/schema.sql"; **Developer messages** (was Dev Reachouts)
+  and **Hospital enquiries** (was B2B Leads) are the plain names.
 - **Approving and declining a signup cannot both land.** Decline deletes the
   account, so it must not read "still pending?" and delete in two steps: an
   approval between them was erased. `decline_pending_account()` locks the
@@ -813,7 +903,11 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   `contact_scan_mode` and `contact_masking_enabled`, on Settings → Team &
   Access, and `risk_signals_enabled` with the per-detector thresholds in
   `risk_rules`, on Today → Risk - and `enabled_intake_specialties`, which
-  condition types triage offers - and the four invite settings on Settings →
+  condition types triage offers - and `enabled_licensed_measures`, which
+  licensed outcome scales the clinic holds a licence for (read in its own
+  call, failing closed - see the rule below) - and `six_minute_walk_equation`,
+  the walk's predicted-distance formula (its own call; null is "not chosen
+  yet") - and the four invite settings on Settings →
   Offers & Discounts (on/off, what the friend gets, what the inviter gets, and the
   ceiling on rewards one patient may earn) plus `promo_codes_enabled`, whose
   switch sits on Money → Costs beside the campaigns it governs rather than in
@@ -827,6 +921,102 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   ISR-cached pages under it aren't forced dynamic) and passes it into
   `Navbar`/`Footer` as props - those two components take the strings as
   props rather than hardcoding or fetching their own copy.
+- **A licensed outcome scale is switched on by the clinic, on Settings ->
+  Clinical Questions, and an unreadable switch enables nothing.**
+  `site_settings.enabled_licensed_measures` is a jsonb array of measure keys,
+  empty by default (every licensed scale in `src/lib/outcomeMeasures.ts`
+  ships off - see `clinical.md`). jsonb, not `text[]`, because
+  `update-setting`'s compare-and-swap compares the previous value as JSON
+  text, which a `text[]` column answers with a malformed-literal error. The
+  control (`LicensedMeasureSettings` -> `LicensedMeasureToggles`) renders
+  only on Settings -> Clinical Questions - Master Admin only, the scope
+  `/api/admin/update-setting` (`requireAdminScope("settings")`, the generic
+  `setting.update` audit row with from and to) accepts - and deliberately
+  **not** beside the question banks on Catalog -> Conditions, which other
+  scopes open. The route normalises the list against the registry
+  (`normaliseLicensedMeasureSelection`, `src/lib/licensedMeasures.ts`): a key
+  that is not a licensed scale is a 400, never a save that switches nothing
+  on. It is read in its own call, never through `SITE_SETTINGS_SELECT`
+  (`loadEnabledLicensedMeasures`, `src/lib/outcomeServer.ts`), and **fails
+  closed**: an unreadable value enables nothing, a route asked to record a
+  licensed scale then answers 503 "couldn't check" rather than "switched
+  off", and the control shows "couldn't check" instead of a row of boxes
+  reading off. A database without the column at all is the one honest empty
+  list (nothing can have been switched on there). Switching a scale off stops
+  new recordings; scores already recorded stay. The debug data reset leaves
+  it alone, like every other setting.
+- **The six-minute walk's predicted-distance equation is chosen on Settings
+  -> Clinical Questions, and unchosen is the default.**
+  `site_settings.six_minute_walk_equation` is nullable text; null means "not
+  chosen yet", and the walk guide then says "formula not chosen yet" and
+  shows no percentage rather than falling back to any population's formula.
+  The control (`SixMinuteWalkEquationSettings` ->
+  `SixMinuteWalkEquationPicker`) sits beside the licensed-scale switch, for
+  the same scope reasons; `update-setting` validates the value against the
+  equation table (`normaliseSixMinuteWalkEquationChoice`,
+  `src/lib/sixMinuteWalkEquation.ts`): a key that predicts, or null - blank
+  and the placeholder key are stored as null - and anything else is a 400.
+  The generic `setting.update` audit row records from and to. Enright and
+  Sherrill is selectable and labelled "US adults". Read in its own call
+  (`loadSixMinuteWalkEquation`); an unreadable value shows "we couldn't
+  check" in the control and the guide, never "not chosen". The debug data
+  reset leaves it alone.
+- **The back office sets a patient's phase, overrules their status pill or
+  writes "Where things stand" through `/api/admin/care-status/set`, and
+  edits no goal or milestone.** The written summary (`set_summary`, phase
+  4a) is for when the physiotherapist cannot write it; the patient reads it
+  as "Written by the clinic", and the audit row carries the text from and
+  to.
+  `requireAdminScope("people")` - a clinical-record capability, wherever its
+  button ends up - with a `care_status.set` audit row (from and to); the
+  change is an append-only `care_status_events` row with `set_by_role`
+  admin (`clinical.md`). Goals and milestones stay therapist-authored by
+  the owner's decision: no admin route edits one, and the only admin door
+  on a milestone is reopening one marked reached by mistake.
+- **A conditional intake question shows in the question bank with its
+  condition.** The neurological tab lists the condition group and the five
+  Parkinson's follow-ups from the code defaults (no template rows are
+  seeded), each follow-up noted "Asked only when "Condition group" is
+  "Parkinson's disease"" (`describeShowWhen`). Rewording or making one
+  required is the usual per-row save; *Required* on a follow-up applies only
+  while it is asked, and making the condition group itself required raises
+  the "we've changed some of these questions" banner for every neurological
+  record without it (`clinical.md`).
+- **Strength and balance care and Heart and lung rehabilitation are
+  switched on by an admin (phase 6a).** Settings -> Clinical Questions'
+  *Condition types offered at triage* lists all five; **Geriatric** and
+  **Cardiopulmonary** start unticked, because `enabled_intake_specialties`
+  means "what triage offers" and its default - and what an unreadable read
+  fails open to - is the three original types (`DEFAULT_ENABLED_INTAKE_SPECIALTIES`).
+  Ticking one offers it in the therapist's triage, with its suggestion
+  (`clinical.md`); unticking it later hides it from triage only, and a
+  patient already recorded under it keeps their profile. The route
+  normalises the list against `CONDITION_SPECIALTY_KEYS` and always keeps
+  ortho. Manage Questions gains a **Geriatric** and a **Cardiopulmonary**
+  tab (listed from the code; no template rows are seeded), editable while
+  the type is off; the cardiopulmonary tab notes its three follow-ups
+  ("Asked only when ..."), and the geriatric carer pair is an optional
+  pre-step. Catalog -> Conditions' *Condition type* picker offers both, so
+  a programme can be grouped under them in the recommendation picker.
+  Patients never see that tag. The public showcase is unchanged: it has no
+  sample for either type, so switching one on does not change the public
+  pages.
+- **A patient's diary entries are read-only to the back office.** An admin
+  reads them under `patient_diary_entries_select_admin`; there is no admin
+  write or confirm door (the owner's decision: the physiotherapist confirms; the
+  column allows an admin confirmation, but nothing offers it), and the
+  scanner's Risk signals label their notes "Patient's diary note". The
+  condition detail's neurological layout draws the diary read-only - neither
+  *Log* nor *Confirm* is mounted - while its test, phase and status, summary and
+  milestone-reopen controls need `scopeCanManage(scope, "people")`, as the
+  orthopaedic layout's do.
+- **The admin's condition detail shows Home exercises read only.** The same
+  `HomeExercisesChart` as the therapist's chart (one shared read,
+  `loadHomeExercisesChartRead`), on the new-layout specialties only, rendered
+  only when `scopeCanOpen(scope, "people")` (absent otherwise, not empty). The
+  page is server-rendered, so there is no client-fetched route and no write
+  door: the plan is set in a guided assessment. Not set up, could not load
+  and none yet are three different sentences.
 - **Checkout speed is the one check that measures the product rather than
   a backlog.** The booking wizards time each Pay tap in the browser until the
   Razorpay sheet opens (`src/lib/checkoutTiming.ts`), report once,
@@ -895,3 +1085,19 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   always looked. On, every page follows each visitor's device, live. Saved
   through `update-setting` (`follow_device_theme`), which revalidates the
   root layout because the decision is made by a script in `<head>`.
+- **Settings -> Health Profile layout chooses what every patient of a
+  condition kind sees; the patient's record chooses for one patient.** The
+  Settings screen (`ProfileWidgetSettings`, self-fetching) lists every
+  section of each kind's profile with a switch and the live count ("12 of 15
+  sections shown"); locked sections show a lock and why. It writes through
+  `POST /api/admin/profile-widgets/kind` (`requireAdminScope("settings")`,
+  audit `profile_widgets.set_kind`). On the admin's condition detail,
+  **Sections for this patient** (`ProfileWidgetPatientPanel`) shows each
+  section as inherited / on / off with an override switch and *Reset to
+  condition default*, through `POST /api/admin/profile-widgets/patient`
+  (`requireAdminScope("people")` -- a clinical-record capability, like
+  care-status -- audit `profile_widgets.set_patient`, the patient's kind read
+  on the server); its switches render only under `scopeCanManage(scope,
+  "people")`. Both routes refuse an unknown section and hiding a locked one
+  (400), and an unreadable setting is "we couldn't check" on the screen,
+  never a row of switches. Rules: `clinical.md`.

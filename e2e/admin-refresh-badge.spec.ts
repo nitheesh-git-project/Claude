@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { test, expect } from "@playwright/test";
 import { adminClient, browserCookiesFor, profileIdFor, QA_EMAILS, BASE } from "./helpers";
 
@@ -32,6 +33,48 @@ import { adminClient, browserCookiesFor, profileIdFor, QA_EMAILS, BASE } from ".
  */
 test.describe("the admin Refresh button's waiting-changes badge", () => {
   const SHOTS = "e2e/screenshots/admin-refresh-badge";
+
+  // What the browser saw of the change stream (src/lib/realtimeTrail.ts): each
+  // refresh's start and landing, each join, the server's word on the Postgres
+  // side of it, each event, and whether it was counted, deferred or judged
+  // covered. One line on a pass, so a green run can be read beside a red one;
+  // in full on a failure, where "no badge" alone cannot say which step failed.
+  test.afterEach(async ({ page }, testInfo) => {
+    const entries = (await page
+      .evaluate(() => (window as unknown as { __realtimeTrail?: unknown[] }).__realtimeTrail ?? [])
+      .catch(() => [])) as { at: number; kind: string; detail?: string }[];
+    const start = entries[0]?.at ?? 0;
+    const line = entries.map((e) => `+${e.at - start}ms ${e.kind}${e.detail ? ` (${e.detail.slice(0, 60)})` : ""}`).join(" | ");
+    console.log(`[realtime trail] ${testInfo.title}: ${line || "empty"}`);
+    if (testInfo.status === testInfo.expectedStatus) return;
+    await testInfo.attach("realtime-trail.json", { body: JSON.stringify(entries, null, 1), contentType: "application/json" });
+    const server = localStackRealtimeState();
+    if (server) {
+      console.log(`[realtime server] ${testInfo.title}\n${server}`);
+      await testInfo.attach("realtime-server.txt", { body: server, contentType: "text/plain" });
+    }
+  });
+
+  /**
+   * The quality gate's local stack only: what Realtime holds in the database
+   * at the moment a case failed -- the subscriptions it stored for the pages
+   * that are open and the ROLE it stored them for, and where its replication
+   * slot stands. Rows for `anon` is a join that went out without the person's
+   * token (nothing they may read is ever delivered); rows with no slot
+   * movement is a stalled poller; no rows is a join the server never
+   * finished. Read-only, and skipped anywhere there is no local stack.
+   */
+  function localStackRealtimeState(): string | null {
+    const url = process.env.CI_LOCAL_STACK === "1" ? process.env.SCHEMA_APPLY_DATABASE_URL : undefined;
+    if (!url) return null;
+    const sql = [
+      "select 'subscriptions' as what, claims_role::text as stored_for_role, count(*) as rows, count(distinct entity) as tables, min(created_at) as oldest, max(created_at) as newest from realtime.subscription group by claims_role",
+      "select 'slot' as what, slot_name, plugin, temporary, active, wal_status, pg_wal_lsn_diff(pg_current_wal_lsn(), confirmed_flush_lsn) as bytes_behind from pg_replication_slots",
+      "select 'activity' as what, state, wait_event, round(extract(epoch from now() - query_start)) as seconds, left(regexp_replace(query, '\\s+', ' ', 'g'), 140) as query from pg_stat_activity where datname = current_database() and pid <> pg_backend_pid() and (query ilike '%realtime.%' or query ilike '%logical_slot%' or backend_type = 'walsender')",
+    ];
+    const out = spawnSync("psql", [url, "-X", "-q", "-x", ...sql.flatMap((q) => ["-c", q])], { encoding: "utf8", timeout: 20_000 });
+    return `${out.stdout ?? ""}${out.stderr ?? ""}`.trim() || null;
+  }
 
   /** The badge's own live region -- the button's name is deliberately constant. */
   function badgeText(page: import("@playwright/test").Page) {
@@ -71,6 +114,26 @@ test.describe("the admin Refresh button's waiting-changes badge", () => {
     // The URL is not injected in every environment, so this is a soft probe:
     // what it must not do is silently pass a suite that proved nothing.
     test.skip(!reachable, "the browser cannot reach Supabase -- the badge is fed by a socket that never opens here");
+
+    // Each channel must JOIN as the signed-in admin. The page records the role
+    // its join is about to carry (a development build's realtime trail); a
+    // join as `none` or `anon` is the fault RB-002 can only show as "nothing
+    // arrived". A production build keeps no trail, so there is nothing to read
+    // there and RB-002 stands alone.
+    const joins = async () =>
+      (
+        await page.evaluate(
+          () => (window as unknown as { __realtimeTrail?: { kind: string; detail?: string }[] }).__realtimeTrail ?? null
+        )
+      )?.filter((e) => e.kind === "channel-join") ?? null;
+    // The trail appears with its first entry, a moment after hydration.
+    await page
+      .waitForFunction(() => !!(window as unknown as { __realtimeTrail?: unknown[] }).__realtimeTrail, undefined, { timeout: 10_000 })
+      .catch(() => null);
+    if ((await joins()) !== null) {
+      await expect.poll(async () => (await joins())?.length ?? 0, { timeout: 30_000 }).toBeGreaterThanOrEqual(2);
+      for (const join of (await joins()) ?? []) expect(join.detail, "the role a realtime join carries").toMatch(/^as authenticated:/);
+    }
   });
 
   test("RB-001 an admin's own refresh leaves the badge at zero", async ({ page }) => {
@@ -128,6 +191,11 @@ test.describe("the admin Refresh button's waiting-changes badge", () => {
       await expect(refreshButton(page)).toBeEnabled({ timeout: 60_000 });
       await page.waitForTimeout(5_000);
 
+      // One write, counted. This is also the end-to-end proof that the join
+      // carried the admin's token: a channel the server took for `anon` says
+      // SUBSCRIBED and then never delivers this (src/lib/realtimeJoin.ts) --
+      // which is what this case failed on in the quality gate, for a minute of
+      // repeated writes, until the join was made to wait for the token.
       await admin.from("profiles").update({ full_name: `${restore ?? "QA Patient"} ` }).eq("id", id);
 
       await expect(badgeText(page)).toHaveCount(1, { timeout: 30_000 });

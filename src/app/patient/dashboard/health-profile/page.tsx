@@ -2,7 +2,15 @@ import type { Metadata } from "next";
 import TutorialInfoButton from "@/components/tutorial/TutorialInfoButton";
 import { formatClinicDate, formatClinicDateTime } from "@/lib/formatDateTime";
 import { createClient } from "@/lib/supabase/server";
-import DashboardShell from "@/components/dashboard/DashboardShell";
+import PatientDashboardShell from "@/components/patient/PatientDashboardShell";
+import { loadPatientDashboard } from "@/lib/patientDashboardData";
+import ProfileDetails from "@/components/profile/ProfileDetails";
+import DiaryLogButton from "@/components/profile/neuro/DiaryLogButton";
+import { clinicPhoneRead } from "@/components/profile/CallClinicLine";
+import { hiddenGraphMeasureKeys, type WidgetPick } from "@/lib/profileWidgets";
+import { loadProfileLayout } from "@/lib/profileWidgetsServer";
+import { diaryKindsFor } from "@/lib/patientDiary";
+import type { ReactNode } from "react";
 import ConditionIntakePanel from "@/components/profile/ConditionIntakePanel";
 import SpecialtyExamPanel from "@/components/profile/SpecialtyExamPanel";
 import SpecialtySnapshotStrip from "@/components/profile/SpecialtySnapshotStrip";
@@ -14,7 +22,6 @@ import MedicalDocumentsPanel from "@/components/profile/MedicalDocumentsPanel";
 import CarePlanHistory from "@/components/therapist/CarePlanHistory";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadCarePlanHistory } from "@/lib/carePlanServer";
-import { buildPatientNavItems } from "@/lib/dashboardNavItems";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import {
   answerAuthorship,
@@ -27,6 +34,7 @@ import type { MedicalDocumentRow } from "@/lib/medicalDocuments";
 import type { PainAssessmentRow } from "@/lib/painMap";
 import type { NeuroAssessmentRow } from "@/lib/neuroExam";
 import {
+  intakeNeedsAnotherLook,
   intakeVersionForSpecialty,
   mergeIntakeQuestionOverrides,
   parseAreaPain,
@@ -38,10 +46,30 @@ import {
   parseConditionSpecialty,
   specialtyPatientLabel,
 } from "@/lib/conditionSpecialty";
-import { isDebugNavVisible } from "@/lib/debugNavVisible";
+import OrthoProfileTop from "@/components/profile/ortho/OrthoProfileTop";
+import NeuroProfileTop from "@/components/profile/neuro/NeuroProfileTop";
+import PedsProfileTop from "@/components/profile/peds/PedsProfileTop";
+import { loadOrthoReads } from "@/lib/orthoProfileServer";
+import { shapeOrthoView } from "@/lib/orthoProfileView";
+import { loadNeuroReads } from "@/lib/neuroProfileServer";
+import { shapeNeuroView } from "@/lib/neuroProfileView";
+import { filledInLine, type NeuroKind } from "@/lib/neuroProfile";
+import GeriatricProfileTop from "@/components/profile/geriatric/GeriatricProfileTop";
+import CardioProfileTop from "@/components/profile/cardio/CardioProfileTop";
+import { loadGeriatricReads } from "@/lib/geriatricProfileServer";
+import { loadCardioReads } from "@/lib/cardioProfileServer";
+import { shapeGeriatricView } from "@/lib/geriatricProfile";
+import { shapeCardioView } from "@/lib/cardioProfile";
+import { loadPedsReads } from "@/lib/pedsProfileServer";
+import { shapePedsView } from "@/lib/pedsProfileView";
+import { pedsEquipmentChips } from "@/lib/pedsProfile";
+import { profileKindFor } from "@/lib/profileKind";
+import { loadActiveExercisePlan } from "@/lib/exercisePlanServer";
+import { exercisePlanView } from "@/lib/exercisePlan";
+import HomeExercisesCard, { type HomeExercisesRead } from "@/components/patient/HomeExercisesCard";
 
 export const metadata: Metadata = {
-  title: "Health Profile | MoveRestore",
+  title: "My progress | MoveRestore",
 };
 
 const STATUS_BANNER_STYLE: Record<ConditionProfileStatus, string> = {
@@ -88,6 +116,9 @@ export default async function PatientHealthProfilePage() {
   if (!user) {
     return null;
   }
+  // The shared patient shell (A9): the same sidebar, load banner, guided-check
+  // bar and "Suggested for you" bar as every sibling screen. The core only.
+  const d = await loadPatientDashboard("health-profile");
 
   // Two-phase read. The specialty decides whether this page has a Pain
   // Map at all -- and for a neurological or paediatric profile it must not
@@ -117,23 +148,16 @@ export default async function PatientHealthProfilePage() {
   const draftIsMine = draftOwnerRow?.draft_saved_by_role === "patient";
 
   const [
-    { data: profile },
-    { data: patientCodeRow },
     { data: conditionProfile },
     { data: lastRequest },
     { data: assessments },
     { data: intakeHistory },
     { data: medicalDocuments },
-    { count: ownedPackagesCount },
-    { data: settingsRow },
+    { data: settingsRow, error: settingsError },
     { data: intakeOverrideRows },
-    { count: onlineSessionCount },
-    { count: homeVisitCount },
-    { count: ownedHomeVisitCount },
     { data: latestSession },
+    orthoReads,
   ] = await Promise.all([
-    supabase.from("profiles").select("full_name, email, avatar_url").eq("id", user.id).single(),
-    supabase.from("profiles").select("patient_code").eq("id", user.id).maybeSingle(),
     supabase
       .from("patient_condition_profiles")
       .select("data, draft_data, schema_version, status, last_submitted_role")
@@ -169,35 +193,11 @@ export default async function PatientHealthProfilePage() {
       .select("id, title, document_type, taken_on, mime_type, size_bytes, created_at")
       .eq("patient_id", user.id)
       .order("created_at", { ascending: false }),
-    supabase
-      .from("patient_package_purchases")
-      .select("id", { count: "exact", head: true })
-      .eq("patient_id", user.id)
-      .eq("payment_status", "paid"),
     supabase.from("site_settings").select(SITE_SETTINGS_SELECT).maybeSingle(),
     supabase
       .from("intake_question_templates")
       .select("question_key, question_text, required, specialty"),
 
-    // The Home Visit nav entries are conditional, and every page rendering
-    // this shell has to pass the same booleans or the sidebar gains and
-    // loses entries as you move between them. Count-only queries: a round
-    // trip each, no rows.
-    supabase
-      .from("appointments")
-      .select("id", { count: "exact", head: true })
-      .eq("patient_id", user.id)
-      .not("visit_mode", "eq", "home_visit"),
-    supabase
-      .from("appointments")
-      .select("id", { count: "exact", head: true })
-      .eq("patient_id", user.id)
-      .eq("visit_mode", "home_visit"),
-    supabase
-      .from("home_visit_package_purchases")
-      .select("id", { count: "exact", head: true })
-      .eq("patient_id", user.id)
-      .eq("payment_status", "paid"),
     // The next session this record is expected to be filled in at, or the
     // last one it should already have been. Read so the waiting state can
     // say *when*, rather than leaving a patient looking at a locked screen
@@ -212,6 +212,11 @@ export default async function PatientHealthProfilePage() {
       .order("slot_time", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    // The orthopaedic progress record (measurements, goal and steps, phase
+    // and status history): three more reads, each its own call inside the
+    // loader so one failing degrades one card. Orthopaedic only, like the
+    // Pain Map above - another specialty makes none of them.
+    isOrtho ? loadOrthoReads(supabase, user.id) : Promise.resolve(null),
   ]);
 
   const questions = mergeIntakeQuestionOverrides(
@@ -220,41 +225,23 @@ export default async function PatientHealthProfilePage() {
     specialty
   );
   const adminSettings = parseAdminSettings(settingsRow);
-  // The sidebar must have the same shape on every screen, so these two
-  // stand-alone pages resolve the Suggested Sessions entry the same way the
-  // loader does. Counted rather than loaded -- the entry only needs to know
-  // whether anything is waiting. Isolated and failure-tolerant: without the
-  // care_plans table the entry is simply absent.
-  const [{ count: activePlanCount }, { count: pendingSuggestionCount }] = await Promise.all([
-    supabase
-      .from("care_plans")
-      .select("id", { count: "exact", head: true })
-      .eq("patient_id", user.id)
-      .eq("status", "active"),
-    supabase
-      .from("session_suggestions")
-      .select("id", { count: "exact", head: true })
-      .eq("patient_id", user.id)
-      .eq("status", "pending"),
-  ]);
-
-  const navItems = buildPatientNavItems({
-    hasSuggestions: (activePlanCount ?? 0) > 0 || (pendingSuggestionCount ?? 0) > 0,
-    suggestionsWaiting: ((activePlanCount ?? 0) > 0 ? 1 : 0) + (pendingSuggestionCount ?? 0),
-    hasOwnedPackages: !!ownedPackagesCount && ownedPackagesCount > 0,
-    hasOnlineSessions: (onlineSessionCount ?? 0) > 0,
-    hasHomeVisits: (homeVisitCount ?? 0) > 0,
-    hasOwnedHomeVisitPackages: (ownedHomeVisitCount ?? 0) > 0,
-  });
+  const profile = d.profile;
+  const clinicPhone = clinicPhoneRead(adminSettings, !!settingsError);
 
   const status = (conditionProfile?.status ?? "not_started") as ConditionProfileStatus;
   const currentData = (conditionProfile?.data ?? {}) as Record<string, string>;
   const isPending = status === "pending_review";
   const gate = patientIntakeGate({ data: currentData, status });
-  const isOutdatedVersion =
-    status === "active" &&
-    typeof conditionProfile?.schema_version === "number" &&
-    conditionProfile.schema_version < intakeVersionForSpecialty(specialty);
+  // Only when the newer set asks something required that this record has
+  // not answered (intakeNeedsAnotherLook): a newer version alone would send
+  // every existing neurological patient to re-read a complete record.
+  const isOutdatedVersion = intakeNeedsAnotherLook({
+    status,
+    schemaVersion: conditionProfile?.schema_version,
+    currentVersion: intakeVersionForSpecialty(specialty),
+    questions,
+    answers: currentData,
+  });
   // Resume priority: an in-progress autosaved draft beats everything else
   // (it's the most recent thing the patient was actually doing); then a
   // declined submission's answers, so the submitter edits and resubmits
@@ -272,23 +259,73 @@ export default async function PatientHealthProfilePage() {
   // The neurological examination chart: read only on a neurological
   // profile, and in its own call because neuro_assessments is a new table --
   // a failed read says so on the card instead of reading as "nothing yet".
-  const neuroRead =
+  // A neurological page also makes the progress reads (measurements, goal and
+  // steps, phase and status, the diary, the intake history, the licence
+  // switch), each its own call inside the loader; another condition type
+  // makes none of them. Which profile kind the record is - plain neurological
+  // or the Parkinson's sub-profile - is read from the answers just fetched.
+  const neuroKind: NeuroKind | null =
+    specialty === "neuro" ? (profileKindFor(specialty, currentData) === "neuro_parkinsons" ? "neuro_parkinsons" : "neuro") : null;
+  // The paediatric profile: its own reads (the examinations, the child's date
+  // of birth, the measurements, the goal and steps, the phase and status, the
+  // sessions), each its own call inside the loader, and only for a
+  // paediatric record - another condition type makes none of them.
+  const isPeds = specialty === "pediatrics";
+  // Strength and balance care and Heart and lung rehabilitation (phase 6b):
+  // their own reads, each its own call inside the loader, for those records
+  // only. Neither has an examination layer.
+  const isGeriatric = specialty === "geriatric";
+  const isCardio = specialty === "cardiopulmonary";
+  const [neuroRead, neuroReads, pedsReads, geriReads, cardioReads] = await Promise.all([
     specialty === "neuro"
-      ? await supabase
+      ? supabase
           .from("neuro_assessments")
           .select("id, created_at, submitted_by_role, schema_version, findings")
           .eq("patient_id", user.id)
           .order("created_at", { ascending: false })
           .limit(200)
-      : { data: [] as NeuroAssessmentRow[], error: null };
+      : Promise.resolve({ data: [] as NeuroAssessmentRow[], error: null }),
+    neuroKind ? loadNeuroReads(supabase, user.id, { kind: neuroKind }) : Promise.resolve(null),
+    isPeds ? loadPedsReads(supabase, user.id) : Promise.resolve(null),
+    isGeriatric ? loadGeriatricReads(supabase, user.id) : Promise.resolve(null),
+    isCardio ? loadCardioReads(supabase, user.id) : Promise.resolve(null),
+  ]);
+  const geriView = isGeriatric && geriReads ? shapeGeriatricView(geriReads, { intake: currentData, voice: "patient" }) : null;
+  const cardioView = isCardio && cardioReads ? shapeCardioView(cardioReads, { intake: currentData, voice: "patient" }) : null;
+  const neuroView =
+    neuroKind && neuroReads
+      ? shapeNeuroView(
+          { ...neuroReads, exams: (neuroRead.data ?? []) as NeuroAssessmentRow[], examsFailed: !!neuroRead.error },
+          { kind: neuroKind, intake: currentData, voice: "patient", nowMs: neuroReads.nowMs }
+        )
+      : null;
+  const pedsView =
+    isPeds && pedsReads
+      ? shapePedsView(pedsReads, {
+          intake: currentData,
+          voice: "patient",
+          milestoneOptions: questions.find((q) => q.key === "peds_milestones")?.options ?? [],
+        })
+      : null;
   const trendPoints = painTrendSeries(assessments ?? []);
+  const orthoView =
+    isOrtho && orthoReads
+      ? shapeOrthoView({ ...orthoReads, assessments: assessments ?? [] }, "patient", orthoReads.nowMs)
+      : null;
   const intakeTrend =
     isOrtho ? [] : intakeTrendSeries((intakeHistory ?? []) as IntakeTrendRow[], specialty);
   const authorship = answerAuthorship((intakeHistory ?? []) as AuthorshipRow[]);
   const milestoneCount =
     questions.find((q) => q.key === "peds_milestones")?.options?.length ?? 0;
 
-  const showDebugNav = isDebugNavVisible();
+  // Home exercises (phase 7d): read with the patient's OWN client, so RLS is
+  // the gate (their one active plan and their own marks). "Could not read"
+  // and "not set up" are said as such, never as "nothing yet".
+  const exercisesRead = await loadActiveExercisePlan(supabase, user.id);
+  const homeExercises: HomeExercisesRead =
+    exercisesRead.status === "ok"
+      ? { status: "ok", view: exercisesRead.plan ? exercisePlanView(exercisesRead.plan, exercisesRead.teaching, { parent: isPeds }) : null }
+      : { status: exercisesRead.status };
 
   // Read with the admin client: a patient can select their own care_plans
   // through RLS, but not the therapist names attached to them
@@ -305,33 +342,54 @@ export default async function PatientHealthProfilePage() {
     for (const a of authors ?? []) carePlanAuthorNames.set(a.id, a.full_name);
   }
 
-  return (
-    <DashboardShell
-      brandLabel="Patient Panel"
-      brandIcon="fa-user-injured"
-      basePath="/patient/dashboard"
-      navItems={navItems}
-      userName={profile?.full_name ?? "Patient"}
-      userEmail={profile?.email ?? user.email ?? ""}
-      userAvatarUrl={profile?.avatar_url ?? null}
-      userCode={patientCodeRow?.patient_code ?? null}
-      offsetTop={showDebugNav}
-      sessionTimeoutMinutes={adminSettings.sessionTimeoutMinutes}
-      realtimeTables={[
-        "patient_condition_profiles",
-        "condition_change_requests",
-        "pain_assessments",
-        "neuro_assessments",
-        "intake_question_templates",
-      ]}
-      headerTitle="Health Profile"
-      headerSubtitle={
-        gate.reason === "awaiting_therapist"
-          ? "Your condition and your therapist's findings, once your first session has happened."
-          : "Your condition, and what your therapist found."
-      }
-    >
-      <div className="mx-auto max-w-5xl space-y-5">
+  const conditionSection = (
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+      <div className="mb-4">
+        <h2 className="font-display text-lg font-bold text-slate-800">Your condition</h2>
+        <p className="mt-0.5 text-xs text-slate-500">
+          {gate.canEdit
+            ? `Recorded as ${specialtyPatientLabel(specialty).toLowerCase()}. Only your therapist and the clinic can read this.`
+            : "Only your therapist and the clinic can read this."}
+        </p>
+      </div>
+      <ConditionIntakePanel
+        specialty={specialty}
+        questions={questions}
+        endpoint="/api/patient/condition-profile/submit"
+        draftEndpoint="/api/patient/condition-profile/save-draft"
+        currentData={currentData}
+        formInitialData={formInitialData}
+        canEdit={gate.canEdit}
+        authorship={authorship}
+        draftIsMine={draftIsMine}
+        locked={isPending}
+        emptyStateText={
+          gate.reason === "awaiting_therapist"
+            ? "Nothing here for you to fill in yet."
+            : undefined
+        }
+        lockedMessage={
+          gate.reason === "awaiting_therapist"
+            ? "You'll be able to correct and add to this once your therapist has been through it with you."
+            : "You can edit again as soon as the clinic finishes checking your last submission."
+        }
+      />
+    </section>
+  );
+
+  // What the clinic shows this patient (profileWidgets.ts): the page decides,
+  // so a hidden section's data never reaches this screen. A layer that could
+  // not be read falls back to the standard layout.
+  const profileKind = profileKindFor(specialty, currentData);
+  const onNewLayout = !!((orthoView && isOrtho) || (pedsView && isPeds) || (neuroView && neuroKind) || (geriView && isGeriatric) || (cardioView && isCardio));
+  const layout = onNewLayout ? await loadProfileLayout(carePlanAdmin, user.id, profileKind) : null;
+  const shown = (keys: string[]) => (layout ? keys.filter((k) => layout.shown.has(k)) : keys);
+  const has = (key: string) => (layout ? layout.shown.has(key) : true);
+  const hiddenGraphKeys = layout ? hiddenGraphMeasureKeys(layout) : [];
+  const patientName = profile?.full_name ?? "Patient";
+  const childWord = isPeds;
+
+  const intakeBanner = (
         <div
           className={`flex flex-wrap items-start gap-3 rounded-2xl border p-4 sm:flex-nowrap ${
             gate.reason === "awaiting_therapist"
@@ -399,168 +457,333 @@ export default async function PatientHealthProfilePage() {
               </p>
             )}
           </div>
-          {/* Beside the text on a wide screen; under it on a phone, where
-              beside it the buttons left the notice a 39px column. */}
-          <div className="flex w-full justify-end sm:w-auto sm:shrink-0">
-            <HealthProfileActions />
-          </div>
         </div>
+  );
 
-        <SpecialtySnapshotStrip
-          specialty={specialty}
-          questions={questions}
-          data={currentData}
+  // One rendering of this patient's profile, drawing only `only` (the page
+  // draws it in slices, in the patient's order). Never a control: a patient
+  // records nothing here but their own diary.
+  const profileTop = (only: WidgetPick, headerExtra?: ReactNode) => {
+    const common = {
+      voice: "patient" as const,
+      patientId: user.id,
+      patientName,
+      chipLabel: specialtyPatientLabel(specialty),
+      canSetStatus: null,
+      record: null,
+      planner: false,
+      reopen: false,
+      enabledLicensed: [] as string[],
+      licenceUnreadable: false,
+      only,
+      // The page's own wrapper carries the kind's test id (below), so the
+      // slices carry none and a spec scoped to it sees the whole profile.
+      testId: null,
+      hiddenGraphKeys,
+      headerExtra,
+      clinicPhone,
+    };
+    if (orthoView && isOrtho) {
+      return (
+        <OrthoProfileTop
+          {...common}
+          conditionLine={currentData.chief_complaint?.trim() || null}
+          view={orthoView}
           assessments={assessments ?? []}
-          showProgress={!gate.canEdit}
+          areaPain={selfReportedAreas}
         />
-
-        {/* Full while the flow is still ahead of them; one line once they
-            have written to the record themselves. */}
-        <HealthProfileSteps
-          specialty={specialty}
-          collapsed={gate.canEdit && conditionProfile?.last_submitted_role === "patient"}
+      );
+    }
+    if (pedsView && isPeds) {
+      return (
+        <PedsProfileTop
+          {...common}
+          view={pedsView}
+          equipmentChips={pedsEquipmentChips(currentData.peds_equipment, pedsView.exam.latest?.findings.equipment)}
         />
+      );
+    }
+    const diaryDoors = { canLogDiary: false, canConfirmDiary: false, canCorrectDiary: true };
+    if (neuroView && neuroKind) {
+      return (
+        <NeuroProfileTop
+          {...common}
+          {...diaryDoors}
+          provenance={filledInLine(conditionProfile?.last_submitted_role, "patient")}
+          view={neuroView}
+          neuroAssessments={(neuroRead.data ?? []) as NeuroAssessmentRow[]}
+        />
+      );
+    }
+    if (geriView && isGeriatric) {
+      return <GeriatricProfileTop {...common} {...diaryDoors} provenance={filledInLine(conditionProfile?.last_submitted_role, "patient")} view={geriView} />;
+    }
+    if (cardioView && isCardio) {
+      return <CardioProfileTop {...common} {...diaryDoors} provenance={filledInLine(conditionProfile?.last_submitted_role, "patient")} view={cardioView} />;
+    }
+    return null;
+  };
 
-        {/* Two columns on a wide screen, one on a phone: what you said on
-            the left, what the exam found on the right. The body map is
-            the heavier of the two, so it gets the sticky column -- a
-            patient scrolling their own answers keeps the figure in view. */}
-        <div className="grid gap-5 lg:grid-cols-[1.05fr_1fr] lg:items-start">
-          <div className="space-y-5">
-            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+  // The patient's order (B2): where things stand and the status in one card,
+  // with the safety pieces the clinic can never hide; then home exercises;
+  // then "Log a fall"; then the one graph; then everything else closed.
+  const statusSlice = shown(["status_header", "fall_risk", "orthostatic", "cardio_safety", "precautions"]);
+  const graphSlice = shown(["progress_graph"]);
+  const measuresSlice = shown(["key_numbers", "steps", "measures_table"]);
+  const pictureSlice = shown([
+    "body_map",
+    "exam_picture",
+    "parkinsons_symptoms",
+    "milestone_chart",
+    "steadi_tests",
+    "daily_living",
+    "home_safety",
+    "walk_track",
+    "oxygen",
+    "effort",
+    "vitals",
+    "breathlessness",
+  ]);
+  const diarySlice = shown(["diary", "freezing_chart", "active_minutes"]);
+  const pictureTitle = isOrtho
+    ? "Your body map"
+    : isPeds
+      ? "Your child's milestones"
+      : isGeriatric
+        ? "Your balance and strength tests"
+        : isCardio
+          ? "Your heart and lung readings"
+          : "Your examination";
+  const diaryKinds = diaryKindsFor(profileKind);
+  const showAnswers = has("condition_answers");
+  const showSteps = has("who_writes_what");
+  const stepsGuide = (
+    <HealthProfileSteps
+      specialty={specialty}
+      collapsed={gate.canEdit && conditionProfile?.last_submitted_role === "patient"}
+    />
+  );
+  const reportsCard = (
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+      <div className="mb-4">
+        <h2 className="font-display text-lg font-bold text-slate-800">Test reports and scans</h2>
+        <p className="mt-0.5 text-sm text-slate-600">
+          X-rays, MRI reports, blood tests, prescriptions - anything another doctor gave you. Your
+          therapist can open these before your session, so you don&apos;t have to remember to carry them.
+        </p>
+      </div>
+      <MedicalDocumentsPanel
+        documents={(medicalDocuments ?? []) as MedicalDocumentRow[]}
+        canManage
+        emptyMessage="Nothing uploaded yet. If a doctor has given you a scan or a test result, add it here."
+      />
+    </section>
+  );
+  const shareCard = (
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6 print:hidden" data-testid="share-profile-card">
+      <h2 className="font-display text-lg font-bold text-slate-800">Share with another doctor</h2>
+      <p className="mt-0.5 text-base text-slate-700">
+        Download your record as a PDF to take to another doctor, or print this page.
+      </p>
+      <div className="mt-3">
+        <HealthProfileActions />
+      </div>
+    </section>
+  );
+
+  return (
+    <PatientDashboardShell
+      data={d}
+      title="My progress"
+      subtitle={
+        gate.reason === "awaiting_therapist"
+          ? "Your condition and your therapist's findings, once your first session has happened."
+          : "Your condition, and what your therapist found."
+      }
+      extraRealtimeTables={[
+        "condition_change_requests",
+        "pain_assessments",
+        "neuro_assessments",
+        "intake_question_templates",
+        ...(isOrtho || neuroView || pedsView || geriView || cardioView ? ["outcome_measurements", "care_goals", "care_milestones", "care_status_events"] : []),
+        ...(neuroView || geriView || cardioView ? ["patient_diary_entries"] : []),
+        ...(pedsView ? ["peds_assessments"] : []),
+      ]}
+    >
+      <div className={`mx-auto space-y-5 ${onNewLayout ? "max-w-6xl" : "max-w-5xl"}`}>
+        {onNewLayout ? (
+          <div
+            className="space-y-5"
+            data-testid={isOrtho ? "ortho-profile" : isPeds ? "peds-profile" : isGeriatric ? "geriatric-profile" : isCardio ? "cardio-profile" : "neuro-profile"}
+            data-profile-kind={profileKind}
+          >
+            {statusSlice.length > 0 && profileTop(statusSlice, intakeBanner)}
+
+            {gate.reason !== "awaiting_therapist" && <HomeExercisesCard read={homeExercises} voice={isPeds ? "parent" : "patient"} />}
+
+            {diaryKinds.length > 0 && <DiaryLogButton profileKind={profileKind} />}
+
+            {graphSlice.length > 0 && profileTop(graphSlice)}
+
+            {measuresSlice.length > 0 && (
+              <ProfileDetails title={childWord ? "Your child's measures" : "Your measures"} testId="details-measures">
+                {profileTop(measuresSlice)}
+              </ProfileDetails>
+            )}
+            {pictureSlice.length > 0 && (
+              <ProfileDetails title={pictureTitle} testId="details-picture">
+                {profileTop(pictureSlice)}
+              </ProfileDetails>
+            )}
+            {diarySlice.length > 0 && (
+              <ProfileDetails title={isCardio ? "Your active minutes" : "Your diary"} testId="details-diary">
+                {profileTop(diarySlice)}
+              </ProfileDetails>
+            )}
+            {(showAnswers || showSteps) && (
+              <ProfileDetails title="Your answers" testId="details-answers">
+                {showSteps && stepsGuide}
+                {showAnswers && conditionSection}
+              </ProfileDetails>
+            )}
+            {has("reports_scans") && (
+              <ProfileDetails title="Reports and scans" testId="details-reports">
+                {reportsCard}
+              </ProfileDetails>
+            )}
+            {has("care_plan_history") && carePlanVersions.length > 0 && (
+              <ProfileDetails title="Past recommendations" testId="details-recommendations">
+                <CarePlanHistory versions={carePlanVersions} authorNames={carePlanAuthorNames} voice="patient" />
+              </ProfileDetails>
+            )}
+          </div>
+        ) : (
+          <>
+            {intakeBanner}
+          <>
+          {specialty !== "geriatric" && specialty !== "cardiopulmonary" && (
+            <SpecialtySnapshotStrip
+              specialty={specialty}
+              questions={questions}
+              data={currentData}
+              assessments={assessments ?? []}
+              showProgress={!gate.canEdit}
+            />
+          )}
+
+          {/* Full while the flow is still ahead of them; one line once they
+              have written to the record themselves. */}
+          <HealthProfileSteps
+            specialty={specialty}
+            collapsed={gate.canEdit && conditionProfile?.last_submitted_role === "patient"}
+          />
+
+          {/* Strength and balance care and Heart and lung rehabilitation have
+              their own layouts above (phase 6b) and no exam layer or intake
+              trend card; this is only the defensive fallback, which lists
+              the answers rather than an empty "Your examination" card. */}
+          {specialty === "geriatric" || specialty === "cardiopulmonary" ? (
+            conditionSection
+          ) : (
+          /* Two columns on a wide screen, one on a phone: what you said on
+              the left, what the exam found on the right. The body map is
+              the heavier of the two, so it gets the sticky column -- a
+              patient scrolling their own answers keeps the figure in view. */
+          <div className="grid gap-5 lg:grid-cols-[1.05fr_1fr] lg:items-start">
+            <div className="space-y-5">
+              {conditionSection}
+
+              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+                <div className="mb-3">
+                  <h2 className="flex items-center gap-2 font-display text-lg font-bold text-slate-800">
+                    Are you getting better?
+                    <TutorialInfoButton section="card:health-profile" label="your progress" size="sm" />
+                  </h2>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    {specialty === "ortho"
+                      ? "Your overall pain after each exam, over time - every exam is its own dot."
+                      : specialty === "neuro"
+                        ? "How much of the day you can manage on your own, each time it has been asked."
+                        : "How many milestones your child has reached, each time this was updated."}
+                  </p>
+                </div>
+                {/* Ortho trends the Pain Map; the other two have no exam
+                    layer yet, so they trend their own headline answer out of
+                    the submissions already on file. Two components rather
+                    than one with a flag, because the direction is opposite:
+                    on a pain score down is good, on these two up is. */}
+                {specialty === "ortho" ? (
+                  <PainTrendChart points={trendPoints} />
+                ) : (
+                  <IntakeTrendChart
+                    points={intakeTrend}
+                    max={specialty === "neuro" ? 10 : milestoneCount}
+                    unit={specialty === "neuro" ? "/ 10" : "milestones"}
+                    caption={
+                      specialty === "neuro"
+                        ? "Each dot is a time your independence was recorded - the line going up is the goal."
+                        : "Each dot is a time the milestone list was updated - the line going up is the goal."
+                    }
+                    emptyText={
+                      specialty === "neuro"
+                        ? "Nothing to chart yet - this line appears once your independence has been recorded twice, and shows whether it is going up."
+                        : "Nothing to chart yet - this line appears once the milestone list has been updated twice, and shows what your child has gained."
+                    }
+                  />
+                )}
+              </section>
+            </div>
+
+            {/* Sticky only for the body map: the neurological summary can be
+                taller than the screen, and a sticky block taller than the
+                viewport hides its own bottom half until the column ends. */}
+            <section
+              className={`rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6 ${isOrtho ? "lg:sticky lg:top-4" : ""}`}
+            >
               <div className="mb-4">
-                <h2 className="font-display text-lg font-bold text-slate-800">Your condition</h2>
+                <h2 className="font-display text-lg font-bold text-slate-800">
+                  {isOrtho ? "Your body map" : "Your examination"}
+                </h2>
                 <p className="mt-0.5 text-xs text-slate-500">
-                  {gate.canEdit
-                    ? `Recorded as ${specialtyPatientLabel(specialty).toLowerCase()}. Only your therapist and the clinic can read this.`
-                    : "Only your therapist and the clinic can read this."}
+                  {isOrtho
+                    ? "Filled in by your therapist after examining you - tap any marked point for that area's detail."
+                    : "What your therapist found when they examined you."}
                 </p>
               </div>
-              <ConditionIntakePanel
+              <SpecialtyExamPanel
                 specialty={specialty}
-                questions={questions}
-                endpoint="/api/patient/condition-profile/submit"
-                draftEndpoint="/api/patient/condition-profile/save-draft"
-                currentData={currentData}
-                formInitialData={formInitialData}
-                canEdit={gate.canEdit}
-                authorship={authorship}
-                draftIsMine={draftIsMine}
-                locked={isPending}
-                emptyStateText={
-                  gate.reason === "awaiting_therapist"
-                    ? "Nothing here for you to fill in yet."
+                assessments={assessments ?? []}
+                areaPain={selfReportedAreas}
+                neuro={
+                  specialty === "neuro"
+                    ? {
+                        assessments: (neuroRead.data ?? []) as NeuroAssessmentRow[],
+                        loadFailed: !!neuroRead.error,
+                      }
                     : undefined
-                }
-                lockedMessage={
-                  gate.reason === "awaiting_therapist"
-                    ? "You'll be able to correct and add to this once your therapist has been through it with you."
-                    : "You can edit again as soon as the clinic finishes checking your last submission."
                 }
               />
             </section>
-
-            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-              <div className="mb-3">
-                <h2 className="flex items-center gap-2 font-display text-lg font-bold text-slate-800">
-                  Are you getting better?
-                  <TutorialInfoButton section="card:health-profile" label="your progress" size="sm" />
-                </h2>
-                <p className="mt-0.5 text-xs text-slate-500">
-                  {specialty === "ortho"
-                    ? "Your overall pain after each exam, over time - every exam is its own dot."
-                    : specialty === "neuro"
-                      ? "How much of the day you can manage on your own, each time it has been asked."
-                      : "How many milestones your child has reached, each time this was updated."}
-                </p>
-              </div>
-              {/* Ortho trends the Pain Map; the other two have no exam
-                  layer yet, so they trend their own headline answer out of
-                  the submissions already on file. Two components rather
-                  than one with a flag, because the direction is opposite:
-                  on a pain score down is good, on these two up is. */}
-              {specialty === "ortho" ? (
-                <PainTrendChart points={trendPoints} />
-              ) : (
-                <IntakeTrendChart
-                  points={intakeTrend}
-                  max={specialty === "neuro" ? 10 : milestoneCount}
-                  unit={specialty === "neuro" ? "/ 10" : "milestones"}
-                  caption={
-                    specialty === "neuro"
-                      ? "Each dot is a time your independence was recorded - the line going up is the goal."
-                      : "Each dot is a time the milestone list was updated - the line going up is the goal."
-                  }
-                  emptyText={
-                    specialty === "neuro"
-                      ? "Nothing to chart yet - this line appears once your independence has been recorded twice, and shows whether it is going up."
-                      : "Nothing to chart yet - this line appears once the milestone list has been updated twice, and shows what your child has gained."
-                  }
-                />
-              )}
-            </section>
           </div>
+          )}
+          </>
 
-          {/* Sticky only for the body map: the neurological summary can be
-              taller than the screen, and a sticky block taller than the
-              viewport hides its own bottom half until the column ends. */}
-          <section
-            className={`rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6 ${isOrtho ? "lg:sticky lg:top-4" : ""}`}
-          >
-            <div className="mb-4">
-              <h2 className="font-display text-lg font-bold text-slate-800">
-                {isOrtho ? "Your body map" : "Your examination"}
-              </h2>
-              <p className="mt-0.5 text-xs text-slate-500">
-                {isOrtho
-                  ? "Filled in by your therapist after examining you - tap any marked point for that area's detail."
-                  : "What your therapist found when they examined you."}
-              </p>
-            </div>
-            <SpecialtyExamPanel
-              specialty={specialty}
-              assessments={assessments ?? []}
-              areaPain={selfReportedAreas}
-              neuro={
-                specialty === "neuro"
-                  ? {
-                      assessments: (neuroRead.data ?? []) as NeuroAssessmentRow[],
-                      loadFailed: !!neuroRead.error,
-                    }
-                  : undefined
-              }
-            />
-          </section>
-        </div>
+            {gate.reason !== "awaiting_therapist" && <HomeExercisesCard read={homeExercises} voice={isPeds ? "parent" : "patient"} />}
 
-        {/* Full width under both columns: reports belong to the whole
-            chart rather than to either side of it, and a list of files
-            reads better wide than squeezed beside a body map. */}
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-          <div className="mb-4">
-            <h2 className="font-display text-lg font-bold text-slate-800">Test reports and scans</h2>
-            <p className="mt-0.5 text-xs text-slate-500">
-              X-rays, MRI reports, blood tests, prescriptions - anything another doctor gave you. Your
-              therapist can open these before your session, so you don&apos;t have to remember to carry them.
-            </p>
-          </div>
-          <MedicalDocumentsPanel
-            documents={(medicalDocuments ?? []) as MedicalDocumentRow[]}
-            canManage
-            emptyMessage="Nothing uploaded yet. If a doctor has given you a scan or a test result, add it here."
-          />
-        </section>
+            {/* Full width under both columns: reports belong to the whole
+                chart rather than to either side of it. */}
+            {reportsCard}
 
-        {/* The same care_plan_versions rows the therapist's chart renders --
-            one authoritative record, two readers, in the patient's own
-            voice. Their live recommendation and its Accept button live on
-            Suggested Sessions; this is the history behind it. */}
-        <CarePlanHistory
-          versions={carePlanVersions}
-          authorNames={carePlanAuthorNames}
-          voice="patient"
-        />
+            {/* The same care_plan_versions rows the therapist's chart renders --
+                one authoritative record, two readers, in the patient's own
+                voice. Their live recommendation and its Accept button live on
+                Suggested Sessions; this is the history behind it. */}
+            <CarePlanHistory versions={carePlanVersions} authorNames={carePlanAuthorNames} voice="patient" />
+          </>
+        )}
+
+        {shareCard}
       </div>
-    </DashboardShell>
+    </PatientDashboardShell>
   );
 }

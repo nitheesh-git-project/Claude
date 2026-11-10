@@ -746,6 +746,10 @@ test.describe("Therapist roster - booking is untouched", () => {
   });
 
   test("R-B02: the booking page offers the same times it always did", async ({ browser }) => {
+    // Two roster writes, /book twice and a browser-side profile read: its own
+    // first wait is 30s, which was the whole test's budget (testing.md's
+    // multi-round-trip rule for a hosted project).
+    test.setTimeout(90_000);
     // Availability is a planning tool in this app -- the booking picker is
     // driven by the lead-time rule, not by the roster (see
     // src/lib/bookingSlots.ts and the schema comment on
@@ -771,7 +775,7 @@ test.describe("Therapist roster - booking is untouched", () => {
       days: days({ 1: [{ startHour: 9, endHour: 18 }] }),
     });
     await page.goto(`${BASE}/book`);
-    const times = page.getByRole("radiogroup", { name: "Preferred time" }).getByRole("radio");
+    const times = page.getByRole("radiogroup", { name: "Time", exact: true }).getByRole("radio");
     // `count()` is a one-shot read with no auto-waiting, and the picker is
     // rendered by a client component after hydration -- so counting straight
     // after a navigation races the render and returns 0. That failure reads

@@ -192,7 +192,7 @@ export async function loadPersonTimeline(
 
     // Per-role sources.
     if (role === "patient") {
-      const [payments, failures, tries, pain, plans, changes, documents, neuro] = await Promise.all([
+      const [payments, failures, tries, pain, plans, changes, documents, neuro, peds] = await Promise.all([
         admin.from("payments").select("id, purpose, amount_paise, status, captured_at, created_at").eq("patient_id", profileId).limit(CAP).then((res) => rows<Parameters<typeof eventsFromPayments>[0][number]>(res)),
         admin.from("payment_failure_log").select("id, appointment_id, amount_paise, error_description, error_reason, created_at").eq("patient_id", profileId).limit(CAP).then((res) => rows<Parameters<typeof eventsFromPaymentFailures>[0][number]>(res)),
         admin.from("checkout_payment_tries").select("id, outcome, flow, created_at").eq("patient_id", profileId).limit(CAP).then((res) => rows<{ id: string; outcome: string; flow: string; created_at: string }>(res)),
@@ -208,6 +208,12 @@ export async function loadPersonTimeline(
             ? []
             : rows<{ id: string; submitted_by: string | null; submitted_by_role: string | null; created_at: string }>(res)
         ),
+        // The paediatric exam (phase 5a), the same missing-table rule.
+        admin.from("peds_assessments").select("id, submitted_by, submitted_by_role, created_at").eq("patient_id", profileId).limit(CAP).then((res) =>
+          res.error && ["42P01", "PGRST205"].includes((res.error as { code?: string }).code ?? "")
+            ? []
+            : rows<{ id: string; submitted_by: string | null; submitted_by_role: string | null; created_at: string }>(res)
+        ),
       ]);
       const refunds = await inIds<Parameters<typeof eventsFromRefundAttempts>[0][number]>(
         "refund_attempts",
@@ -218,6 +224,7 @@ export async function loadPersonTimeline(
       actorIds.push(
         ...pain.map((x) => x.submitted_by),
         ...neuro.map((x) => x.submitted_by),
+        ...peds.map((x) => x.submitted_by),
         ...plans.flatMap((x) => [x.therapist_id, x.reviewed_by]),
         ...changes.map((x) => x.reviewed_by),
         ...refunds.map((x) => x.requested_by)
@@ -262,6 +269,17 @@ export async function loadPersonTimeline(
             actorRole: (by?.role ?? (a.submitted_by_role === "admin" ? "admin" : "therapist")) as ActivityActorRole,
             actorName: by?.name ?? null,
             title: "Neurological examination recorded",
+          };
+        }),
+        ...peds.map((a) => {
+          const by = lookup(a.submitted_by);
+          return {
+            id: `peds:${a.id}`,
+            at: a.created_at,
+            category: "clinical" as const,
+            actorRole: (by?.role ?? (a.submitted_by_role === "admin" ? "admin" : "therapist")) as ActivityActorRole,
+            actorName: by?.name ?? null,
+            title: "Paediatric examination recorded",
           };
         }),
         ...plans.flatMap((p) => {

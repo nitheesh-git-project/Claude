@@ -87,7 +87,7 @@ test.describe("analytics consent", () => {
     await watchGoogle(page);
     await page.addInitScript(() => localStorage.setItem("mr_analytics_consent", "granted"));
     await page.goto(`${BASE}/faq`);
-    await page.getByRole("button", { name: "Analytics settings" }).click();
+    await page.getByRole("link", { name: "Analytics settings" }).click();
     const banner = page.getByRole("region", { name: "Analytics" });
     await expect(banner).toBeVisible();
     await banner.getByRole("button", { name: "Not now" }).click();

@@ -41,9 +41,14 @@ export default function ChosenServiceSummary({
 }) {
   return (
     <div
+      data-testid="chosen-service-summary"
       className={
         compact
-          ? "flex items-stretch gap-3 rounded-xl border border-teal-100 bg-teal-50 p-2.5"
+          ? // flex-wrap / sm:flex-nowrap exactly like the emphasised card: the
+            // actions slot below is `w-full`, and without wrapping it shrank
+            // the title column to a sliver on a 390px phone, printing a
+            // condition name one letter per line.
+            "flex flex-wrap items-stretch gap-3 rounded-xl border border-teal-100 bg-teal-50 p-2.5 sm:flex-nowrap"
           : "flex flex-wrap items-stretch gap-3 rounded-2xl border-2 border-teal-500 bg-white p-2.5 ring-[3px] ring-teal-50 sm:flex-nowrap"
       }
     >
@@ -60,7 +65,7 @@ export default function ChosenServiceSummary({
       </span>
 
       <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5">
-        <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-teal-700">
+        <span className="text-[13px] font-bold uppercase tracking-[0.14em] text-teal-700">
           {option.eyebrow}
         </span>
         <h3
@@ -70,7 +75,7 @@ export default function ChosenServiceSummary({
         >
           {option.title}
         </h3>
-        <p className="text-xs text-slate-600">
+        <p className="text-sm text-slate-600">
           {rupeesOnly ? rupees(option.pricePaise) : <Price paise={option.pricePaise} />} &middot;{" "}
           {option.durationMinutes} min
         </p>

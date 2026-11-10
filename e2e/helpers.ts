@@ -444,6 +444,11 @@ export async function countAcrossPages(page: Page, nounPlural: string, target: L
  * service, which is what a freshly provisioned stack has, and read as a
  * broken pay button or a missing cancellation notice. Which service is
  * chosen never matters to the callers; that one is, is what Step 1 needs.
+ *
+ * It also taps a time (and a language, when the clinic offers several):
+ * Step 1 opens with the date chosen but **no hour and no multi-language
+ * choice preselected**, and its Continue is disabled with "Pick a time to
+ * continue" until they are answered. Which time never matters to the callers.
  */
 export async function chooseAnyServiceOnStepOne(page: Page): Promise<void> {
   const trigger = page.getByRole("button", { name: /What would you like help with/ }).first();
@@ -453,6 +458,24 @@ export async function chooseAnyServiceOnStepOne(page: Page): Promise<void> {
     await trigger.click();
     await page.getByRole("dialog").getByRole("button", { name: "Choose this session" }).first().click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
+  }
+  await pickTimeOnStepOne(page);
+}
+
+/**
+ * Taps the first offered time on Step 1 of the booking wizard (and the first
+ * language when more than one is on offer and none is chosen). The date is
+ * already chosen on arrival; the hour deliberately is not.
+ */
+export async function pickTimeOnStepOne(page: Page): Promise<void> {
+  const times = page.getByRole("radiogroup", { name: "Time", exact: true });
+  await expect(times).toBeVisible({ timeout: 60_000 });
+  if ((await times.getByRole("radio", { checked: true }).count()) === 0) {
+    await times.getByRole("radio").first().click();
+  }
+  const languages = page.getByRole("radiogroup", { name: "Language", exact: true });
+  if ((await languages.count()) > 0 && (await languages.getByRole("radio", { checked: true }).count()) === 0) {
+    await languages.getByRole("radio").first().click();
   }
 }
 
@@ -652,4 +675,19 @@ export async function deleteFixtureAccount(id: string | undefined): Promise<void
   await warnOnFailure("appointments", admin.from("appointments").delete().eq("patient_id", id));
   const { error } = await admin.auth.admin.deleteUser(id);
   if (error) console.warn(`[e2e cleanup] could not delete fixture account ${id}: ${error.message}`);
+}
+
+/**
+ * The patient's Health Profile keeps most of the record in closed <details>
+ * blocks (B2: measures, examination, diary, answers, reports, past
+ * recommendations). A spec that reads what is inside them opens them first,
+ * the way a patient taps each one; the order and the closed default are
+ * asserted by e2e/health-profile-layout.spec.ts.
+ */
+export async function openProfileBlocks(page: import("@playwright/test").Page): Promise<void> {
+  await page.evaluate(() => {
+    document.querySelectorAll("details").forEach((d) => {
+      (d as HTMLDetailsElement).open = true;
+    });
+  });
 }

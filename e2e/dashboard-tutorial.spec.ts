@@ -45,11 +45,13 @@ test.describe("Dashboard tutorial", () => {
       await next.click();
       await next.click();
       await expect(page.getByRole("heading", { name: "What happens after you pay" })).toBeVisible();
-      await expect(page.getByTestId("tutorial")).toContainText("Waiting for a therapist");
+      // The patient's word is "physiotherapist" (patientScenes.tsx, the patient voice pass).
+      await expect(page.getByTestId("tutorial")).toContainText("Waiting for a physiotherapist");
 
-      // A chapter chip jumps straight to the health profile.
-      await page.getByRole("navigation", { name: "Tour chapters" }).getByRole("button", { name: "Health profile" }).click();
-      await expect(page.getByRole("heading", { name: "Your therapist starts your health profile with you" })).toBeVisible();
+      // A chapter chip jumps straight to the health profile -- "My progress",
+      // in the patient's words, since the Health Profile redesign.
+      await page.getByRole("navigation", { name: "Tour chapters" }).getByRole("button", { name: "My progress" }).click();
+      await expect(page.getByRole("heading", { name: "Your physiotherapist starts your health profile with you" })).toBeVisible();
 
       // Jump to the end and finish.
       await page.getByRole("navigation", { name: "Tour chapters" }).getByRole("button", { name: "You're ready" }).click();
@@ -108,7 +110,7 @@ test.describe("Dashboard tutorial", () => {
       await expect(page.getByTestId("tutorial")).toHaveCount(0, { timeout: 10_000 });
 
       // The card's own (i), not the page title's.
-      await page.getByRole("button", { name: "How Your Referrals works" }).last().click();
+      await page.getByRole("button", { name: "How Referral status works" }).last().click();
       await expect(page.getByRole("heading", { name: "Follow each referral" })).toBeVisible();
       await expect(page.getByTestId("tutorial")).toContainText("Registration Link Sent");
     } finally {

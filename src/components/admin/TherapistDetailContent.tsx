@@ -14,6 +14,7 @@ import TherapistTeamVisibilityToggle from "@/components/admin/TherapistTeamVisib
 import TherapistNotAvailableToggle from "@/components/admin/TherapistNotAvailableToggle";
 import TherapistContactEditForm from "@/components/admin/TherapistContactEditForm";
 import TherapistNotesForm from "@/components/admin/TherapistNotesForm";
+import ReadOnlyDeskNote from "@/components/admin/ReadOnlyDeskNote";
 import RichTextField from "@/components/RichTextField";
 import RichTextView from "@/components/RichTextView";
 import TherapistRevenueShareForm from "@/components/admin/TherapistRevenueShareForm";
@@ -37,6 +38,7 @@ import { mergeSessionCodes } from "@/lib/sessionCode";
 import { mergeMeetLinks } from "@/lib/meetLink";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { JoinWindowProvider } from "@/lib/joinWindowContext";
+import { CancellationWindowProvider } from "@/lib/cancellationWindowContext";
 
 // A plain module-level helper rather than a bare Date.now() inside a Server
 // Component's render -- the same reasoning as the admin dashboard's and the
@@ -66,7 +68,14 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
   // Cancel, Reopen and the rating actions all call routes guarded by
   // requireAdminScope("sessions"), which a finance admin does not have
   // even though they can open this page.
-  const canManageSessions = viewer !== null && scopeCanOpen(viewer.scope, "sessions");
+  // Manage, not open: Finance opens Sessions at `view`, and the routes behind
+  // those buttons ask for manage.
+  const canManageSessions = viewer !== null && scopeCanManage(viewer.scope, "sessions");
+  // Every control that changes THIS person (approve, suspend, leave, /team
+  // visibility, contact details, password link, notes, public display text,
+  // rating visibility) is requireAdminScope("people"). Finance reads People at
+  // `view`, so those controls are not rendered for it and the page says why.
+  const canManagePeople = viewer !== null && scopeCanManage(viewer.scope, "people");
 
   const admin = createAdminClient();
 
@@ -338,6 +347,10 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
       afterMinutes={adminSettings.joinWindowAfterMinutes}
       completedAfterMinutes={adminSettings.sessionCompletedAfterMinutes}
     >
+      <CancellationWindowProvider
+        onlineHours={adminSettings.onlineCancellationRefundHours}
+        homeVisitHours={adminSettings.homeVisitCancellationRefundHours}
+      >
       {/* Above the header, not below the fold: what is missing here is the
           reason an assignment will not happen, so it belongs where somebody
           arriving to assign will read it. It renders nothing at all when
@@ -411,45 +424,71 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
                 userName={therapist.full_name ?? "this therapist"}
               />
             )}
-            {!therapist.approved && (
-              <ApproveAccountButton
-                userId={therapist.id}
-                therapist={{
-                  name: therapist.full_name ?? therapist.email ?? "this therapist",
-                  email: therapist.email,
-                  credentials: therapist.credentials,
-                  specialization: therapist.specialization,
-                }}
-                canSetRevenueShare={viewer !== null && scopeCanManage(viewer.scope, "money")}
-                homeVisitEnabled={homeVisitEnabled}
-                canOpenRoster={canManageSessions}
-              />
+            {canManagePeople ? (
+              <>
+                {!therapist.approved && (
+                  <ApproveAccountButton
+                    userId={therapist.id}
+                    therapist={{
+                      name: therapist.full_name ?? therapist.email ?? "this therapist",
+                      email: therapist.email,
+                      credentials: therapist.credentials,
+                      specialization: therapist.specialization,
+                    }}
+                    canSetRevenueShare={viewer !== null && scopeCanManage(viewer.scope, "money")}
+                    homeVisitEnabled={homeVisitEnabled}
+                    canOpenRoster={canManageSessions}
+                  />
+                )}
+                <TherapistTeamVisibilityToggle
+                  therapistId={therapist.id}
+                  visibleOnTeam={therapist.visible_on_team}
+                  active={therapist.active}
+                  approved={therapist.approved}
+                />
+                <TherapistNotAvailableToggle therapistId={therapist.id} onLeave={therapist.on_leave} />
+                <TherapistActiveToggle
+                  therapistId={therapist.id}
+                  active={therapist.active}
+                  upcomingSessionCount={upcomingSessionCount}
+                  openPayoutRequestCount={openPayoutRequestCount}
+                />
+              </>
+            ) : (
+              // The chips beside the name already say suspended / pending /
+              // hidden / not available; this is the one-line version for a
+              // desk that cannot change any of them.
+              <p className="text-xs font-semibold text-slate-600" data-testid="therapist-status-text">
+                {therapist.active ? "Account active" : "Account suspended"}
+                {!therapist.approved ? " - waiting for approval" : ""}
+              </p>
             )}
-            <TherapistTeamVisibilityToggle
-              therapistId={therapist.id}
-              visibleOnTeam={therapist.visible_on_team}
-              active={therapist.active}
-              approved={therapist.approved}
-            />
-            <TherapistNotAvailableToggle therapistId={therapist.id} onLeave={therapist.on_leave} />
-            <TherapistActiveToggle
-              therapistId={therapist.id}
-              active={therapist.active}
-              upcomingSessionCount={upcomingSessionCount}
-              openPayoutRequestCount={openPayoutRequestCount}
-            />
           </div>
         </div>
+        {!canManagePeople && <ReadOnlyDeskNote className="mt-4" />}
       </div>
 
       <div className="grid md:grid-cols-2 gap-6 mb-6">
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
           <h2 className="font-bold text-sm text-slate-800 mb-3">Contact Info</h2>
-          <TherapistContactEditForm
-            therapistId={therapist.id}
-            currentPhone={therapist.phone}
-            currentEmail={therapist.email}
-          />
+          {canManagePeople ? (
+            <TherapistContactEditForm
+              therapistId={therapist.id}
+              currentPhone={therapist.phone}
+              currentEmail={therapist.email}
+            />
+          ) : (
+            <div className="text-xs space-y-1">
+              <p>
+                <span className="text-slate-500">Email:</span>{" "}
+                <span className="font-semibold text-slate-800">{therapist.email}</span>
+              </p>
+              <p>
+                <span className="text-slate-500">Phone:</span>{" "}
+                <span className="font-semibold text-slate-800">{therapist.phone || "Not set"}</span>
+              </p>
+            </div>
+          )}
           <div className="mt-4 pt-4 border-t border-slate-100 text-xs space-y-1">
             <p className="font-semibold text-slate-700">Professional Details</p>
             <p className="text-slate-600">
@@ -470,9 +509,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
               No password is shown or stored: the button issues a one-time
               link for them to set their own -- see src/lib/accessLink.ts.
             */}
-            <ResetTherapistPasswordButton
-              therapistId={therapist.id}
-            />
+            {canManagePeople && <ResetTherapistPasswordButton therapistId={therapist.id} />}
             {/* See the patient screen's note: Master Admin only, checked
                 again by the route. */}
             {viewer?.scope === "full" && (
@@ -518,12 +555,24 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
               }
             />
           </div>
-          <div className="mt-4 pt-4 border-t border-slate-100">
-            <h2 className="font-bold text-sm text-slate-800 mb-1">Admin Notes</h2>
-            <p className="text-[11px] text-slate-500 mb-3">Private - never shown to the therapist.</p>
-            <TherapistNotesForm therapistId={therapist.id} currentNote={note?.note ?? ""} />
-          </div>
         </div>
+        )}
+      </div>
+
+      {/* Admin notes are a People capability (update-therapist-notes asks for
+          the people scope), not a money one: they used to sit at the foot of
+          the Revenue Share card, so Operations and Clinical -- who write them
+          -- never saw the card they live in. Read-only text for a desk that
+          can only read. */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
+        <h2 className="font-bold text-sm text-slate-800 mb-1">Admin Notes</h2>
+        <p className="text-[11px] text-slate-500 mb-3">Private - never shown to the therapist.</p>
+        {canManagePeople ? (
+          <TherapistNotesForm therapistId={therapist.id} currentNote={note?.note ?? ""} />
+        ) : (
+          <p className="whitespace-pre-line text-xs text-slate-700">
+            {note?.note?.trim() ? note.note : "No notes yet."}
+          </p>
         )}
       </div>
 
@@ -532,16 +581,22 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
         <p className="text-[11px] text-slate-500 mb-3">
           Shown to visitors in this therapist&apos;s /team profile popup, alongside their own bio.
         </p>
-        <RichTextField
-          label="Public display content"
-          storedValue={displayContentRow?.public_display_note ?? null}
-          endpoint="/api/admin/update-therapist-display-content"
-          body={{ therapistId: therapist.id }}
-          emptyText="Nothing set - the popup shows their own bio only."
-          placeholder="A highlight, focus area or welcome note for visitors..."
-          viewHref="/team"
-          testId="display-content"
-        />
+        {canManagePeople ? (
+          <RichTextField
+            label="Public display content"
+            storedValue={displayContentRow?.public_display_note ?? null}
+            endpoint="/api/admin/update-therapist-display-content"
+            body={{ therapistId: therapist.id }}
+            emptyText="Nothing set - the popup shows their own bio only."
+            placeholder="A highlight, focus area or welcome note for visitors..."
+            viewHref="/team"
+            testId="display-content"
+          />
+        ) : displayContentRow?.public_display_note ? (
+          <RichTextView value={displayContentRow.public_display_note} className="text-xs text-slate-700" />
+        ) : (
+          <p className="text-xs text-slate-500">Nothing set - the popup shows their own bio only.</p>
+        )}
       </div>
 
       <RatingManager
@@ -551,7 +606,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
         excludedCount={ratingAggregate.excludedCount}
         distribution={ratingAggregate.distribution}
         visible={therapist.rating_visible}
-        onToggleVisible={{ therapistId: therapist.id }}
+        onToggleVisible={canManagePeople ? { therapistId: therapist.id } : undefined}
       />
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
@@ -753,6 +808,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
       <div className="mt-6">
         <ActivityTimeline personId={id} title="Activity log" />
       </div>
+      </CancellationWindowProvider>
     </JoinWindowProvider>
   );
 }

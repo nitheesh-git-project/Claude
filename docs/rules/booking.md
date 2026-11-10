@@ -358,3 +358,60 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
   and legal to review**; edit it there and nowhere else. The home-visit
   wizard's checkbox is a different consent (this address, a visit at this
   time) and has no terms behind it. `e2e/service-picker.spec.ts` SP-013.
+
+- **Step 1 leaves the hour for the patient, and says why Continue is
+  disabled.** The date opens preselected (a starting point on a calendar the
+  patient can see); the **hour is never preselected**, and the language only
+  when the clinic offers exactly one (`initialLanguage`). A lit Continue before
+  a time was chosen let patients move on without reading it. Continue
+  ("Continue to your details") is **always on screen**; while something is
+  unanswered it is disabled and `stepOneBlocker` (`src/lib/bookingStepOne.ts`)
+  prints the first missing thing beside it (*Pick a time to continue*).
+  Changing the date keeps the chosen hour only if the new date still offers
+  it, never swaps in the day's earliest. The chips are a radiogroup whose
+  first chip is the tab stop while nothing is chosen. Labels are **Date**,
+  **Time**, **Language** (not "Preferred ...").
+- **The time is said to be a request, with both honest endings.** Step 1 and
+  Step 3 carry `requestedTimeNotice` (`src/lib/clinicPromises.ts`): *"The time
+  you pick is a request. We confirm within N hours. If we can't meet it, we
+  offer you another time or refund you in full."* N is the clinic's promise and
+  there is **no `site_settings` column for it yet** - a column is a schema
+  change, which is the owner's to apply - so `DEFAULT_BOOKING_CONFIRMATION_HOURS`
+  (4) is the answer and `/book` passes it as the `confirmationHours` prop.
+  When the column exists: add it, add it to `/book`'s isolated select, pass it
+  through `bookingConfirmationHours()`. Never select a column that is not
+  there; one unknown column fails the query. The fake "Session confirmed"
+  chip on the public pages must not sit near the picker if it implies a
+  guarantee (that chip belongs to the public site).
+- **Step 2 is name, phone, email, password - and a real sign-in button first.**
+  "I already have an account - sign in" is a 44px button at the top, not a
+  sentence under the form. There is no retype-password box: `PasswordInput`
+  already has the show/hide eye, which is what prevents a mistyped password.
+  The placeholder name is local (Priya Sharma).
+- **"Who is this for?" is stored without a schema change.** *Me* or *Someone in
+  my family* (name, age, relationship, *Will someone be with them on the
+  call?*). The browser sends a small `bookingFor` object; `/api/appointments/create`
+  validates it with `validateBookingFor` (`src/lib/bookingFor.ts`: required
+  fields, whole-number age 0-120, name <= 80 and relationship <= 40
+  characters, control characters and the `|` delimiter stripped, 400 in words
+  on anything else) and **builds the line itself**, `composeBookingNotes`,
+  into the booking's existing `notes` above the patient's own words:
+  `Booked for a family member: Asha Rao | age 62 | my mother | someone with them on the call: yes`.
+  Notes are capped at `BOOKING_NOTES_MAX` (2000) and the check runs before
+  any draft is replaced. A resumed booking splits the line back out
+  (`splitBookingNotes`) so a second save does not stack a second one. The
+  booking, payment and video link stay on the booker's account; the family
+  member has no account and no health profile of their own - a senior
+  physiotherapist should decide whether that is acceptable or whether a
+  family booking needs a patient record of its own (needs schema).
+- **The confirmation restates the time and says what happens next.** In the
+  clinic's zone and in words (`formatSessionWhen`, `src/lib/sessionWhenLabel.ts`:
+  *Wed 28 Oct, 6-7 pm, with a physiotherapist*), three numbered steps (the
+  clinic confirms within N hours / the link appears on Home
+  `join_window_minutes` before / tap *Join your video call*) and **Add to
+  calendar**, a one-event `.ics` built in the browser as a data URL
+  (`src/lib/icsEvent.ts`, UTC times, titled as a requested time).
+- **Patient text floor on the wizard:** 16px body and inputs, 14px secondary,
+  nothing under 13px (Step 3's summary labels are 14px, values 16px), 48px
+  chips and buttons. `e2e/booking-wizard-clarity.spec.ts` holds Step 1, Step 2
+  and the server's side of "Who is this for?".

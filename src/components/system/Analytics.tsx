@@ -9,6 +9,7 @@ import {
   isTrackablePath,
   readConsent,
   ANALYTICS_REOPEN_EVENT,
+  ANALYTICS_SETTINGS_HASH,
   withdrawGoogle,
   track,
   writeConsent,
@@ -165,8 +166,19 @@ export default function Analytics() {
       setLeaving(false);
       setReopened(true);
     };
+    // A tap that landed before hydration left the hash instead of the event.
+    const fromHash = () => {
+      if (window.location.hash !== ANALYTICS_SETTINGS_HASH) return;
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+      open();
+    };
+    fromHash();
     window.addEventListener(ANALYTICS_REOPEN_EVENT, open);
-    return () => window.removeEventListener(ANALYTICS_REOPEN_EVENT, open);
+    window.addEventListener("hashchange", fromHash);
+    return () => {
+      window.removeEventListener(ANALYTICS_REOPEN_EVENT, open);
+      window.removeEventListener("hashchange", fromHash);
+    };
   }, []);
 
   // Withdrawn consent stops collection at once and clears Google's cookies.

@@ -110,7 +110,7 @@ export default function WrongAccountForBooking({
       </div>
 
       {(name || email) && (
-        <p className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-3 text-center text-xs text-slate-500">
+        <p className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-3 text-center text-sm text-slate-500">
           Signed in as <span className="font-semibold text-slate-700">{name || email}</span>
           {name && email ? ` (${email})` : ""}
         </p>
@@ -138,7 +138,7 @@ export default function WrongAccountForBooking({
           neutral "switch accounts" -- there is no way back into the {noun}
           session without logging in again, and anything in progress behind
           this tab goes with it. */}
-      <p className="mt-4 flex items-start justify-center gap-2 text-center text-xs leading-relaxed text-amber-700">
+      <p className="mt-4 flex items-start justify-center gap-2 text-center text-sm leading-relaxed text-amber-700">
         <i aria-hidden="true" className="fa-solid fa-triangle-exclamation mt-0.5 shrink-0" />
         {/* One template literal rather than text-around-an-expression: JSX
             drops the whitespace either side of the interpolation here, which

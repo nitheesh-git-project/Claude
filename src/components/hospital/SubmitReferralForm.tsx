@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "@/lib/useRouter";
 import PhoneNumberField from "@/components/PhoneNumberField";
 import { isValidStoredPhone } from "@/lib/phoneNumber";
@@ -31,6 +32,8 @@ export default function SubmitReferralForm({
   // after a submit does not clear what is on screen. Bumping this key
   // remounts it, which is what actually empties the field.
   const [phoneFieldKey, setPhoneFieldKey] = useState(0);
+  const [submittedName, setSubmittedName] = useState("");
+  const successRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -98,24 +101,54 @@ export default function SubmitReferralForm({
       );
       return;
     }
+    setSubmittedName((formData.get("patient_name") as string) || "the patient");
     setSuccess(true);
     setVisitMode("online");
     setPatientPhone("");
     setPhoneFieldKey((k) => k + 1);
     (e.target as HTMLFormElement).reset();
     router.refresh();
+    // The form is long: on a phone the confirmation sits above the fold the
+    // person has just scrolled past. Bring it into view and focus it so a
+    // screen reader reads it too.
+    requestAnimationFrame(() => {
+      successRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      successRef.current?.focus();
+    });
+  }
+
+  if (success) {
+    return (
+      <div
+        ref={successRef}
+        tabIndex={-1}
+        role="status"
+        className="rounded-xl border border-teal-200 bg-teal-50 p-5 text-teal-900 outline-none"
+      >
+        <p className="text-base font-bold">Referral sent</p>
+        <p className="mt-1 text-base">
+          We&apos;ll call {submittedName}; track it in{" "}
+          <Link href="/hospital/dashboard/referrals" className="font-semibold underline">
+            Your Referrals
+          </Link>
+          .
+        </p>
+        <button
+          type="button"
+          onClick={() => setSuccess(false)}
+          className="mt-4 min-h-11 rounded-xl bg-blue-700 px-5 font-bold text-white hover:bg-blue-800"
+        >
+          Refer another
+        </button>
+      </div>
+    );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3 text-xs">
+    <form onSubmit={handleSubmit} className="space-y-3 text-base sm:text-sm">
       {error && (
         <div className="text-red-700 bg-red-50 border border-red-200 rounded-lg p-3">
           {error}
-        </div>
-      )}
-      {success && (
-        <div className="text-teal-800 bg-teal-50 border border-teal-200 rounded-lg p-3">
-          Referral submitted - our team will review and reach out.
         </div>
       )}
 
@@ -125,7 +158,7 @@ export default function SubmitReferralForm({
           name="patient_name"
           required
           maxLength={REFERRAL_LIMITS.patientName}
-          className="w-full p-2.5 rounded-lg border border-slate-300"
+          className="w-full min-h-11 p-2.5 rounded-lg border border-slate-300 text-base sm:text-sm"
         />
       </label>
       <PhoneNumberField
@@ -143,7 +176,7 @@ export default function SubmitReferralForm({
             <button
               type="button"
               onClick={() => setVisitMode("online")}
-              className={`flex-1 rounded-lg border px-3 py-2 font-semibold transition ${
+              className={`flex-1 min-h-11 rounded-lg border px-3 py-2 font-semibold transition ${
                 visitMode === "online"
                   ? "border-blue-700 bg-blue-50 text-blue-800"
                   : "border-slate-300 text-slate-600"
@@ -154,7 +187,7 @@ export default function SubmitReferralForm({
             <button
               type="button"
               onClick={() => setVisitMode("home_visit")}
-              className={`flex-1 rounded-lg border px-3 py-2 font-semibold transition ${
+              className={`flex-1 min-h-11 rounded-lg border px-3 py-2 font-semibold transition ${
                 visitMode === "home_visit"
                   ? "border-blue-700 bg-blue-50 text-blue-800"
                   : "border-slate-300 text-slate-600"
@@ -180,7 +213,7 @@ export default function SubmitReferralForm({
             required={visitMode === "home_visit"}
             minLength={visitMode === "home_visit" ? MIN_HOME_VISIT_ADDRESS_LENGTH : undefined}
             maxLength={REFERRAL_LIMITS.address}
-            className="w-full p-2.5 rounded-lg border border-slate-300"
+            className="w-full min-h-11 p-2.5 rounded-lg border border-slate-300 text-base sm:text-sm"
           />
         </label>
         <label className="block">
@@ -190,7 +223,7 @@ export default function SubmitReferralForm({
           <select
             name="preferred_language"
             defaultValue=""
-            className="w-full p-2.5 rounded-lg border border-slate-300 bg-white"
+            className="w-full min-h-11 p-2.5 rounded-lg border border-slate-300 text-base sm:text-sm bg-white"
           >
             <option value="">No preference</option>
             {languages.map((language) => (
@@ -209,7 +242,7 @@ export default function SubmitReferralForm({
             inputMode="numeric"
             maxLength={6}
             required
-            className="w-full p-2.5 rounded-lg border border-slate-300 sm:w-1/2"
+            className="w-full min-h-11 p-2.5 rounded-lg border border-slate-300 text-base sm:text-sm sm:w-1/2"
           />
         </label>
       )}
@@ -220,7 +253,7 @@ export default function SubmitReferralForm({
           rows={2}
           required
           maxLength={REFERRAL_LIMITS.medicalIssue}
-          className="w-full p-2.5 rounded-lg border border-slate-300"
+          className="w-full min-h-11 p-2.5 rounded-lg border border-slate-300 text-base sm:text-sm"
         />
       </label>
       <label className="block">
@@ -232,13 +265,13 @@ export default function SubmitReferralForm({
           name="treatment_needed"
           rows={2}
           maxLength={REFERRAL_LIMITS.treatmentNeeded}
-          className="w-full p-2.5 rounded-lg border border-slate-300"
+          className="w-full min-h-11 p-2.5 rounded-lg border border-slate-300 text-base sm:text-sm"
         />
       </label>
       <button
         type="submit"
         disabled={loading}
-        className="w-full bg-blue-700 hover:bg-blue-800 disabled:opacity-60 text-white font-bold py-3 rounded-xl transition"
+        className="w-full bg-blue-700 hover:bg-blue-800 disabled:opacity-60 text-white font-bold min-h-11 py-3 rounded-xl transition"
       >
         {loading ? "Submitting..." : "Submit Referral"}
       </button>

@@ -8,7 +8,7 @@ import IconCard from "@/components/marketing/IconCard";
 import ExploreSection from "@/components/marketing/ExploreSection";
 import ClosingCta from "@/components/marketing/ClosingCta";
 import { Stagger, StaggerItem } from "@/components/motion/primitives";
-import { readHomeVisitEnabled } from "@/lib/homeVisitFlag";
+import { readHomeVisitBookable } from "@/lib/homeVisitFlag";
 
 export const metadata: Metadata = {
   title: "Our Team | MoveRestore",
@@ -70,7 +70,7 @@ export default async function TeamPage() {
     therapists = fallback.data;
   }
 
-  const homeVisitEnabled = await readHomeVisitEnabled();
+  const homeVisitEnabled = await readHomeVisitBookable();
 
   const sectionNavItems: SectionNavItem[] = [
     { id: "the-team", label: "The Team", icon: "fa-user-doctor" },

@@ -27,8 +27,7 @@ import {
   pageUntilVisible,
   profileIdFor,
   rlsClientFor,
-  waitForSplashToClear,
-} from "./helpers";
+  waitForSplashToClear, openProfileBlocks } from "./helpers";
 
 test.skip(
   process.env.E2E_ALLOW_APPEND_ONLY_WRITES !== "1" && process.env.CI_LOCAL_STACK !== "1",
@@ -76,15 +75,16 @@ async function openAs(browser: Browser, email: string, path: string) {
   await ctx.addCookies(await browserCookiesFor(email));
   const page = await ctx.newPage();
   const response = await page.goto(`${BASE}${path}`, { waitUntil: "domcontentloaded" });
+  if (path.includes("/patient/dashboard/health-profile")) await openProfileBlocks(page);
   return { page, response };
 }
 
 function examCard(page: import("@playwright/test").Page) {
-  // The card is the innermost block holding its own heading.
-  return page
-    .locator("div")
-    .filter({ has: page.getByRole("heading", { level: 2, name: "Neurological examination" }) })
-    .last();
+  // The examination is the neurological profile's condition picture now
+  // (NeuroPicture, data-testid "neuro-picture"), its heading in a header
+  // block of its own -- so "the innermost block holding the heading" was that
+  // header, without the empty state or the record button.
+  return page.getByTestId("neuro-picture");
 }
 
 function scale(dialog: import("@playwright/test").Locator, group: string, grade: RegExp) {
@@ -234,7 +234,8 @@ test("NE-002: the patient reads the exam on their own Health Profile, read-only"
   const { page } = await openAs(browser, patient!.email, "/patient/dashboard/health-profile");
   try {
     await waitForSplashToClear(page);
-    await expect(page.getByRole("heading", { name: "Your examination" })).toBeVisible({ timeout: 60_000 });
+    // The patient's title for the neurological picture (NeuroPicture).
+    await expect(page.getByRole("heading", { name: "How your body is working now" })).toBeVisible({ timeout: 60_000 });
     await expect(page.getByText("Balance score").first()).toBeVisible();
     await expect(page.getByText("44/56").first()).toBeVisible();
     await expect(page.getByText("is still being built")).toHaveCount(0);

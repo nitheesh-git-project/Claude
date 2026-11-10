@@ -167,7 +167,7 @@ export default function PatientAuthCard() {
           Patient Portal Login
         </h2>
         <p className="text-xs text-slate-500 text-center mt-1">
-          Access your scheduled video sessions and rehabilitation plans
+          Access your sessions and your exercise plan
         </p>
 
         <div className="flex border-b border-slate-200 mt-6 mb-6">
@@ -180,10 +180,10 @@ export default function PatientAuthCard() {
               setRegisterPassword("");
               setRegisterConfirmPassword("");
             }}
-            className={`flex-1 pb-2 font-bold text-xs ${
+            className={`flex-1 min-h-11 pb-2 font-bold text-sm ${
               tab === "login"
                 ? "text-teal-700 border-b-2 border-teal-700"
-                : "text-slate-500"
+                : "text-slate-600"
             }`}
           >
             Sign In
@@ -197,10 +197,10 @@ export default function PatientAuthCard() {
               setRegisterPassword("");
               setRegisterConfirmPassword("");
             }}
-            className={`flex-1 pb-2 font-bold text-xs ${
+            className={`flex-1 min-h-11 pb-2 font-bold text-sm ${
               tab === "register"
                 ? "text-teal-700 border-b-2 border-teal-700"
-                : "text-slate-500"
+                : "text-slate-600"
             }`}
           >
             Register Account

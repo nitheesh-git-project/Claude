@@ -6,6 +6,7 @@ import {
   TUTORIAL_SCENES,
   chapterForSection,
   tutorialFor,
+  tutorialMayAutoStart,
   tutorialRoleForPath,
   tutorialSectionForFeedItem,
   tutorialStepForFeedItem,
@@ -77,7 +78,7 @@ describe("tutorial content", () => {
   it("walks the patient through a session's states, in the screens' own words", () => {
     const journey = chapterForSection("patient", "sessions")!.steps.find((s) => s.id === "journey")!;
     const text = journey.points!.join(" ");
-    expect(text).toContain("Waiting for a therapist");
+    expect(text).toContain("Waiting for a physiotherapist");
     expect(text).toContain("Tap to Join");
   });
 
@@ -154,5 +155,14 @@ describe("the onboarding guide", () => {
     const steps = guide.steps.map((s) => s.id);
     for (const id of ["triage", "ortho", "neuro", "paeds", "save"]) expect(steps).toContain(id);
     for (const step of guide.steps) expect(TUTORIAL_SCENES).toContain(step.scene);
+  });
+});
+
+describe("the first-visit tour and the guided assessment", () => {
+  it("never opens by itself over the live screens, and does everywhere else", () => {
+    expect(tutorialMayAutoStart("/patient/dashboard/session")).toBe(false);
+    expect(tutorialMayAutoStart("/therapist/dashboard/assessment/abc")).toBe(false);
+    expect(tutorialMayAutoStart("/patient/dashboard")).toBe(true);
+    expect(tutorialMayAutoStart("/therapist/dashboard/sessions")).toBe(true);
   });
 });

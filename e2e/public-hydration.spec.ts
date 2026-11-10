@@ -76,3 +76,17 @@ test("HY-002: /book hydrates cleanly for the same visitor", async ({ page }) => 
   await settle(page, "/book");
   expect(errors, errors[0]).toEqual([]);
 });
+
+// HY-003: scroll-reveal is an enhancement over content that is already there.
+// The server HTML of every public page carries nothing hidden by an inline
+// opacity:0, so the page reads with scripts slow, blocked or failing -- the
+// reveal arms itself only after mount, and only for blocks below the fold.
+test("HY-003: no public page ships hidden content in its server HTML", async ({ request }) => {
+  for (const path of PUBLIC_PAGES) {
+    const res = await request.get(`${BASE}${path}`);
+    expect(res.status(), path).toBeLessThan(500);
+    const html = await res.text();
+    const hidden = html.match(/style="[^"]*opacity:\s*0(?:;|")/g) ?? [];
+    expect(hidden, `${path} has inline opacity:0 in its server HTML`).toEqual([]);
+  }
+});

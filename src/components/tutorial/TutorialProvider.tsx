@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence } from "motion/react";
-import { chapterForSection, tutorialFor, type TutorialChapter, type TutorialRole } from "@/lib/tutorial";
+import { chapterForSection, tutorialFor, tutorialMayAutoStart, type TutorialChapter, type TutorialRole } from "@/lib/tutorial";
 import TutorialStage from "./TutorialStage";
 
 type OpenTour = { chapters: TutorialChapter[]; firstRun: boolean; single: boolean; startStep?: string };
@@ -51,6 +51,8 @@ export default function TutorialProvider({
 
   useEffect(() => {
     if (!autoStart || started.current) return;
+    // Never over the guided assessment's live screens.
+    if (!tutorialMayAutoStart(window.location.pathname)) return;
     started.current = true;
     // A beat after the page paints, so the tour arrives over the dashboard
     // rather than in place of it.

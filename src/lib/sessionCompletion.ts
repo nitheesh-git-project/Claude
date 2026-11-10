@@ -62,25 +62,52 @@ export function sessionExamWindowStartMs(slotMs: number, debugOffsetMs: number):
 
 /** The examination a delivered session must leave on the record, by the
  *  patient's condition type: the Pain Map for an orthopaedic patient, the
- *  neurological examination chart for a neurological one. */
-export type SessionExamKind = "pain_map" | "neuro_exam";
+ *  neurological examination chart for a neurological one, the paediatric
+ *  examination (milestones) for a paediatric one. Geriatric and
+ *  cardiopulmonary patients have none (requiredSessionExam returns null). */
+export type SessionExamKind = "pain_map" | "neuro_exam" | "peds_exam";
+
+/**
+ * Whether a paediatric Done requires the paediatric examination: it does,
+ * exactly like ortho and neuro (the owner's decision), now that the note
+ * dialog can record one - `SessionPedsExamStep`, mounted as the "peds_exam"
+ * arm of `SessionExamStep` (Health Profile redesign, phase 5b). The server
+ * half (peds_assessments, both submit routes, the complete-session read and
+ * its 409 `peds_exam_required`) was built first (phase 5a) and held the
+ * requirement off until a control existed to satisfy it, since a gate with
+ * nothing to press would have blocked every paediatric session.
+ *
+ * sessionCompletion.test.ts fails if this is on while SessionExamStep has no
+ * paediatric arm, so the two cannot drift apart again.
+ */
+export const PEDS_EXAM_REQUIRED_FOR_DONE = true;
 
 /**
  * Which exam Done requires, or null when the condition type has none.
- *
- * Paediatrics has no on-screen examination layer yet, so nothing is
- * required of it -- requiring an exam nobody can record would make every
- * paediatric session impossible to finish. When that layer is built it
- * gets an arm here, and the exhaustive switch makes forgetting it a type
+ * `pedsGate` is `PEDS_EXAM_REQUIRED_FOR_DONE` unless a test says otherwise.
+ * The exhaustive switch makes a new condition type without an arm a type
  * error rather than an ungated condition type.
  */
-export function requiredSessionExam(specialty: ConditionSpecialty): SessionExamKind | null {
+export function requiredSessionExam(
+  specialty: ConditionSpecialty,
+  pedsGate: boolean = PEDS_EXAM_REQUIRED_FOR_DONE
+): SessionExamKind | null {
   switch (specialty) {
     case "ortho":
       return "pain_map";
     case "neuro":
       return "neuro_exam";
     case "pediatrics":
+      return pedsGate ? "peds_exam" : null;
+    // Phase 6a, the owner's decision: Strength and balance care and Heart and
+    // lung rehabilitation have NO exam before Done. Their progress is the
+    // shared measurements (the four STEADI tests, the six-minute walk, the
+    // vitals) recorded through Record a test, and no single layer stands for
+    // "this session was examined" the way the Pain Map does for ortho. A
+    // therapist's Done still needs the session note. If that decision
+    // changes, this is the one place to give them a layer.
+    case "geriatric":
+    case "cardiopulmonary":
       return null;
     default: {
       const exhaustive: never = specialty;
@@ -99,13 +126,21 @@ export const SESSION_EXAM_REFUSAL: Record<SessionExamKind, { code: string; error
     code: "neuro_exam_required",
     error: "Record the neurological examination for this session before marking it done.",
   },
+  peds_exam: {
+    code: "peds_exam_required",
+    error: "Record the paediatric examination for this session before marking it done.",
+  },
+};
+
+const MISSING_MESSAGE: Record<SessionExamKind, string> = {
+  pain_map: "Update the Pain Map for this session before finishing it.",
+  neuro_exam: "Record the neurological examination for this session before finishing it.",
+  peds_exam: "Record the paediatric examination for this session before finishing it.",
 };
 
 /** The same refusal as the note dialog says it, where the act is "finishing". */
 export function sessionExamMissingMessage(kind: SessionExamKind): string {
-  return kind === "pain_map"
-    ? "Update the Pain Map for this session before finishing it."
-    : "Record the neurological examination for this session before finishing it.";
+  return MISSING_MESSAGE[kind];
 }
 
 /**
@@ -113,14 +148,17 @@ export function sessionExamMissingMessage(kind: SessionExamKind): string {
  * `counts` are the rows this therapist recorded inside
  * `sessionExamWindowStartMs`, per layer. Only the layer the condition type
  * requires counts: a neurological patient is never asked for pain scores,
- * nor an orthopaedic one for a neurological chart.
+ * nor an orthopaedic one for a neurological chart, and no layer stands in
+ * for another.
  */
 export function missingSessionExam(
   specialty: ConditionSpecialty,
-  counts: { painMap: number; neuroExam: number }
+  counts: { painMap: number; neuroExam: number; pedsExam?: number },
+  pedsGate: boolean = PEDS_EXAM_REQUIRED_FOR_DONE
 ): SessionExamKind | null {
-  const required = requiredSessionExam(specialty);
+  const required = requiredSessionExam(specialty, pedsGate);
   if (required === "pain_map") return counts.painMap > 0 ? null : "pain_map";
   if (required === "neuro_exam") return counts.neuroExam > 0 ? null : "neuro_exam";
+  if (required === "peds_exam") return (counts.pedsExam ?? 0) > 0 ? null : "peds_exam";
   return null;
 }

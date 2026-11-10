@@ -6,7 +6,7 @@ import Section from "@/components/marketing/Section";
 import IconCard from "@/components/marketing/IconCard";
 import ExploreSection from "@/components/marketing/ExploreSection";
 import { Reveal, Stagger, StaggerItem } from "@/components/motion/primitives";
-import { readHomeVisitEnabled } from "@/lib/homeVisitFlag";
+import { readHomeVisitBookable } from "@/lib/homeVisitFlag";
 
 export const metadata: Metadata = {
   title: "For Hospitals | MoveRestore",
@@ -55,7 +55,7 @@ const SOLUTION = [
 ];
 
 export default async function HospitalsPage() {
-  const homeVisitEnabled = await readHomeVisitEnabled();
+  const homeVisitEnabled = await readHomeVisitBookable();
 
   const sectionNavItems: SectionNavItem[] = [
     { id: "the-gap", label: "The Gap", icon: "fa-triangle-exclamation" },
