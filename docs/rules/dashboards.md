@@ -224,6 +224,19 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   refreshes once, since nothing that changed during the gap was delivered.
   It used to subscribe with no callback, so a refused or dropped socket
   stopped the dashboard updating with nothing on screen to say so.
+- **A realtime channel joins only after the socket has the person's token.**
+  Every subscription goes through `joinRealtimeChannel`
+  (`src/lib/realtimeJoin.ts`), never `supabase.channel(...).subscribe()`
+  directly. The client library builds the join the moment `subscribe()` is
+  called, with whatever token it holds then; if the session's token lands
+  while that join is still in flight, the library never sends it, and the
+  server keeps the channel as `anon`. The channel then says `SUBSCRIBED`,
+  the server says "Subscribed to PostgreSQL", and RLS filters out every
+  change for as long as the page is open -- a dashboard that silently never
+  updates, decided by milliseconds at page load. The helper settles the token
+  first (`realtime.setAuth()`), then makes and joins the channel; its unit
+  test pins that order, and `admin-refresh-badge` RB-000 reads the role each
+  join carried.
 - **A dashboard refresh is expensive; debounce accordingly.**
   `RealtimeRefresh` turns a `postgres_changes` event into `router.refresh()`,
   which on the admin dashboard re-runs the whole Server Component - ~40
@@ -302,11 +315,14 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   arithmetic and `e2e/admin-refresh-badge.spec.ts` pins what a person reads --
   driven as a screen because no route and no row changed, and carrying its own
   RB-000 egress probe, since the badge is fed by a socket that never opens in
-  a sandbox and every other case would pass vacuously. When a case fails it
-  prints the browser's realtime trail (`src/lib/realtimeTrail.ts`,
-  development builds only): every refresh start and landing, every event, and
-  whether it was counted, deferred by the cooldown or judged covered -- the
-  timing a "no badge" assertion cannot show on its own.
+  a sandbox and every other case would pass vacuously. Each case prints the
+  browser's realtime trail (`src/lib/realtimeTrail.ts`, development builds
+  only) as one line, and in full on a failure: the role each join carried,
+  the server's word on the Postgres side of it, every refresh start and
+  landing, every event, and whether it was counted, deferred by the cooldown
+  or judged covered -- the timing a "no badge" assertion cannot show on its
+  own. On the gate's local stack a failed case also attaches what Realtime
+  stored (its subscriptions and the role they are for, its replication slot).
   **And a lazy sweep must not be able to refresh the render that started
   it.** Anything running in the dashboard's `after()` that *writes* a table
   on one of these channels closes a circle: render, write, realtime event,

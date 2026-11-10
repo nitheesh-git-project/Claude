@@ -58,7 +58,9 @@ test.describe("the admin Refresh button's waiting-changes badge", () => {
   /**
    * The quality gate's local stack only: what Realtime holds in the database
    * at the moment a case failed -- the subscriptions it stored for the pages
-   * that are open, and where its replication slot stands. Rows with no slot
+   * that are open and the ROLE it stored them for, and where its replication
+   * slot stands. Rows for `anon` is a join that went out without the person's
+   * token (nothing they may read is ever delivered); rows with no slot
    * movement is a stalled poller; no rows is a join the server never
    * finished. Read-only, and skipped anywhere there is no local stack.
    */
@@ -66,7 +68,7 @@ test.describe("the admin Refresh button's waiting-changes badge", () => {
     const url = process.env.CI_LOCAL_STACK === "1" ? process.env.SCHEMA_APPLY_DATABASE_URL : undefined;
     if (!url) return null;
     const sql = [
-      "select 'subscriptions' as what, count(*) as rows, count(distinct subscription_id) as channels, count(distinct entity) as tables, min(created_at) as oldest, max(created_at) as newest from realtime.subscription",
+      "select 'subscriptions' as what, claims_role::text as stored_for_role, count(*) as rows, count(distinct entity) as tables, min(created_at) as oldest, max(created_at) as newest from realtime.subscription group by claims_role",
       "select 'slot' as what, slot_name, plugin, temporary, active, wal_status, pg_wal_lsn_diff(pg_current_wal_lsn(), confirmed_flush_lsn) as bytes_behind from pg_replication_slots",
       "select 'activity' as what, state, wait_event, round(extract(epoch from now() - query_start)) as seconds, left(regexp_replace(query, '\\s+', ' ', 'g'), 140) as query from pg_stat_activity where datname = current_database() and pid <> pg_backend_pid() and (query ilike '%realtime.%' or query ilike '%logical_slot%' or backend_type = 'walsender')",
     ];
@@ -77,32 +79,6 @@ test.describe("the admin Refresh button's waiting-changes badge", () => {
   /** The badge's own live region -- the button's name is deliberately constant. */
   function badgeText(page: import("@playwright/test").Page) {
     return page.getByRole("status").filter({ hasText: /update/ });
-  }
-
-  /**
-   * Somebody else changes a row, again if need be, until the badge counts it.
-   *
-   * A channel reports SUBSCRIBED before the local stack's change stream is
-   * live for it, and a write in that gap is never delivered -- not late,
-   * never. CI's trail shows exactly that (src/lib/realtimeTrail.ts): joined,
-   * authenticated, refresh settled, and no event at all. Writing again until
-   * one lands keeps the assertion -- an outside change is counted, and none of
-   * the browser's own work is -- without betting on how long the gap lasts.
-   */
-  async function changeUntilCounted(
-    page: import("@playwright/test").Page,
-    admin: ReturnType<typeof adminClient>,
-    id: string,
-    restore: string | null
-  ) {
-    let attempt = 0;
-    await expect(async () => {
-      attempt += 1;
-      // A different value every time, so every write is a real change.
-      const name = `${restore ?? "QA Patient"}${" ".repeat(attempt)}`;
-      await admin.from("profiles").update({ full_name: name }).eq("id", id);
-      await expect(badgeText(page)).toHaveCount(1, { timeout: 8_000 });
-    }).toPass({ timeout: 60_000 });
   }
 
   function refreshButton(page: import("@playwright/test").Page) {
@@ -138,6 +114,26 @@ test.describe("the admin Refresh button's waiting-changes badge", () => {
     // The URL is not injected in every environment, so this is a soft probe:
     // what it must not do is silently pass a suite that proved nothing.
     test.skip(!reachable, "the browser cannot reach Supabase -- the badge is fed by a socket that never opens here");
+
+    // Each channel must JOIN as the signed-in admin. The page records the role
+    // its join is about to carry (a development build's realtime trail); a
+    // join as `none` or `anon` is the fault RB-002 can only show as "nothing
+    // arrived". A production build keeps no trail, so there is nothing to read
+    // there and RB-002 stands alone.
+    const joins = async () =>
+      (
+        await page.evaluate(
+          () => (window as unknown as { __realtimeTrail?: { kind: string; detail?: string }[] }).__realtimeTrail ?? null
+        )
+      )?.filter((e) => e.kind === "channel-join") ?? null;
+    // The trail appears with its first entry, a moment after hydration.
+    await page
+      .waitForFunction(() => !!(window as unknown as { __realtimeTrail?: unknown[] }).__realtimeTrail, undefined, { timeout: 10_000 })
+      .catch(() => null);
+    if ((await joins()) !== null) {
+      await expect.poll(async () => (await joins())?.length ?? 0, { timeout: 30_000 }).toBeGreaterThanOrEqual(2);
+      for (const join of (await joins()) ?? []) expect(join.detail, "the role a realtime join carries").toMatch(/^as authenticated:/);
+    }
   });
 
   test("RB-001 an admin's own refresh leaves the badge at zero", async ({ page }) => {
@@ -195,7 +191,14 @@ test.describe("the admin Refresh button's waiting-changes badge", () => {
       await expect(refreshButton(page)).toBeEnabled({ timeout: 60_000 });
       await page.waitForTimeout(5_000);
 
-      await changeUntilCounted(page, admin, id, restore);
+      // One write, counted. This is also the end-to-end proof that the join
+      // carried the admin's token: a channel the server took for `anon` says
+      // SUBSCRIBED and then never delivers this (src/lib/realtimeJoin.ts) --
+      // which is what this case failed on in the quality gate, for a minute of
+      // repeated writes, until the join was made to wait for the token.
+      await admin.from("profiles").update({ full_name: `${restore ?? "QA Patient"} ` }).eq("id", id);
+
+      await expect(badgeText(page)).toHaveCount(1, { timeout: 30_000 });
       await page.screenshot({ path: `${SHOTS}/02-someone-elses-change.png`, fullPage: true });
     } finally {
       await admin.from("profiles").update({ full_name: restore }).eq("id", id);
@@ -222,7 +225,8 @@ test.describe("the admin Refresh button's waiting-changes badge", () => {
       await expect(refreshButton(page)).toBeEnabled({ timeout: 60_000 });
       await page.waitForTimeout(5_000);
 
-      await changeUntilCounted(page, admin, id, restore);
+      await admin.from("profiles").update({ full_name: `${restore ?? "QA Patient"} ` }).eq("id", id);
+      await expect(badgeText(page)).toHaveCount(1, { timeout: 30_000 });
 
       // Reading it is what clears it, and the refresh that clears it must not
       // then count its own echo -- which is the whole bug, one step along.

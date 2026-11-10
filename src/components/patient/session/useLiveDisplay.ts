@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { joinRealtimeChannel } from "@/lib/realtimeJoin";
 import { parseLiveDisplayRow, type LiveDisplayView } from "@/lib/assessmentRun";
 import { COMPANION_HEARTBEAT_MS, COMPANION_POLL_MS, COMPANION_REALTIME_GRACE_MS, asLiveDisplayView, serverOffsetMs } from "@/lib/companionScreen";
 import { sessionProtocol } from "@/lib/sessionProtocols";
@@ -79,35 +80,38 @@ export function useLiveDisplay(patientId: string, initial: LiveDisplayInitial) {
   // The realtime channel.
   useEffect(() => {
     const supabase = createClient();
-    const channel = supabase.channel(`companion:${patientId}`);
-    let disposed = false;
-    channel.on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: "assessment_live_display", filter: `patient_id=eq.${patientId}` },
-      (payload) => {
-        if (payload.eventType === "DELETE") {
-          apply(null, null);
-          return;
+    // Joined through joinRealtimeChannel so the join carries the patient's
+    // token: this row is readable by its own patient only, and a channel the
+    // server took for `anon` reports SUBSCRIBED and then delivers nothing
+    // (src/lib/realtimeJoin.ts).
+    return joinRealtimeChannel(
+      supabase,
+      `companion:${patientId}`,
+      (channel) => {
+        channel.on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "assessment_live_display", filter: `patient_id=eq.${patientId}` },
+          (payload) => {
+            if (payload.eventType === "DELETE") {
+              apply(null, null);
+              return;
+            }
+            const parsed = parseLiveDisplayRow(payload.new, sessionProtocol);
+            if (parsed) apply(parsed, null);
+            else void refetch();
+          }
+        );
+      },
+      (status) => {
+        if (status === "SUBSCRIBED") {
+          setRealtimeOk(true);
+          // Whatever changed while the socket was joining was never delivered.
+          void refetch();
+        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+          setRealtimeOk(false);
         }
-        const parsed = parseLiveDisplayRow(payload.new, sessionProtocol);
-        if (parsed) apply(parsed, null);
-        else void refetch();
       }
     );
-    channel.subscribe((status) => {
-      if (disposed) return;
-      if (status === "SUBSCRIBED") {
-        setRealtimeOk(true);
-        // Whatever changed while the socket was joining was never delivered.
-        void refetch();
-      } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
-        setRealtimeOk(false);
-      }
-    });
-    return () => {
-      disposed = true;
-      supabase.removeChannel(channel);
-    };
   }, [patientId, apply, refetch]);
 
   // The heartbeat (E12): while a check is live and realtime is delivering,
