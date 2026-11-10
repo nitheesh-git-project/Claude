@@ -35,7 +35,15 @@ import AnnouncementDialog from "./AnnouncementDialog";
 const SLIDE_MS = 6500;
 const EMPTY: DashboardAnnouncement[] = [];
 
-async function postReceipt(id: string, action: "dismiss" | "seen"): Promise<boolean> {
+/**
+ * "refused" is the server saying no. "unreachable" is the request not
+ * getting an answer back -- which is also what a tap followed straight away
+ * by leaving the page looks like, since the browser drops the page's wait
+ * while the keepalive request itself still arrives. Only a refusal undoes a
+ * close; treating the other as one is how a banner closed a moment before a
+ * reload came back.
+ */
+async function postReceipt(id: string, action: "dismiss" | "seen"): Promise<"ok" | "refused" | "unreachable"> {
   try {
     const res = await fetch("/api/announcements/receipt", {
       method: "POST",
@@ -46,9 +54,9 @@ async function postReceipt(id: string, action: "dismiss" | "seen"): Promise<bool
       // page that sent it.
       keepalive: true,
     });
-    return res.ok;
+    return res.ok ? "ok" : "refused";
   } catch {
-    return false;
+    return "unreachable";
   }
 }
 
@@ -197,8 +205,8 @@ function Bar({ variant, source = EMPTY }: { variant: "full" | "slim"; source?: D
   async function close(a: DashboardAnnouncement) {
     setClosed((prev) => new Set(prev).add(a.id));
     writeClosedHere([...readClosedHere().filter((id) => id !== a.id), a.id]);
-    const ok = await postReceipt(a.id, "dismiss");
-    if (!ok) {
+    const outcome = await postReceipt(a.id, "dismiss");
+    if (outcome === "refused") {
       writeClosedHere(readClosedHere().filter((id) => id !== a.id));
       // Put it back rather than pretend: it would return on the next page
       // anyway, and a banner that keeps coming back reads as a bug.
