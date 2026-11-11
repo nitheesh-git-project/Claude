@@ -685,6 +685,10 @@ export async function deleteFixtureAccount(id: string | undefined): Promise<void
  * asserted by e2e/health-profile-layout.spec.ts.
  */
 export async function openProfileBlocks(page: import("@playwright/test").Page): Promise<void> {
+  // The dashboards stream in behind a loading screen (DashboardLoading), so
+  // the page's load event can come before the profile's blocks exist. Wait
+  // for them, or this opens nothing and the next click times out.
+  await page.locator("details").first().waitFor({ state: "attached", timeout: 60_000 });
   await page.evaluate(() => {
     document.querySelectorAll("details").forEach((d) => {
       (d as HTMLDetailsElement).open = true;
