@@ -105,6 +105,19 @@ test.describe("announcements and the notebook", () => {
 
   test.beforeAll(async () => {
     await clearFixtures();
+    // Warm the route first. On the gate's cold dev server the first request
+    // to it once came back 404 while it was still compiling (next.js 803ms,
+    // handler 114ms), which this route cannot answer to a signed-in patient,
+    // and ANN-001 failed on it. An admin's GET only reads. If it never stops
+    // answering 404, the route really is missing, and this says so.
+    const adminCookie = await cookieHeaderFor(QA_EMAILS.admin);
+    let warm = 0;
+    for (let i = 0; i < 5; i++) {
+      warm = (await fetch(`${BASE}/api/admin/announcements`, { headers: { cookie: adminCookie } })).status;
+      if (warm !== 404) break;
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+    expect(warm, "GET /api/admin/announcements as admin").toBe(200);
     for (const email of [QA_EMAILS.patientA, QA_EMAILS.patientB, QA_EMAILS.therapistA, QA_EMAILS.hospital]) {
       await markDashboardTourSeen(email);
     }
@@ -219,6 +232,10 @@ test.describe("announcements and the notebook", () => {
     await hospital.goto(`${BASE}/hospital/dashboard`);
     await expect(hospital.getByRole("heading", { level: 1 })).toBeVisible({ timeout: 60_000 });
     await expect(hospital.getByTestId("announcement-bar")).toHaveCount(0);
+    // Exactly one, waited for: once, on a local dev run, two matched for a
+    // moment while the page swapped in (a strict-mode failure); a duplicate
+    // that stays still fails here.
+    await expect(hospital.getByTestId("notebook-button")).toHaveCount(1);
     await expect(hospital.getByTestId("notebook-button")).toBeVisible();
     await hospital.context().close();
   });
