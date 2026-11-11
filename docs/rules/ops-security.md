@@ -729,10 +729,12 @@ Finance and Clinical admin -- and lists each login's email and password with
 copy buttons. **Never a Master Admin**: a test login with full scope could
 reset the database.
 
-- **Gated like the reset.** `ALLOW_DEBUG_TEST_ACCOUNTS` must be exactly
-  `"true"` on the server (404 otherwise), and the caller a signed-in Master
-  Admin. The public `NEXT_PUBLIC_SHOW_DEBUG_NAV` flag is not reused, for the
-  reset's reason.
+- **It follows the debug bar, by the owner's choice.** The route works
+  wherever `isDebugNavVisible()` is true (404 otherwise) and only for a
+  signed-in Master Admin. Unlike the reset it has no switch of its own: one
+  setting is simpler, and the worst it can do is make or remove its own test
+  accounts. That makes `NEXT_PUBLIC_SHOW_DEBUG_NAV=false` on the live site the
+  thing that keeps test accounts off the production database.
 - **Removal only reaches its own accounts.** `debug_purge_test_account()`
   refuses any id not in `debug_test_accounts`, then collects every row that
   points at the account (following owner columns such as

@@ -26,8 +26,9 @@ import {
  * one this panel made (src/lib/debugTestAccounts.ts).
  *
  * The server decides whether it works at all: a Master Admin must be signed
- * in and ALLOW_DEBUG_TEST_ACCOUNTS must be on. The panel says which of the
- * two is missing rather than showing an empty list.
+ * in, and the server must have the debug bar on (it follows
+ * NEXT_PUBLIC_SHOW_DEBUG_NAV). The panel says which is missing rather than
+ * showing an empty list.
  */
 type Status =
   | { kind: "loading" }
@@ -146,9 +147,7 @@ function Panel({ onClose }: { onClose: () => void }) {
             )}
             {status.kind === "off" && (
               <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-900" data-testid="debug-test-accounts-off">
-                <span>Switched off on this server. Set </span>
-                <code>ALLOW_DEBUG_TEST_ACCOUNTS=true</code>
-                <span> in the server environment to make test accounts.</span>
+                Switched off on this server: its debug bar is turned off, so test accounts are too.
               </p>
             )}
             {status.kind === "signed_out" && (

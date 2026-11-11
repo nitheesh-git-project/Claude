@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { serverError } from "@/lib/apiError";
+import { isDebugNavVisible } from "@/lib/debugNavVisible";
 import {
   TEST_ACCOUNT_SET,
   batchTag,
@@ -19,10 +20,11 @@ import {
 // them with their passwords, and remove them with everything they did.
 //
 // Gated three ways, all of which must pass:
-//   1. ALLOW_DEBUG_TEST_ACCOUNTS must be exactly "true" on the server. Not
-//      the public NEXT_PUBLIC_SHOW_DEBUG_NAV flag -- that one shows the bar to
-//      every visitor of the deployed site. Unset, this answers 404, so a
-//      probe cannot learn the route is here.
+//   1. The debug bar must be on for this deployment (isDebugNavVisible():
+//      NEXT_PUBLIC_SHOW_DEBUG_NAV is not "false"). One switch for both, by
+//      the owner's choice: wherever the bar shows, its panel works, and
+//      switching the bar off on the live site switches this off with it.
+//      Off, this answers 404, so a probe cannot learn the route is here.
 //   2. The caller must be a signed-in admin...
 //   3. ...with full scope. Making an approved therapist, or deleting
 //      payments, is not a desk's call.
@@ -36,7 +38,7 @@ function disabled() {
 }
 
 function enabled(): boolean {
-  return process.env.ALLOW_DEBUG_TEST_ACCOUNTS === "true";
+  return isDebugNavVisible();
 }
 
 async function guard() {

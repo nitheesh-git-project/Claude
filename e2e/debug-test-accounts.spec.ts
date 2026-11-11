@@ -4,10 +4,10 @@
 // spec proves both halves of its safety: nobody but a Master Admin reaches
 // it, and removal never touches an account the panel did not make.
 //
-// The route answers 404 unless ALLOW_DEBUG_TEST_ACCOUNTS is "true" on the
-// server, which is also a refusal; the cases that need it on say so and
-// assert the switched-off answer instead when it is off, the way
-// admin-debug-reset.spec.ts treats ALLOW_DEBUG_DATA_RESET.
+// The route follows the debug bar: it answers 404 where
+// NEXT_PUBLIC_SHOW_DEBUG_NAV is "false", which is also a refusal. The case
+// that needs it on asserts the switched-off answer instead when it is off,
+// the way admin-debug-reset.spec.ts treats ALLOW_DEBUG_DATA_RESET.
 import { test, expect } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 import { BASE, QA_EMAILS, adminClient, browserCookiesFor, cookieHeaderFor } from "./helpers";

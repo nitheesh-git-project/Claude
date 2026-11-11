@@ -283,7 +283,7 @@ rg -i "<the thing you are seeing>" docs/rules/
 - Only a patient account can book; one account carries one role
 - An admin can sign in as somebody, and that is a session swap rather than a preview
 - Don't name the back office to anyone outside it
-- Gated like the reset
+- It follows the debug bar, by the owner's choice
 - Removal only reaches its own accounts
 - Passwords are stored in plain text, on purpose
 - The test card is copy-and-paste, not autofill

@@ -20516,8 +20516,8 @@ revoke insert, update, delete on razorpay_refunds from anon, authenticated;
 -- reach a real person -- whatever the account has done, and whatever points
 -- at it. The password is stored in plain text on purpose: these logins are
 -- throwaway, they exist to be copied, and the table is readable by the
--- service role alone (RLS on, no policy) behind a Master Admin and a server
--- switch (ALLOW_DEBUG_TEST_ACCOUNTS).
+-- service role alone (RLS on, no policy) behind a Master Admin, and only
+-- where the debug bar is on (NEXT_PUBLIC_SHOW_DEBUG_NAV not "false").
 create table if not exists debug_test_accounts (
   user_id uuid primary key,
   batch_id uuid not null,
