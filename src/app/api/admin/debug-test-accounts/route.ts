@@ -99,7 +99,7 @@ export async function GET() {
   return NextResponse.json({ accounts: (data ?? []) as TestAccountRow[] });
 }
 
-type Body = { action?: string; userId?: string };
+type Body = { action?: string; userId?: string; key?: string };
 
 export async function POST(request: NextRequest) {
   if (!enabled()) return disabled();
@@ -113,7 +113,11 @@ export async function POST(request: NextRequest) {
   const admin = createAdminClient();
 
   if (action === "create") {
-    return createSet(admin, context.id);
+    // One role ("key": "patient", "therapist", ...) or, with no key, one of each.
+    const key = parsed.data.key?.trim();
+    const plans = key ? TEST_ACCOUNT_SET.filter((p) => p.key === key) : TEST_ACCOUNT_SET;
+    if (plans.length === 0) return NextResponse.json({ error: "Unknown account type" }, { status: 400 });
+    return createSet(admin, context.id, plans);
   }
 
   if (action === "delete" || action === "delete_all") {
@@ -162,7 +166,7 @@ export async function POST(request: NextRequest) {
 
 type Admin = ReturnType<typeof createAdminClient>;
 
-async function createSet(admin: Admin, actorId: string) {
+async function createSet(admin: Admin, actorId: string, plans: TestAccountPlan[]) {
   const random = () => crypto.randomInt(0, 1_000_000) / 1_000_000;
   const tag = batchTag(random);
   const batchId = crypto.randomUUID();
@@ -177,14 +181,14 @@ async function createSet(admin: Admin, actorId: string) {
     .limit(1)
     .maybeSingle();
 
-  for (const plan of TEST_ACCOUNT_SET) {
+  for (const plan of plans) {
     const result = await createOne(admin, plan, tag, batchId, actorId, random, area ?? null);
     if ("error" in result) {
       // Everything made so far in this set is a test account already, so the
       // panel lists it and it can be deleted; say which one stopped the set.
       return NextResponse.json(
         {
-          error: `Made ${made.length} of ${TEST_ACCOUNT_SET.length}: the ${plan.label.toLowerCase()} could not be created (${result.error}).`,
+          error: `Made ${made.length} of ${plans.length}: the ${plan.label.toLowerCase()} could not be created (${result.error}).`,
           accounts: made,
         },
         { status: 500 }

@@ -91,6 +91,14 @@ test.describe("Debug test accounts", () => {
       expect(profiles?.length).toBe(6);
       expect(profiles!.every((p) => p.approved)).toBe(true);
       expect(profiles!.some((p) => p.admin_scope === "full")).toBe(false);
+
+      // One role at a time: a single tap makes just that account.
+      const one = await post(cookie, { action: "create", key: "patient" });
+      expect(one.status, await one.clone().text()).toBe(200);
+      const single = ((await one.json()) as { accounts: { user_id: string; label: string }[] }).accounts;
+      expect(single.map((a) => a.label)).toEqual(["Patient"]);
+      accounts.push(...(single as typeof accounts));
+      expect((await post(cookie, { action: "create", key: "master" })).status).toBe(400);
       const therapistId = accounts[1].user_id;
       const { count: hours } = await admin
         .from("therapist_availability_template")

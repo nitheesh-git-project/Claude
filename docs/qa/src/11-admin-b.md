@@ -821,10 +821,10 @@ Every row here is a required test. The **Verify** column is what proves the chan
 #### `ADM-SET-025e` - Test accounts from the debug bar · P1
 
 **Steps**
-1. On staging (where the debug bar shows), signed in as a Master Admin, tap **Test accounts** in the debug bar, then **Make a test set**.
+1. On staging (where the debug bar shows), signed in as a Master Admin, tap **Test accounts** in the debug bar, then **Make all 6 at once**. Then tap **+ Patient** twice.
 2. Copy the patient's email and password, open a private window, and sign in on `/patient/login`. Book and pay for a session with the test card (the box floats over the Razorpay checkout; copy each value).
 3. Back in the panel, **Delete** that patient. Then make another set and **Delete all test accounts**.
 4. Sign out and open the panel; then sign in as Operations and open it; then open the live site, where the debug bar is switched off.
 
-**Expected Result.** Step 1: six accounts (Patient, Therapist, Hospital partner, Operations, Finance and Clinical admin), each with email, password, **Copy both** and **Login page**; never a Master Admin. Step 2: the login works; the therapist is bookable Monday to Saturday. Step 3: the patient, its session and its payment are gone from every screen; Delete all removes the rest; no real account changes. Step 4: signed out it says to sign in as a Master Admin; Operations is refused; on the live site neither the debug bar nor the panel appears, and the route answers 404.
+**Expected Result.** Step 1: six accounts, then one more patient per tap (Patient, Therapist, Hospital partner, Operations, Finance and Clinical admin), each with email, password, **Copy both** and **Login page**; never a Master Admin. Step 2: the login works; the therapist is bookable Monday to Saturday. Step 3: the patient, its session and its payment are gone from every screen; Delete all removes the rest; no real account changes. Step 4: signed out it says to sign in as a Master Admin; Operations is refused; on the live site neither the debug bar nor the panel appears, and the route answers 404.
 

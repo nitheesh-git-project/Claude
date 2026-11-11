@@ -726,7 +726,7 @@ The debug bar's **Test accounts** button (`DebugTestAccountsPanel` ->
 patient (with a home address in a served pincode), a therapist approved with
 Full day hours Monday to Saturday, a hospital partner, and an Operations,
 Finance and Clinical admin -- and lists each login's email and password with
-copy buttons. **Never a Master Admin**: a test login with full scope could
+copy buttons -- all six at once, or one role per tap (`{"action":"create","key":"patient"}`). **Never a Master Admin**: a test login with full scope could
 reset the database.
 
 - **It follows the debug bar, by the owner's choice.** The route works

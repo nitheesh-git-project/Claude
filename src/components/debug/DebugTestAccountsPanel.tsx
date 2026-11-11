@@ -177,10 +177,27 @@ function Panel({ onClose }: { onClose: () => void }) {
                     className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-teal-700 px-3 py-2.5 text-xs font-semibold text-white transition hover:bg-teal-800 disabled:opacity-60"
                   >
                     {busy === "create" && <Spinner size={12} />}
-                    {busy === "create" ? "Making accounts…" : `Make a test set (${TEST_ACCOUNT_SET.length} accounts)`}
+                    {busy === "create" ? "Making accounts…" : `Make all ${TEST_ACCOUNT_SET.length} at once`}
                   </button>
+                  <p className="text-[11px] font-semibold text-slate-600">Or one at a time:</p>
+                  <div className="grid grid-cols-2 gap-1.5" data-testid="debug-test-accounts-one">
+                    {TEST_ACCOUNT_SET.map((plan) => (
+                      <button
+                        key={plan.key}
+                        type="button"
+                        disabled={busy !== null}
+                        onClick={() =>
+                          void act(`one:${plan.key}`, { action: "create", key: plan.key }, () => `Made a test ${plan.label.toLowerCase()}. Copy its login below.`)
+                        }
+                        className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-teal-200 px-2 py-2 text-[11px] font-semibold text-teal-800 transition hover:bg-teal-50 disabled:opacity-60"
+                      >
+                        {busy === `one:${plan.key}` ? <Spinner size={10} /> : <i className="fa-solid fa-plus" aria-hidden="true" />}
+                        <span>{plan.label}</span>
+                      </button>
+                    ))}
+                  </div>
                   <p className="text-[11px] text-slate-500">
-                    {`${TEST_ACCOUNT_SET.map((p) => p.label).join(", ")}. The therapist is approved with Full day hours Monday to Saturday. Sign in from a private window to stay signed in here.`}
+                    The therapist is approved with Full day hours Monday to Saturday. Sign in from a private window to stay signed in here.
                   </p>
                 </div>
 
