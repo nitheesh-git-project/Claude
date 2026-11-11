@@ -20551,9 +20551,9 @@ revoke all on debug_test_accounts from anon, authenticated;
 -- evidence tables refuse one by trigger, and the chains run several tables
 -- deep -- so this walks the rows rather than the schema. Starting from the
 -- profile, it collects every row whose foreign key points at a row already
--- collected, until nothing new turns up, and then deletes them all with
--- triggers and foreign-key checks off for this transaction only
--- (`set local session_replication_role = replica`). Walking the schema
+-- collected, until nothing new turns up, turns off the append-only and money
+-- guards on those tables by name for this transaction only, and deletes the
+-- rows in passes so each goes after whatever points at it. Walking the schema
 -- instead -- one nested delete per foreign-key path -- was tried and runs to
 -- thousands of paths at depth eight.
 --
@@ -20578,10 +20578,14 @@ declare
   added integer;
   total integer := 0;
   rounds integer := 0;
-  rel record;
   n integer;
   removed jsonb := '{}'::jsonb;
   v_test_ids uuid[];
+  v_rels oid[];
+  v_rel oid;
+  trg record;
+  pass integer := 0;
+  progress boolean;
 begin
   if not exists (select 1 from debug_test_accounts where user_id = p_user_id) then
     raise exception 'not a test account: only accounts the debug bar created can be removed this way';
@@ -20590,20 +20594,19 @@ begin
 
   create temp table if not exists _purge_rows (rel oid not null, rid tid not null, primary key (rel, rid)) on commit drop;
   truncate _purge_rows;
+  create temp table if not exists _purge_triggers (rel oid not null, name text not null) on commit drop;
+  truncate _purge_triggers;
 
   insert into _purge_rows (rel, rid)
   select 'public.profiles'::regclass::oid, ctid from profiles where id = p_user_id;
 
-  set local session_replication_role = replica;
-
+  -- 1. Collect every row that points at a collected row, until nothing new.
   loop
     rounds := rounds + 1;
     added := 0;
     for fk in
       select con.conrelid as child, con.confrelid as parent,
-             ca.attname::text as child_col, pa.attname::text as parent_col,
-             con.confdeltype as on_delete,
-             ca.attnotnull as not_null
+             ca.attname::text as child_col, pa.attname::text as parent_col
       from pg_constraint con
       join pg_class cr on cr.oid = con.conrelid
       join pg_namespace cn on cn.oid = cr.relnamespace
@@ -20633,15 +20636,14 @@ begin
             where c.%3$I in (select p.%4$I from %5$s p
                               where p.ctid in (select rid from _purge_rows where rel = %6$s::oid))
            on conflict do nothing',
-        fk.child, fk.child::regclass, fk.child_col, fk.parent_col, fk.parent::regclass, fk.parent)
-      ;
+        fk.child, fk.child::regclass, fk.child_col, fk.parent_col, fk.parent::regclass, fk.parent);
       get diagnostics n = row_count;
       added := added + n;
     end loop;
     exit when added = 0 or rounds > 50;
   end loop;
 
-  -- Profiles that point at a collected row: real people a test account
+  -- 2. Profiles that point at a collected row: real people a test account
   -- touched (a referral, a pay-later grant). Their column is nulled; a NOT
   -- NULL one refuses the purge.
   for fk in
@@ -20674,39 +20676,54 @@ begin
     end if;
   end loop;
 
-  -- SET NULL / SET DEFAULT foreign keys into collected rows, on rows that are
-  -- staying: done by hand, since the checks that would do it are off.
-  for fk in
-    select con.conrelid as child, con.confrelid as parent,
-           ca.attname::text as child_col, pa.attname::text as parent_col
-    from pg_constraint con
-    join pg_class cr on cr.oid = con.conrelid
-    join pg_namespace cn on cn.oid = cr.relnamespace
-    join pg_attribute ca on ca.attrelid = con.conrelid and ca.attnum = con.conkey[1]
-    join pg_attribute pa on pa.attrelid = con.confrelid and pa.attnum = con.confkey[1]
-    where con.contype = 'f'
-      and cn.nspname = 'public'
-      and array_length(con.conkey, 1) = 1
-      and con.confdeltype in ('n', 'd')
-      and con.conrelid <> 'public.profiles'::regclass
-      and con.confrelid in (select distinct r.rel from _purge_rows r)
+  -- 3. Guards off, by name, on the tables being emptied -- for this
+  -- transaction only (ALTER TABLE is transactional, and a failure anywhere
+  -- rolls it back with everything else). Only the triggers that are on now,
+  -- so they are put back exactly as found. Foreign keys are not triggers of
+  -- this kind and stay enforced throughout. This is the clean-up script's
+  -- own approach; `session_replication_role` was tried first and is refused
+  -- to this role on a stock Supabase stack.
+  insert into _purge_triggers (rel, name)
+  select t.tgrelid, t.tgname
+  from pg_trigger t
+  where not t.tgisinternal
+    and t.tgenabled <> 'D'
+    and t.tgrelid in (select distinct r.rel from _purge_rows r);
+  for trg in select * from _purge_triggers loop
+    execute format('alter table %s disable trigger %I', trg.rel::regclass, trg.name);
+  end loop;
+
+  -- 4. Delete in passes. A table still referenced by another collected
+  -- table's rows waits for a later pass; a cascade removes rows ahead of
+  -- their turn, which leaves their table's delete with nothing to do.
   loop
-    execute format(
-      'update %1$s c set %2$I = null
-        where c.%2$I in (select p.%3$I from %4$s p where p.ctid in (select rid from _purge_rows where rel = %5$s::oid))
-          and c.ctid not in (select rid from _purge_rows where rel = %6$s::oid)',
-      fk.child::regclass, fk.child_col, fk.parent_col, fk.parent::regclass, fk.parent, fk.child);
+    pass := pass + 1;
+    progress := false;
+    select array_agg(distinct r.rel) into v_rels from _purge_rows r;
+    exit when v_rels is null;
+    foreach v_rel in array v_rels loop
+      begin
+        execute format('delete from %s where ctid in (select rid from _purge_rows where rel = %s::oid)',
+          v_rel::regclass, v_rel);
+        get diagnostics n = row_count;
+        delete from _purge_rows where rel = v_rel;
+        total := total + n;
+        removed := removed || jsonb_build_object(
+          replace(v_rel::regclass::text, 'public.', ''),
+          coalesce((removed ->> replace(v_rel::regclass::text, 'public.', ''))::int, 0) + n);
+        progress := true;
+      exception when foreign_key_violation then
+        null;
+      end;
+    end loop;
+    if not progress or pass > 40 then
+      raise exception 'could not remove every row of this test account: a foreign key still holds one';
+    end if;
   end loop;
 
-  for rel in select distinct r.rel from _purge_rows r loop
-    execute format('delete from %s where ctid in (select rid from _purge_rows where rel = %s::oid)',
-      rel.rel::regclass, rel.rel);
-    get diagnostics n = row_count;
-    total := total + n;
-    removed := removed || jsonb_build_object(replace(rel.rel::regclass::text, 'public.', ''), n);
+  for trg in select * from _purge_triggers loop
+    execute format('alter table %s enable trigger %I', trg.rel::regclass, trg.name);
   end loop;
-
-  set local session_replication_role = origin;
 
   delete from auth.users where id = p_user_id;
   delete from debug_test_accounts where user_id = p_user_id;

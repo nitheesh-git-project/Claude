@@ -740,10 +740,13 @@ reset the database.
   points at the account (following owner columns such as
   `payments.patient_id` even where the key would only SET NULL), nulls the
   mentions on rows that stay, never deletes another profile (it nulls the
-  column, or refuses when it cannot), and deletes the rows with
-  `session_replication_role = replica` for that transaction only, so the
-  append-only and money triggers do not refuse. The auth user goes last with
-  triggers back on.
+  column, or refuses when it cannot), disables the guard triggers on those
+  tables by name (`ALTER TABLE ... DISABLE TRIGGER`, inside its transaction,
+  as `clean-e2e-residue.mjs` does) and deletes the rows in passes so each
+  goes after whatever points at it, with foreign keys still enforced. The
+  triggers are re-enabled and the auth user goes last.
+  `session_replication_role = replica` was the first version and is refused
+  to this role on a stock Supabase stack (CI), so it must not come back.
 - **Passwords are stored in plain text, on purpose.** They are throwaway and
   exist to be copied; the table has RLS on and no policy.
 - **The test card is copy-and-paste, not autofill.** Razorpay's card form is

@@ -834,8 +834,9 @@ unknown one, and the caller must say so rather than publish it.
   gone (a cascade from the reset or a fixture's cleanup). `profiles.deleted_at`
   marks the profile. The second is the list `debug_purge_test_account()`
   checks before it removes anything: an id not in it is refused, so the purge
-  -- which turns triggers off with `session_replication_role = replica` for its
-  own transaction -- can never reach a real account. Both are in the newest
+  -- which disables the guard triggers on the tables it empties, by name and
+  for its own transaction only -- can never reach a real account. Not
+  `session_replication_role`: a stock Supabase stack refuses it to this role. Both are in the newest
   `debug_reset_all_data()` truncate list.
 - **`razorpay_refunds` is a mirror, not evidence.** It follows Razorpay's
   status for each refund id, so it is updated in place and has no
