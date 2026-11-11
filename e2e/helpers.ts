@@ -695,3 +695,19 @@ export async function openProfileBlocks(page: import("@playwright/test").Page): 
     });
   });
 }
+
+/**
+ * Lets a page's requests settle, for at most `timeout`, then carries on.
+ *
+ * Never use a bare `page.waitForLoadState("networkidle")` against the admin
+ * dashboard. On the gate's local stack it hung for the whole test timeout
+ * about once per run (RWD-001/002/006, PL-UI-006, WAIT-AREA-001, the
+ * partners case). Chromium's own net log for those runs shows every request
+ * finished within 2.4s and nothing open afterwards: the page was quiet, but
+ * Playwright's count of requests in flight never reached zero. So this is a
+ * courtesy pause, not an assertion. What each spec checks next is a
+ * web-first assertion with its own timeout, and that is the real wait.
+ */
+export async function settleNetwork(page: Page, timeout = 15_000): Promise<void> {
+  await page.waitForLoadState("networkidle", { timeout }).catch(() => {});
+}

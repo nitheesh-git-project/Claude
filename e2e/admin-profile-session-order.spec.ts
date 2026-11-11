@@ -11,7 +11,7 @@
 // deliberately **reversed** against their slot order, so the old behaviour and
 // the new one cannot produce the same list.
 import { test, expect, type Page } from "@playwright/test";
-import { BASE, browserCookiesFor, QA_EMAILS, adminClient, profileIdFor } from "./helpers";
+import { BASE, browserCookiesFor, QA_EMAILS, adminClient, profileIdFor, settleNetwork } from "./helpers";
 
 // A direct load of a detail URL renders the dashboard as well as the detail.
 const SLOW = 240_000;
@@ -101,7 +101,7 @@ async function openDashboard(page: Page, url: string) {
       timeout: 30_000,
     })
     .catch(() => {});
-  await page.waitForLoadState("networkidle");
+  await settleNetwork(page);
 }
 
 test.describe("admin profile session order", () => {

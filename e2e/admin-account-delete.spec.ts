@@ -21,7 +21,7 @@
 // first one only happens inside GoTrue's own cascade, and the second is about
 // which sentence a person reads.
 import { test, expect, type Page } from "@playwright/test";
-import { BASE, browserCookiesFor, cookieHeaderFor, QA_EMAILS, adminClient, TEST_PASSWORD } from "./helpers";
+import { BASE, browserCookiesFor, cookieHeaderFor, QA_EMAILS, adminClient, TEST_PASSWORD, settleNetwork } from "./helpers";
 
 const SLOW = 240_000;
 const MARKER = "ZZ QA delete";
@@ -68,7 +68,7 @@ async function openDashboard(page: Page, url: string) {
       timeout: 30_000,
     })
     .catch(() => {});
-  await page.waitForLoadState("networkidle");
+  await settleNetwork(page);
 }
 
 /** The back-office directory pages its rows, so a freshly created account

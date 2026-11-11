@@ -7,7 +7,7 @@
 // closing the record history and having to find their entry in the table
 // again. So it is driven as a screen, like the pay-later UI cases.
 import { test, expect } from "@playwright/test";
-import { BASE, browserCookiesFor, QA_EMAILS, adminClient, profileIdFor } from "./helpers";
+import { BASE, browserCookiesFor, QA_EMAILS, adminClient, profileIdFor, settleNetwork } from "./helpers";
 
 test("LOG-BACK: entry and record history each offer the way back", async ({ page, context }) => {
   // The admin dashboard, then up to a dozen rows and the timeline's own
@@ -31,7 +31,7 @@ test("LOG-BACK: entry and record history each offer the way back", async ({ page
 
   await context.addCookies(await browserCookiesFor(QA_EMAILS.admin));
   await page.goto(`${BASE}/admin/dashboard?section=logs&tab=activity`);
-  await page.waitForLoadState("networkidle");
+  await settleNetwork(page);
 
   // Every admin screen stays mounted behind `hidden`, so the rows have to be
   // scoped to the visible one or this walks another screen's table.

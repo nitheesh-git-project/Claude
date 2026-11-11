@@ -16,7 +16,7 @@
 // So this browser is all three: en-GB, reduced motion, and a simulated
 // clock set before the page loads.
 import { test, expect, type Page } from "@playwright/test";
-import { BASE, waitForSplashToClear } from "./helpers";
+import { BASE, waitForSplashToClear, settleNetwork } from "./helpers";
 
 test.use({ locale: "en-GB", contextOptions: { reducedMotion: "reduce" } });
 
@@ -47,7 +47,7 @@ function collectHydrationErrors(page: Page): string[] {
 async function settle(page: Page, path: string) {
   await page.goto(`${BASE}${path}`, { waitUntil: "domcontentloaded" });
   await waitForSplashToClear(page);
-  await page.waitForLoadState("networkidle");
+  await settleNetwork(page);
 }
 
 test("HY-001: every public page hydrates cleanly for an en-GB, reduced-motion visitor on the debug clock", async ({

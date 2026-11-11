@@ -11,7 +11,7 @@ import {
   profileIdFor,
   QA_EMAILS,
   waitForSplashToClear,
-  wholeHourFromNow,
+  wholeHourFromNow, settleNetwork
 } from "./helpers";
 import { BOOKING_FOR_PREFIX } from "../src/lib/bookingFor";
 
@@ -35,7 +35,7 @@ test.describe("booking wizard: honest Step 1, plain Step 2", () => {
   test("BWC-001 the hour is left for the patient; Continue says why it is disabled", async ({ page }) => {
     test.setTimeout(120_000);
     await page.goto(`${BASE}/book`);
-    await page.waitForLoadState("networkidle");
+    await settleNetwork(page);
 
     // Plain labels, not "Preferred ...".
     await expect(page.getByRole("radiogroup", { name: "Time", exact: true })).toBeVisible({ timeout: 60_000 });
@@ -71,7 +71,7 @@ test.describe("booking wizard: honest Step 1, plain Step 2", () => {
   test("BWC-002 Step 2 leads with sign-in, asks name, phone, email, password, and who it is for", async ({ page }) => {
     test.setTimeout(120_000);
     await page.goto(`${BASE}/book`);
-    await page.waitForLoadState("networkidle");
+    await settleNetwork(page);
     await chooseAnyServiceOnStepOne(page);
     await page.getByRole("button", { name: /Continue to your details/ }).click();
 
