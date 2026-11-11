@@ -39,6 +39,9 @@ import { adminShortcuts, filterAdminScreens } from "@/lib/adminMobileNav";
 // *_REALTIME_TABLES array -- keep new tables in one of these two rather
 // than inlining a third list at the call site.
 const ADMIN_REALTIME_TABLES = [
+  // A refund made on the Razorpay website arrives by webhook; Money ->
+  // Refunds and its badge should show it without a manual refresh.
+  "razorpay_refunds",
   "session_suggestions",
   "appointments",
   "therapist_payout_requests",

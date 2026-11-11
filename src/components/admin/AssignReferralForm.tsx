@@ -143,7 +143,7 @@ export default function AssignReferralForm({
           aria-label="Therapist to assign"
           value={therapistId}
           onChange={(e) => setTherapistId(e.target.value)}
-          className="text-xs p-2 rounded-lg border border-slate-300"
+          className="min-w-0 max-w-full flex-1 truncate text-xs p-2 rounded-lg border border-slate-300"
         >
           {therapists.map((t) => (
             <option key={t.id} value={t.id}>

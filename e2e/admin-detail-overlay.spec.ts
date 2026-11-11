@@ -23,7 +23,9 @@ async function expectDashboardChrome(page: Page) {
   // The three things the reduced frame could not have: the header's own
   // Refresh control, the global search, and the section badges.
   await expect(page.getByRole("button", { name: /Refresh this screen/ })).toHaveCount(1);
-  await expect(page.getByPlaceholder(/Search name, phone, email/)).toHaveCount(1);
+  // By its name, not its placeholder: the placeholder now says what the
+  // search finds (people, payments, sessions, screens) and will change again.
+  await expect(page.getByLabel("Search the admin dashboard")).toHaveCount(1);
   // And the one thing it did have.
   await expect(page.getByText("Back to the dashboard")).toHaveCount(0);
 }

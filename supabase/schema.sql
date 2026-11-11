@@ -20501,6 +20501,13 @@ create policy "razorpay_refunds_select_admin" on razorpay_refunds
 
 revoke insert, update, delete on razorpay_refunds from anon, authenticated;
 
+-- Money -> Refunds and its badge refresh live when a webhook writes a row.
+do $$
+begin
+  alter publication supabase_realtime add table razorpay_refunds;
+exception when duplicate_object then null;
+end $$;
+
 -- ---------------------------------------------------------------------------
 -- Test accounts made from the debug bar, and removing them with their data
 -- ---------------------------------------------------------------------------

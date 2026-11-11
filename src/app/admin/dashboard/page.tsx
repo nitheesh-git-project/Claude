@@ -3533,7 +3533,9 @@ export default async function AdminDashboardPage({
                 node: (
                 <div className="p-4 rounded-xl border border-slate-200 text-xs">
                   <p className="font-bold text-slate-900 mb-2">{c.title}</p>
-                  <div className="grid grid-cols-4 gap-3">
+                  {/* Two across on a phone: four columns of 70px could not hold a
+                      six-figure rupee amount, which ran out of its box. */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <div>
                       <p className="text-slate-500">Bookings</p>
                       <p className="font-bold text-slate-900">
