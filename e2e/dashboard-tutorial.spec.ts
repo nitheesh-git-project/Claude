@@ -43,6 +43,28 @@ test.describe("Dashboard tutorial", () => {
       // in the screens' own words.
       await next.click();
       await next.click();
+      await expect(page.getByRole("heading", { name: "Book in four taps" })).toBeVisible();
+      // The booking bar fills one segment after another: at no moment are two
+      // segments part-filled (it used to sit at half, so two moved at once).
+      const bar = page.getByTestId("segmented-progress");
+      await expect(bar).toBeVisible();
+      let sawPartial = false;
+      for (let sample = 0; sample < 30; sample++) {
+        const fills = await bar.locator("[data-segment-state] > div").evaluateAll((tracks) =>
+          tracks.map((t) => {
+            const fill = t.firstElementChild as HTMLElement | null;
+            return fill ? fill.getBoundingClientRect().width / t.getBoundingClientRect().width : 0;
+          })
+        );
+        const partial = fills.filter((f) => f > 0.03 && f < 0.97).length;
+        expect(partial, `segments part-filled at once: ${fills.map((f) => f.toFixed(2)).join(", ")}`).toBeLessThanOrEqual(1);
+        if (partial === 1) sawPartial = true;
+        // Filled segments are always a run from the left, never a gap.
+        const firstEmpty = fills.findIndex((f) => f <= 0.03);
+        if (firstEmpty >= 0) expect(fills.slice(firstEmpty).every((f) => f <= 0.03)).toBe(true);
+        await page.waitForTimeout(150);
+      }
+      expect(sawPartial, "the bar should be seen filling").toBe(true);
       await next.click();
       await expect(page.getByRole("heading", { name: "What happens after you pay" })).toBeVisible();
       // The patient's word is "physiotherapist" (patientScenes.tsx, the patient voice pass).

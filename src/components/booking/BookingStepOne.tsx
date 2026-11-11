@@ -38,6 +38,7 @@ export default function BookingStepOne({
   autoPicked,
   confirmationHours,
   onContinue,
+  continuePending = false,
 }: {
   /** The service picker, rendered first. Taken as a node rather than as
    *  catalogue props so this component stays a screen of scheduling
@@ -75,6 +76,8 @@ export default function BookingStepOne({
    *  `src/lib/clinicPromises.ts` (a setting once there is a column for it). */
   confirmationHours: number;
   onContinue: () => void;
+  /** The time is being checked against the patient's own sessions. */
+  continuePending?: boolean;
 }) {
   const reduceMotion = useReducedMotion();
   const leadTimeMs = leadTimeMsFromHours(leadTimeHours);
@@ -185,12 +188,22 @@ export default function BookingStepOne({
         <button
           type="button"
           onClick={onContinue}
-          disabled={blocker !== null}
+          disabled={blocker !== null || continuePending}
+          aria-busy={continuePending || undefined}
           aria-describedby={blocker ? "booking-continue-reason" : undefined}
           className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-teal-700 py-3.5 text-base font-bold text-white shadow-lg transition-colors hover:bg-teal-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none"
         >
-          Continue to your details{" "}
-          <i className="fa-solid fa-arrow-right" aria-hidden="true"></i>
+          {continuePending ? (
+            <>
+              <i className="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i>
+              <span>Checking your time{"\u2026"}</span>
+            </>
+          ) : (
+            <>
+              <span>Continue to your details</span>
+              <i className="fa-solid fa-arrow-right" aria-hidden="true"></i>
+            </>
+          )}
         </button>
         {blocker && (
           <p

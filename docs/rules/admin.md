@@ -127,7 +127,20 @@ The eight sections, scopes and levels, User Access, the Settings information arc
      the fine-grained matrix whose failure mode is one route quietly falling
      through a gap in it, which is what coarse scopes exist to avoid.
      Changing what a desk reaches is a code change, reviewed.
-  3. **Suspending is not deleting, and delete is the narrow case.**
+  3. **Deleting a person never deletes their records.** An account with
+     history is deleted *with its records kept*: the confirmation lists every
+     money row first (`readAccountMoneyRecords`), a reason from
+     `DELETE_REASONS` is required (Other needs a note), and
+     `admin_mark_account_deleted()` writes the append-only `account_deletions`
+     row, clears the profile's email and phone and signs it out; the route then
+     moves the login to a `@deleted.invalid` placeholder and bans it, so the
+     real address can sign up again. The profile stays as the name every money
+     row points at, tagged **Deleted user** with an (i) showing the reason, the
+     note, who and when (`DeletedUserTag`, on the People lists and profiles).
+     If the login step fails after the mark, pressing Delete again finishes
+     it. The paragraph below is the outright delete, which still only
+     succeeds with no history at all.
+  4. **Suspending is not deleting, and delete is the narrow case.**
      `/api/admin/delete-account` exists on all four roles' screens, and it is
      a delete that can only ever succeed on an account with **no history at
      all** -- the typo'd email, the duplicate, the one created against the
@@ -1101,3 +1114,48 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   "people")`. Both routes refuse an unknown section and hiding a locked one
   (400), and an unreadable setting is "we couldn't check" on the screen,
   never a row of switches. Rules: `clinical.md`.
+- **Announcements is a Settings screen, so only a Master Admin posts one.**
+  Settings -> Announcements (`AnnouncementSettings`, self-fetching like the
+  Health Profile layout; `AdminAnnouncementsManager`) lists what is live,
+  scheduled, in draft and ended, and builds one with a live preview that
+  opens the real pop-up component. Every route under
+  `/api/admin/announcements` is `requireAdminScope("settings")`. Writes are
+  logged as `setting.update` with the title as the target and what happened
+  (`created`, `edited`, `ended`, `deleted`, `reordered`) in the details. A
+  live announcement cannot be deleted -- End now first -- so there is always
+  a row that says what was shown and when; an ended one is reused with
+  **Use again**, which copies it into a new draft with its own picture
+  folder. The dashboards' half of the rule is in `docs/rules/dashboards.md`.
+- **The top search finds screens as well as people.** Every screen the
+  viewer's scope can open is found by its label, section and description,
+  and `ADMIN_SEARCH_TOPICS` (`src/lib/adminSearchTopics.ts`) lists the
+  things people come looking for under the words they use -- "promo",
+  "coupon" and "discount code" all find Money -> Costs, where promo codes
+  live. A new screen or a moved control updates that list;
+  `adminSearchTopics.test.ts` fails on a topic pointing at a screen that
+  does not exist. Guard: `e2e/admin-find-and-money.spec.ts` FIND-001.
+- **Logs -> Signed in as is the record of every session swap.** Each
+  `admin_impersonation_sessions` window joined to the `impersonation.action`
+  rows written inside it (`src/lib/impersonationLog.ts`): who, whose
+  dashboard, the reason typed, when, how long, whether it was exited or
+  timed out, and each change made inside -- filtered by admin, kind of
+  account, words in the name or reason, day, and "only where something was
+  changed". The reason was always saved; it was only ever readable as one
+  line in All Activity.
+- **Money -> Refunds and the Payouts columns.** Refunds lists
+  `razorpay_refunds` (`docs/rules/payments.md`), badged with the ones that
+  need a person; "Mark as dealt with" (`/api/admin/refunds/review`,
+  `requireAdminScope("money")`, logged as `refund.review`, which moves no
+  money and is not a money action). Payouts shows each therapist's open
+  request ("Asked to be paid", with a filter) and their last payout with how
+  it was paid; the therapist's own Earnings rows show the date and the payout
+  each paid session went out in (`describePayout`).
+- **People -> Abandoned checkouts removes what it says it removes.** The
+  list (`abandoned_checkout_accounts`) and the purge share one rule,
+  `abandoned_checkout_kept_reason()`: money taken, something bought, a
+  session paid, assigned or under way, or every payment try used. Anything
+  else past its date is deleted, its failed-payment records first --
+  `payment_failure_log.patient_id` has no ON DELETE action, and that foreign
+  key is what silently kept nearly every abandoned account before (the purge
+  caught the error and moved on). A kept account says why on its card
+  instead of showing a removal date that would never come.

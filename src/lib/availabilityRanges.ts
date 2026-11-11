@@ -588,14 +588,13 @@ export function describeLeave(input: {
 /** Presets the editor offers. UI convenience only -- any valid set of
  *  periods can still be typed, these just cover the common shapes. */
 export const SCHEDULE_PRESETS: { key: string; label: string; ranges: TimeRange[] }[] = [
-  { key: "morning", label: "Morning", ranges: [{ startHour: 9, endHour: 13 }] },
-  { key: "afternoon", label: "Afternoon", ranges: [{ startHour: 14, endHour: 18 }] },
+  // The clinic's two shifts split the business day at 3 PM with no gap, so
+  // Morning + Afternoon is exactly Full day and no hour belongs to neither.
+  { key: "morning", label: "Morning", ranges: [{ startHour: DAY_START_HOUR, endHour: 15 }] },
+  { key: "afternoon", label: "Afternoon", ranges: [{ startHour: 15, endHour: DAY_END_HOUR }] },
   {
     key: "full_day",
     label: "Full day",
-    ranges: [
-      { startHour: 9, endHour: 13 },
-      { startHour: 14, endHour: 18 },
-    ],
+    ranges: [{ startHour: DAY_START_HOUR, endHour: DAY_END_HOUR }],
   },
 ];

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { isReplaceableDraft, overlapsSlot, type DraftCandidate } from "./bookingDraft";
+import { ownSlotConflict } from "./bookingDraft";
 
 const draft: DraftCandidate = {
   status: "requested",
@@ -41,5 +42,41 @@ describe("overlapsSlot", () => {
   it("catches the same slot and a partial overlap", () => {
     expect(overlapsSlot(0, 60, 0, 60)).toBe(true);
     expect(overlapsSlot(0, 90, hour, 60)).toBe(true);
+  });
+});
+
+describe("ownSlotConflict", () => {
+  const row = (over: Record<string, unknown> = {}) => ({
+    id: "a1",
+    slot_time: "2026-11-20T12:30:00Z",
+    duration_minutes: 60,
+    status: "confirmed",
+    payment_status: "paid",
+    therapist_id: "t1",
+    visit_mode: "online",
+    payment_terms: "prepaid",
+    package_purchase_id: null,
+    home_visit_purchase_id: null,
+    referral_id: null,
+    pay_later_outcome: null,
+    ...over,
+  });
+  const at = (iso: string) => Date.parse(iso);
+
+  it("flags a time that overlaps a real booking", () => {
+    expect(ownSlotConflict([row()], at("2026-11-20T13:00:00Z"), 60, 60).conflict).toBe(true);
+    expect(ownSlotConflict([row()], at("2026-11-20T13:30:00Z"), 60, 60).conflict).toBe(false);
+  });
+
+  it("does not count the patient's own unpaid draft, which the new booking replaces", () => {
+    const draft = row({ status: "requested", payment_status: "unpaid", therapist_id: null });
+    const result = ownSlotConflict([draft], at("2026-11-20T12:30:00Z"), 60, 60);
+    expect(result.conflict).toBe(false);
+    expect(result.replaceable.map((r) => r.id)).toEqual(["a1"]);
+  });
+
+  it("treats a named draft as replaceable even when it does not overlap", () => {
+    const draft = row({ id: "d1", status: "requested", payment_status: "unpaid", therapist_id: null, slot_time: "2026-11-21T12:30:00Z" });
+    expect(ownSlotConflict([draft], at("2026-11-20T12:30:00Z"), 60, 60, "d1").replaceable.map((r) => r.id)).toEqual(["d1"]);
   });
 });

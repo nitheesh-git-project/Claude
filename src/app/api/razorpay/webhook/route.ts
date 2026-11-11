@@ -12,6 +12,8 @@ import { claimTherapistSlot } from "@/lib/claimTherapistSlot";
 import { fulfilPaidPurchase } from "@/lib/fulfilPaidPurchase";
 import { unlockPayerAfterCapture } from "@/lib/unlockPayerAfterCapture";
 import { WEBHOOK_RETRYABLE_PREFIX, webhookRetryVerdict } from "@/lib/webhookRetry";
+import { isRefundEventType, parseRefundEvent } from "@/lib/razorpayRefundSync";
+import { applyRazorpayRefundEvent } from "@/lib/razorpayRefundSyncServer";
 
 // Razorpay's server-to-server notification that a payment happened.
 //
@@ -193,6 +195,28 @@ export async function POST(request: NextRequest) {
   // authorization within seconds and does all of it correctly; under manual
   // capture the authorization genuinely is not a payment yet. Either way the
   // event is still recorded above, so the trail keeps it.
+  // Refunds: mirrored, and recorded on the booking where that is the rule
+  // (src/lib/razorpayRefundSync.ts) -- including a refund made on the
+  // Razorpay website, which the app never heard about before. A failure is
+  // recorded as retryable, so Razorpay's next delivery tries again.
+  if (isRefundEventType(eventType)) {
+    const parsed = parseRefundEvent(event);
+    if (!parsed) {
+      await markProcessed("refund event could not be read");
+      return NextResponse.json({ received: true, processed: false, eventType });
+    }
+    try {
+      const outcome = await applyRazorpayRefundEvent(admin, parsed);
+      await markProcessed();
+      return NextResponse.json({ received: true, processed: true, eventType, ...outcome });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error("Razorpay refund event failed", parsed.refundId, message);
+      await markProcessed(`${WEBHOOK_RETRYABLE_PREFIX}${message}`.slice(0, 500));
+      return NextResponse.json({ error: "Could not apply refund" }, { status: 500 });
+    }
+  }
+
   if (eventType !== "payment.captured") {
     await markProcessed();
     return NextResponse.json({ received: true, processed: false, eventType });

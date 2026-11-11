@@ -1,3 +1,4 @@
+import { startEarly } from "@/lib/startEarly";
 import type { Metadata } from "next";
 import { buildRecommendationPulse, PAID_UNBOOKED_AFTER_MS, type RecommendationPulseRow } from "@/lib/recommendationPulse";
 import AdminRecommendationPulse from "@/components/admin/AdminRecommendationPulse";
@@ -27,7 +28,7 @@ import AdminLogRetentionTab from "@/components/admin/AdminLogRetentionTab";
 import MoneyGlossary from "@/components/admin/MoneyGlossary";
 import AdminCostsTab from "@/components/admin/AdminCostsTab";
 import { istDateKey } from "@/lib/formatSlotRange";
-import { formatClinicDateTimeWithZone } from "@/lib/formatDateTime";
+import { formatClinicDate, formatClinicDateTimeWithZone } from "@/lib/formatDateTime";
 import { sumDiscountsGiven } from "@/lib/discounts";
 import HospitalActiveToggle from "@/components/admin/HospitalActiveToggle";
 import ViewAsUserButton from "@/components/admin/ViewAsUserButton";
@@ -134,7 +135,7 @@ import EditRevenueShareForm from "@/components/admin/EditRevenueShareForm";
 import CopyInviteLinkButton from "@/components/admin/CopyInviteLinkButton";
 import TreatmentCategoryManager from "@/components/admin/TreatmentCategoryManager";
 import { clinicWideHomeVisitRate, isHomeVisitPriceRow } from "@/lib/homeVisitRates";
-import { formatInr } from "@/lib/formatMoney";
+import { formatInr, formatRupees } from "@/lib/formatMoney";
 import TestimonialManager from "@/components/admin/TestimonialManager";
 import FaqManager from "@/components/admin/FaqManager";
 import SiteRatingsVisibilityToggle from "@/components/admin/SiteRatingsVisibilityToggle";
@@ -150,6 +151,7 @@ import BrandContactDetailsForm from "@/components/admin/BrandContactDetailsForm"
 import { SOCIAL_LINKS_SELECT, SOCIAL_LINK_COLUMNS } from "@/lib/socialLinks";
 import ProfileChangeRequestActions from "@/components/admin/ProfileChangeRequestActions";
 import AdminPeopleDirectory from "@/components/admin/AdminPeopleDirectory";
+import { readAccountDeletions } from "@/lib/accountDeletionsServer";
 import PagedList from "@/components/dashboard/PagedList";
 import ReadOnlyDeskNote from "@/components/admin/ReadOnlyDeskNote";
 import AdminScreenLink from "@/components/admin/AdminScreenLink";
@@ -160,6 +162,10 @@ import AdminMetricsTab from "@/components/admin/AdminMetricsTab";
 import QuestionBankManager from "@/components/admin/QuestionBankManager";
 import LicensedMeasureSettings from "@/components/admin/LicensedMeasureSettings";
 import ProfileWidgetSettings from "@/components/admin/ProfileWidgetSettings";
+import AnnouncementSettings from "@/components/admin/AnnouncementSettings";
+import ImpersonationLogSettings from "@/components/admin/ImpersonationLogSettings";
+import RefundsSettings from "@/components/admin/RefundsSettings";
+import { describePayout } from "@/lib/therapistEarnings";
 import SixMinuteWalkEquationSettings from "@/components/admin/SixMinuteWalkEquationSettings";
 import { parseAreaPain } from "@/lib/conditionIntake";
 import {
@@ -297,6 +303,9 @@ export default async function AdminDashboardPage({
 
   const supabase = await createClient();
   const admin = createAdminClient();
+  // People deleted with their records kept, for the "Deleted user" tag on the
+  // People lists. Started now, awaited where the lists are built.
+  const accountDeletionsRead = readAccountDeletions(admin);
 
   // Runs before the big read below so this same request already sees any
   // purchase this sweep just flipped to 'expired' -- see the helper's own
@@ -345,9 +354,13 @@ export default async function AdminDashboardPage({
   // Deliberately not awaited here: `await` is the thing that makes a
   // promise serial. `authoringDataPromise` further down is the same
   // pattern, already in use in this file.
-  const conditionSpecialtyPromise = admin
-    .from("patient_condition_profiles")
-    .select("patient_id, specialty");
+  //
+  // A Supabase query is lazy: it is sent when something awaits it, not when
+  // it is built. These two were built here and awaited at their use, so
+  // until they went through startEarly() neither actually left before then.
+  const conditionSpecialtyPromise = startEarly(
+    admin.from("patient_condition_profiles").select("patient_id, specialty")
+  );
 
   // The rows behind Today -> Health Profile reviews, started with the rest of
   // the early reads and awaited where the screen is built. Every desk can open
@@ -358,12 +371,64 @@ export default async function AdminDashboardPage({
   // The claims count that follows this one at its use site genuinely does
   // depend on the result -- it is narrowed to the ids returned here -- so
   // that query stays where it is and is simply reached sooner.
-  const promoCodesPromise = admin
-    .from("promo_codes")
-    .select(
-      "id, code, kind, value, active, starts_at, ends_at, max_redemptions, max_per_patient, min_spend_paise, first_session_only, description"
-    )
-    .order("created_at", { ascending: false });
+  const promoCodesPromise = startEarly(
+    admin
+      .from("promo_codes")
+      .select(
+        "id, code, kind, value, active, starts_at, ends_at, max_redemptions, max_per_patient, min_spend_paise, first_session_only, description"
+      )
+      .order("created_at", { ascending: false })
+  );
+
+  // How many bookings and purchases claimed each promo code, and which codes
+  // are valid on programmes: all need only the codes' ids, so they are read
+  // the moment the code list arrives rather than where the screen is built.
+  const promoClaimsEarly = startEarly(
+    promoCodesPromise.then(({ data }) => {
+      const codeIds = ((data ?? []) as { id: string }[]).map((row) => row.id);
+      if (codeIds.length === 0) return null;
+      return Promise.all([
+        readAllRows<{ promo_code_id: string | null }>(() =>
+          admin.from("appointments").select("promo_code_id").in("promo_code_id", codeIds)
+        ),
+        Promise.all(
+          (["patient_package_purchases", "home_visit_package_purchases"] as const).map((table) =>
+            readAllRows<{ promo_code_id: string | null }>(() =>
+              admin.from(table).select("promo_code_id").in("promo_code_id", codeIds)
+            )
+          )
+        ),
+        admin.from("promo_codes").select("id, valid_on_programmes").in("id", codeIds),
+      ]);
+    })
+  );
+
+  // Refunds Razorpay reported that need a person (Money -> Refunds), for
+  // that screen's badge. A failed read is no badge, never a wrong one.
+  const refundsNeedingPersonRead = startEarly(
+    admin
+      .from("razorpay_refunds")
+      .select("razorpay_refund_id", { count: "exact", head: true })
+      .is("reviewed_at", null)
+      .or("applied.eq.needs_review,and(status.eq.failed,source.eq.app)")
+  );
+
+  // Which service booking opens on (the "Default on booking" switch), for
+  // Catalog. Its own tolerant read: without the column the switch is simply
+  // not drawn. Started here with the other early reads; awaited where the
+  // Catalog screen is built.
+  const defaultServiceRead = (async () => {
+    try {
+      const { data, error } = await admin
+        .from("treatment_categories")
+        .select("id")
+        .eq("is_default", true)
+        .limit(1);
+      return error ? undefined : ((data?.[0]?.id as string | undefined) ?? null);
+    } catch {
+      return undefined;
+    }
+  })();
 
   // The locked accounts the booking wizards made (People -> Abandoned
   // checkouts). Read beside the batch below because the approvals queue is
@@ -372,6 +437,10 @@ export default async function AdminDashboardPage({
   // `null` is a read that failed, which leaves the queue unfiltered rather
   // than empty.
   const abandonedCheckoutsPromise: Promise<AbandonedCheckoutRow[] | null> = (async () => {
+    // With the reason an account is being kept, when it is. A database that
+    // has not applied that function yet falls back to the plain list.
+    const withReasons = await admin.rpc("abandoned_checkout_accounts", { p_try_limit: null });
+    if (!withReasons.error) return (withReasons.data ?? []) as AbandonedCheckoutRow[];
     const { data, error } = await admin.rpc("abandoned_booking_accounts");
     return error ? null : ((data ?? []) as AbandonedCheckoutRow[]);
   })().catch(() => null);
@@ -518,7 +587,7 @@ export default async function AdminDashboardPage({
       admin
         .from("payment_failure_log")
         .select(
-          "id, patient_id, appointment_id, package_purchase_id, amount_paise, error_code, error_reason, error_description, created_at"
+          "id, patient_id, appointment_id, package_purchase_id, amount_paise, error_code, error_reason, error_description, created_at, razorpay_payment_id, razorpay_order_id"
         )
         .order("created_at", { ascending: false })
         .order("id", { ascending: true })
@@ -952,6 +1021,104 @@ export default async function AdminDashboardPage({
     }
   })();
 
+  // Three groups the page reads much further down -- Today -> Risk, the
+  // recommendations queue, and the everyone-activity feed -- each needing
+  // nothing but the viewer's scope. Started here so they overlap everything
+  // in between instead of waiting for it (startEarly.ts); each is awaited,
+  // and its errors handled, exactly where it was before.
+  const viewerRiskRules = riskRulesForSections(workableSections);
+  const viewerCanSeeRisk = viewerScope === "full" || viewerRiskRules.length > 0;
+  // Four reads that need nothing from each other, so they go together. They
+  // were four awaits in a row, which on this host is four round trips of
+  // latency (~320ms each) inside a page render that already has its data --
+  // the "isolated is not the same as sequential" rule, in the block where it
+  // cost the most. Each one keeps its own guard and its own empty fallback,
+  // so the isolation is unchanged and only the waiting is gone.
+  // Open signals are read in full and only the closed history is capped:
+  // one newest-200 read across every status hid an older open signal behind
+  // two hundred decided ones -- the queue said less was waiting than was.
+  // The two evidence trails keep their newest-200 window, and the screen
+  // says when it is showing a window rather than everything (see
+  // RiskSignalsTab). Every read's error is kept: a failed read is said,
+  // never drawn as an empty list.
+  const RISK_SIGNAL_COLUMNS =
+    "id, rule_key, subject_kind, subject_id, severity, summary, evidence, status, detected_at";
+  const RISK_TRAIL_WINDOW = 200;
+  const riskFirstWaveEarly = startEarly(
+    Promise.all([
+      viewerCanSeeRisk
+        ? readAllRowsAsData<RiskSignalQueryRow>(() =>
+            admin
+              .from("risk_signals")
+              .select(RISK_SIGNAL_COLUMNS)
+              .in("status", ["open", "reviewing"])
+              .order("detected_at", { ascending: false })
+              .order("id", { ascending: true })
+          )
+        : Promise.resolve({ data: [] as RiskSignalQueryRow[], error: null }),
+      viewerCanSeeRisk
+        ? admin
+            .from("risk_signals")
+            .select(RISK_SIGNAL_COLUMNS)
+            .in("status", ["dismissed", "actioned"])
+            .order("detected_at", { ascending: false })
+            .limit(RISK_TRAIL_WINDOW)
+        : Promise.resolve({ data: [] as RiskSignalQueryRow[], error: null }),
+      viewerCanSeeRisk
+        ? admin
+            .from("risk_rules")
+            .select("rule_key, label, description, enabled, config")
+            .order("rule_key")
+        : Promise.resolve({ data: [] as RiskRuleQueryRow[] }),
+      // The evidence itself, read only for a scope that can see the queue, on
+      // its own so a database without the tables renders an empty panel rather
+      // than blanking the dashboard.
+      viewerCanSeeRisk
+        ? admin
+            .from("communication_flags")
+            .select(
+              "id, surface, author_id, patient_id, tier, findings, blocked, content, created_at"
+            )
+            .order("created_at", { ascending: false })
+            .limit(RISK_TRAIL_WINDOW)
+        : Promise.resolve({ data: [] as CommunicationFlagQueryRow[], error: null }),
+      viewerCanSeeRisk
+        ? admin
+            .from("contact_reveal_log")
+            .select("id, therapist_id, patient_id, field, reason, created_at")
+            .order("created_at", { ascending: false })
+            .limit(RISK_TRAIL_WINDOW)
+        : Promise.resolve({ data: [] as ContactRevealQueryRow[], error: null }),
+      viewerCanSeeRisk
+        ? readLastRiskSweep(admin)
+        : Promise.resolve({ report: null, readFailed: false }),
+    ])
+  );
+  const CARE_PLAN_COLUMNS =
+    "id, patient_id, therapist_id, status, category_id, current_version_id, created_at";
+  const carePlansFirstEarly = canSeeProgrammes
+    ? startEarly(
+        Promise.all([
+        readAllRowsAsData<AdminCarePlanQueryRow>(() =>
+          admin
+            .from("care_plans")
+            .select(CARE_PLAN_COLUMNS)
+            .eq("status", "pending_review")
+            .order("created_at", { ascending: false })
+            .order("id", { ascending: true })
+        ),
+        admin
+          .from("care_plans")
+          .select(CARE_PLAN_COLUMNS)
+          .neq("status", "pending_review")
+          .order("created_at", { ascending: false })
+          .limit(200),
+        ])
+      )
+    : null;
+  const userActivityEarly =
+    viewerScope === "full" ? startEarly(fetchUserActivityRows(admin, { limit: 200 })) : null;
+
   // The second batch: everything the migration-tolerance rule keeps OUT of
   // the big Promise.all above.
   //
@@ -992,13 +1159,16 @@ export default async function AdminDashboardPage({
     const result = await readAllRowsAsData(() =>
       admin
         .from("payments")
-        .select("id, patient_id, razorpay_order_id, razorpay_payment_id")
+        .select("id, patient_id, razorpay_order_id, razorpay_payment_id, amount_paise, status, created_at")
         .order("id", { ascending: true })
     );
     return (result.data ?? []) as {
       patient_id: string | null;
       razorpay_order_id: string | null;
       razorpay_payment_id: string | null;
+      amount_paise: number | null;
+      status: string | null;
+      created_at: string | null;
     }[];
   }, []);
 
@@ -1585,6 +1755,7 @@ export default async function AdminDashboardPage({
     // recorded on the booking -- one place, which cannot disagree with the
     // money. Delete is only offered where this is zero.
     const claims = new Map<string, number>();
+    let validOnProgrammesRead: { data: unknown[] | null; error: unknown } | null = null;
     if (rows.length > 0) {
       // Paged through readAllRows, and narrowed to the codes actually on
       // screen.
@@ -1603,14 +1774,14 @@ export default async function AdminDashboardPage({
       // belonging to a code being displayed, rather than every promo-coded
       // appointment the clinic has ever taken.
       const codeIds = rows.map((row) => row.id);
-      const { rows: claimed, truncated } = await readAllRows<{
-        promo_code_id: string | null;
-      }>(() =>
-        admin
-          .from("appointments")
-          .select("promo_code_id")
-          .in("promo_code_id", codeIds)
-      );
+      // The claims on bookings, the two purchase walks and the "valid on
+      // programmes" switches all need only these ids, so they are read
+      // together rather than one after another.
+      // Read early (promoClaimsEarly), against the same list of codes.
+      const claimsRead = await promoClaimsEarly;
+      if (!claimsRead) throw new Error("promo claims were not read");
+      const [{ rows: claimed, truncated }, walks, switchesRead] = claimsRead;
+      validOnProgrammesRead = switchesRead;
       for (const row of claimed) {
         if (!row.promo_code_id) continue;
         claims.set(row.promo_code_id, (claims.get(row.promo_code_id) ?? 0) + 1);
@@ -1620,10 +1791,7 @@ export default async function AdminDashboardPage({
       // walk: a database one apply behind has no promo_code_id on them
       // (42703), which is a real zero rather than an unread count.
       let purchaseWalkFailed = false;
-      for (const table of ["patient_package_purchases", "home_visit_package_purchases"] as const) {
-        const walked = await readAllRows<{ promo_code_id: string | null }>(() =>
-          admin.from(table).select("promo_code_id").in("promo_code_id", codeIds)
-        );
+      for (const walked of walks) {
         if (walked.error) {
           if ((walked.error as { code?: string }).code !== "42703") purchaseWalkFailed = true;
           continue;
@@ -1649,14 +1817,8 @@ export default async function AdminDashboardPage({
     // on promo_codes, so a database one apply behind loses this one switch
     // (read as off, which is its default) rather than the whole list.
     const validOnProgrammes = new Set<string>();
-    if (rows.length > 0) {
-      const { data: switches, error: switchError } = await admin
-        .from("promo_codes")
-        .select("id, valid_on_programmes")
-        .in(
-          "id",
-          rows.map((row) => row.id)
-        );
+    if (rows.length > 0 && validOnProgrammesRead) {
+      const { data: switches, error: switchError } = validOnProgrammesRead;
       if (!switchError) {
         for (const row of (switches ?? []) as { id: string; valid_on_programmes: boolean | null }[]) {
           if (row.valid_on_programmes === true) validOnProgrammes.add(row.id);
@@ -1919,6 +2081,7 @@ export default async function AdminDashboardPage({
       autoRetryAttempts: a.access?.meet_access_attempts ?? 0,
     }));
 
+  const accountDeletions = await accountDeletionsRead;
   const hospitals = (allProfiles ?? []).filter((p) => p.role === "hospital");
   const patients = (allProfiles ?? [])
     .filter((p) => p.role === "patient")
@@ -2137,6 +2300,7 @@ export default async function AdminDashboardPage({
                           ? {
                               name: p.full_name ?? p.email ?? "this therapist",
                               email: p.email,
+                              phone: p.phone,
                               credentials: p.credentials,
                               specialization: p.specialization,
                             }
@@ -2902,6 +3066,7 @@ export default async function AdminDashboardPage({
                 ? conditionSpecialtyByPatientId.get(p.id) ?? DEFAULT_CONDITION_SPECIALTY
                 : null,
               searchRefs: searchRefsByPatientId.get(p.id),
+              deletion: accountDeletions.get(p.id) ?? null,
             };
           })}
         />
@@ -2938,6 +3103,7 @@ export default async function AdminDashboardPage({
             // Passing it at all is what puts the specialisation filter and
             // column on this directory rather than the patients one.
             specialization: t.specialization ?? null,
+            deletion: accountDeletions.get(t.id) ?? null,
           }))}
         />
       )}
@@ -3367,7 +3533,9 @@ export default async function AdminDashboardPage({
                 node: (
                 <div className="p-4 rounded-xl border border-slate-200 text-xs">
                   <p className="font-bold text-slate-900 mb-2">{c.title}</p>
-                  <div className="grid grid-cols-4 gap-3">
+                  {/* Two across on a phone: four columns of 70px could not hold a
+                      six-figure rupee amount, which ran out of its box. */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <div>
                       <p className="text-slate-500">Bookings</p>
                       <p className="font-bold text-slate-900">
@@ -3413,6 +3581,26 @@ export default async function AdminDashboardPage({
       }))}
       appointments={appointmentsForPayouts}
       patients={patients.map((p) => ({ id: p.id, full_name: p.full_name }))}
+      openRequests={(payoutRequests ?? [])
+        .filter((r) => r.status === "pending" || r.status === "reviewing")
+        .map((r) => ({
+          therapistId: r.therapist_id,
+          amountPaise: r.requested_amount_paise,
+          requestedAt: r.requested_at,
+          status: r.status,
+        }))}
+      lastPayouts={Array.from(
+        (payoutBatches ?? []).reduce((latest, b) => {
+          const prev = latest.get(b.therapist_id);
+          if (!prev || b.created_at > prev.created_at) latest.set(b.therapist_id, b);
+          return latest;
+        }, new Map<string, NonNullable<typeof payoutBatches>[number]>())
+      ).map(([therapistId, b]) => ({
+        therapistId,
+        amountPaise: b.amount_paise,
+        paidAt: b.created_at,
+        via: describePayout(b.method, b.note),
+      }))}
       categories={(treatmentCategories ?? []).map((c) => ({ id: c.id, title: c.title }))}
       nowMs={nowTimestamp()}
     />
@@ -3746,21 +3934,8 @@ export default async function AdminDashboardPage({
 
   // Conditions is the one catalogue: each condition is sold as one video
   // session at its own price, and as one home visit at its home-visit price.
-  // Which service booking opens on (the "Default on booking" switch). Its
-  // own tolerant read like the codes above: without the column the switch is
-  // simply not drawn.
-  const defaultServiceRead = (async () => {
-    try {
-      const { data, error } = await admin
-        .from("treatment_categories")
-        .select("id")
-        .eq("is_default", true)
-        .limit(1);
-      return error ? undefined : ((data?.[0]?.id as string | undefined) ?? null);
-    } catch {
-      return undefined;
-    }
-  })();
+  // Which service booking opens on: defaultServiceRead, started with the
+  // early reads at the top.
   // A course of either is a therapist's recommendation, priced from these
   // same figures -- which is why the old Packages screen went.
   // Null when the column is not there yet: the form then hides the field.
@@ -4168,6 +4343,10 @@ export default async function AdminDashboardPage({
     { scope: viewerScope, workableSections },
     allActivityRows
   );
+  // Its enrichment (sessions, programmes, names) is three short reads of
+  // its own; started now rather than after the screens below are built.
+  const enrichedAdminEarly =
+    viewerScope === "full" ? startEarly(enrichAdminRows(admin, activityRows)) : null;
 
   // Read on its own rather than inside the ~40-query batch above, per the
   // migration-dependent rule: a database that has not applied the risk
@@ -4278,24 +4457,6 @@ export default async function AdminDashboardPage({
   // as it did when these reads sat inline.
   authoringDataPromise.catch(() => {});
 
-  const viewerRiskRules = riskRulesForSections(workableSections);
-  const viewerCanSeeRisk = viewerScope === "full" || viewerRiskRules.length > 0;
-  // Four reads that need nothing from each other, so they go together. They
-  // were four awaits in a row, which on this host is four round trips of
-  // latency (~320ms each) inside a page render that already has its data --
-  // the "isolated is not the same as sequential" rule, in the block where it
-  // cost the most. Each one keeps its own guard and its own empty fallback,
-  // so the isolation is unchanged and only the waiting is gone.
-  // Open signals are read in full and only the closed history is capped:
-  // one newest-200 read across every status hid an older open signal behind
-  // two hundred decided ones -- the queue said less was waiting than was.
-  // The two evidence trails keep their newest-200 window, and the screen
-  // says when it is showing a window rather than everything (see
-  // RiskSignalsTab). Every read's error is kept: a failed read is said,
-  // never drawn as an empty list.
-  const RISK_SIGNAL_COLUMNS =
-    "id, rule_key, subject_kind, subject_id, severity, summary, evidence, status, detected_at";
-  const RISK_TRAIL_WINDOW = 200;
   const [
     { data: openRiskSignalRows, error: openRiskSignalsError },
     { data: closedRiskSignalRows, error: closedRiskSignalsError },
@@ -4303,54 +4464,7 @@ export default async function AdminDashboardPage({
     { data: flagRows, error: flagRowsError },
     { data: revealRows, error: revealRowsError },
     lastRiskSweep,
-  ] = await Promise.all([
-    viewerCanSeeRisk
-      ? readAllRowsAsData<RiskSignalQueryRow>(() =>
-          admin
-            .from("risk_signals")
-            .select(RISK_SIGNAL_COLUMNS)
-            .in("status", ["open", "reviewing"])
-            .order("detected_at", { ascending: false })
-            .order("id", { ascending: true })
-        )
-      : Promise.resolve({ data: [] as RiskSignalQueryRow[], error: null }),
-    viewerCanSeeRisk
-      ? admin
-          .from("risk_signals")
-          .select(RISK_SIGNAL_COLUMNS)
-          .in("status", ["dismissed", "actioned"])
-          .order("detected_at", { ascending: false })
-          .limit(RISK_TRAIL_WINDOW)
-      : Promise.resolve({ data: [] as RiskSignalQueryRow[], error: null }),
-    viewerCanSeeRisk
-      ? admin
-          .from("risk_rules")
-          .select("rule_key, label, description, enabled, config")
-          .order("rule_key")
-      : Promise.resolve({ data: [] as RiskRuleQueryRow[] }),
-    // The evidence itself, read only for a scope that can see the queue, on
-    // its own so a database without the tables renders an empty panel rather
-    // than blanking the dashboard.
-    viewerCanSeeRisk
-      ? admin
-          .from("communication_flags")
-          .select(
-            "id, surface, author_id, patient_id, tier, findings, blocked, content, created_at"
-          )
-          .order("created_at", { ascending: false })
-          .limit(RISK_TRAIL_WINDOW)
-      : Promise.resolve({ data: [] as CommunicationFlagQueryRow[], error: null }),
-    viewerCanSeeRisk
-      ? admin
-          .from("contact_reveal_log")
-          .select("id, therapist_id, patient_id, field, reason, created_at")
-          .order("created_at", { ascending: false })
-          .limit(RISK_TRAIL_WINDOW)
-      : Promise.resolve({ data: [] as ContactRevealQueryRow[], error: null }),
-    viewerCanSeeRisk
-      ? readLastRiskSweep(admin)
-      : Promise.resolve({ report: null, readFailed: false }),
-  ]);
+  ] = await riskFirstWaveEarly;
   const riskSignalRows: RiskSignalQueryRow[] = [
     ...((openRiskSignalRows ?? []) as RiskSignalQueryRow[]),
     ...((closedRiskSignalRows ?? []) as RiskSignalQueryRow[]),
@@ -4545,25 +4659,8 @@ export default async function AdminDashboardPage({
   // decided one simply vanished from the review queue -- nobody could
   // approve what nobody could see. Everything waiting is read in full
   // (paged); the decided history keeps its window of the newest 200.
-  const CARE_PLAN_COLUMNS =
-    "id, patient_id, therapist_id, status, category_id, current_version_id, created_at";
-  const [pendingCarePlans, recentCarePlans] = canSeeCarePlans
-    ? await Promise.all([
-        readAllRowsAsData<AdminCarePlanQueryRow>(() =>
-          admin
-            .from("care_plans")
-            .select(CARE_PLAN_COLUMNS)
-            .eq("status", "pending_review")
-            .order("created_at", { ascending: false })
-            .order("id", { ascending: true })
-        ),
-        admin
-          .from("care_plans")
-          .select(CARE_PLAN_COLUMNS)
-          .neq("status", "pending_review")
-          .order("created_at", { ascending: false })
-          .limit(200),
-      ])
+  const [pendingCarePlans, recentCarePlans] = carePlansFirstEarly
+    ? await carePlansFirstEarly
     : [
         { data: [] as AdminCarePlanQueryRow[], error: null },
         { data: [] as AdminCarePlanQueryRow[], error: null },
@@ -4945,8 +5042,8 @@ export default async function AdminDashboardPage({
   let everyoneUnavailable = false;
   if (viewerScope === "full") {
     const [userFeed, enrichedAdminRows] = await Promise.all([
-      fetchUserActivityRows(admin, { limit: 200 }),
-      enrichAdminRows(admin, activityRows),
+      userActivityEarly ?? fetchUserActivityRows(admin, { limit: 200 }),
+      enrichedAdminEarly ?? enrichAdminRows(admin, activityRows),
     ]);
     everyoneUnavailable = !userFeed.ok;
     everyoneRows = mergeActivityRows(
@@ -5608,6 +5705,30 @@ export default async function AdminDashboardPage({
       })),
     // One entry per programme, under its ID with progress. The old SP/HS
     // code and the condition are search terms, so either finds it.
+    // A Razorpay payment or order ID finds the payment itself: who paid,
+    // how much, and a link that opens Transactions filtered to it. Money
+    // scope only, like the ids themselves (paymentRefsRead).
+    ...(canSeeMoney ? paymentRefRows : [])
+      .filter((r) => r.razorpay_payment_id || r.razorpay_order_id)
+      .map((r) => {
+        const ref = (r.razorpay_payment_id ?? r.razorpay_order_id) as string;
+        const who = r.patient_id ? profileMap.get(r.patient_id)?.full_name ?? "Unknown patient" : "No patient matched";
+        return {
+          id: `payment-${ref}`,
+          label: ref,
+          terms: [r.razorpay_order_id ?? "", r.razorpay_payment_id ?? "", who],
+          kind: "Payment" as const,
+          href: adminScreenHref("money", "transactions", `ref:${ref}`),
+          hint: [
+            who,
+            r.amount_paise !== null ? formatRupees(r.amount_paise) : null,
+            r.status,
+            r.created_at ? formatClinicDate(r.created_at) : null,
+          ]
+            .filter(Boolean)
+            .join(" \u00b7 "),
+        };
+      }),
     ...(canSeeProgrammes ? programmesData?.rows ?? [] : []).map((r) => ({
       id: r.key,
       label: r.display,
@@ -5664,6 +5785,8 @@ export default async function AdminDashboardPage({
         </div>
       </>
     ),
+    // Self-fetching; Money scope.
+    "money:refunds": <RefundsSettings canManage={scopeCanManage(viewerScope, "money")} />,
     "money:transactions": (
       <>
         {moneyAlerts}
@@ -5789,6 +5912,9 @@ export default async function AdminDashboardPage({
     // Self-fetching; Settings is Master Admin only and its route is
     // requireAdminScope("settings").
     "settings:profile-layout": <ProfileWidgetSettings />,
+    // Self-fetching, for the same reason; its routes are
+    // requireAdminScope("settings") too.
+    "settings:announcements": <AnnouncementSettings />,
     "settings:access": settingsAccessTab,
     "settings:health": settingsHealthTab,
     "settings:advanced": settingsAdvancedTab,
@@ -5800,12 +5926,18 @@ export default async function AdminDashboardPage({
     "today:activity": activityLogTab,
     "logs:all": logsTab,
     "logs:retention": <AdminLogRetentionTab />,
+    // Self-fetching; Logs is Master Admin only.
+    "logs:signed-in-as": <ImpersonationLogSettings />,
     "settings:security": settingsSecurityTab,
   };
 
   // Badges, keyed the same way. A section's own badge is the sum of its
   // tabs', computed inside the shell so the two can never disagree.
-  const badges: Record<string, number> = {
+  const refundsNeedingPerson = await refundsNeedingPersonRead.then(
+    (r) => (r.error ? 0 : r.count ?? 0),
+    () => 0
+  );
+    const badges: Record<string, number> = {
     "today:overview": inboxTotal,
     "sessions:all": unassignedTotal,
     // Waiting on the clinic's decision, and paid with nothing booked: the
@@ -5818,6 +5950,7 @@ export default async function AdminDashboardPage({
     "people:partners": b2bBadgeCount,
     "people:abandoned": abandonedCheckouts?.length ?? 0,
     "money:payouts": payoutRequestsBadgeCount + manualRefundsPending,
+    "money:refunds": refundsNeedingPerson,
     "catalog:areas": homeVisitWaitlist?.filter((w) => w.status === "new").length ?? 0,
     // Checks asking for a person, not rows -- so the badge, the verdict at
     // the top of that screen and the chips under it are all the same number.

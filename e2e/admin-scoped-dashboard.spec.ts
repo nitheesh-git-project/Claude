@@ -131,8 +131,12 @@ test.describe("Suite S: scoped admin dashboards", () => {
         await expect(onScreen(page, LEAD_FIGURE[scope]).first()).toBeVisible({ timeout: 60_000 });
 
         // ...and the dashboard says which one it is, in both places: the
-        // sidebar brand and the header eyebrow above the section title.
-        await expect(onScreen(page, DASHBOARD_NAME[scope])).toHaveCount(2);
+        // sidebar brand and the header eyebrow above the section title. A
+        // Queues group can carry the same word (the Clinical queue, when
+        // clinical work is waiting) and is not either of them.
+        await expect(
+          onScreen(page, DASHBOARD_NAME[scope]).and(page.locator(":not([data-queue-group])"))
+        ).toHaveCount(2);
 
         // Every quick action lands somewhere this scope may go. Before, they
         // were hardcoded at Sessions and Money for everybody.

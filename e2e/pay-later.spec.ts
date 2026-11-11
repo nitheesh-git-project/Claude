@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { BASE, adminClient, browserCookiesFor, cookieHeaderFor, clinicSlot, openTherapistHour, QA_EMAILS, pickTimeOnStepOne } from "./helpers";
+import { BASE, adminClient, browserCookiesFor, cookieHeaderFor, clinicSlot, openTherapistHour, QA_EMAILS, pickTimeOnStepOne, settleNetwork } from "./helpers";
 
 /**
  * Pay later, end to end, in a real browser.
@@ -198,7 +198,7 @@ test("PL-UI-003 booking on terms, with no payment step", async ({ page }) => {
 
   await signIn(page, PATIENT_E);
   await page.goto("/book");
-  await page.waitForLoadState("networkidle");
+  await settleNetwork(page);
   await shot(page, "05-book-step1");
 
   // Step 1 is the service and the slot. The day and the hour open already
@@ -366,7 +366,7 @@ test("PL-UI-004 completion puts the money in three places at once", async ({ pag
   // 1. What the patient owes.
   await signIn(page, QA_EMAILS.admin);
   await page.goto("/admin/dashboard?section=money&tab=owing");
-  await page.waitForLoadState("networkidle");
+  await settleNetwork(page);
   await shot(page, "10-owing-after-completion");
   // Scoped to the card: every admin screen is rendered at once behind
   // `hidden`, so an unscoped text match can resolve to the activity feed.
@@ -377,7 +377,7 @@ test("PL-UI-004 completion puts the money in three places at once", async ({ pag
   // 2. The clinic's revenue, and 3. the therapist's share, are the same
   //    screen's arithmetic -- checked here rather than eyeballed.
   await page.goto("/admin/dashboard?section=money&tab=summary");
-  await page.waitForLoadState("networkidle");
+  await settleNetwork(page);
   await shot(page, "11-money-summary");
 });
 
@@ -387,7 +387,7 @@ test("PL-UI-005 the patient sees what they owe, and can say they have paid", asy
 
   await signIn(page, PATIENT_E);
   await page.goto("/patient/dashboard");
-  await page.waitForLoadState("networkidle");
+  await settleNetwork(page);
   const skip = page.getByRole("button", { name: /^Skip$/i });
   if (await skip.isVisible().catch(() => false)) await skip.click();
   await page.waitForTimeout(400);
@@ -420,7 +420,7 @@ test("PL-UI-005 the patient sees what they owe, and can say they have paid", asy
     .toBe(1);
 
   await page.reload();
-  await page.waitForLoadState("networkidle");
+  await settleNetwork(page);
   await shot(page, "14-declared-being-checked");
   await expect(page.getByText(/checking your payment/i)).toBeVisible();
 
@@ -437,7 +437,7 @@ test("PL-UI-005 the patient sees what they owe, and can say they have paid", asy
   // button that `create-order` refuses outright, so it read wrong *and* led
   // nowhere. It reads the shared module now, in the patient's own voice.
   await page.goto("/patient/dashboard/sessions");
-  await page.waitForLoadState("networkidle");
+  await settleNetwork(page);
   await shot(page, "14b-patient-sessions");
   const past = page.getByRole("button", { name: /^Past$/i });
   if (await past.isVisible().catch(() => false)) {
@@ -453,7 +453,7 @@ test("PL-UI-005 the patient sees what they owe, and can say they have paid", asy
 test("PL-UI-006 confirming the payment settles the session", async ({ page }) => {
   await signIn(page, QA_EMAILS.admin);
   await page.goto("/admin/dashboard?section=money&tab=owing");
-  await page.waitForLoadState("networkidle");
+  await settleNetwork(page);
   await shot(page, "15-settlement-queue");
   await expect(page.getByRole("heading", { name: /Payments waiting/i })).toBeVisible();
 
@@ -490,7 +490,7 @@ test("PL-UI-006 confirming the payment settles the session", async ({ page }) =>
   expect(after).toEqual(before);
 
   await page.reload();
-  await page.waitForLoadState("networkidle");
+  await settleNetwork(page);
   await shot(page, "16-after-settlement");
 });
 
@@ -568,7 +568,7 @@ test("PL-UI-007 writing a session off is a cost, and it can be undone", async ({
 
   await signIn(page, QA_EMAILS.admin);
   await page.goto("/admin/dashboard?section=money&tab=owing");
-  await page.waitForLoadState("networkidle");
+  await settleNetwork(page);
 
   // Giving money away asks once more before it happens, through the app's own
   // ConfirmDialog rather than the browser's -- so there is no `page.on("dialog")`
@@ -624,7 +624,7 @@ test("PL-UI-007 writing a session off is a cost, and it can be undone", async ({
   expect(cost?.category).toBe("Bad debt");
 
   await page.reload();
-  await page.waitForLoadState("networkidle");
+  await settleNetwork(page);
   await shot(page, "18-written-off-listed");
   await expect(page.getByRole("heading", { name: /^Written off$/i })).toBeVisible();
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useStepScroll } from "@/lib/useStepScroll";
 import { formatClinicDateTime } from "@/lib/formatDateTime";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -165,6 +166,11 @@ export default function BookingWizard({
   const leadTimeMs = leadTimeMsFromHours(bookingLeadTimeHours);
   const searchParams = useSearchParams();
   const [step, setStep] = useState(1);
+  // Step 1's Continue is asking the server whether the time clashes.
+  const [slotChecking, setSlotChecking] = useState(false);
+  // Each step starts at its top, not where the last one's button was.
+  const wizardRootRef = useRef<HTMLDivElement>(null);
+  useStepScroll(step, wizardRootRef);
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [signedInRole, setSignedInRole] = useState<NonPatientRole | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -606,7 +612,46 @@ export default function BookingWizard({
       setError("Please pick a language for your session.");
       return;
     }
-    setStep(2);
+    // A signed-in patient is told now, on the step where the time is chosen,
+    // if it clashes with a session they already have -- not on the last step
+    // after filling in every detail. Create checks again; so does the
+    // database.
+    void (async () => {
+      if (isLoggedIn) {
+        const clash = await checkOwnSlot();
+        if (clash) {
+          setError(clash);
+          return;
+        }
+      }
+      setStep(2);
+    })();
+  }
+
+  /** The clash message when this time overlaps one of the signed-in
+   *  patient's own sessions; null when it does not, or when the check could
+   *  not be made (create checks again before anything is booked). */
+  async function checkOwnSlot(): Promise<string | null> {
+    if (!slotDateTime) return null;
+    setSlotChecking(true);
+    try {
+      const res = await fetch("/api/appointments/check-slot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          slotTime: new Date(slotDateTime).toISOString(),
+          categoryId,
+          replacesAppointmentId: replacedDraftRef.current,
+        }),
+      });
+      if (!res.ok) return null;
+      const data = (await res.json().catch(() => ({}))) as { conflict?: boolean; error?: string };
+      return data.conflict ? data.error ?? "You already have a session scheduled around this time." : null;
+    } catch {
+      return null;
+    } finally {
+      setSlotChecking(false);
+    }
   }
 
   /** A failed rule, said once and shown where it is: the message at the top
@@ -777,6 +822,22 @@ export default function BookingWizard({
       failField("Please agree to the telehealth consent terms to continue.", "bw-consent");
       return;
     }
+    if (isLoggedIn) {
+      void (async () => {
+        const clash = await checkOwnSlot();
+        if (clash) {
+          setStep(1);
+          setError(clash);
+          return;
+        }
+        enterStep3();
+      })();
+      return;
+    }
+    enterStep3();
+  }
+
+  function enterStep3() {
     setStep(3);
     // The figures on the payment screen come from the server, not from the
     // category price this component happens to hold -- see refreshQuote.
@@ -1314,7 +1375,7 @@ export default function BookingWizard({
 
   const header = (
     <div className="bg-slate-900 text-white p-6">
-      <span className="text-[13px] font-bold uppercase tracking-wider text-teal-300 block mb-1">
+      <span data-step-heading className="text-[13px] font-bold uppercase tracking-wider text-teal-300 block mb-1 outline-none">
         {done ? "Booking" : `Step ${step} of 3`}
       </span>
       <h1 className="text-xl font-bold">Book a video physiotherapy session</h1>
@@ -1524,7 +1585,7 @@ export default function BookingWizard({
     // overflow-clip, not overflow-hidden: it still rounds the corners, but
     // it is not a scroll container, so the phone's pinned action row below
     // can stick to the bottom of the screen rather than to this card.
-    <div className="relative bg-white rounded-3xl shadow-xl overflow-clip border border-slate-200">
+    <div ref={wizardRootRef} className="relative bg-white rounded-3xl shadow-xl overflow-clip border border-slate-200">
       {loading && payStage && step === 3 && (
         <CheckoutProgress stage={payStage} includeAccount={payIncludesAccount} />
       )}
@@ -1575,6 +1636,7 @@ export default function BookingWizard({
           confirmationHours={confirmationHours}
           serviceChosen={Boolean(categoryId)}
           onContinue={goToStep2}
+          continuePending={slotChecking}
         />
       )}
 
@@ -1711,6 +1773,7 @@ export default function BookingWizard({
               Repeating the picker would be a second place to change the same
               thing, and the wizard's own header already carries the price. */}
           {selectedOption && (
+            <div className="mt-4">
             <ChosenServiceSummary
               option={selectedOption}
               compact
@@ -1724,6 +1787,7 @@ export default function BookingWizard({
                 </button>
               }
             />
+            </div>
           )}
 
           {/* The request carried over from a specialist's profile. Stated as
@@ -1786,7 +1850,7 @@ export default function BookingWizard({
                 onChange={(e) => setPreferredTherapistId(e.target.value)}
                 className="w-full min-h-12 p-3 text-base rounded-xl border border-slate-300 bg-white"
               >
-                <option value="">No preference - any available specialist</option>
+                <option value="">No preference (anyone available)</option>
                 {previousTherapists.map((t) => (
                   <option key={t.id} value={t.id}>
                     {specialtyLabel(t.specialization)
@@ -1877,41 +1941,53 @@ export default function BookingWizard({
         <>
           <div className="bg-teal-50 p-5 rounded-2xl border border-teal-100 space-y-3">
             <div className="flex justify-between gap-3 text-sm">
-              <span className="text-slate-600">Name</span>
-              <span className="font-bold text-slate-900 text-right text-base">{fullName}</span>
+              <span className="shrink-0 text-slate-600">Name</span>
+              <span className="font-bold text-slate-900 text-right text-base min-w-0 [overflow-wrap:anywhere]">{fullName}</span>
+            </div>
+            {/* Its own line under the label on a phone: an email is the one
+                value here long enough to run out of the box beside its label. */}
+            <div className="flex flex-col gap-0.5 text-sm sm:flex-row sm:justify-between sm:gap-3">
+              <span className="shrink-0 text-slate-600">Email</span>
+              <span className="min-w-0 text-base font-bold text-slate-900 [overflow-wrap:anywhere] sm:text-right">
+                {email.includes("@") ? (
+                  <>
+                    {email.slice(0, email.indexOf("@"))}
+                    <wbr />
+                    {email.slice(email.indexOf("@"))}
+                  </>
+                ) : (
+                  email
+                )}
+              </span>
             </div>
             <div className="flex justify-between gap-3 text-sm">
-              <span className="text-slate-600">Email</span>
-              <span className="font-bold text-slate-900 text-right text-base">{email}</span>
-            </div>
-            <div className="flex justify-between gap-3 text-sm">
-              <span className="text-slate-600">
+              <span className="shrink-0 text-slate-600">
                 Time you asked for
               </span>
-              <span className="font-bold text-slate-900 text-right text-base">
+              <span className="font-bold text-slate-900 text-right text-base min-w-0 [overflow-wrap:anywhere]">
                 {resumedSlotIso
                   ? formatClinicDateTime(resumedSlotIso)
                   : slotDateTime && formatClinicDateTime(slotDateTime)}
               </span>
             </div>
             <div className="flex justify-between gap-3 text-sm">
-              <span className="text-slate-600">Session for</span>
-              <span className="font-bold text-slate-900 text-right text-base" data-testid="summary-for">
+              <span className="shrink-0 text-slate-600">Session for</span>
+              <span className="font-bold text-slate-900 text-right text-base min-w-0 [overflow-wrap:anywhere]" data-testid="summary-for">
                 {whoFor.who === "family"
                   ? `${whoFor.name.trim()} (${whoFor.relationship.trim()})`
                   : "You"}
               </span>
             </div>
             <div className="flex justify-between gap-3 text-sm">
-              <span className="text-slate-600">Language</span>
-              <span className="font-bold text-slate-900 text-right text-base">{language || "-"}</span>
+              <span className="shrink-0 text-slate-600">Language</span>
+              <span className="font-bold text-slate-900 text-right text-base min-w-0 [overflow-wrap:anywhere]">{language || "-"}</span>
             </div>
             <div className="flex justify-between gap-3 text-sm">
-              <span className="text-slate-600">Concern</span>
-              <span className="font-bold text-slate-900 text-right text-base">{selectedCategory?.title}</span>
+              <span className="shrink-0 text-slate-600">Concern</span>
+              <span className="font-bold text-slate-900 text-right text-base min-w-0 [overflow-wrap:anywhere]">{selectedCategory?.title}</span>
             </div>
             <div className="flex justify-between gap-3 text-sm pt-3 border-t border-teal-100">
-              <span className="text-slate-600">Session Fee</span>
+              <span className="shrink-0 text-slate-600">Session Fee</span>
               <span className={`font-bold text-base text-slate-900 ${quote && quote.discountPaise > 0 ? "line-through opacity-60" : ""}`}>
                 {quote
                   ? quoteMoney(quote.listPricePaise)
@@ -1934,7 +2010,7 @@ export default function BookingWizard({
                     full, so it is added after the discount and shown as its
                     own line rather than folded into a price. */}
                 <span className="text-slate-600">Travel</span>
-                <span className="font-bold text-slate-900 text-right text-base">
+                <span className="font-bold text-slate-900 text-right text-base min-w-0 [overflow-wrap:anywhere]">
                   {quoteMoneyShort(quote.travelFeePaise)}
                 </span>
               </div>

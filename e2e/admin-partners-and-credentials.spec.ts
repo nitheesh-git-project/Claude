@@ -15,7 +15,7 @@
 //   -- never on your own.
 // - **PC-006** New Booking fills the width the header does.
 import { test, expect, type Page } from "@playwright/test";
-import { BASE, browserCookiesFor, QA_EMAILS, adminClient } from "./helpers";
+import { BASE, browserCookiesFor, QA_EMAILS, adminClient, settleNetwork } from "./helpers";
 
 const SLOW = 240_000;
 
@@ -31,7 +31,7 @@ async function openScreen(page: Page, section: string, tab: string) {
       timeout: 30_000,
     })
     .catch(() => {});
-  await page.waitForLoadState("networkidle");
+  await settleNetwork(page);
 }
 
 test.describe("partner surfaces and back-office credentials", () => {

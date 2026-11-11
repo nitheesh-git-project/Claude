@@ -10245,6 +10245,18 @@ begin
     -- What the clinic chose to show on one patient's Health Profile (end of
     -- this file); the condition-kind settings are settings and stay.
     patient_profile_widget_overrides,
+    -- Who closed or has seen which announcement, and everybody's private
+    -- notebook (both at the end of this file). The announcements themselves
+    -- are the admin's own writing, like the FAQs, and stay.
+    announcement_receipts,
+    notebook_pages,
+    -- The mirror of Razorpay's refunds (end of this file).
+    razorpay_refunds,
+    -- Test-account logins from the debug bar, and the record of deleted
+    -- accounts (both at the end of this file). The second is append-only by
+    -- trigger, so it is truncated here rather than left to CASCADE.
+    debug_test_accounts,
+    account_deletions,
     -- The guided video assessment (phase 7a, end of this file): the events
     -- are append-only by trigger and the runs refuse a delete, so they are
     -- named here rather than left to CASCADE; the live display goes with them.
@@ -20151,6 +20163,695 @@ create policy "assessment_companion_seen_select_admin" on assessment_companion_s
   for select using (is_admin());
 
 revoke insert, update, delete on assessment_companion_seen from anon, authenticated;
+
+-- ---------------------------------------------------------------------
+-- Announcements and the notebook.
+--
+--   1. announcements         -- a banner an admin puts on top of the
+--                               patient, therapist and hospital dashboards,
+--                               with a pop-up behind it (src/lib/announcements.ts).
+--   2. announcement_receipts -- per person: closed it, has seen its pop-up.
+--   3. notebook_pages        -- every account's private diary (src/lib/notebook.ts).
+--
+-- Written only by the service role from routes that have done their own
+-- check (requireAdminScope("settings") for an announcement; the signed-in
+-- owner for a receipt or a page), so no table carries an insert, update or
+-- delete policy and the three verbs are revoked from the browser roles.
+--
+-- None of the three is evidence: an announcement is edited and ended, a
+-- receipt is a convenience, a notebook page is rewritten every few seconds
+-- while its owner types. So there is no append-only guard, deliberately.
+-- Foreign keys cascade or set null -- none is `restrict` -- so
+-- scripts/clean-e2e-residue.mjs has nothing to learn. The data reset
+-- truncates the receipts and the pages (newest debug_reset_all_data(),
+-- above) and leaves the announcements, which are the admin's own writing.
+-- ---------------------------------------------------------------------
+create table if not exists announcements (
+  id uuid primary key default gen_random_uuid(),
+  title text not null check (char_length(btrim(title)) between 1 and 80),
+  -- The pop-up's formatted text: the editor's JSON, sanitised by the route.
+  body text check (body is null or char_length(body) <= 40000),
+  banner_image_url text check (banner_image_url is null or banner_image_url ~ '^https://'),
+  popup_image_url text check (popup_image_url is null or popup_image_url ~ '^https://'),
+  audiences text[] not null check (
+    cardinality(audiences) between 1 and 3
+    and audiences <@ array['patient', 'therapist', 'hospital']::text[]
+  ),
+  cta_label text check (cta_label is null or char_length(btrim(cta_label)) between 1 and 30),
+  -- Per dashboard: {"patient": {"kind": "screen", "key": "book"}, ...}.
+  cta_targets jsonb not null default '{}'::jsonb check (jsonb_typeof(cta_targets) = 'object'),
+  -- Null while it is a draft.
+  published_at timestamptz,
+  starts_at timestamptz,
+  ends_at timestamptz,
+  -- "Stays for N": kept so a draft published later still runs its full time.
+  duration_minutes integer check (duration_minutes is null or duration_minutes between 5 and 527040),
+  dismissible boolean not null default true,
+  auto_open boolean not null default false,
+  sort_order integer not null default 0,
+  created_by uuid references profiles(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  -- A published announcement knows when it starts and ends, and ends later.
+  constraint announcements_published_has_window check (
+    published_at is null
+    or (starts_at is not null and ends_at is not null and ends_at > starts_at)
+  )
+);
+
+create index if not exists announcements_window_idx
+  on announcements (ends_at, starts_at) where published_at is not null;
+create index if not exists announcements_created_by_idx
+  on announcements (created_by) where created_by is not null;
+
+alter table announcements enable row level security;
+
+drop policy if exists "announcements_select_admin" on announcements;
+create policy "announcements_select_admin" on announcements
+  for select using (is_admin());
+
+-- A signed-in person may read what is live for their own role. The
+-- dashboards read through the service role after working out the role
+-- themselves; this is the same rule said to the database, so a browser
+-- holding a session can never read a draft or another role's notice.
+drop policy if exists "announcements_select_live_audience" on announcements;
+create policy "announcements_select_live_audience" on announcements
+  for select using (
+    published_at is not null
+    and starts_at <= now()
+    and ends_at > now()
+    and exists (
+      select 1 from profiles p
+      where p.id = (select auth.uid())
+        and p.role = any (announcements.audiences)
+    )
+  );
+
+revoke insert, update, delete on announcements from anon, authenticated;
+
+create table if not exists announcement_receipts (
+  announcement_id uuid not null references announcements(id) on delete cascade,
+  user_id uuid not null references profiles(id) on delete cascade,
+  dismissed_at timestamptz,
+  popup_seen_at timestamptz,
+  primary key (announcement_id, user_id)
+);
+
+create index if not exists announcement_receipts_user_idx
+  on announcement_receipts (user_id);
+
+alter table announcement_receipts enable row level security;
+
+drop policy if exists "announcement_receipts_select_own" on announcement_receipts;
+create policy "announcement_receipts_select_own" on announcement_receipts
+  for select using (user_id = (select auth.uid()));
+
+drop policy if exists "announcement_receipts_select_admin" on announcement_receipts;
+create policy "announcement_receipts_select_admin" on announcement_receipts
+  for select using (is_admin());
+
+revoke insert, update, delete on announcement_receipts from anon, authenticated;
+
+-- The notebook. One policy, and it is the whole privacy promise: a page is
+-- read by its owner and by nobody else. There is deliberately NO admin
+-- policy here -- every other table in this file has one, and this one must
+-- not, because the notebook's own screen tells the person "Only you can
+-- read this".
+create table if not exists notebook_pages (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references profiles(id) on delete cascade,
+  body text check (body is null or char_length(body) <= 30000),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists notebook_pages_user_idx
+  on notebook_pages (user_id, created_at);
+
+alter table notebook_pages enable row level security;
+
+drop policy if exists "notebook_pages_select_own" on notebook_pages;
+create policy "notebook_pages_select_own" on notebook_pages
+  for select using (user_id = (select auth.uid()));
+
+revoke insert, update, delete on notebook_pages from anon, authenticated;
+
+-- ---------------------------------------------------------------------
+-- Abandoned checkouts are actually removed.
+--
+-- People -> Abandoned checkouts promised "removed after N days", and the
+-- accounts stayed: on the screen, and on People -> Patients, long past the
+-- date. purge_abandoned_booking_accounts deleted each account with one
+-- `delete from auth.users`, inside an exception handler that only raised a
+-- warning -- and `payment_failure_log.patient_id` references profiles with
+-- no ON DELETE action. An abandoned checkout is very often exactly an
+-- account whose payment failed, so the delete hit that foreign key, the
+-- handler swallowed it, and the account was kept on every run, silently.
+--
+-- Two other conditions also kept accounts nobody had paid anything for: any
+-- `payments` row at all (an order created, a payment failed), and any
+-- purchase row (the home-visit and programme wizards write an unpaid one
+-- before checkout). Money that never moved is not a reason to keep anyone.
+--
+-- So the rule is now one function both the list and the purge use:
+-- abandoned_checkout_kept_reason() says why an account must stay -- money
+-- was taken, something was bought, a session is paid, assigned or under
+-- way, or the payment tries ran out (the account opens instead) -- and null
+-- means it goes. The purge removes the account's failed-payment records
+-- first (the record of an account being deleted for never having paid), so
+-- the foreign key cannot keep it. The screen shows the reason for anyone
+-- kept, instead of a removal date that would never come.
+-- ---------------------------------------------------------------------
+create or replace function public.abandoned_checkout_kept_reason(p_id uuid, p_try_limit integer)
+returns text
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select case
+    when exists (
+      select 1 from public.payments pay
+      where pay.patient_id = p_id
+        and pay.status in ('authorized', 'captured', 'refunded', 'partially_refunded')
+    ) then 'A payment was taken'
+    when exists (select 1 from public.patient_package_purchases pp where pp.patient_id = p_id and pp.payment_status = 'paid')
+      or exists (select 1 from public.home_visit_package_purchases hp where hp.patient_id = p_id and hp.payment_status = 'paid')
+      then 'They bought a programme'
+    when exists (
+      select 1 from public.appointments a
+      where a.patient_id = p_id
+        and (a.payment_status = 'paid' or a.therapist_id is not null or a.status in ('confirmed', 'completed'))
+    ) then 'A session is paid, assigned or under way'
+    when (select count(*) from public.checkout_payment_tries t where t.patient_id = p_id) >= p_try_limit
+      then 'They used every payment try, so their dashboard opens instead'
+    else null
+  end;
+$$;
+
+revoke all on function public.abandoned_checkout_kept_reason(uuid, integer) from public, anon, authenticated;
+
+create or replace function public.abandoned_checkout_accounts(p_try_limit integer)
+returns table (
+  id uuid,
+  full_name text,
+  email text,
+  phone text,
+  created_at timestamptz,
+  tries integer,
+  next_slot timestamptz,
+  next_concern text,
+  kept_reason text
+)
+language sql
+stable
+security definer
+set search_path = public, auth
+as $$
+  select
+    p.id,
+    p.full_name,
+    p.email,
+    p.phone,
+    u.created_at,
+    (select count(*)::integer from public.checkout_payment_tries t where t.patient_id = p.id),
+    d.slot_time,
+    d.concern,
+    -- The caller may pass the limit; null reads the clinic's own setting.
+    public.abandoned_checkout_kept_reason(
+      p.id,
+      greatest(coalesce(p_try_limit, (select st.payment_tries_before_access from public.site_settings st limit 1), 3), 1)
+    )
+  from public.profiles p
+  join auth.users u on u.id = p.id
+  left join lateral (
+    select a.slot_time, a.concern
+    from public.appointments a
+    where a.patient_id = p.id and a.status = 'requested' and a.payment_status = 'unpaid'
+    order by a.created_at desc
+    limit 1
+  ) d on true
+  where p.role = 'patient'
+    and p.approved = false
+    and u.raw_user_meta_data->>'signup_source' = 'booking'
+  order by u.created_at desc;
+$$;
+
+revoke all on function public.abandoned_checkout_accounts(integer) from public, anon, authenticated;
+
+create or replace function public.purge_abandoned_booking_accounts(p_days integer, p_try_limit integer)
+returns integer
+language plpgsql
+security definer
+set search_path = public, auth
+as $$
+declare
+  v_id uuid;
+  v_deleted integer := 0;
+begin
+  if p_days is null or p_days < 1 or p_try_limit is null or p_try_limit < 1 then
+    raise exception 'purge_abandoned_booking_accounts: p_days and p_try_limit must be at least 1';
+  end if;
+
+  for v_id in
+    select p.id
+    from public.profiles p
+    join auth.users u on u.id = p.id
+    where p.role = 'patient'
+      and p.approved = false
+      and u.raw_user_meta_data->>'signup_source' = 'booking'
+      and u.created_at < now() - make_interval(days => p_days)
+      and public.abandoned_checkout_kept_reason(p.id, p_try_limit) is null
+    limit 200
+  loop
+    begin
+      -- The failed attempts reference the account with no ON DELETE action;
+      -- they go with it rather than keeping it.
+      delete from public.payment_failure_log where patient_id = v_id;
+      delete from auth.users where id = v_id;
+      v_deleted := v_deleted + 1;
+    exception when others then
+      raise warning 'purge_abandoned_booking_accounts: kept % (%)', v_id, sqlerrm;
+    end;
+  end loop;
+
+  return v_deleted;
+end;
+$$;
+
+revoke all on function public.purge_abandoned_booking_accounts(integer, integer) from public, anon, authenticated;
+
+-- ---------------------------------------------------------------------
+-- Every Razorpay refund, mirrored: razorpay_refunds.
+--
+-- The webhook used to act on `payment.captured` alone, so a refund made on
+-- the Razorpay website never reached the app at all -- the session went on
+-- reading Paid, the money figures went on counting it -- and a refund the
+-- app started was marked done the moment Razorpay accepted it, with nothing
+-- to say later that the bank had failed it.
+--
+-- Now `refund.created`, `refund.processed` and `refund.failed` are mirrored
+-- here, one row per Razorpay refund id, updated as its status moves
+-- (src/lib/razorpayRefundSync.ts). A mirror, not evidence: Razorpay is the
+-- record and this follows it, so there is no append-only guard. `source`
+-- says whether the app started it (a refund_attempts row carries its id) or
+-- somebody did on Razorpay; the subject is matched from the payment id.
+-- What the app does with each is in the module; Money -> Refunds lists them.
+--
+-- RLS: an admin reads; only the service role writes (the webhook). Foreign
+-- keys set null -- the mirror outlives a deleted booking -- so the e2e
+-- residue cleaner has nothing to learn. The data reset truncates it (newest
+-- debug_reset_all_data()).
+-- ---------------------------------------------------------------------
+create table if not exists razorpay_refunds (
+  razorpay_refund_id text primary key check (razorpay_refund_id ~ '^rfnd_[A-Za-z0-9]+$'),
+  razorpay_payment_id text not null,
+  amount_paise integer not null check (amount_paise > 0),
+  status text not null check (status in ('created', 'pending', 'processed', 'failed')),
+  source text not null check (source in ('app', 'razorpay')),
+  appointment_id uuid references appointments(id) on delete set null,
+  package_purchase_id uuid references patient_package_purchases(id) on delete set null,
+  home_visit_purchase_id uuid references home_visit_package_purchases(id) on delete set null,
+  patient_id uuid references profiles(id) on delete set null,
+  -- Whether the app recorded the refund on the booking itself, and if not, why.
+  applied text not null default 'pending' check (applied in ('pending', 'applied', 'already', 'needs_review', 'not_needed')),
+  applied_note text,
+  gateway_created_at timestamptz,
+  processed_at timestamptz,
+  failed_at timestamptz,
+  speed text,
+  reviewed_by uuid references profiles(id) on delete set null,
+  reviewed_at timestamptz,
+  first_seen_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists razorpay_refunds_payment_idx on razorpay_refunds (razorpay_payment_id);
+create index if not exists razorpay_refunds_appointment_idx on razorpay_refunds (appointment_id) where appointment_id is not null;
+create index if not exists razorpay_refunds_package_idx on razorpay_refunds (package_purchase_id) where package_purchase_id is not null;
+create index if not exists razorpay_refunds_home_visit_idx on razorpay_refunds (home_visit_purchase_id) where home_visit_purchase_id is not null;
+create index if not exists razorpay_refunds_patient_idx on razorpay_refunds (patient_id) where patient_id is not null;
+create index if not exists razorpay_refunds_reviewed_by_idx on razorpay_refunds (reviewed_by) where reviewed_by is not null;
+
+alter table razorpay_refunds enable row level security;
+
+drop policy if exists "razorpay_refunds_select_admin" on razorpay_refunds;
+create policy "razorpay_refunds_select_admin" on razorpay_refunds
+  for select using (is_admin());
+
+revoke insert, update, delete on razorpay_refunds from anon, authenticated;
+
+-- Money -> Refunds and its badge refresh live when a webhook writes a row.
+do $$
+begin
+  alter publication supabase_realtime add table razorpay_refunds;
+exception when duplicate_object then null;
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- Test accounts made from the debug bar, and removing them with their data
+-- ---------------------------------------------------------------------------
+--
+-- Testing a feature needs a patient, a therapist, a hospital and an admin of
+-- each desk, and making them by hand was the slowest part of every test. The
+-- debug bar's Test accounts panel (src/app/api/admin/debug-test-accounts)
+-- makes a set in one tap and lists their sign-ins so they can be copied into
+-- the login pages.
+--
+-- This table is the only thing that makes an account a *test* account. The
+-- purge below refuses any id that is not in it, so "Delete all" can never
+-- reach a real person -- whatever the account has done, and whatever points
+-- at it. The password is stored in plain text on purpose: these logins are
+-- throwaway, they exist to be copied, and the table is readable by the
+-- service role alone (RLS on, no policy) behind a Master Admin, and only
+-- where the debug bar is on (NEXT_PUBLIC_SHOW_DEBUG_NAV not "false").
+create table if not exists debug_test_accounts (
+  user_id uuid primary key,
+  batch_id uuid not null,
+  role text not null check (role in ('patient', 'therapist', 'hospital', 'admin')),
+  admin_scope text check (admin_scope is null or admin_scope in ('operations', 'finance', 'clinical')),
+  label text not null,
+  email text not null,
+  password text not null,
+  created_by uuid references profiles(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists debug_test_accounts_batch_idx on debug_test_accounts (batch_id);
+create index if not exists debug_test_accounts_created_by_idx on debug_test_accounts (created_by) where created_by is not null;
+
+alter table debug_test_accounts enable row level security;
+-- No policy: nobody but the service role reads a test login.
+revoke all on debug_test_accounts from anon, authenticated;
+
+-- Removes one test account and every row that hangs off it, payments
+-- included.
+--
+-- Thirty-five foreign keys into profiles refuse a delete, several money and
+-- evidence tables refuse one by trigger, and the chains run several tables
+-- deep -- so this walks the rows rather than the schema. Starting from the
+-- profile, it collects every row whose foreign key points at a row already
+-- collected, until nothing new turns up, turns off the append-only and money
+-- guards on those tables by name for this transaction only, and deletes the
+-- rows in passes so each goes after whatever points at it. Walking the schema
+-- instead -- one nested delete per foreign-key path -- was tried and runs to
+-- thousands of paths at depth eight.
+--
+-- Three guards keep it to test data:
+--   * the id must be in debug_test_accounts;
+--   * a foreign key that SETs NULL is nulled, never followed -- unless it
+--     is the row's owner column (patient_id, therapist_id, ...) pointing at
+--     the test account itself, as payments.patient_id does -- so a real row
+--     that merely names a test admin as its reviewer keeps everything else;
+--   * a profile reached through a foreign key is never deleted: its column
+--     is nulled when it can be, and the whole purge refuses when it cannot.
+-- The auth user is removed last, with triggers back on, so the auth
+-- schema's own rows cascade exactly as they do for any delete.
+create or replace function public.debug_purge_test_account(p_user_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  fk record;
+  added integer;
+  total integer := 0;
+  rounds integer := 0;
+  n integer;
+  removed jsonb := '{}'::jsonb;
+  v_test_ids uuid[];
+  v_rels oid[];
+  v_rel oid;
+  trg record;
+  pass integer := 0;
+  progress boolean;
+begin
+  if not exists (select 1 from debug_test_accounts where user_id = p_user_id) then
+    raise exception 'not a test account: only accounts the debug bar created can be removed this way';
+  end if;
+  select array_agg(user_id) into v_test_ids from debug_test_accounts;
+
+  create temp table if not exists _purge_rows (rel oid not null, rid tid not null, primary key (rel, rid)) on commit drop;
+  truncate _purge_rows;
+  create temp table if not exists _purge_triggers (rel oid not null, name text not null) on commit drop;
+  truncate _purge_triggers;
+
+  insert into _purge_rows (rel, rid)
+  select 'public.profiles'::regclass::oid, ctid from profiles where id = p_user_id;
+
+  -- 1. Collect every row that points at a collected row, until nothing new.
+  loop
+    rounds := rounds + 1;
+    added := 0;
+    for fk in
+      select con.conrelid as child, con.confrelid as parent,
+             ca.attname::text as child_col, pa.attname::text as parent_col
+      from pg_constraint con
+      join pg_class cr on cr.oid = con.conrelid
+      join pg_namespace cn on cn.oid = cr.relnamespace
+      join pg_attribute ca on ca.attrelid = con.conrelid and ca.attnum = con.conkey[1]
+      join pg_attribute pa on pa.attrelid = con.confrelid and pa.attnum = con.confkey[1]
+      where con.contype = 'f'
+        and cn.nspname = 'public'
+        and array_length(con.conkey, 1) = 1
+        and (
+          con.confdeltype in ('a', 'r', 'c')
+          -- A row the test account *owns* goes with it even where the key
+          -- would only SET NULL: payments.patient_id is one, and a test
+          -- patient's payments left behind with no owner would sit on the
+          -- money screens for ever. Other SET NULL keys (reviewed_by,
+          -- created_by ...) are a mention, not ownership, and are nulled below.
+          or (con.confdeltype in ('n', 'd')
+              and con.confrelid = 'public.profiles'::regclass
+              and ca.attname in ('patient_id', 'therapist_id', 'hospital_id', 'user_id', 'owner_id', 'profile_id'))
+        )
+        and con.confrelid in (select distinct r.rel from _purge_rows r)
+        -- A profile is never collected through a foreign key (see above).
+        and con.conrelid <> 'public.profiles'::regclass
+    loop
+      execute format(
+        'insert into _purge_rows (rel, rid)
+           select %1$s::oid, c.ctid from %2$s c
+            where c.%3$I in (select p.%4$I from %5$s p
+                              where p.ctid in (select rid from _purge_rows where rel = %6$s::oid))
+           on conflict do nothing',
+        fk.child, fk.child::regclass, fk.child_col, fk.parent_col, fk.parent::regclass, fk.parent);
+      get diagnostics n = row_count;
+      added := added + n;
+    end loop;
+    exit when added = 0 or rounds > 50;
+  end loop;
+
+  -- 2. Profiles that point at a collected row: real people a test account
+  -- touched (a referral, a pay-later grant). Their column is nulled; a NOT
+  -- NULL one refuses the purge.
+  for fk in
+    select con.confrelid as parent, ca.attname::text as child_col,
+           pa.attname::text as parent_col, ca.attnotnull as not_null
+    from pg_constraint con
+    join pg_attribute ca on ca.attrelid = con.conrelid and ca.attnum = con.conkey[1]
+    join pg_attribute pa on pa.attrelid = con.confrelid and pa.attnum = con.confkey[1]
+    where con.contype = 'f'
+      and con.conrelid = 'public.profiles'::regclass
+      and array_length(con.conkey, 1) = 1
+      and con.confrelid in (select distinct r.rel from _purge_rows r)
+  loop
+    execute format(
+      'select count(*) from profiles c
+        where c.%1$I in (select p.%2$I from %3$s p where p.ctid in (select rid from _purge_rows where rel = %4$s::oid))
+          and not (c.id = any($1))',
+      fk.child_col, fk.parent_col, fk.parent::regclass, fk.parent)
+      into n using v_test_ids;
+    if n > 0 and fk.not_null then
+      raise exception 'a real account depends on this test account (profiles.%), so it was left as it is', fk.child_col;
+    end if;
+    if n > 0 then
+      execute format(
+        'update profiles c set %1$I = null
+          where c.%1$I in (select p.%2$I from %3$s p where p.ctid in (select rid from _purge_rows where rel = %4$s::oid))
+            and not (c.id = any($1))',
+        fk.child_col, fk.parent_col, fk.parent::regclass, fk.parent)
+        using v_test_ids;
+    end if;
+  end loop;
+
+  -- 3. Guards off, by name, on the tables being emptied -- for this
+  -- transaction only (ALTER TABLE is transactional, and a failure anywhere
+  -- rolls it back with everything else). Only the triggers that are on now,
+  -- so they are put back exactly as found. Foreign keys are not triggers of
+  -- this kind and stay enforced throughout. This is the clean-up script's
+  -- own approach; `session_replication_role` was tried first and is refused
+  -- to this role on a stock Supabase stack.
+  insert into _purge_triggers (rel, name)
+  select t.tgrelid, t.tgname
+  from pg_trigger t
+  where not t.tgisinternal
+    and t.tgenabled <> 'D'
+    and t.tgrelid in (select distinct r.rel from _purge_rows r);
+  for trg in select * from _purge_triggers loop
+    execute format('alter table %s disable trigger %I', trg.rel::regclass, trg.name);
+  end loop;
+
+  -- 4. Delete in passes. A table still referenced by another collected
+  -- table's rows waits for a later pass; a cascade removes rows ahead of
+  -- their turn, which leaves their table's delete with nothing to do.
+  loop
+    pass := pass + 1;
+    progress := false;
+    select array_agg(distinct r.rel) into v_rels from _purge_rows r;
+    exit when v_rels is null;
+    foreach v_rel in array v_rels loop
+      begin
+        execute format('delete from %s where ctid in (select rid from _purge_rows where rel = %s::oid)',
+          v_rel::regclass, v_rel);
+        get diagnostics n = row_count;
+        delete from _purge_rows where rel = v_rel;
+        total := total + n;
+        removed := removed || jsonb_build_object(
+          replace(v_rel::regclass::text, 'public.', ''),
+          coalesce((removed ->> replace(v_rel::regclass::text, 'public.', ''))::int, 0) + n);
+        progress := true;
+      exception when foreign_key_violation then
+        null;
+      end;
+    end loop;
+    if not progress or pass > 40 then
+      raise exception 'could not remove every row of this test account: a foreign key still holds one';
+    end if;
+  end loop;
+
+  for trg in select * from _purge_triggers loop
+    execute format('alter table %s enable trigger %I', trg.rel::regclass, trg.name);
+  end loop;
+
+  delete from auth.users where id = p_user_id;
+  delete from debug_test_accounts where user_id = p_user_id;
+
+  return jsonb_build_object('status', 'deleted', 'rows', total, 'tables', removed);
+end;
+$$;
+
+revoke all on function public.debug_purge_test_account(uuid) from public;
+revoke all on function public.debug_purge_test_account(uuid) from anon;
+revoke all on function public.debug_purge_test_account(uuid) from authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Deleting a person whose account has money behind it
+-- ---------------------------------------------------------------------------
+--
+-- A hard delete is refused for any account with payments, refunds, payouts
+-- or settlements, because the books are built on those rows. What the admin
+-- wants in that case is the person gone, not the books: so the login is
+-- removed (the route bans the auth user and moves it to a placeholder
+-- address, which frees the real one to sign up again) and the profile stays
+-- as the name every money row still points at, marked deleted.
+--
+-- This table is that mark and the reason the admin gave, with the details
+-- the profile no longer carries (its email and phone are cleared so a new
+-- account on the same address is never confused with this one). It is
+-- evidence of who removed whom and why, so it is append-only by trigger.
+create table if not exists account_deletions (
+  user_id uuid primary key references profiles(id) on delete cascade,
+  role text not null,
+  full_name text,
+  email text,
+  phone text,
+  reason text not null check (reason in ('duplicate', 'user_request', 'fraud', 'left_clinic', 'test_account', 'other')),
+  note text check (note is null or char_length(note) <= 1000),
+  records jsonb not null default '{}'::jsonb,
+  deleted_by uuid references profiles(id) on delete set null,
+  deleted_at timestamptz not null default now(),
+  constraint account_deletions_other_needs_note check (reason <> 'other' or char_length(coalesce(trim(note), '')) >= 3)
+);
+
+alter table profiles add column if not exists deleted_at timestamptz;
+
+create index if not exists account_deletions_deleted_by_idx on account_deletions (deleted_by) where deleted_by is not null;
+create index if not exists account_deletions_deleted_at_idx on account_deletions (deleted_at desc);
+
+alter table account_deletions enable row level security;
+
+drop policy if exists "account_deletions_select_admin" on account_deletions;
+create policy "account_deletions_select_admin" on account_deletions
+  for select using (is_admin());
+
+revoke insert, update, delete on account_deletions from anon, authenticated;
+
+create or replace function public.account_deletions_is_append_only()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  -- The record is never edited, and never removed while the profile it
+  -- explains still stands. When the profile itself goes (a cascade from its
+  -- auth user -- the data reset, a test fixture's cleanup), the profile row is
+  -- already gone by the time this fires, and the record goes with it.
+  if tg_op = 'DELETE' and not exists (select 1 from profiles where id = old.user_id) then
+    return old;
+  end if;
+  raise exception 'account_deletions is append-only: the record of who removed an account, and why, is never edited or deleted';
+end;
+$$;
+
+revoke all on function public.account_deletions_is_append_only() from public;
+revoke all on function public.account_deletions_is_append_only() from anon;
+revoke all on function public.account_deletions_is_append_only() from authenticated;
+
+drop trigger if exists trg_account_deletions_append_only on account_deletions;
+create trigger trg_account_deletions_append_only
+  before update or delete on account_deletions
+  for each row execute function public.account_deletions_is_append_only();
+
+-- Writes the mark and clears the profile in one transaction, so a deleted
+-- account is never half-marked. The login itself is removed by the route,
+-- through GoTrue, after this succeeds.
+create or replace function public.admin_mark_account_deleted(
+  p_user_id uuid,
+  p_reason text,
+  p_note text,
+  p_records jsonb,
+  p_actor uuid,
+  p_placeholder_email text
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_profile record;
+begin
+  select id, role, full_name, email, phone, deleted_at into v_profile
+  from profiles where id = p_user_id for update;
+  if not found then
+    return jsonb_build_object('status', 'not_found');
+  end if;
+  if v_profile.deleted_at is not null then
+    return jsonb_build_object('status', 'already');
+  end if;
+
+  insert into account_deletions (user_id, role, full_name, email, phone, reason, note, records, deleted_by)
+  values (p_user_id, v_profile.role, v_profile.full_name, v_profile.email, v_profile.phone,
+          p_reason, nullif(trim(coalesce(p_note, '')), ''), coalesce(p_records, '{}'::jsonb), p_actor);
+
+  update profiles
+     set deleted_at = now(),
+         active = false,
+         email = p_placeholder_email,
+         phone = null
+   where id = p_user_id;
+
+  delete from auth.sessions where user_id = p_user_id;
+
+  return jsonb_build_object('status', 'deleted');
+end;
+$$;
+
+revoke all on function public.admin_mark_account_deleted(uuid, text, text, jsonb, uuid, text) from public;
+revoke all on function public.admin_mark_account_deleted(uuid, text, text, jsonb, uuid, text) from anon;
+revoke all on function public.admin_mark_account_deleted(uuid, text, text, jsonb, uuid, text) from authenticated;
 
 -- ---------------------------------------------------------------------
 -- service_role's EXECUTE, written out rather than inherited.

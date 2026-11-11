@@ -2,6 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import AdminScreenLink from "@/components/admin/AdminScreenLink";
+import { adminScreenHref } from "@/lib/adminNav";
+import { searchAdminScreens, type AdminScreenRef } from "@/lib/adminSearchTopics";
 
 // One box that finds anything. Before this, a patient who phoned and gave a
 // number could only be found by opening the Patients tab and scanning, and a
@@ -17,7 +20,7 @@ export type SearchEntity = {
   label: string;
   /** Everything matchable that isn't the label: email, phone, codes. */
   terms: string[];
-  kind: "Patient" | "Therapist" | "Partner" | "Session" | "Programme";
+  kind: "Patient" | "Therapist" | "Partner" | "Session" | "Programme" | "Payment";
   href: string;
   /** One line of context under the result, e.g. a session's date. */
   hint?: string | null;
@@ -29,11 +32,20 @@ const KIND_STYLES: Record<SearchEntity["kind"], string> = {
   Partner: "bg-blue-50 text-blue-700",
   Session: "bg-amber-50 text-amber-700",
   Programme: "bg-indigo-50 text-indigo-700",
+  Payment: "bg-emerald-50 text-emerald-700",
 };
 
 const MAX_RESULTS = 12;
 
-export default function AdminGlobalSearch({ entities }: { entities: SearchEntity[] }) {
+export default function AdminGlobalSearch({
+  entities,
+  screens = [],
+}: {
+  entities: SearchEntity[];
+  /** The screens this viewer can open, so a search finds a place in the
+   *  dashboard as well as a person or a session (adminSearchTopics.ts). */
+  screens?: AdminScreenRef[];
+}) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const boxRef = useRef<HTMLDivElement | null>(null);
@@ -69,6 +81,8 @@ export default function AdminGlobalSearch({ entities }: { entities: SearchEntity
     }
     return out;
   }, [query, haystack]);
+
+  const screenResults = useMemo(() => searchAdminScreens(screens, query), [screens, query]);
 
   useEffect(() => {
     function onClickAway(event: MouseEvent) {
@@ -107,7 +121,7 @@ export default function AdminGlobalSearch({ entities }: { entities: SearchEntity
             setOpen(true);
           }}
           onFocus={() => setOpen(true)}
-          placeholder="Search name, phone, email, session ID…"
+          placeholder="Search people, payments, sessions or a screen…"
           aria-label="Search the admin dashboard"
           className="w-full rounded-xl border border-slate-300 bg-white py-2 pl-9 pr-3 text-xs text-slate-800 outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
         />
@@ -115,11 +129,35 @@ export default function AdminGlobalSearch({ entities }: { entities: SearchEntity
 
       {open && query.trim().length >= 2 && (
         <div className="absolute right-0 z-40 mt-2 w-full min-w-[320px] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
-          {results.length === 0 ? (
+          {screenResults.length > 0 && (
+            <ul className="border-b border-slate-100" aria-label="Screens" data-testid="search-screens">
+              {screenResults.map((r) => (
+                <li key={r.key} className="border-b border-slate-100 last:border-b-0">
+                  <AdminScreenLink
+                    href={adminScreenHref(r.section, r.tab)}
+                    onClick={() => {
+                      setOpen(false);
+                      setQuery("");
+                    }}
+                    className="flex items-start gap-2.5 px-3.5 py-2.5 transition hover:bg-slate-50"
+                  >
+                    <span className="mt-0.5 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase text-slate-700">
+                      Screen
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block truncate text-xs font-semibold text-slate-800">{r.label}</span>
+                      <span className="block truncate text-[11px] text-slate-500">{r.where}</span>
+                    </span>
+                  </AdminScreenLink>
+                </li>
+              ))}
+            </ul>
+          )}
+          {results.length === 0 && screenResults.length === 0 ? (
             <p className="px-4 py-3 text-xs text-slate-500">
               Nothing matches “{query.trim()}”.
             </p>
-          ) : (
+          ) : results.length === 0 ? null : (
             <ul className="max-h-80 overflow-y-auto">
               {results.map((r) => (
                 <li key={`${r.kind}-${r.id}`} className="border-b border-slate-100 last:border-b-0">

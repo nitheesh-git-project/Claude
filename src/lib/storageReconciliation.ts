@@ -50,16 +50,16 @@ export async function readStorageReconciliation(
     // Paged: a plain select stops at PostgREST's max_rows (1,000), and every
     // row past it would read as "file with no row" -- a false fault -- while
     // every missing file past it went unreported.
-    const { rows, error, truncated: rowsTruncated } = await readAllRows<{
-      id: string;
-      patient_id: string;
-      storage_path: string | null;
-    }>(() =>
-      admin
-        .from("patient_medical_documents")
-        .select("id, patient_id, storage_path")
-        .order("id", { ascending: true })
-    );
+    // The rows and the bucket's folder list need nothing from each other.
+    const [{ rows, error, truncated: rowsTruncated }, { data: folders, error: rootError }] = await Promise.all([
+      readAllRows<{ id: string; patient_id: string; storage_path: string | null }>(() =>
+        admin
+          .from("patient_medical_documents")
+          .select("id, patient_id, storage_path")
+          .order("id", { ascending: true })
+      ),
+      admin.storage.from(MEDICAL_REPORTS_BUCKET).list("", { limit: MAX_PATIENT_FOLDERS }),
+    ]);
     if (error || rowsTruncated) return null;
 
     const recorded = new Set(
@@ -72,9 +72,6 @@ export async function readStorageReconciliation(
     // folder is then listed for its own files. A patient with rows but no
     // folder is covered by the row-side comparison below, so the root listing
     // does not need to be exhaustive for that half to be right.
-    const { data: folders, error: rootError } = await admin.storage
-      .from(MEDICAL_REPORTS_BUCKET)
-      .list("", { limit: MAX_PATIENT_FOLDERS });
     if (rootError) return null;
 
     const folderNames = (folders ?? [])
@@ -82,19 +79,33 @@ export async function readStorageReconciliation(
       .filter((name): name is string => !!name);
     const truncated = folderNames.length >= MAX_PATIENT_FOLDERS;
 
+    // Every patient folder is listed, eight at a time: one after another
+    // this was a round trip per patient on every admin page load (seconds
+    // with a few dozen patients), and all at once would be a burst the
+    // storage API throttles.
     const storedPaths = new Set<string>();
-    for (const folder of folderNames) {
-      const { data: files, error: listError } = await admin.storage
-        .from(MEDICAL_REPORTS_BUCKET)
-        .list(folder, { limit: 100 });
-      // One unreadable folder is not a clean bucket. Reporting what was found
-      // so far would understate both counts, which on this check reads as
-      // "nothing is wrong".
-      if (listError) return null;
-      for (const file of files ?? []) {
-        if (file.name) storedPaths.add(`${folder}/${file.name}`);
+    let listFailed = false;
+    let next = 0;
+    async function worker() {
+      while (!listFailed && next < folderNames.length) {
+        const folder = folderNames[next++];
+        const { data: files, error: listError } = await admin.storage
+          .from(MEDICAL_REPORTS_BUCKET)
+          .list(folder, { limit: 100 });
+        // One unreadable folder is not a clean bucket. Reporting what was
+        // found so far would understate both counts, which on this check
+        // reads as "nothing is wrong".
+        if (listError) {
+          listFailed = true;
+          return;
+        }
+        for (const file of files ?? []) {
+          if (file.name) storedPaths.add(`${folder}/${file.name}`);
+        }
       }
     }
+    await Promise.all(Array.from({ length: Math.min(8, folderNames.length) }, worker));
+    if (listFailed) return null;
 
     let filesWithNoRow = 0;
     for (const path of storedPaths) {

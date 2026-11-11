@@ -10,7 +10,7 @@
 // The debug bar is deliberately not covered here: it still lists the admin
 // routes, and is switched off before release.
 import { test, expect, type Page } from "@playwright/test";
-import { BASE, QA_EMAILS, browserCookiesFor } from "./helpers";
+import { BASE, QA_EMAILS, browserCookiesFor, settleNetwork } from "./helpers";
 
 async function signInAs(page: Page, email: string) {
   await page.context().addCookies(await browserCookiesFor(email));
@@ -51,7 +51,8 @@ test.describe("The admin back office is not advertised", () => {
     });
 
     for (const path of ["/", "/book", "/team", "/conditions"]) {
-      await page.goto(`${BASE}${path}`, { waitUntil: "networkidle" });
+      await page.goto(`${BASE}${path}`);
+      await settleNetwork(page);
     }
 
     expect(scripts.length, "some scripts should have been captured").toBeGreaterThan(0);

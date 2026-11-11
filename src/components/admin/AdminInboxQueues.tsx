@@ -37,7 +37,10 @@ export default function AdminInboxQueues({
         <div className="space-y-4">
           {visibleGroups.map((group) => (
             <div key={group.title}>
-              <p className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              <p
+                data-queue-group=""
+                className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500"
+              >
                 <i aria-hidden className={`fa-solid ${group.icon} text-[10px]`} />
                 {group.title}
               </p>

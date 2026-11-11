@@ -8,12 +8,12 @@
 // edit to each form, so the thing worth proving is that a form which has
 // never heard of it is covered.
 import { test, expect } from "@playwright/test";
-import { BASE, browserCookiesFor, QA_EMAILS } from "./helpers";
+import { BASE, browserCookiesFor, QA_EMAILS, settleNetwork } from "./helpers";
 
 test("FORM-VAL-001: an admin form refuses in the app's own words", async ({ page, context }) => {
   await context.addCookies(await browserCookiesFor(QA_EMAILS.admin));
   await page.goto(`${BASE}/admin/dashboard?section=catalog&tab=conditions`);
-  await page.waitForLoadState("networkidle");
+  await settleNetwork(page);
 
   await page.getByRole("button", { name: /Add (a )?(new )?(Category|Condition)/i }).first().click();
   await page.getByRole("button", { name: /Add Category/i }).last().click();
@@ -35,7 +35,7 @@ test("FORM-VAL-001: an admin form refuses in the app's own words", async ({ page
 
 test("FORM-VAL-002: a public form gets the same treatment", async ({ page }) => {
   await page.goto(`${BASE}/hospitals`);
-  await page.waitForLoadState("networkidle");
+  await settleNetwork(page);
 
   const submit = page.getByRole("button", { name: /Request a call|Send|Submit/i }).last();
   await submit.scrollIntoViewIfNeeded();

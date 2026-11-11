@@ -320,6 +320,32 @@ export const RATE_LIMITS = {
     windowSeconds: 3600,
     message: "We've saved a lot of exercise plans from this account just now.",
   },
+
+  /**
+   * The notebook saving itself (/api/notebook). It saves a moment after the
+   * person stops typing, so an hour of steady writing is a few hundred
+   * writes from one honest account -- the limit sits well above that and
+   * exists only so a script holding a session cannot rewrite pages without
+   * end. Fails open like every other limit: a limiter that cannot be asked
+   * must not cost somebody what they just wrote.
+   */
+  notebook: {
+    scope: "notebook",
+    limit: 900,
+    windowSeconds: 3600,
+    message: "Your notebook has saved a great many times just now.",
+  },
+
+  /**
+   * Closing an announcement, or recording that its pop-up was seen
+   * (/api/announcements/receipt). A handful per announcement per person.
+   */
+  announcementReceipt: {
+    scope: "announcement-receipt",
+    limit: 120,
+    windowSeconds: 3600,
+    message: "That is a lot of banners closed just now.",
+  },
 } as const satisfies Record<string, RateLimit>;
 
 export type RateLimitName = keyof typeof RATE_LIMITS;

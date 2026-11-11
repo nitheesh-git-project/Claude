@@ -9,7 +9,7 @@ import {
   adminClient,
   browserCookiesFor,
   cookieHeaderFor,
-  profileIdFor,
+  profileIdFor, settleNetwork
 } from "./helpers";
 
 /**
@@ -117,7 +117,7 @@ test("HI-004: only hospital A's Referrals screen lists it", async ({ browser }) 
     // Wait for the screen itself, so an absence is an absence and not a page
     // that had not rendered yet.
     await expect(page.getByRole("heading").first()).toBeVisible({ timeout: 60_000 });
-    await page.waitForLoadState("networkidle");
+    await settleNetwork(page);
     const row = page.getByText(`${MARKER} patient`);
     if (visible) await expect(row.first(), `${email} sees its own referral`).toBeVisible({ timeout: 30_000 });
     else await expect(row, `${email} must not see another partner's referral`).toHaveCount(0);

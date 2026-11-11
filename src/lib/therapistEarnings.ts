@@ -46,6 +46,8 @@ export type EarningsAppointment = {
   amount_due_paise?: number | null;
   therapist_payout_paid_at: string | null;
   therapist_payout_amount_paise?: number | null;
+  /** The payout that settled this session, when one did. */
+  therapist_payout_batch_id?: string | null;
   /** The rate frozen at completion; see PayoutCutInput in therapistPayouts.ts. */
   therapist_share_percent_at_completion?: number | null;
   // Home-visit fields, optional so every existing online-only caller is
@@ -66,7 +68,22 @@ export type TherapistEarningRow = {
   feePaise: number;
   earningPaise: number;
   status: "paid_out" | "pending";
+  /** When this session's share was paid, and by which payout. */
+  paidAt: string | null;
+  payoutBatchId: string | null;
+  /** How it was paid ("Bank transfer \u00b7 UTR 1234"), filled in by the
+   *  loader from the payout record when it has one. */
+  paidVia?: string | null;
 };
+
+/** "Bank transfer · UTR 1234" from a payout's method and note. */
+export function describePayout(method: string | null | undefined, note: string | null | undefined): string | null {
+  const m = (method ?? "").trim();
+  const n = (note ?? "").trim();
+  const label = m ? m.replace(/[_-]+/g, " ").replace(/^\w/, (c) => c.toUpperCase()) : "";
+  if (label && n) return `${label} \u00b7 ${n}`;
+  return label || n || null;
+}
 
 // homeVisitSharePercent is profiles.home_visit_revenue_share_percent,
 // nullable -- when unset, a home-visit session falls back to `sharePercent`,
@@ -99,6 +116,8 @@ export function computeTherapistEarningRows(
         feePaise: feePaise + travelPaise,
         earningPaise: sessionTherapistCutPaise(a, sharePercent, homeVisitSharePercent),
         status: a.therapist_payout_paid_at ? "paid_out" : "pending",
+        paidAt: a.therapist_payout_paid_at,
+        payoutBatchId: a.therapist_payout_batch_id ?? null,
       };
     })
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());

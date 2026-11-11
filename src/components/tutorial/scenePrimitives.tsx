@@ -197,6 +197,63 @@ export function TapButton({
   );
 }
 
+/**
+ * A row of step segments that fill one after another.
+ *
+ * Each segment fills from empty to full during its own step, so the bar reads
+ * as one line flowing left to right. (It used to sit at half for the current
+ * step, which made two segments move at once on every step -- the previous
+ * one jumping from half to full while the next jumped to half.) When the
+ * scene loops back to the first step, every segment empties and the flow
+ * starts again.
+ */
+export function SegmentedProgress({
+  steps,
+  current,
+  stepMs,
+}: {
+  steps: string[];
+  current: number;
+  /** How long each step is shown, so a segment finishes just as the next begins. */
+  stepMs: number;
+}) {
+  const reduce = useReducedMotion();
+  // A new cycle remounts the segments empty; "previous value in state" is the
+  // React-sanctioned way to notice the step went backwards.
+  const [seen, setSeen] = useState({ current, cycle: 0 });
+  if (seen.current !== current) {
+    setSeen({ current, cycle: current < seen.current ? seen.cycle + 1 : seen.cycle });
+  }
+  const fillSeconds = reduce ? 0 : (stepMs * 0.85) / 1000;
+  return (
+    <div className="mb-3 flex gap-1" data-testid="segmented-progress">
+      {steps.map((label, i) => {
+        const state = current > i ? "done" : current === i ? "active" : "todo";
+        return (
+          <div key={label} className="flex-1" data-segment-state={state}>
+            <div className="h-1 overflow-hidden rounded bg-slate-100">
+              <motion.div
+                key={seen.cycle}
+                className="h-full bg-teal-600"
+                initial={{ width: "0%" }}
+                animate={{ width: state === "todo" ? "0%" : "100%" }}
+                transition={
+                  state === "active"
+                    ? { duration: fillSeconds, ease: "linear" }
+                    : { duration: reduce ? 0 : 0.2, ease: EASE }
+                }
+              />
+            </div>
+            <span className={`mt-1 block text-[9px] ${state !== "todo" ? "font-semibold text-teal-700" : "text-slate-400"}`}>
+              {label}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 /** A labelled step line: dots joined by a filling bar, the current one lit. */
 export function Stepper({ steps, current, tone = "brand" }: { steps: string[]; current: number; tone?: Tone }) {
   return (
@@ -219,7 +276,8 @@ export function Stepper({ steps, current, tone = "brand" }: { steps: string[]; c
             <motion.span
               initial={false}
               animate={{ scale: active ? 1.15 : 1 }}
-              transition={SPRING}
+              // The line into this dot fills first (0.5 s), then the dot lights.
+              transition={active ? { ...SPRING, delay: 0.35 } : SPRING}
               className={`relative z-10 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-bold ${
                 done ? "bg-teal-600 text-white" : active ? `${TONE[tone].icon} ring-2 ${TONE[tone].ring}` : "bg-slate-100 text-slate-400"
               }`}

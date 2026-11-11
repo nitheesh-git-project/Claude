@@ -22,6 +22,12 @@ export type AdminActivityAction =
   // at all -- anything else is refused -- and recorded before the delete
   // runs, since afterwards there is no row left to name.
   | "account.delete"
+  // Deleting a person whose account has money behind it: the login goes, the
+  // profile and its records stay, marked deleted with the reason given.
+  | "account.delete_keep_records"
+  // Test accounts made and removed from the debug bar's panel.
+  | "debug.test_accounts.create"
+  | "debug.test_accounts.delete"
   // Signing in as somebody, and signing back out. The deepest capability in
   // the app: everything done during the window is written as that user, so
   // these two rows plus admin_impersonation_sessions are the only record
@@ -69,6 +75,9 @@ export type AdminActivityAction =
   | "payout_request.complete"
   | "refund.issue"
   | "refund.partial"
+  // A refund Razorpay reported that needed a person, marked dealt with.
+  // Moves no money (not counted by isMoneyAction).
+  | "refund.review"
   // The therapist's own route no longer accepts an amount, so this is the
   // only way a collected figure ever changes after the fact -- and it is a
   // money move in its own right, since what a therapist owes the clinic is
@@ -307,6 +316,9 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
   "account.create": "Created account",
   "account.set_active": "Changed account status",
   "account.delete": "Deleted an account",
+  "account.delete_keep_records": "Deleted an account (records kept)",
+  "debug.test_accounts.create": "Made test accounts",
+  "debug.test_accounts.delete": "Removed test accounts",
   "impersonation.start": "Signed in as a user",
   "impersonation.end": "Stopped signing in as a user",
   "impersonation.action": "Made a change while signed in as a user",
@@ -335,6 +347,7 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
   "payout_request.start_review": "Started payout review",
   "payout_request.complete": "Completed payout request",
   "refund.issue": "Issued refund",
+  "refund.review": "Reviewed a Razorpay refund",
   "refund.partial": "Issued partial refund",
   "cash.correct_amount": "Corrected cash collected",
   "cash.mark_remitted": "Marked cash remitted",
@@ -418,7 +431,7 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
 export function isMoneyAction(action: string): boolean {
   return (
     action.startsWith("payout") ||
-    action.startsWith("refund") ||
+    (action.startsWith("refund") && action !== "refund.review") ||
     action.startsWith("cash.") ||
     action.startsWith("expense.") ||
     action.startsWith("finance.") ||

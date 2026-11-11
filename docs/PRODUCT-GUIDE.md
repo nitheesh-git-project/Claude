@@ -325,7 +325,7 @@ Copy `.env.example` to `.env.local` and fill in:
 | `GOOGLE_CALENDAR_CLIENT_ID` / `GOOGLE_CALENDAR_CLIENT_SECRET` | OAuth2 Web application credentials from Google Cloud Console |
 | `GOOGLE_CALENDAR_REFRESH_TOKEN` | Obtained once via `node scripts/get-google-refresh-token.mjs` (see that file's header for the one-time setup) |
 | `GOOGLE_CALENDAR_ID` | Calendar the session events are created on; its authorizing account is the meeting organizer, and the account whose Meet permission opens each meeting |
-| `NEXT_PUBLIC_SHOW_DEBUG_NAV` | Optional kill switch for the pre-launch debug bar. The bar is on in every environment; set to exactly `false` to hide it |
+| `NEXT_PUBLIC_SHOW_DEBUG_NAV` | Optional kill switch for the pre-launch debug bar. The bar is on in every environment; set to exactly `false` to hide it. Its **Test accounts** panel follows the same flag, so set it to `false` on the live site |
 | `NEXT_PUBLIC_GA_MEASUREMENT_ID` | Optional. Google Analytics 4 ID (`G-...`, public by design). Blank switches analytics off: no banner, no script. Loads only after a visitor accepts, only on public pages and the booking widget |
 | `ALLOW_DEBUG_DATA_RESET` | Optional, pre-launch testing only. Exactly `true` arms the bar's "Reset data" button, which deletes every non-admin account and empties the tables testing fills, while keeping everything a person typed: `site_settings` and `risk_rules` are not touched at all, and the conditions catalogue (`treatment_categories` and their packages), `faqs`, `testimonials`, `mission_principles` and `dev_reachouts` (the developer's own inbox) all survive. Never set it on a deployment holding real data |
 | `SUPABASE_MAX_IN_FLIGHT` | Optional. How many HTTP requests this server may have in flight to Supabase at once, per instance. Default 96, measured: at 40 concurrent admin dashboard renders 48 gave a p50 of 130s, 96 gave 15.3s and 192 gave 16.4s. Without a cap, ~3,300 concurrent requests exhausted the connect timeout and the dashboard rendered the lost rows as zeroes. |
@@ -848,6 +848,30 @@ whose phone loses signal on the way back from their UPI app: before this
 existed, that left a paid Razorpay order sitting against an unpaid booking,
 recoverable only if they returned and pressed Pay again.
 
+**Refunds reach the app the same way.** Subscribe the same webhook to
+`refund.created`, `refund.processed` and `refund.failed` (Razorpay
+Dashboard -> Account & Settings -> Webhooks -> edit the webhook -> tick the
+three refund events -> Save). Every refund Razorpay reports is then kept in
+`razorpay_refunds` and listed on **Money -> Refunds** with where it is
+(Started, On its way, Refunded, Failed) and who started it:
+
+- A refund made **on the Razorpay website** against one session's payment
+  is recorded on that session once Razorpay says it is processed: the
+  session reads Refunded, the patient's receipt and Transactions show it,
+  and the money figures stop counting it. The session itself is not
+  cancelled -- that stays the clinic's call.
+- A refund the **app** started that the bank later fails turns the
+  session's refund to Failed, which every screen shows as work for a person.
+- A refund against a **programme**, or a payment the app has no booking
+  for, waits on Money -> Refunds under "Need a look" (and badges the
+  screen) until an admin marks it dealt with.
+
+To find who paid, paste a Razorpay payment ID (`pay_...`) or order ID into
+the admin's top search: it shows the patient, amount, status and date, and
+opens Money -> Transactions filtered to that payment. Every receipt, the
+patient's own Payments screen, the session drawer and the patient's admin
+page show the payment ID with a copy button.
+
 Both paths go through one database function, `record_payment_capture`,
 which takes a real row lock and either applies the capture or reports it as
 already captured. Duplicate webhooks, Razorpay's at-least-once retries, a
@@ -877,6 +901,43 @@ captured payments nothing is attached to and delivered sessions with no
 payment, package or cash behind them.
 Nothing there is repaired automatically - each finding is either a data
 problem or someone working outside the normal flow, and both want a person.
+
+### Announcements and the notebook
+
+Two things sit on every patient, therapist and hospital dashboard, whatever
+screen the person is on.
+
+**Announcements.** An admin posts one on **Settings → Announcements**: a
+title, which dashboards see it (tick Patients, Therapists, Hospitals), an
+optional wide banner picture (6 : 1, cropped to shape in the form) and an
+optional pop-up picture (4 : 3), formatted text for the pop-up -- the same
+editor as a therapist's bio, plus **tables** -- an optional button with a
+destination per dashboard (a real screen of that dashboard, or an https
+link), and how long it stays: 24 hours, 3 days, 7 days, a number of hours or
+days, or until a date and time; it can start now or be scheduled. Two
+switches decide behaviour: *People can close this banner*, and *Open the
+pop-up once by itself*. A live preview shows the banner, the one-line strip
+and the real pop-up before anything is published.
+
+On the dashboard's home it is a banner above the page, aligned with the
+content; on every other screen it is one line, so it never pushes a booking
+down the page. Several live at once share one slot and slide (swipe, dots,
+arrows, a pause button); an admin orders them with the arrows in the list.
+Tapping one blurs the page and opens the pop-up. It leaves by itself when
+its time ends, or at once with **End now**; an ended one can be reused with
+**Use again**. Rules: `src/lib/announcements.ts`; tables `announcements`,
+`announcement_receipts`; routes `/api/admin/announcements` (+ `/end`,
+`/delete`, `/reorder`, `/upload-image`) and `/api/announcements/receipt`.
+
+**The notebook.** A small notebook floats at the bottom right of each
+dashboard. Tapping it opens it like a real diary -- the cover turns, or
+lifts on its rings on a phone -- onto dated pages the person writes on with
+the same formatting, tables included. It saves by itself, pages turn with
+the arrows, **All pages** lists them with their first words, and a page can
+be deleted. It is private: only its owner reads it, there is no admin
+screen for it, and an admin signed in as the person is not shown it. It is
+not part of the clinical record (the patient diary is a different thing).
+Rules: `src/lib/notebook.ts`; table `notebook_pages`; route `/api/notebook`.
 
 ### System Health
 
@@ -1013,7 +1074,8 @@ date and an eighteen-column grid of hourly cells, which was the storage
 model drawn on screen.
 
 Nobody clicks an hour. The editor works in ranges ("Monday 9 AM – 1 PM and
-2 PM – 6 PM") with per-day presets, copy-to-days and apply-to-weekdays;
+2 PM – 6 PM") with per-day presets (Morning 6 AM – 3 PM, Afternoon 3 PM – 12 AM, Full day
+6 AM – 12 AM; the two shifts add up to Full day with no gap), copy-to-days and apply-to-weekdays;
 `src/lib/availabilityRanges.ts` converts between those ranges and the hour
 rows the tables have always stored, in both directions. The storage model is
 unchanged, so every existing schedule reads back as exactly the same hours -
@@ -2137,13 +2199,19 @@ being able to cancel or reassign it.
 
 Every account also carries a **Delete account** button - on the Back office
 rows here, and on a patient's, therapist's and partner hospital's own screen
-- for a Master Admin only. It works on an account with **no history at all**
-and refuses everything else, naming what is on file (sessions, money
-records, programmes, clinical records, back-office actions, referrals) and
-pointing at Suspend. That is the database's rule rather than a chosen one:
-thirty-five tables reference `profiles(id)` with no delete behaviour, so
-removing an account that has done anything would mean removing the books and
-the audit trail with it.
+- for a Master Admin only. It first asks what is behind the account and
+always asks **why** (Duplicate account, The person asked to be removed, Fraud
+or abuse, Left the clinic, Test account, or Other with a note). An account
+with **no history at all** is removed outright. One with history - sessions,
+payments, programmes, clinical records, back-office actions - is deleted
+**with its records kept**: the confirmation lists every money record (payments,
+pay-later, programmes, refunds, payouts, session earnings) with totals, then
+the login is switched off and moved to a placeholder address (so the email
+can sign up again) and the phone and email are cleared from the profile. Every
+record stays under the person's name, tagged **Deleted user**; its (i) shows
+the reason, the note, who deleted it and when, the old contact details and
+the money kept. The records are never removed, because thirty-five tables
+reference `profiles(id)` and the books and the audit trail are built on them.
 
 What is on file is **asked of the database**, not listed in the route:
 `account_blocking_references()` reads `pg_constraint` for every foreign key that

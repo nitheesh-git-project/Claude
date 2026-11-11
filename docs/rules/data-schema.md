@@ -816,3 +816,32 @@ holds exactly a thousand rows. Any read that **sums money, counts for a
 decision, or reconciles two totals** goes through `readAllRows` and acts on
 its `truncated` flag — a partial total is not a smaller total, it is an
 unknown one, and the caller must say so rather than publish it.
+- **`notebook_pages` is the one table with no admin read, on purpose.**
+  "Every admin policy calls `is_admin()`" describes how an admin policy is
+  written, not a requirement that every table has one: the notebook's single
+  policy is `notebook_pages_select_own`, because its screen tells the person
+  only they can read it. Do not add an admin policy, an export or a
+  reporting view over it. `announcements` and `announcement_receipts` (same
+  block, end of `schema.sql`) are ordinary: admin read, plus a
+  live-for-your-role read on announcements; all three are written only by
+  the service role from routes, so insert/update/delete are revoked from
+  the browser roles, and none is append-only. The data reset truncates the
+  receipts and the pages and leaves the announcements, like the FAQs.
+- **`account_deletions` is evidence; `debug_test_accounts` is the only
+  licence to purge.** The first records who deleted a person with records
+  kept, and why: append-only by trigger (`account_deletions_is_append_only`),
+  which lets a DELETE through only when the profile it explains is already
+  gone (a cascade from the reset or a fixture's cleanup). `profiles.deleted_at`
+  marks the profile. The second is the list `debug_purge_test_account()`
+  checks before it removes anything: an id not in it is refused, so the purge
+  -- which disables the guard triggers on the tables it empties, by name and
+  for its own transaction only -- can never reach a real account. Not
+  `session_replication_role`: a stock Supabase stack refuses it to this role. Both are in the newest
+  `debug_reset_all_data()` truncate list.
+- **`razorpay_refunds` is a mirror, not evidence.** It follows Razorpay's
+  status for each refund id, so it is updated in place and has no
+  append-only guard; Razorpay is the record. Admin read, service-role writes
+  (the webhook and one review route); foreign keys set null; the data reset
+  truncates it. `payment_failure_log.patient_id` references profiles with no
+  ON DELETE action -- anything that deletes an account removes that
+  account's failed-payment rows first, as the abandoned-checkout purge does.

@@ -25,6 +25,7 @@ async function createPendingTherapist(name: string) {
       active: true,
       full_name: name,
       credentials: "MPT (Ortho)",
+      phone: "+91 98765 43210",
       revenue_share_percent: null,
       home_visit_revenue_share_percent: null,
     })
@@ -50,6 +51,10 @@ test.describe("Approving a therapist", () => {
       const dialog = page.getByRole("dialog", { name: `Approve ${name}` });
       await expect(dialog).toBeVisible();
       await expect(dialog).toContainText("MPT (Ortho)");
+      // The phone is there to call them before approving, as a tap-to-call link.
+      const phone = dialog.getByTestId("approve-therapist-phone").getByRole("link");
+      await expect(phone).toHaveText("+91 98765 43210");
+      await expect(phone).toHaveAttribute("href", "tel:+919876543210");
 
       // No share: refused in place, nothing written.
       await dialog.getByRole("button", { name: "Approve therapist" }).click();

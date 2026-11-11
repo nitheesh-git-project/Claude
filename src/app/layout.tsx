@@ -89,7 +89,16 @@ export default async function RootLayout({
 
   // Read together: the settings and who is published on /team (the nav and
   // footer drop "Our team" while the roster is empty).
-  const [layoutSettings, { hasTeam }] = await Promise.all([getLayoutSettings(), readPublicTeam()]);
+  //
+  // The home-visit supply (areas served, whether anything is priced) is read
+  // in the same breath rather than after the switch is known: it is used
+  // only when the switch is on, but waiting to find that out first put a
+  // second round trip in front of every page in the app.
+  const [layoutSettings, { hasTeam }, homeVisitSupply] = await Promise.all([
+    getLayoutSettings(),
+    readPublicTeam(),
+    loadHomeVisitSupply().catch(() => ({ areas: [], hasPrice: null })),
+  ]);
 
   // Brand & Contact Details (admin Site Content tab) -- the Navbar/Footer
   // used to hardcode these. Fetched here rather than in each component
@@ -136,7 +145,7 @@ export default async function RootLayout({
   const homeVisitEnabled = homeVisitBookable(
     resolveHomeVisitOffer({
       enabled: homeVisitSwitch,
-      ...(homeVisitSwitch ? await loadHomeVisitSupply() : { areas: [], hasPrice: null }),
+      ...(homeVisitSwitch ? homeVisitSupply : { areas: [], hasPrice: null }),
     })
   );
   // WhatsApp / call links for the menu and the sticky bar -- only numbers an

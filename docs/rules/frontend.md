@@ -274,20 +274,31 @@ Dates in the clinic's zone, voice, no browser default ever speaking to a person,
     for real `<Link>` navigations, which the public Navbar uses. Next's
     `useLinkStatus` only works *inside* a Link, so the reporter is a child
     component rendering nothing rather than a hook the wrapper could call.
-  **And the wait is the word-roll loader, over the old page - never a
-  `loading.tsx` in a dashboard.** Each dashboard draws its sidebar inside its
-  own page, so a loading boundary replaced the sidebar with the content: every
-  tab tap showed a placeholder rail (it was dark, the old design) until the
-  page arrived. So the dashboards have none. Both reporters above call
+  **And the wait is the word-roll loader: over the old page while the next
+  one is requested, then in the dashboard's own frame while it is built.**
+  Each dashboard has a `loading.tsx` rendering `DashboardLoading` (the
+  therapist's per screen, never above a page that answers 404 -- see
+  `dashboards.md`)
+  (`src/components/dashboard/`): the phone top bar and tab bar, the laptop
+  rail and the desktop sidebar as blank outlines in the shell's exact sizes
+  and places, with `WordRollLoader` in the content area. It is streamed
+  before any of the page's reads finish, so a slow dashboard shows its frame
+  within the first round trips instead of a frozen screen. A plain loader
+  is still wrong there -- each shell draws its sidebar inside its page, and
+  a bare `RouteLoading` replaced the sidebar on every tab tap (it was a dark
+  rail in the old design) -- which is why the frame is drawn, light, in the
+  same places the real chrome lands. Its entries are blank on purpose: they
+  differ by role and by what the person has. Guard: `e2e/chrome-and-loader.spec.ts`
+  CHROME-002 / CHROME-005. Both reporters above call
   `begin("navigation")`, and `NavigationLoader` (root layout) draws
   `WordRollLoader` - Move, Stretch, Strengthen, Recover, Restore scrolling
   past one a beat, the current word dark with three teal dots hopping in
   front of it - over the content area
-  after 300 ms, at `z-20`, **under** every nav, sidebar, rail and tab bar
+  after 150 ms, at `z-20`, **under** every nav, sidebar, rail and tab bar
   (`z-30`+), with the old page faintly behind it. A refresh after a button
   press is `begin()` and gets the teal bar only: the page is staying put.
-  `RouteLoading` is the same loader, for the one boundary left with no
-  chrome to keep (the `/dashboard` role hop). **The admin `@modal`
+  `RouteLoading` is the same loader without the frame, for the boundary
+  with no chrome to keep (the `/dashboard` role hop). **The admin `@modal`
   slot keeps its own `loading.tsx`**, and it is the case both loading signals miss: tapping a
   patient name is a `<Link>` into a parallel-route slot, which is not a
   `useRouter` transition (so no bar) and is not covered by an ancestor
@@ -751,3 +762,25 @@ is invisible to any tooling here.
   - **Printing is always light**: the dark block is `@media screen` only.
   - A new colour family (`lime`, `pink`, ...) is covered once it is in the
     script's `HUES` list; run the script after adding one.
+- **A pinned bar is solid, and the debug bar is one 41px row at every
+  width.** Everything pinned under the debug bar is offset by `top-[41px]`;
+  the bar used to wrap to two or three rows on a phone, so the site menu sat
+  half under it, and the menu itself was translucent with a blur, which
+  showed the page sliding under it as a smeared "glass" strip. The bar now
+  scrolls sideways instead of wrapping, and the site menu and the
+  dashboards' phone top bars are `bg-white` with no `backdrop-blur`.
+- **A pop-up that waits shows one loader, filling it.** `PopupLoading`
+  (`src/components/system/`): the word roll centred in a block tall enough
+  to give the pop-up its shape. Never a small loader above grey placeholder
+  bars (it read as the bottom of the pop-up failing), never a tiny
+  "Loading..." in a corner.
+- **An in-app link keeps its loader until the address changes.**
+  `LinkProgress` used to release the loader whenever a link's own handler
+  took the click over -- which every `next/link` does -- so in-app link taps
+  showed nothing at all. A prevented click now keeps it until the URL
+  changes (12s ceiling); an anchor that genuinely goes nowhere carries
+  `data-no-loader`. The loader appears after 150 ms. Guard:
+  `e2e/chrome-and-loader.spec.ts` CHROME-006.
+- **A long value in a two-column summary wraps inside its box.** The label
+  `shrink-0`, the value `min-w-0 [overflow-wrap:anywhere]`; an email goes on
+  its own line under its label on a phone, breakable after the "@".

@@ -8,7 +8,7 @@
 // means quoting a price for a visit nobody will make. It renders per request
 // for exactly that reason.
 import { test, expect } from "@playwright/test";
-import { BASE, browserCookiesFor, QA_EMAILS, adminClient, profileIdFor } from "./helpers";
+import { BASE, browserCookiesFor, QA_EMAILS, adminClient, profileIdFor, settleNetwork } from "./helpers";
 const SHOT = "/tmp/claude-0/-home-user-Claude/4aa46951-8474-5745-b94b-f692208ce89d/scratchpad/shots";
 
 test("HV-OFF-001: no page, link or offer survives the switch", async ({ page, context, request }) => {
@@ -36,14 +36,14 @@ test("HV-OFF-001: no page, link or offer survives the switch", async ({ page, co
       "/patient/dashboard/sessions",
     ]) {
       await page.goto(`${BASE}${p}`);
-      await page.waitForLoadState("networkidle");
+      await settleNetwork(page);
       const links = await page.locator('a[href*="home-visit"]').count();
       const html = await page.content();
       console.log(p, "links:", links, "mentions:", (html.match(/[Hh]ome [Vv]isit/g) ?? []).length);
       expect(links, `${p} links to home visit`).toBe(0);
     }
     await page.goto(`${BASE}/patient/dashboard/book`);
-    await page.waitForLoadState("networkidle");
+    await settleNetwork(page);
     await page.screenshot({ path: `${SHOT}/hv-off-book.png`, fullPage: false });
   } finally {
     await admin.from("site_settings").update({ home_visit_enabled: true }).not("id", "is", null);

@@ -1,5 +1,6 @@
 import ImpersonationGate from "@/components/system/ImpersonationGate";
 import TutorialGate from "@/components/tutorial/TutorialGate";
+import DashboardExtrasGate from "@/components/dashboard/extras/DashboardExtrasGate";
 
 // Exists for one reason: the banner that says an admin is signed in as this
 // hospital. Every screen below renders exactly what they see, which is the
@@ -14,7 +15,11 @@ export default function HospitalDashboardLayout({
   // (i) afterwards. Mounted here so it survives moving between pages.
   return (
     <ImpersonationGate>
-      <TutorialGate role="hospital">{children}</TutorialGate>
+      {/* Announcements for this role, and the person's private notebook:
+          read once here, drawn by DashboardShell on every screen below. */}
+      <DashboardExtrasGate role="hospital">
+        <TutorialGate role="hospital">{children}</TutorialGate>
+      </DashboardExtrasGate>
     </ImpersonationGate>
   );
 }

@@ -65,11 +65,13 @@ export default function ChosenServiceSummary({
       </span>
 
       <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5">
-        <span className="text-[13px] font-bold uppercase tracking-[0.14em] text-teal-700">
+        {/* Narrower letter-spacing on a phone, and allowed to wrap: the wide
+            caps ("HOME VISIT, HANDS-ON") ran to the card's edge at 360px. */}
+        <span className="text-[12px] font-bold uppercase tracking-[0.08em] text-teal-700 [overflow-wrap:anywhere] sm:text-[13px] sm:tracking-[0.14em]">
           {option.eyebrow}
         </span>
         <h3
-          className={`font-display font-bold leading-snug text-slate-900 break-words hyphens-auto ${
+          className={`font-display font-bold leading-snug text-slate-900 break-words hyphens-auto [overflow-wrap:anywhere] ${
             compact ? "text-sm" : "text-base"
           }`}
         >

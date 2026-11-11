@@ -481,6 +481,15 @@ Eight pages from one design system, the word budgets, why every photograph carri
   RLS update, which is also what lets it revalidate `/team`. The formatting
   set is brand-safe by decision: no colours, fonts or sizes. Guard:
   `e2e/rich-text-profile.spec.ts`.
+  **Tables are opt-in, and a public bio does not get them.** An announcement
+  and a notebook page may hold a table; every entry point
+  (`parseRichText`, `sanitizeRichDoc`, `parseRichTextInput`, `RichTextView`'s
+  `options`, `RichTextEditor`'s `tables`) takes `{ tables: true }` from the
+  caller that wants them, and without it a table node is dropped like any
+  other unknown one. The editor offering tables and the route allowing them
+  must both say so, or a table is lost on save. A table is plain -- no merged
+  cells, no widths, no table in a table, at most 30 rows by 8 columns -- and
+  the view scrolls it inside its own box so it can never widen a page.
 - **An admin write that a public page renders must invalidate that page.**
   `/`, `/conditions`, `/book`, `/faq`, `/mission` and `/team` are ISR-cached
   (`export const revalidate = 300`), so a catalog or content edit was

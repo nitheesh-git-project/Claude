@@ -685,9 +685,29 @@ export async function deleteFixtureAccount(id: string | undefined): Promise<void
  * asserted by e2e/health-profile-layout.spec.ts.
  */
 export async function openProfileBlocks(page: import("@playwright/test").Page): Promise<void> {
+  // The dashboards stream in behind a loading screen (DashboardLoading), so
+  // the page's load event can come before the profile's blocks exist. Wait
+  // for them, or this opens nothing and the next click times out.
+  await page.locator("details").first().waitFor({ state: "attached", timeout: 60_000 });
   await page.evaluate(() => {
     document.querySelectorAll("details").forEach((d) => {
       (d as HTMLDetailsElement).open = true;
     });
   });
+}
+
+/**
+ * Lets a page's requests settle, for at most `timeout`, then carries on.
+ *
+ * Never use a bare `page.waitForLoadState("networkidle")` against the admin
+ * dashboard. On the gate's local stack it hung for the whole test timeout
+ * about once per run (RWD-001/002/006, PL-UI-006, WAIT-AREA-001, the
+ * partners case). Chromium's own net log for those runs shows every request
+ * finished within 2.4s and nothing open afterwards: the page was quiet, but
+ * Playwright's count of requests in flight never reached zero. So this is a
+ * courtesy pause, not an assertion. What each spec checks next is a
+ * web-first assertion with its own timeout, and that is the real wait.
+ */
+export async function settleNetwork(page: Page, timeout = 15_000): Promise<void> {
+  await page.waitForLoadState("networkidle", { timeout }).catch(() => {});
 }

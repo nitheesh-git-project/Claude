@@ -239,6 +239,14 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
         blurb: "Every payment and refund, one row each.",
         example: "Find what a patient paid on Tuesday, and whether any of it went back.",
       },
+      // Every refund Razorpay reports, including ones made on the Razorpay
+      // website, with where it is and what the app did about it.
+      {
+        key: "refunds",
+        label: "Refunds",
+        blurb: "Every refund, including ones made on the Razorpay website: where it is, who it was for, and what still needs you.",
+        example: "Check a refund you made on Razorpay reached the patient's session, or see one the bank failed.",
+      },
       {
         key: "payouts",
         label: "Payouts",
@@ -344,6 +352,15 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
         blurb: "Every change an admin has made, newest first \u2014 who, when, and what it changed from.",
         example: "Find who refunded a session last Tuesday, and what reason they gave.",
       },
+      // Who opened whose dashboard, and why: the reason an admin types before
+      // "Sign in as", with what they changed while inside. It was saved all
+      // along, but only as single lines in All Activity.
+      {
+        key: "signed-in-as",
+        label: "Signed in as",
+        blurb: "Every time an admin opened somebody's dashboard as them, with the reason they gave and what they changed.",
+        example: "See why somebody opened a patient's dashboard last week, and whether they changed anything.",
+      },
       {
         key: "retention",
         label: "Archive & Clear",
@@ -432,6 +449,17 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
         group: "How the clinic runs",
         blurb: "Which sections a patient sees on their own Health Profile, for each condition type.",
         example: "Hide the measures table from every orthopaedic patient's page, while their physiotherapist still sees it.",
+      },
+      // What the clinic says to everybody at once: a banner on top of the
+      // patient, therapist and hospital dashboards, with a pop-up behind it.
+      // Under "How the clinic runs" rather than "Your website" because none
+      // of it is public -- it is shown only to people who are signed in.
+      {
+        key: "announcements",
+        label: "Announcements",
+        group: "How the clinic runs",
+        blurb: "Banners on top of the patient, therapist and hospital dashboards, and the pop-up each one opens.",
+        example: "Wish everybody a happy Diwali for three days, or tell every therapist the payout day has moved.",
       },
       {
         key: "access",

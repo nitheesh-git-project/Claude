@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import PopupLoading from "@/components/system/PopupLoading";
 import { formatClinicDate, formatClinicDateTime } from "@/lib/formatDateTime";
 import { AnimatePresence, motion } from "motion/react";
 import { computeHomeVisitCounts, HOME_VISIT_EVENT_LABELS } from "@/lib/homeVisitProgress";
@@ -172,7 +173,7 @@ export default function HomeVisitDetailModal({
           </div>
 
           <div className="px-6 py-6 text-sm sm:px-8">
-            {loading && <p className="text-xs text-slate-500">Loading…</p>}
+            {loading && <PopupLoading label="Loading your visits…" />}
             {error && <p className="text-xs text-red-600">{error}</p>}
 
             {data && counts && (

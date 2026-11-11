@@ -15,7 +15,7 @@ import {
   E2E_MARKERS,
   deleteHomeVisitFixturePurchases,
   browserCookiesFor,
-  chooseAnyServiceOnStepOne,
+  chooseAnyServiceOnStepOne, settleNetwork
 } from "./helpers";
 
 test.describe("home-visit lead time (regression for the bulk scheduler bug)", () => {
@@ -370,7 +370,7 @@ test.describe("the cancellation notice a patient is shown before paying", () => 
     await page.context().clearCookies();
     await page.context().addCookies(cookies);
     await page.goto(`${BASE}/book`);
-    await page.waitForLoadState("networkidle");
+    await settleNetwork(page);
 
     // Step 1 opens with a bookable day and hour already chosen, and now
     // asks for the service first -- it used to be a dropdown on Step 2,

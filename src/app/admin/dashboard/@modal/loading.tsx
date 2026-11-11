@@ -1,4 +1,4 @@
-import WordRollLoader from "@/components/system/WordRollLoader";
+import PopupLoading from "@/components/system/PopupLoading";
 
 // The wait for an intercepted detail overlay.
 //
@@ -17,14 +17,10 @@ export default function Loading() {
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 backdrop-blur-sm">
       <div className="my-8 w-full max-w-4xl rounded-2xl bg-slate-50 p-6 shadow-xl">
-        <WordRollLoader size="sm" label="Opening…" />
-        {/* Roughly the shape of what lands: a header block, then rows. Sized
-            so the sheet does not jump when the real content replaces it. */}
-        <div className="mt-5 animate-pulse space-y-3">
-          <div className="h-16 rounded-xl bg-slate-200/70" />
-          <div className="h-24 rounded-xl bg-slate-200/70" />
-          <div className="h-24 rounded-xl bg-slate-200/70" />
-        </div>
+        {/* One loader filling the sheet. There used to be grey placeholder
+            bars under a small loader, which read as the bottom of the pop-up
+            failing to load (PopupLoading has the story). */}
+        <PopupLoading label="Opening…" className="min-h-[60vh]" />
       </div>
     </div>
   );

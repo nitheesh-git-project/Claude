@@ -12,6 +12,8 @@ import { useLeavingPage } from "@/lib/useLeavingPage";
 import SessionTimeoutDialog from "@/components/SessionTimeoutDialog";
 import { LOGIN_HREF_BY_BASE_PATH, TABS_BY_BASE_PATH } from "@/lib/dashboardNavItems";
 import { isMoreActive, isNavItemActive, splitTabs } from "@/lib/dashboardTabs";
+import AnnouncementBar from "@/components/dashboard/extras/AnnouncementBar";
+import NotebookLauncher from "@/components/dashboard/extras/NotebookLauncher";
 
 // `href` marks a real page navigation (e.g. "Edit Profile") rather than a
 // same-page anchor -- it always renders as a plain link to that page. An
@@ -438,7 +440,7 @@ export default function DashboardShell({
       {/* Phone top bar: who this is and the way to everything else. The
           screen's own title is the page's h1, just below it. */}
       <header
-        className={`sticky z-30 flex h-14 items-center justify-between border-b border-slate-200 bg-white/95 pl-4 pr-2 backdrop-blur lg:hidden ${
+        className={`sticky z-30 flex h-14 items-center justify-between border-b border-slate-200 bg-white pl-4 pr-2 lg:hidden ${
           offsetTop ? "top-[41px]" : "top-0"
         }`}
       >
@@ -570,8 +572,15 @@ export default function DashboardShell({
         </div>
       )}
 
-      <div className="pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-0 lg:pl-[88px] 2xl:pl-64">
+      {/* The notebook floats in the corner, so the page ends a little lower
+          and its last row can always be scrolled clear of the button. */}
+      <div className="pb-[calc(10.5rem+env(safe-area-inset-bottom))] lg:pb-28 lg:pl-[88px] 2xl:pl-64">
         <div className="px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+          {/* Whatever the clinic is announcing to this role, above the page
+              itself: the banner on the dashboard's home, one line everywhere
+              else so it never pushes a task down the screen. Renders nothing
+              when nothing is live. */}
+          <AnnouncementBar variant={onBasePage ? "full" : "slim"} />
           <div className="mb-6 flex flex-wrap items-center justify-between gap-3 sm:mb-8">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
@@ -593,6 +602,9 @@ export default function DashboardShell({
           {children}
         </div>
       </div>
+
+      {/* The person's private notebook, on every screen of the dashboard. */}
+      <NotebookLauncher />
     </div>
   );
 }

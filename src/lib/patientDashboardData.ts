@@ -1,3 +1,4 @@
+import { startEarly } from "@/lib/startEarly";
 import "server-only";
 import { readProgrammeCodes, tagsForPurchases } from "@/lib/programmeTagsServer";
 import { readAllRowsAsData } from "@/lib/supabase/readAllRows";
@@ -125,8 +126,47 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
   // a scheduled job. This admin client instance is reused further down for
   // the category/therapist/package-info lookups that already needed one.
   const admin = createAdminClient();
-  await expireDuePackagePurchases(admin);
-  await expireDueHomeVisitPurchases(admin);
+  // The two sweeps touch different tables, so they run together.
+  await Promise.all([expireDuePackagePurchases(admin), expireDueHomeVisitPurchases(admin)]);
+
+  // Reads that need nothing but who is signed in, started now and awaited
+  // where the code below uses them -- see startEarly.ts. Each keeps its own
+  // error handling (or its helper's) at its await.
+  const activeCarePlanEarly = startEarly(loadActiveCarePlan(admin, user.id));
+  const carePlanHistoryEarly = screen === "suggested" ? startEarly(loadCarePlanHistory(admin, user.id)) : null;
+  const suggestionRowsEarly = startEarly(
+    supabase
+      .from("session_suggestions")
+      .select("id, purchase_id, therapist_id, slot_time, note")
+      .eq("patient_id", user.id)
+      .eq("status", "pending")
+      .order("slot_time", { ascending: true })
+  );
+  const conditionSpecialtyEarly = startEarly(
+    supabase.from("patient_condition_profiles").select("specialty").eq("patient_id", user.id).maybeSingle()
+  );
+  const exercisePlanEarly = needFeed ? startEarly(loadActiveExercisePlan(supabase, user.id)) : null;
+  const inviteSettingsEarly = needFeed ? startEarly(readInviteSettings(admin)) : null;
+  const payLaterEarly = needFeed || needReceipts ? startEarly(loadPatientPayLater(admin, user.id)) : null;
+  const liveReadEarly = startEarly(loadLiveDisplay(supabase, user.id));
+  // The session cards' summaries and the plans they may link to (Sessions
+  // and Home visits only).
+  const summariesWanted = screen === "sessions" || screen === "home-visits";
+  const summariesEarly = summariesWanted
+    ? startEarly(
+        readAllRowsAsData(() =>
+          supabase
+            .from("session_summaries")
+            .select(SESSION_SUMMARY_SELECT)
+            .eq("patient_id", user.id)
+            .order("created_at", { ascending: false })
+            .order("id", { ascending: true })
+        )
+      )
+    : null;
+  const ownPlansEarly = summariesWanted
+    ? startEarly(admin.from("care_plans").select("id, status").eq("patient_id", user.id))
+    : null;
 
   // All of these are independent of each other -- run in parallel instead
   // of one at a time, since router.refresh() re-runs this whole page on
@@ -255,7 +295,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
       ? supabase
           .from("payment_failure_log")
           .select(
-            "id, patient_id, appointment_id, package_purchase_id, amount_paise, error_code, error_reason, error_description, created_at"
+            "id, patient_id, appointment_id, package_purchase_id, amount_paise, error_code, error_reason, error_description, created_at, razorpay_payment_id, razorpay_order_id"
           )
           .eq("patient_id", user.id)
           .order("created_at", { ascending: false })
@@ -382,16 +422,10 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
   // the same `session_count` / `sessions_used` shape. A no-op while the
   // flag is off.
   const ledgerAuthoritative = adminSettings.entitlementLedgerAuthoritative;
-  const ownedPackagesForDisplay = await applyLedgerSessionBalances(
-    admin,
-    ownedPackages ?? [],
-    { authoritative: ledgerAuthoritative }
-  );
-  const ownedHomeVisitPackagesForDisplay = await applyLedgerVisitBalances(
-    admin,
-    ownedHomeVisitPackages ?? [],
-    { authoritative: ledgerAuthoritative }
-  );
+  const [ownedPackagesForDisplay, ownedHomeVisitPackagesForDisplay] = await Promise.all([
+    applyLedgerSessionBalances(admin, ownedPackages ?? [], { authoritative: ledgerAuthoritative }),
+    applyLedgerVisitBalances(admin, ownedHomeVisitPackages ?? [], { authoritative: ledgerAuthoritative }),
+  ]);
 
   // The live recommendation, on every screen: each one carries a short
   // "your therapist recommended..." line linking to Suggested Sessions, and
@@ -400,9 +434,8 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
   // The history stays Suggested-only. Both helpers swallow their own
   // errors, so a database without the tables loses the recommendation
   // rather than the dashboard.
-  const activeCarePlan = await loadActiveCarePlan(admin, user.id);
-  const carePlanHistory =
-    screen === "suggested" ? await loadCarePlanHistory(admin, user.id) : [];
+  const activeCarePlan = await activeCarePlanEarly;
+  const carePlanHistory = carePlanHistoryEarly ? await carePlanHistoryEarly : [];
 
   // What came off a session, for the Receipts screen only.
   //
@@ -523,14 +556,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
   const planSourceRows: { sourceAppointmentId: string | null; planStatus: string }[] = [];
   if (needSummaries) {
     try {
-      const { data: summaryRows, error: summaryError } = await readAllRowsAsData(() =>
-        supabase
-          .from("session_summaries")
-          .select(SESSION_SUMMARY_SELECT)
-          .eq("patient_id", user.id)
-          .order("created_at", { ascending: false })
-          .order("id", { ascending: true })
-      );
+      const { data: summaryRows, error: summaryError } = await (summariesEarly as NonNullable<typeof summariesEarly>);
       if (summaryError) throw summaryError;
       for (const r of (summaryRows ?? []) as SessionSummaryRow[]) summaryByAppointmentId.set(r.appointment_id, r);
     } catch (error) {
@@ -541,7 +567,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     try {
       const completedIds = (appointments ?? []).filter((a) => a.status === "completed").map((a) => a.id);
       if (completedIds.length > 0) {
-        const { data: plans } = await admin.from("care_plans").select("id, status").eq("patient_id", user.id);
+        const { data: plans } = await (ownPlansEarly as NonNullable<typeof ownPlansEarly>);
         const statusByPlan = new Map((plans ?? []).map((p) => [p.id as string, p.status as string]));
         if (statusByPlan.size > 0) {
           const { data: versions } = await admin
@@ -736,12 +762,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
   // the teaser and the sidebar both need to know a proposed time is waiting.
   // They used to render on Overview only, which meant a proposed time was
   // invisible from every other screen.
-  const { data: suggestionRows } = await supabase
-    .from("session_suggestions")
-    .select("id, purchase_id, therapist_id, slot_time, note")
-    .eq("patient_id", user.id)
-    .eq("status", "pending")
-    .order("slot_time", { ascending: true });
+  const { data: suggestionRows } = await suggestionRowsEarly;
 
   const pendingSuggestions = (suggestionRows ?? []).flatMap((row) => {
     const purchase = ownedPackagesForDisplay.find((p) => p.id === row.purchase_id);
@@ -864,11 +885,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
   // `specialty` is a new column, so it is read on its own and merged in:
   // the conditionProfile select above feeds both the reminder banner and
   // the overview cell, and an unknown-column error there would blank both.
-  const { data: conditionSpecialtyRow } = await supabase
-    .from("patient_condition_profiles")
-    .select("specialty")
-    .eq("patient_id", user.id)
-    .maybeSingle();
+  const { data: conditionSpecialtyRow } = await conditionSpecialtyEarly;
   const intakeSpecialty = parseConditionSpecialty(conditionSpecialtyRow?.specialty);
   const intakeQuestions = questionsForSpecialty(intakeSpecialty);
   const intakeAnswers = ((conditionProfile?.draft_data ?? conditionProfile?.data ?? {}) as Record<
@@ -963,7 +980,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
   // the gate; its own call, and anything but a readable plan shows nothing.
   let homeExercises: HomeExercisesFeedInput | null = null;
   if (needFeed) {
-    const read = await loadActiveExercisePlan(supabase, user.id);
+    const read = await (exercisePlanEarly as NonNullable<typeof exercisePlanEarly>);
     if (read.status === "ok" && read.plan) {
       const parent = intakeSpecialty === "pediatrics";
       const view = exercisePlanView(read.plan, read.teaching, { parent });
@@ -1142,7 +1159,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     claimedSomeoneElses: boolean;
   } | null = null;
   if (needFeed) {
-    const inviteSettings = await readInviteSettings(admin);
+    const inviteSettings = await (inviteSettingsEarly as NonNullable<typeof inviteSettingsEarly>);
     if (inviteSettings.enabled) {
       const code = await ensureInviteCode(admin, user.id);
       if (code) {
@@ -1189,10 +1206,10 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     settlements: ReceiptSettlement[];
   } | null = null;
   if (needFeed || needReceipts) {
-    payLater = await loadPatientPayLater(admin, user.id);
+    payLater = await (payLaterEarly as NonNullable<typeof payLaterEarly>);
   }
 
-  const liveRead = await loadLiveDisplay(supabase, user.id);
+  const liveRead = await liveReadEarly;
   const guidedCheck = liveRead.status === "ok" && companionMoment(liveRead.display, nowTimestamp()).kind === "live";
 
   return {

@@ -650,6 +650,23 @@ require. Architecture, setup and reproduction are in
 - **A skip is a failure unless the manifest declares it**, with the test id
   and the reason (`allowedSkips`). So is a flaky pass, a refused outbound
   request, an empty runner and a blocked preflight.
+- **Never wait on a bare `waitForLoadState("networkidle")`; use
+  `settleNetwork(page)` from `e2e/helpers.ts`.** On the gate's local stack a
+  bare wait hung for the whole test timeout about once per run, each time on
+  a different admin-dashboard spec (RWD-001/002/006, PL-UI-006,
+  WAIT-AREA-001, the partners case; PR #113). The app was not the cause:
+  Chromium's own net log, recorded on CI for those runs, showed every request
+  on the stuck page finished within 2.4s and nothing open afterwards.
+  Playwright's count of requests in flight simply never reached zero. The
+  same pages went idle 16 times out of 16 against the hosted project, so it
+  cannot be reproduced locally. `settleNetwork` waits at most 15s and carries
+  on, and the web-first assertion after it is the real wait, so give that
+  assertion the timeout the page needs. `npm run lint` refuses a bare one in
+  `e2e/`. If a hang like this comes back, the trace will not name the
+  request, because a trace lists only requests that finished. Add
+  `--log-net-log=<artifactDir>/test-results/chromium-netlog.json` to the
+  gate's Chromium args in `playwright.config.ts` for one run and read which
+  `REQUEST_ALIVE` never ended (commit 245d974 has the version that was used).
 - **`schema.sql` is applied twice per runner**, the first pass as `postgres`
   and the second as the local superuser. The local image's supautils loses the
   `postgres` role's right to drop `storage.objects` policies, for the rest of

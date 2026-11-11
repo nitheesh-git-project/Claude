@@ -21,7 +21,7 @@
 // first one only happens inside GoTrue's own cascade, and the second is about
 // which sentence a person reads.
 import { test, expect, type Page } from "@playwright/test";
-import { BASE, browserCookiesFor, QA_EMAILS, adminClient, TEST_PASSWORD } from "./helpers";
+import { BASE, browserCookiesFor, cookieHeaderFor, QA_EMAILS, adminClient, TEST_PASSWORD, settleNetwork } from "./helpers";
 
 const SLOW = 240_000;
 const MARKER = "ZZ QA delete";
@@ -68,7 +68,7 @@ async function openDashboard(page: Page, url: string) {
       timeout: 30_000,
     })
     .catch(() => {});
-  await page.waitForLoadState("networkidle");
+  await settleNetwork(page);
 }
 
 /** The back-office directory pages its rows, so a freshly created account
@@ -84,14 +84,23 @@ async function showEveryRow(page: Page, plural: string) {
   }
 }
 
+/** The confirmation asks the server what is behind the account first, then
+ *  wants a reason before it deletes anything. */
+async function chooseReason(page: Page, reason = "Duplicate account", note?: string) {
+  const dialog = page.getByTestId("delete-account-confirm");
+  await expect(dialog).toBeVisible({ timeout: 60_000 });
+  await dialog.getByLabel(/Why is it being deleted/).selectOption({ label: reason });
+  if (note) await dialog.getByLabel(/^Note/).fill(note);
+  return dialog;
+}
+
 async function pressDelete(page: Page) {
   const open = page.locator("button:visible", { hasText: "Delete account" }).first();
   await expect(open).toBeVisible({ timeout: 60_000 });
   await open.scrollIntoViewIfNeeded();
   await open.click();
-  const confirm = page.locator("button:visible", { hasText: "Delete permanently" }).first();
-  await expect(confirm).toBeVisible();
-  await confirm.click();
+  const dialog = await chooseReason(page);
+  await dialog.getByRole("button", { name: "Delete permanently" }).click();
 }
 
 test.describe("deleting an account", () => {
@@ -114,9 +123,13 @@ test.describe("deleting an account", () => {
       await expect(row).toBeVisible({ timeout: 60_000 });
       await row.scrollIntoViewIfNeeded();
       await row.locator("button", { hasText: "Delete account" }).first().click();
-      const confirm = page.locator("button:visible", { hasText: "Delete permanently" }).first();
-      await expect(confirm).toBeVisible();
-      await confirm.click();
+      const dialog = await chooseReason(page);
+      // Without a reason nothing is sent; with one, it goes.
+      await dialog.getByLabel(/Why is it being deleted/).selectOption({ label: "Choose a reason" });
+      await dialog.getByRole("button", { name: "Delete permanently" }).click();
+      await expect(dialog.getByRole("alert")).toContainText("Choose why");
+      await dialog.getByLabel(/Why is it being deleted/).selectOption({ label: "Duplicate account" });
+      await dialog.getByRole("button", { name: "Delete permanently" }).click();
 
       // The screen says it is gone, and the database agrees. Both, because
       // GoTrue reporting success is not the same as the row being gone --
@@ -159,7 +172,7 @@ test.describe("deleting an account", () => {
     }
   });
 
-  test("AD-DEL-003: an account with history is refused by name, never 'did not say why'", async ({
+  test("AD-DEL-003: an account with history is deleted with its records kept, and says why", async ({
     page,
     context,
   }) => {
@@ -172,9 +185,8 @@ test.describe("deleting an account", () => {
     // and removing it afterwards would take them with it.
     const noteTherapist = await makeAccount(admin, "note-holder", { role: "therapist" });
 
-    // `therapist_admin_notes.updated_by` is one of the 22 blocking foreign
-    // keys the old probe list never counted, so this is the exact shape that
-    // produced the unexplained refusal.
+    // `therapist_admin_notes.updated_by` blocks a hard delete, so this is an
+    // account with history behind it.
     const { error: noteError } = await admin
       .from("therapist_admin_notes")
       .upsert({ therapist_id: noteTherapist, updated_by: id });
@@ -189,24 +201,81 @@ test.describe("deleting an account", () => {
       await expect(row).toBeVisible({ timeout: 60_000 });
       await row.scrollIntoViewIfNeeded();
       await row.locator("button", { hasText: "Delete account" }).first().click();
-      const confirm = page.locator("button:visible", { hasText: "Delete permanently" }).first();
-      await expect(confirm).toBeVisible();
-      await confirm.click();
 
-      const refusal = page.locator("text=/Not deleted/i").first();
-      await expect(refusal).toBeVisible({ timeout: 60_000 });
-      const panel = page.locator("[role='dialog']:visible").first();
-      // It names what is holding it and offers the real alternative...
-      await expect(panel).toContainText(/back-office action/i);
-      await expect(panel).toContainText(/Suspend/i);
-      // ...rather than the fallback that means "the list was out of date".
-      await expect(panel).not.toContainText(/did not say why/i);
-      // And nothing was removed.
+      // It names what is behind the account before anything happens...
+      const dialog = await chooseReason(page, "Other (say why)");
+      await expect(dialog).toContainText(/back-office action/i);
+      await expect(dialog).toContainText("No payments, refunds or payouts.");
+      await expect(dialog).not.toContainText(/did not say why/i);
+      // It keeps the records, so it never says it "cannot be deleted".
+      await expect(dialog).not.toContainText(/cannot be deleted/i);
+      // ...and Other needs a note.
+      await dialog.getByRole("button", { name: "Delete user, keep records" }).click();
+      await expect(dialog.getByRole("alert")).toContainText("Say why");
       expect(await stillExists(admin, id)).toBe(true);
-      await page.screenshot({ path: "/tmp/delete-03-refused-by-name.png" });
+
+      await dialog.getByLabel(/^Note/).fill("Left to join another clinic");
+      await dialog.getByRole("button", { name: "Delete user, keep records" }).click();
+      await expect(
+        page.getByRole("dialog", { name: "Account deleted" }).filter({ hasText: "can no longer sign in" })
+      ).toBeVisible({ timeout: 60_000 });
+
+      // The profile stays (the note still points at it), marked deleted with
+      // the reason; the login is moved off the real address and banned.
+      const { data: profile } = await admin.from("profiles").select("deleted_at, active, email").eq("id", id).single();
+      expect(profile?.deleted_at).toBeTruthy();
+      expect(profile?.active).toBe(false);
+      expect(profile?.email).toMatch(/@deleted\.invalid$/);
+      const { data: mark } = await admin.from("account_deletions").select("reason, note, email").eq("user_id", id).single();
+      expect(mark).toMatchObject({ reason: "other", note: "Left to join another clinic" });
+      expect(mark?.email).toMatch(/^zz\.qa\.delete\./);
+      const { data: login } = await admin.auth.admin.getUserById(id);
+      expect(login?.user?.email).toMatch(/@deleted\.invalid$/);
+      expect(login?.user?.banned_until).toBeTruthy();
+
+      // The record cannot be rewritten afterwards.
+      const { error: rewrite } = await admin.from("account_deletions").update({ reason: "duplicate" }).eq("user_id", id);
+      expect(rewrite?.message ?? "").toContain("append-only");
+      await page.screenshot({ path: "/tmp/delete-03-kept-records.png" });
     } finally {
       // The note row cascades away with the therapist it is keyed on, so
       // removing that account first clears the reference holding the admin.
+      await cleanUp(admin, noteTherapist);
+      await cleanUp(admin, id);
+    }
+  });
+
+  test("AD-DEL-004: a deleted therapist is tagged Deleted user, and the (i) says why", async ({ page, context }) => {
+    test.setTimeout(SLOW);
+    const admin = adminClient();
+    const id = await makeAccount(admin, "tagged", { role: "therapist" });
+    const noteTherapist = await makeAccount(admin, "tag-note-holder", { role: "therapist" });
+    await admin.from("therapist_admin_notes").upsert({ therapist_id: noteTherapist, updated_by: id });
+    try {
+      const res = await page.request.post(`${BASE}/api/admin/delete-account`, {
+        headers: { cookie: await cookieHeaderFor(QA_EMAILS.admin) },
+        data: { userId: id, reason: "fraud", note: "Fake credentials" },
+      });
+      expect(res.status(), await res.text()).toBe(200);
+      expect(await res.json()).toMatchObject({ keptRecords: true });
+
+      await context.addCookies(await browserCookiesFor(QA_EMAILS.admin));
+      await openDashboard(page, `${BASE}/admin/dashboard/therapists/${id}`);
+      // The profile's own header: the People list behind the profile carries
+      // the same tag, under the profile's overlay.
+      const tag = page
+        .locator("h1", { hasText: `${MARKER} tagged` })
+        .filter({ visible: true })
+        .first()
+        .locator("xpath=..")
+        .getByTestId("deleted-user-tag");
+      await expect(tag).toBeVisible({ timeout: 60_000 });
+      await tag.getByRole("button", { name: "Why was this account deleted?" }).click();
+      const info = page.getByTestId("deleted-user-info").filter({ visible: true }).first();
+      await expect(info).toContainText("Fraud or abuse");
+      await expect(info).toContainText("Fake credentials");
+      await expect(info).toContainText(/zz\.qa\.delete\./);
+    } finally {
       await cleanUp(admin, noteTherapist);
       await cleanUp(admin, id);
     }

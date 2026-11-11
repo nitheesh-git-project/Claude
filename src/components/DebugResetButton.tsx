@@ -59,7 +59,7 @@ export default function DebugResetButton() {
           setOpen(true);
           setDone(null);
         }}
-        className="rounded-lg bg-red-900 px-2.5 py-1.5 text-[11px] font-semibold text-red-100 transition hover:bg-red-800"
+        className="h-7 rounded-lg bg-red-900 px-2.5 py-0 text-[11px] font-semibold text-red-100 transition hover:bg-red-800"
         title="Empty the database, keeping admin accounts"
       >
         Reset data
@@ -68,7 +68,7 @@ export default function DebugResetButton() {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-red-800 bg-red-950/60 px-2.5 py-1.5">
+    <div className="flex h-8 flex-nowrap items-center gap-2 whitespace-nowrap rounded-lg border border-red-800 bg-red-950/60 px-2.5 py-0">
       <span className="text-[11px] text-red-200">
         Deletes people, sessions, purchases and money. Your{" "}
         <strong>settings and website content</strong> are kept - the clinic

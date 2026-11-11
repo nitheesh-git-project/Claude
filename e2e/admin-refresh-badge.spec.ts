@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { test, expect } from "@playwright/test";
-import { adminClient, browserCookiesFor, profileIdFor, QA_EMAILS, BASE } from "./helpers";
+import { adminClient, browserCookiesFor, profileIdFor, QA_EMAILS, BASE, settleNetwork } from "./helpers";
 
 /**
  * The Refresh button's badge counts other people's changes, never the admin's
@@ -90,7 +90,7 @@ test.describe("the admin Refresh button's waiting-changes badge", () => {
     await page.context().clearCookies();
     await page.context().addCookies(cookies);
     await page.goto(`${BASE}/admin/dashboard`);
-    await page.waitForLoadState("networkidle");
+    await settleNetwork(page);
     await expect(refreshButton(page)).toBeVisible({ timeout: 60_000 });
   }
 

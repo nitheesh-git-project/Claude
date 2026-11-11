@@ -10,6 +10,7 @@ import {
   Field,
   Frame,
   ProgressChart,
+  SegmentedProgress,
   SPRING,
   Stepper,
   TapButton,
@@ -45,16 +46,7 @@ export function PatientBookScene() {
   const steps = ["What for", "How", "When", "Pay"];
   return (
     <Frame title="Book a Session" icon="fa-plus">
-      <div className="mb-3 flex gap-1">
-        {steps.map((s, i) => (
-          <div key={s} className="flex-1">
-            <div className="h-1 overflow-hidden rounded bg-slate-100">
-              <motion.div className="h-full bg-teal-600" initial={false} animate={{ width: phase > i ? "100%" : phase === i ? "50%" : "0%" }} transition={{ duration: 0.5, ease: EASE }} />
-            </div>
-            <span className={`mt-1 block text-[9px] ${phase >= i ? "font-semibold text-teal-700" : "text-slate-400"}`}>{s}</span>
-          </div>
-        ))}
-      </div>
+      <SegmentedProgress steps={steps} current={phase} stepMs={1500} />
       <div className="relative min-h-[150px]">
         <AnimatePresence mode="wait">
           {phase === 0 && (

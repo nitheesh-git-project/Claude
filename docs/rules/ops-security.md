@@ -719,6 +719,42 @@ took an e2e case down with a deadlock the first time it was run, which is a red
 line describing nothing but carelessness. Before real patients exist, remove
 `ALLOW_DEBUG_DATA_RESET` and drop the function.
 
+## Test accounts from the debug bar
+
+The debug bar's **Test accounts** button (`DebugTestAccountsPanel` ->
+`/api/admin/debug-test-accounts`) makes one of every role a test needs -- a
+patient (with a home address in a served pincode), a therapist approved with
+Full day hours Monday to Saturday, a hospital partner, and an Operations,
+Finance and Clinical admin -- and lists each login's email and password with
+copy buttons -- all six at once, or one role per tap (`{"action":"create","key":"patient"}`). **Never a Master Admin**: a test login with full scope could
+reset the database.
+
+- **It follows the debug bar, by the owner's choice.** The route works
+  wherever `isDebugNavVisible()` is true (404 otherwise) and only for a
+  signed-in Master Admin. Unlike the reset it has no switch of its own: one
+  setting is simpler, and the worst it can do is make or remove its own test
+  accounts. That makes `NEXT_PUBLIC_SHOW_DEBUG_NAV=false` on the live site the
+  thing that keeps test accounts off the production database.
+- **Removal only reaches its own accounts.** `debug_purge_test_account()`
+  refuses any id not in `debug_test_accounts`, then collects every row that
+  points at the account (following owner columns such as
+  `payments.patient_id` even where the key would only SET NULL), nulls the
+  mentions on rows that stay, never deletes another profile (it nulls the
+  column, or refuses when it cannot), disables the guard triggers on those
+  tables by name (`ALTER TABLE ... DISABLE TRIGGER`, inside its transaction,
+  as `clean-e2e-residue.mjs` does) and deletes the rows in passes so each
+  goes after whatever points at it, with foreign keys still enforced. The
+  triggers are re-enabled and the auth user goes last.
+  `session_replication_role = replica` was the first version and is refused
+  to this role on a stock Supabase stack (CI), so it must not come back.
+- **Passwords are stored in plain text, on purpose.** They are throwaway and
+  exist to be copied; the table has RLS on and no policy.
+- **The test card is copy-and-paste, not autofill.** Razorpay's card form is
+  an iframe on Razorpay's origin and cannot be typed into from the page, so the
+  panel lists the test card with copy buttons and `DebugTestCardOverlay` floats
+  the same box over the checkout while `.razorpay-container` is showing -- only
+  with a `rzp_test_` key.
+
 ## Gotchas
 
 - **The debug bar is on in every environment, on purpose.** The app is
@@ -868,10 +904,11 @@ line describing nothing but carelessness. Before real patients exist, remove
   `error.tsx` in each dashboard, with `global-error.tsx` for a root-layout throw (it inlines its
   styles and supplies its own `<html>`, because at that point nothing else
   has rendered). An Error's message can carry a column name or a row id and
-  patients see these screens, so only Next's `digest` is shown. A dashboard
-  has **no** `loading.tsx`: every dashboard renders its sidebar per page
-  rather than in a layout, so a loading boundary blanks the chrome on every
-  navigation - the wait is `NavigationLoader` instead (`frontend.md`).
+  patients see these screens, so only Next's `digest` is shown. Each
+  dashboard's `loading.tsx` is `DashboardLoading`, the dashboard's frame
+  with the loader in it, not a bare loader -- every dashboard renders its
+  sidebar per page rather than in a layout, so a plain loading boundary
+  blanks the chrome (`frontend.md`).
 - **A display code outlives the role that generated it.** `handle_new_user`
   inserts every self-signup as a patient, so an account promoted to admin or
   hospital later keeps its `PT####`. The unique indexes are scoped to the
@@ -1006,3 +1043,17 @@ it — and do not need to. A signed-out browser has no user for the id to
 match, and a different user signing in fails the id check and re-reads.
 `stop-impersonation` clears it explicitly anyway, at the one moment the
 server already knows it is stale.
+- **An admin signed in as somebody cannot open their notebook, and does not
+  spend their announcements.** The session swap is real, so every route
+  would otherwise answer the admin as the owner. `readDashboardViewer()`
+  (`src/lib/dashboardViewer.ts`) reads the impersonation marker beside the
+  session; `/api/notebook` refuses with a 403 while it is set and the button
+  is not rendered, and `/api/announcements/receipt` answers success without
+  writing, so an admin's visit neither closes the person's banner nor uses
+  up a pop-up that opens once. A new per-person private surface must make
+  the same check -- "the session is theirs" is not "they are at the keyboard".
+- **The notebook and the announcement receipt each have their own limit**
+  (`notebook`, `announcementReceipt` in `RATE_LIMITS`), keyed on the account
+  and failing open: the notebook saves itself every few seconds while
+  somebody types, and a limiter that cannot be asked must not cost them what
+  they wrote.

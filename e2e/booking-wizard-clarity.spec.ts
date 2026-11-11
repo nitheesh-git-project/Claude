@@ -2,12 +2,16 @@ import { test, expect } from "@playwright/test";
 import {
   adminClient,
   BASE,
+  browserCookiesFor,
   chooseAnyServiceOnStepOne,
+  clinicSlot,
   cookieHeaderFor,
+  markDashboardTourSeen,
   pickTimeOnStepOne,
   profileIdFor,
   QA_EMAILS,
-  wholeHourFromNow,
+  waitForSplashToClear,
+  wholeHourFromNow, settleNetwork
 } from "./helpers";
 import { BOOKING_FOR_PREFIX } from "../src/lib/bookingFor";
 
@@ -31,7 +35,7 @@ test.describe("booking wizard: honest Step 1, plain Step 2", () => {
   test("BWC-001 the hour is left for the patient; Continue says why it is disabled", async ({ page }) => {
     test.setTimeout(120_000);
     await page.goto(`${BASE}/book`);
-    await page.waitForLoadState("networkidle");
+    await settleNetwork(page);
 
     // Plain labels, not "Preferred ...".
     await expect(page.getByRole("radiogroup", { name: "Time", exact: true })).toBeVisible({ timeout: 60_000 });
@@ -67,7 +71,7 @@ test.describe("booking wizard: honest Step 1, plain Step 2", () => {
   test("BWC-002 Step 2 leads with sign-in, asks name, phone, email, password, and who it is for", async ({ page }) => {
     test.setTimeout(120_000);
     await page.goto(`${BASE}/book`);
-    await page.waitForLoadState("networkidle");
+    await settleNetwork(page);
     await chooseAnyServiceOnStepOne(page);
     await page.getByRole("button", { name: /Continue to your details/ }).click();
 
@@ -186,6 +190,75 @@ test.describe("who the session is for reaches the notes only through the server"
       expect(lines[1]).toBe("Fell last week");
     } finally {
       if (createdId) await admin.from("appointments").delete().eq("id", createdId);
+    }
+  });
+});
+
+test.describe("a clash with the patient's own session is caught on Step 1, and each step starts at its top", () => {
+  test("BWC-004 check-slot finds a clash, misses a free hour, and answers anonymous callers without checking", async ({ request }) => {
+    test.setTimeout(120_000);
+    const admin = adminClient();
+    const patientId = await profileIdFor(admin, QA_EMAILS.patientB);
+    const slot = clinicSlot(20, 7);
+    const { data: category } = await admin.from("treatment_categories").select("id").eq("active", true).limit(1).single();
+    const { data: booked, error } = await admin
+      .from("appointments")
+      .insert({
+        patient_id: patientId,
+        category_id: category!.id,
+        slot_time: slot,
+        status: "confirmed",
+        payment_status: "unpaid",
+        concern: "BWC-004 fixture",
+        duration_minutes: 60,
+      })
+      .select("id")
+      .single();
+    expect(error).toBeNull();
+    try {
+      const cookie = await cookieHeaderFor(QA_EMAILS.patientB);
+      const clash = await request.post(`${BASE}/api/appointments/check-slot`, {
+        headers: { cookie },
+        data: { slotTime: slot, categoryId: category!.id },
+      });
+      expect(clash.status()).toBe(200);
+      expect(await clash.json()).toMatchObject({ checked: true, conflict: true, error: /already have a session/ });
+
+      const free = await request.post(`${BASE}/api/appointments/check-slot`, {
+        headers: { cookie },
+        data: { slotTime: clinicSlot(20, 10), categoryId: category!.id },
+      });
+      expect(await free.json()).toMatchObject({ checked: true, conflict: false });
+
+      const anonymous = await request.post(`${BASE}/api/appointments/check-slot`, { data: { slotTime: slot } });
+      expect(await anonymous.json()).toEqual({ checked: false });
+    } finally {
+      await admin.from("appointments").delete().eq("id", booked!.id);
+    }
+  });
+
+  test("BWC-005 on a phone, Review Booking lands on the top of Step 3, not the footer", async ({ browser }) => {
+    test.setTimeout(180_000);
+    await markDashboardTourSeen(QA_EMAILS.patientA);
+    const context = await browser.newContext({ viewport: { width: 360, height: 780 }, isMobile: true, hasTouch: true });
+    await context.addCookies(await browserCookiesFor(QA_EMAILS.patientA));
+    const page = await context.newPage();
+    try {
+      await page.goto(`${BASE}/book`);
+      await waitForSplashToClear(page).catch(() => {});
+      await chooseAnyServiceOnStepOne(page);
+      await page.getByRole("button", { name: /Continue to your details/ }).click();
+      await expect(page.getByText("Step 2 of 3")).toBeInViewport({ timeout: 30_000 });
+      await page.getByRole("checkbox", { name: /I agree/ }).check();
+      await page.getByRole("button", { name: /Review Booking/ }).click();
+      // The step's label is on screen, and the footer is not.
+      await expect(page.getByText("Step 3 of 3")).toBeInViewport({ timeout: 30_000 });
+      await expect(page.getByRole("contentinfo")).not.toBeInViewport();
+      // The email sits inside the summary box at 360px.
+      const box = await page.getByText("Email", { exact: true }).locator("xpath=../..").boundingBox();
+      expect(box!.x + box!.width).toBeLessThanOrEqual(360);
+    } finally {
+      await context.close();
     }
   });
 });

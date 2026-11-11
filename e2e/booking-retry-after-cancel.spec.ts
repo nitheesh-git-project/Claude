@@ -5,7 +5,7 @@ import {
   adminClient,
   browserCookiesFor,
   chooseAnyServiceOnStepOne,
-  waitForSplashToClear, TEST_PASSWORD
+  waitForSplashToClear, TEST_PASSWORD, settleNetwork
 } from "./helpers";
 
 /**
@@ -41,7 +41,7 @@ async function stubRazorpayThatIsClosed(page: Page) {
 async function walkToStepThree(page: Page) {
   // The wizard reads the session on mount; a click before that lands on the
   // signed-out form.
-  await page.waitForLoadState("networkidle");
+  await settleNetwork(page);
   await chooseAnyServiceOnStepOne(page);
   await page.getByRole("button", { name: /Continue to your details/i }).click();
   await expect(page.getByText(/Booking as/i)).toBeVisible({ timeout: 30_000 });
@@ -145,7 +145,7 @@ test.describe("a new patient's payment tries", () => {
     const email = `e2e.newpatient.${Date.now()}@example.test`;
     await stubRazorpayThatIsClosed(page);
     await page.goto(`${BASE}/book`);
-    await page.waitForLoadState("networkidle");
+    await settleNetwork(page);
     await chooseAnyServiceOnStepOne(page);
     await page.getByRole("button", { name: /Continue to your details/i }).click();
     // Name, phone, email, password -- there is no retype box (the password
