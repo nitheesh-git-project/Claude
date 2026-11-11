@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import PaidAheadNote from "@/components/admin/PaidAheadNote";
 import { formatClinicDate } from "@/lib/formatDateTime";
 import { EmptyState } from "@/components/dashboard/SurfaceCard";
 import {
@@ -668,6 +669,14 @@ export default function AdminMetricsTab({
           </label>
         </div>
       </div>
+
+      {/* Money already in for sessions dated after this range: every figure
+          here counts on the session's date, so without this line a payment
+          made today for tomorrow appears nowhere. Right under the dates it
+          depends on, above the figures it explains. */}
+      {view === "summary" && (
+        <PaidAheadNote appointments={dimFiltered} rangeEndMs={toMs} onInclude={setToDate} />
+      )}
 
       {view === "summary" && (
       <div>

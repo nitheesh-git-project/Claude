@@ -237,7 +237,7 @@ the ones that matter for that area.
 npm run dev                  # Next dev server
 npm run verify               # lint + unit tests + build -- run before pushing
 npm run lint                 # 5 schema/asset checks, then eslint
-npm run test                 # Vitest, 3,373 tests over dependency-free src/lib
+npm run test                 # Vitest, 3,384 tests over dependency-free src/lib
 npm run build
 npm run start:cluster        # production on several Node workers
 

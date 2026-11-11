@@ -3,6 +3,7 @@
 import AdminScreenLink from "@/components/admin/AdminScreenLink";
 
 import { useMemo, useState } from "react";
+import PaidAheadNote from "@/components/admin/PaidAheadNote";
 import SurfaceCard, { EmptyState } from "@/components/dashboard/SurfaceCard";
 import StatStrip from "@/components/dashboard/StatStrip";
 import MoneyFigure, { MoneyTermInfo } from "@/components/admin/MoneyFigure";
@@ -796,6 +797,10 @@ export default function AdminBusinessHealthTab({
           )}
         </div>
       </SurfaceCard>
+
+      {/* Money already in for sessions dated after this range (see
+          PaidAheadNote): every figure below counts on the session's date. */}
+      <PaidAheadNote appointments={narrowed} rangeEndMs={toMs} onInclude={setToDate} />
 
       {/* The four an owner scans first: two ratios and two plans. Every one of
           them carries its own (i) on the card below; the strip is the glance. */}

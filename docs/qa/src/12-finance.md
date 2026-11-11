@@ -157,6 +157,14 @@ Every Money screen opens with a **needs-you strip**: `N things need you` over on
 **Steps.** Open **Money → Transactions**. Reconcile every row against the dataset. Export CSV and PDF.
 **Expected Result.** One row per payment, with the order id and payment id. **No payment id appears on two rows.** The CSV and the PDF describe the **same table** - they are generated from one column definition, and the PDF route is sent the exact filtered rows the browser rendered. Both cover the **whole filtered set**. The PDF carries a subtitle naming the scope and the date. **No JSON export exists.**
 
+#### `FIN-TXN-002` - Refunds on Transactions · P0
+**Steps.** Pay ₹499 for a session as a patient. On the Razorpay Dashboard, refund ₹100 of it. Open **Money → Transactions**, find the payment by its ID, and open **View**.
+**Expected Result.** The row's **Refunded** column reads **−₹100**; the patient's own Payment History table has the same column. The card lists the refund on its own line - **Refunded · on the Razorpay website**, ₹100, the refund ID with a copy button and the time in IST - then **Kept after refunds ₹399**. A refund still on its way reads "on its way" and a failed one "Refund failed", neither counted as refunded. The CSV carries a **Refunded (INR)** column. A programme or home-visit pack refunded on Razorpay shows the same way.
+
+#### `FIN-SUM-002` - Money paid for upcoming sessions · P1
+**Steps.** With the payment above for a session tomorrow, open **Money → Summary** and **Business Health** on their default range (ending today).
+**Expected Result.** The figures do **not** include it - money counts on the session's date. Directly under the filters a blue line says **Paid for upcoming sessions: ₹399 from 1 session dated after this range (₹499 paid, ₹100 refunded)**. **Show up to <date>** moves the To date to that session, and the figures then include it. A cancelled session, a programme-covered one, and one paid after the range ends are not in the line. With none, the line is absent.
+
 #### `FIN-PAY-001` - Payouts · P0
 **Steps.** Open **Money → Payouts**. Read Therapist A's row. With a payout request open, read the top of the screen.
 **Order.** The screen opens on the **open payout requests**, each with **Pay** on the row (beside Start review / Mark completed; *Set their share first* when no share is set), then the balances table, then the completed requests and the cash ledger. The paragraph on how the figures are worked out is behind an **(i)** beside the heading.
