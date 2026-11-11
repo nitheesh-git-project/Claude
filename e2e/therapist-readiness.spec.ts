@@ -137,8 +137,11 @@ test.describe("Suite TR-READY: therapist readiness", () => {
     // has no roster either -- rosters are deliberately not seeded -- so the
     // count is what it is rather than a number this test asserts blind.
     const panel = page.getByRole("region", { name: "Not ready for patients yet" });
+    // Counted only once it has rendered: the profile streams in behind a
+    // loading screen, and a count taken at load reads 0 rows.
+    await expect(panel).toBeVisible({ timeout: 60_000 });
     const rows = panel.getByRole("listitem");
-    expect(await rows.count()).toBeGreaterThanOrEqual(2);
+    await expect.poll(() => rows.count(), { timeout: 30_000 }).toBeGreaterThanOrEqual(2);
     await expect(panel).toContainText("Revenue share set");
     await expect(panel).toContainText("Specialisation recorded");
     await expect(panel).toContainText("Working hours on the roster");
