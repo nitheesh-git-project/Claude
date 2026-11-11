@@ -848,6 +848,30 @@ whose phone loses signal on the way back from their UPI app: before this
 existed, that left a paid Razorpay order sitting against an unpaid booking,
 recoverable only if they returned and pressed Pay again.
 
+**Refunds reach the app the same way.** Subscribe the same webhook to
+`refund.created`, `refund.processed` and `refund.failed` (Razorpay
+Dashboard -> Account & Settings -> Webhooks -> edit the webhook -> tick the
+three refund events -> Save). Every refund Razorpay reports is then kept in
+`razorpay_refunds` and listed on **Money -> Refunds** with where it is
+(Started, On its way, Refunded, Failed) and who started it:
+
+- A refund made **on the Razorpay website** against one session's payment
+  is recorded on that session once Razorpay says it is processed: the
+  session reads Refunded, the patient's receipt and Transactions show it,
+  and the money figures stop counting it. The session itself is not
+  cancelled -- that stays the clinic's call.
+- A refund the **app** started that the bank later fails turns the
+  session's refund to Failed, which every screen shows as work for a person.
+- A refund against a **programme**, or a payment the app has no booking
+  for, waits on Money -> Refunds under "Need a look" (and badges the
+  screen) until an admin marks it dealt with.
+
+To find who paid, paste a Razorpay payment ID (`pay_...`) or order ID into
+the admin's top search: it shows the patient, amount, status and date, and
+opens Money -> Transactions filtered to that payment. Every receipt, the
+patient's own Payments screen, the session drawer and the patient's admin
+page show the payment ID with a copy button.
+
 Both paths go through one database function, `record_payment_capture`,
 which takes a real row lock and either applies the capture or reports it as
 already captured. Duplicate webhooks, Razorpay's at-least-once retries, a

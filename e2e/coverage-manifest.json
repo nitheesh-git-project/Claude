@@ -1768,6 +1768,29 @@
       ],
       "integration": "local",
       "destructive": false
+    },
+    "razorpay-refund-webhook.spec.ts": {
+      "runner": "money",
+      "levels": [
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "admin-find-and-money.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
     }
   },
   "flows": [
@@ -4634,6 +4657,50 @@
       "rules": [
         "docs/rules/dashboards.md",
         "docs/rules/data-schema.md"
+      ]
+    },
+    {
+      "id": "money.razorpay-refund-sync",
+      "runner": "money",
+      "title": "A refund Razorpay reports reaches the app: one made on the Razorpay website is recorded on its session once and never moves back, one the app started that the bank failed turns Failed, a programme refund waits for a person, a bad signature changes nothing",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "razorpay-refund-webhook.spec.ts",
+          "tests": [
+            "RFD-001",
+            "RFD-002",
+            "RFD-003",
+            "RFD-004"
+          ],
+          "level": "api"
+        }
+      ],
+      "rules": [
+        "docs/rules/payments.md"
+      ]
+    },
+    {
+      "id": "admin.find-screens-and-payments",
+      "runner": "admin",
+      "title": "The admin top search finds a screen by the word used (promo -> Money > Costs) and a payment by its Razorpay ID; Signed in as, Refunds and the Payouts request columns open",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "admin-find-and-money.spec.ts",
+          "tests": [
+            "FIND-001",
+            "FIND-002",
+            "FIND-003",
+            "FIND-004"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/admin.md"
       ]
     }
   ],

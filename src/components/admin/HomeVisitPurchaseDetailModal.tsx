@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import PopupLoading from "@/components/system/PopupLoading";
 import { formatClinicDate, formatClinicDateTime } from "@/lib/formatDateTime";
 import { useRouter } from "@/lib/useRouter";
 import Modal from "@/components/admin/Modal";
@@ -201,7 +202,7 @@ export default function HomeVisitPurchaseDetailModal({
       subtitle={data ? `${data.purchase.purchase_code ?? ""} · ${data.purchase.patientName}` : undefined}
       onClose={onClose}
     >
-      {loading && <p className="text-xs text-slate-500">Loading…</p>}
+      {loading && <PopupLoading />}
       {error && <p className="text-xs text-red-600">{error}</p>}
       {data && counts && (
         <div className="space-y-6 text-xs">

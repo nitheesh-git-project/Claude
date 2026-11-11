@@ -1,6 +1,7 @@
 "use client";
 
 import ActivityTimeline from "@/components/admin/ActivityTimeline";
+import CopyText from "@/components/system/CopyText";
 import AdminSessionSummary from "@/components/admin/AdminSessionSummary";
 import { useEffect, useId, useOptimistic, useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
@@ -57,6 +58,8 @@ export type SessionDetailAppointment = {
   status: string;
   payment_status: string;
   payment_terms?: string | null;
+  /** Razorpay's id for this session's own payment, when the row carries it. */
+  razorpay_payment_id?: string | null;
   pay_later_outcome?: string | null;
   amount_paid_paise: number | null;
   /** A pay-later booking's frozen price. Migration-dependent and optional;
@@ -662,6 +665,11 @@ export default function SessionDetailDrawer({
                   </span>
                 )}
               </p>
+              {canSeeMoney && a.razorpay_payment_id && (
+                <p className="mt-1 text-slate-600">
+                  <CopyText value={a.razorpay_payment_id} label="Copy payment ID" />
+                </p>
+              )}
             </div>
 
             {a.notes && (

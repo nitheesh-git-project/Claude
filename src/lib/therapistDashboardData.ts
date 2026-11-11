@@ -13,7 +13,7 @@ import { mergeSessionCodes } from "@/lib/sessionCode";
 import { mergeMeetLinks } from "@/lib/meetLink";
 import { buildTherapistNavItems } from "@/lib/dashboardNavItems";
 import { buildTherapistFeed } from "@/lib/dashboardFeed";
-import { computeTherapistEarningRows, computeTherapistPendingOwed } from "@/lib/therapistEarnings";
+import { describePayout, computeTherapistEarningRows, computeTherapistPendingOwed } from "@/lib/therapistEarnings";
 import { buildTherapistPayoutReceipts } from "@/lib/receipts";
 import { computeRatingAggregate } from "@/lib/ratingAggregate";
 import { computePerVisitFeePaise } from "@/lib/homeVisitPricing";
@@ -565,13 +565,18 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
     travel_fee_paise: a.visit?.travel_fee_paise ?? null,
   }));
   const homeVisitSharePercent = homeVisitShareRow?.home_visit_revenue_share_percent ?? null;
+  // Each paid session says how it was paid, from the payout that settled it.
+  const payoutById = new Map((payoutBatches ?? []).map((b) => [b.id, b]));
   const earningRows = computeTherapistEarningRows(
     earningInputs,
     profile?.revenue_share_percent ?? null,
     categoryTitleById,
     patientNameById,
     homeVisitSharePercent
-  );
+  ).map((row) => {
+    const batch = row.payoutBatchId ? payoutById.get(row.payoutBatchId) : undefined;
+    return batch ? { ...row, paidVia: describePayout(batch.method, batch.note) } : row;
+  });
   const pendingOwedPaise = computeTherapistPendingOwed(
     user.id,
     profile?.revenue_share_percent ?? null,

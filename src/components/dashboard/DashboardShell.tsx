@@ -440,7 +440,7 @@ export default function DashboardShell({
       {/* Phone top bar: who this is and the way to everything else. The
           screen's own title is the page's h1, just below it. */}
       <header
-        className={`sticky z-30 flex h-14 items-center justify-between border-b border-slate-200 bg-white/95 pl-4 pr-2 backdrop-blur lg:hidden ${
+        className={`sticky z-30 flex h-14 items-center justify-between border-b border-slate-200 bg-white pl-4 pr-2 lg:hidden ${
           offsetTop ? "top-[41px]" : "top-0"
         }`}
       >

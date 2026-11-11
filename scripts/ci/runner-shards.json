@@ -146,7 +146,9 @@
       "therapist-specialty.spec.ts": 17,
       "unscheduled-purchases.spec.ts": 18,
       "waitlist-serve-area.spec.ts": 20,
-      "announcements-notebook.spec.ts": 190
+      "announcements-notebook.spec.ts": 190,
+      "razorpay-refund-webhook.spec.ts": 35,
+      "admin-find-and-money.spec.ts": 90
     }
   }
 }

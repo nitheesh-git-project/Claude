@@ -10250,6 +10250,8 @@ begin
     -- are the admin's own writing, like the FAQs, and stay.
     announcement_receipts,
     notebook_pages,
+    -- The mirror of Razorpay's refunds (end of this file).
+    razorpay_refunds,
     -- The guided video assessment (phase 7a, end of this file): the events
     -- are append-only by trigger and the runs refuse a delete, so they are
     -- named here rather than left to CASCADE; the live display goes with them.
@@ -20288,6 +20290,211 @@ create policy "notebook_pages_select_own" on notebook_pages
   for select using (user_id = (select auth.uid()));
 
 revoke insert, update, delete on notebook_pages from anon, authenticated;
+
+-- ---------------------------------------------------------------------
+-- Abandoned checkouts are actually removed.
+--
+-- People -> Abandoned checkouts promised "removed after N days", and the
+-- accounts stayed: on the screen, and on People -> Patients, long past the
+-- date. purge_abandoned_booking_accounts deleted each account with one
+-- `delete from auth.users`, inside an exception handler that only raised a
+-- warning -- and `payment_failure_log.patient_id` references profiles with
+-- no ON DELETE action. An abandoned checkout is very often exactly an
+-- account whose payment failed, so the delete hit that foreign key, the
+-- handler swallowed it, and the account was kept on every run, silently.
+--
+-- Two other conditions also kept accounts nobody had paid anything for: any
+-- `payments` row at all (an order created, a payment failed), and any
+-- purchase row (the home-visit and programme wizards write an unpaid one
+-- before checkout). Money that never moved is not a reason to keep anyone.
+--
+-- So the rule is now one function both the list and the purge use:
+-- abandoned_checkout_kept_reason() says why an account must stay -- money
+-- was taken, something was bought, a session is paid, assigned or under
+-- way, or the payment tries ran out (the account opens instead) -- and null
+-- means it goes. The purge removes the account's failed-payment records
+-- first (the record of an account being deleted for never having paid), so
+-- the foreign key cannot keep it. The screen shows the reason for anyone
+-- kept, instead of a removal date that would never come.
+-- ---------------------------------------------------------------------
+create or replace function public.abandoned_checkout_kept_reason(p_id uuid, p_try_limit integer)
+returns text
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select case
+    when exists (
+      select 1 from public.payments pay
+      where pay.patient_id = p_id
+        and pay.status in ('authorized', 'captured', 'refunded', 'partially_refunded')
+    ) then 'A payment was taken'
+    when exists (select 1 from public.patient_package_purchases pp where pp.patient_id = p_id and pp.payment_status = 'paid')
+      or exists (select 1 from public.home_visit_package_purchases hp where hp.patient_id = p_id and hp.payment_status = 'paid')
+      then 'They bought a programme'
+    when exists (
+      select 1 from public.appointments a
+      where a.patient_id = p_id
+        and (a.payment_status = 'paid' or a.therapist_id is not null or a.status in ('confirmed', 'completed'))
+    ) then 'A session is paid, assigned or under way'
+    when (select count(*) from public.checkout_payment_tries t where t.patient_id = p_id) >= p_try_limit
+      then 'They used every payment try, so their dashboard opens instead'
+    else null
+  end;
+$$;
+
+revoke all on function public.abandoned_checkout_kept_reason(uuid, integer) from public, anon, authenticated;
+
+create or replace function public.abandoned_checkout_accounts(p_try_limit integer)
+returns table (
+  id uuid,
+  full_name text,
+  email text,
+  phone text,
+  created_at timestamptz,
+  tries integer,
+  next_slot timestamptz,
+  next_concern text,
+  kept_reason text
+)
+language sql
+stable
+security definer
+set search_path = public, auth
+as $$
+  select
+    p.id,
+    p.full_name,
+    p.email,
+    p.phone,
+    u.created_at,
+    (select count(*)::integer from public.checkout_payment_tries t where t.patient_id = p.id),
+    d.slot_time,
+    d.concern,
+    -- The caller may pass the limit; null reads the clinic's own setting.
+    public.abandoned_checkout_kept_reason(
+      p.id,
+      greatest(coalesce(p_try_limit, (select st.payment_tries_before_access from public.site_settings st limit 1), 3), 1)
+    )
+  from public.profiles p
+  join auth.users u on u.id = p.id
+  left join lateral (
+    select a.slot_time, a.concern
+    from public.appointments a
+    where a.patient_id = p.id and a.status = 'requested' and a.payment_status = 'unpaid'
+    order by a.created_at desc
+    limit 1
+  ) d on true
+  where p.role = 'patient'
+    and p.approved = false
+    and u.raw_user_meta_data->>'signup_source' = 'booking'
+  order by u.created_at desc;
+$$;
+
+revoke all on function public.abandoned_checkout_accounts(integer) from public, anon, authenticated;
+
+create or replace function public.purge_abandoned_booking_accounts(p_days integer, p_try_limit integer)
+returns integer
+language plpgsql
+security definer
+set search_path = public, auth
+as $$
+declare
+  v_id uuid;
+  v_deleted integer := 0;
+begin
+  if p_days is null or p_days < 1 or p_try_limit is null or p_try_limit < 1 then
+    raise exception 'purge_abandoned_booking_accounts: p_days and p_try_limit must be at least 1';
+  end if;
+
+  for v_id in
+    select p.id
+    from public.profiles p
+    join auth.users u on u.id = p.id
+    where p.role = 'patient'
+      and p.approved = false
+      and u.raw_user_meta_data->>'signup_source' = 'booking'
+      and u.created_at < now() - make_interval(days => p_days)
+      and public.abandoned_checkout_kept_reason(p.id, p_try_limit) is null
+    limit 200
+  loop
+    begin
+      -- The failed attempts reference the account with no ON DELETE action;
+      -- they go with it rather than keeping it.
+      delete from public.payment_failure_log where patient_id = v_id;
+      delete from auth.users where id = v_id;
+      v_deleted := v_deleted + 1;
+    exception when others then
+      raise warning 'purge_abandoned_booking_accounts: kept % (%)', v_id, sqlerrm;
+    end;
+  end loop;
+
+  return v_deleted;
+end;
+$$;
+
+revoke all on function public.purge_abandoned_booking_accounts(integer, integer) from public, anon, authenticated;
+
+-- ---------------------------------------------------------------------
+-- Every Razorpay refund, mirrored: razorpay_refunds.
+--
+-- The webhook used to act on `payment.captured` alone, so a refund made on
+-- the Razorpay website never reached the app at all -- the session went on
+-- reading Paid, the money figures went on counting it -- and a refund the
+-- app started was marked done the moment Razorpay accepted it, with nothing
+-- to say later that the bank had failed it.
+--
+-- Now `refund.created`, `refund.processed` and `refund.failed` are mirrored
+-- here, one row per Razorpay refund id, updated as its status moves
+-- (src/lib/razorpayRefundSync.ts). A mirror, not evidence: Razorpay is the
+-- record and this follows it, so there is no append-only guard. `source`
+-- says whether the app started it (a refund_attempts row carries its id) or
+-- somebody did on Razorpay; the subject is matched from the payment id.
+-- What the app does with each is in the module; Money -> Refunds lists them.
+--
+-- RLS: an admin reads; only the service role writes (the webhook). Foreign
+-- keys set null -- the mirror outlives a deleted booking -- so the e2e
+-- residue cleaner has nothing to learn. The data reset truncates it (newest
+-- debug_reset_all_data()).
+-- ---------------------------------------------------------------------
+create table if not exists razorpay_refunds (
+  razorpay_refund_id text primary key check (razorpay_refund_id ~ '^rfnd_[A-Za-z0-9]+$'),
+  razorpay_payment_id text not null,
+  amount_paise integer not null check (amount_paise > 0),
+  status text not null check (status in ('created', 'pending', 'processed', 'failed')),
+  source text not null check (source in ('app', 'razorpay')),
+  appointment_id uuid references appointments(id) on delete set null,
+  package_purchase_id uuid references patient_package_purchases(id) on delete set null,
+  home_visit_purchase_id uuid references home_visit_package_purchases(id) on delete set null,
+  patient_id uuid references profiles(id) on delete set null,
+  -- Whether the app recorded the refund on the booking itself, and if not, why.
+  applied text not null default 'pending' check (applied in ('pending', 'applied', 'already', 'needs_review', 'not_needed')),
+  applied_note text,
+  gateway_created_at timestamptz,
+  processed_at timestamptz,
+  failed_at timestamptz,
+  speed text,
+  reviewed_by uuid references profiles(id) on delete set null,
+  reviewed_at timestamptz,
+  first_seen_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists razorpay_refunds_payment_idx on razorpay_refunds (razorpay_payment_id);
+create index if not exists razorpay_refunds_appointment_idx on razorpay_refunds (appointment_id) where appointment_id is not null;
+create index if not exists razorpay_refunds_package_idx on razorpay_refunds (package_purchase_id) where package_purchase_id is not null;
+create index if not exists razorpay_refunds_home_visit_idx on razorpay_refunds (home_visit_purchase_id) where home_visit_purchase_id is not null;
+create index if not exists razorpay_refunds_patient_idx on razorpay_refunds (patient_id) where patient_id is not null;
+create index if not exists razorpay_refunds_reviewed_by_idx on razorpay_refunds (reviewed_by) where reviewed_by is not null;
+
+alter table razorpay_refunds enable row level security;
+
+drop policy if exists "razorpay_refunds_select_admin" on razorpay_refunds;
+create policy "razorpay_refunds_select_admin" on razorpay_refunds
+  for select using (is_admin());
+
+revoke insert, update, delete on razorpay_refunds from anon, authenticated;
 
 -- ---------------------------------------------------------------------
 -- service_role's EXECUTE, written out rather than inherited.

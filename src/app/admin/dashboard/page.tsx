@@ -28,7 +28,7 @@ import AdminLogRetentionTab from "@/components/admin/AdminLogRetentionTab";
 import MoneyGlossary from "@/components/admin/MoneyGlossary";
 import AdminCostsTab from "@/components/admin/AdminCostsTab";
 import { istDateKey } from "@/lib/formatSlotRange";
-import { formatClinicDateTimeWithZone } from "@/lib/formatDateTime";
+import { formatClinicDate, formatClinicDateTimeWithZone } from "@/lib/formatDateTime";
 import { sumDiscountsGiven } from "@/lib/discounts";
 import HospitalActiveToggle from "@/components/admin/HospitalActiveToggle";
 import ViewAsUserButton from "@/components/admin/ViewAsUserButton";
@@ -135,7 +135,7 @@ import EditRevenueShareForm from "@/components/admin/EditRevenueShareForm";
 import CopyInviteLinkButton from "@/components/admin/CopyInviteLinkButton";
 import TreatmentCategoryManager from "@/components/admin/TreatmentCategoryManager";
 import { clinicWideHomeVisitRate, isHomeVisitPriceRow } from "@/lib/homeVisitRates";
-import { formatInr } from "@/lib/formatMoney";
+import { formatInr, formatRupees } from "@/lib/formatMoney";
 import TestimonialManager from "@/components/admin/TestimonialManager";
 import FaqManager from "@/components/admin/FaqManager";
 import SiteRatingsVisibilityToggle from "@/components/admin/SiteRatingsVisibilityToggle";
@@ -162,6 +162,9 @@ import QuestionBankManager from "@/components/admin/QuestionBankManager";
 import LicensedMeasureSettings from "@/components/admin/LicensedMeasureSettings";
 import ProfileWidgetSettings from "@/components/admin/ProfileWidgetSettings";
 import AnnouncementSettings from "@/components/admin/AnnouncementSettings";
+import ImpersonationLogSettings from "@/components/admin/ImpersonationLogSettings";
+import RefundsSettings from "@/components/admin/RefundsSettings";
+import { describePayout } from "@/lib/therapistEarnings";
 import SixMinuteWalkEquationSettings from "@/components/admin/SixMinuteWalkEquationSettings";
 import { parseAreaPain } from "@/lib/conditionIntake";
 import {
@@ -396,6 +399,16 @@ export default async function AdminDashboardPage({
     })
   );
 
+  // Refunds Razorpay reported that need a person (Money -> Refunds), for
+  // that screen's badge. A failed read is no badge, never a wrong one.
+  const refundsNeedingPersonRead = startEarly(
+    admin
+      .from("razorpay_refunds")
+      .select("razorpay_refund_id", { count: "exact", head: true })
+      .is("reviewed_at", null)
+      .or("applied.eq.needs_review,and(status.eq.failed,source.eq.app)")
+  );
+
   // Which service booking opens on (the "Default on booking" switch), for
   // Catalog. Its own tolerant read: without the column the switch is simply
   // not drawn. Started here with the other early reads; awaited where the
@@ -420,6 +433,10 @@ export default async function AdminDashboardPage({
   // `null` is a read that failed, which leaves the queue unfiltered rather
   // than empty.
   const abandonedCheckoutsPromise: Promise<AbandonedCheckoutRow[] | null> = (async () => {
+    // With the reason an account is being kept, when it is. A database that
+    // has not applied that function yet falls back to the plain list.
+    const withReasons = await admin.rpc("abandoned_checkout_accounts", { p_try_limit: null });
+    if (!withReasons.error) return (withReasons.data ?? []) as AbandonedCheckoutRow[];
     const { data, error } = await admin.rpc("abandoned_booking_accounts");
     return error ? null : ((data ?? []) as AbandonedCheckoutRow[]);
   })().catch(() => null);
@@ -566,7 +583,7 @@ export default async function AdminDashboardPage({
       admin
         .from("payment_failure_log")
         .select(
-          "id, patient_id, appointment_id, package_purchase_id, amount_paise, error_code, error_reason, error_description, created_at"
+          "id, patient_id, appointment_id, package_purchase_id, amount_paise, error_code, error_reason, error_description, created_at, razorpay_payment_id, razorpay_order_id"
         )
         .order("created_at", { ascending: false })
         .order("id", { ascending: true })
@@ -1138,13 +1155,16 @@ export default async function AdminDashboardPage({
     const result = await readAllRowsAsData(() =>
       admin
         .from("payments")
-        .select("id, patient_id, razorpay_order_id, razorpay_payment_id")
+        .select("id, patient_id, razorpay_order_id, razorpay_payment_id, amount_paise, status, created_at")
         .order("id", { ascending: true })
     );
     return (result.data ?? []) as {
       patient_id: string | null;
       razorpay_order_id: string | null;
       razorpay_payment_id: string | null;
+      amount_paise: number | null;
+      status: string | null;
+      created_at: string | null;
     }[];
   }, []);
 
@@ -3551,6 +3571,26 @@ export default async function AdminDashboardPage({
       }))}
       appointments={appointmentsForPayouts}
       patients={patients.map((p) => ({ id: p.id, full_name: p.full_name }))}
+      openRequests={(payoutRequests ?? [])
+        .filter((r) => r.status === "pending" || r.status === "reviewing")
+        .map((r) => ({
+          therapistId: r.therapist_id,
+          amountPaise: r.requested_amount_paise,
+          requestedAt: r.requested_at,
+          status: r.status,
+        }))}
+      lastPayouts={Array.from(
+        (payoutBatches ?? []).reduce((latest, b) => {
+          const prev = latest.get(b.therapist_id);
+          if (!prev || b.created_at > prev.created_at) latest.set(b.therapist_id, b);
+          return latest;
+        }, new Map<string, NonNullable<typeof payoutBatches>[number]>())
+      ).map(([therapistId, b]) => ({
+        therapistId,
+        amountPaise: b.amount_paise,
+        paidAt: b.created_at,
+        via: describePayout(b.method, b.note),
+      }))}
       categories={(treatmentCategories ?? []).map((c) => ({ id: c.id, title: c.title }))}
       nowMs={nowTimestamp()}
     />
@@ -5655,6 +5695,30 @@ export default async function AdminDashboardPage({
       })),
     // One entry per programme, under its ID with progress. The old SP/HS
     // code and the condition are search terms, so either finds it.
+    // A Razorpay payment or order ID finds the payment itself: who paid,
+    // how much, and a link that opens Transactions filtered to it. Money
+    // scope only, like the ids themselves (paymentRefsRead).
+    ...(canSeeMoney ? paymentRefRows : [])
+      .filter((r) => r.razorpay_payment_id || r.razorpay_order_id)
+      .map((r) => {
+        const ref = (r.razorpay_payment_id ?? r.razorpay_order_id) as string;
+        const who = r.patient_id ? profileMap.get(r.patient_id)?.full_name ?? "Unknown patient" : "No patient matched";
+        return {
+          id: `payment-${ref}`,
+          label: ref,
+          terms: [r.razorpay_order_id ?? "", r.razorpay_payment_id ?? "", who],
+          kind: "Payment" as const,
+          href: adminScreenHref("money", "transactions", `ref:${ref}`),
+          hint: [
+            who,
+            r.amount_paise !== null ? formatRupees(r.amount_paise) : null,
+            r.status,
+            r.created_at ? formatClinicDate(r.created_at) : null,
+          ]
+            .filter(Boolean)
+            .join(" \u00b7 "),
+        };
+      }),
     ...(canSeeProgrammes ? programmesData?.rows ?? [] : []).map((r) => ({
       id: r.key,
       label: r.display,
@@ -5711,6 +5775,8 @@ export default async function AdminDashboardPage({
         </div>
       </>
     ),
+    // Self-fetching; Money scope.
+    "money:refunds": <RefundsSettings canManage={scopeCanManage(viewerScope, "money")} />,
     "money:transactions": (
       <>
         {moneyAlerts}
@@ -5850,12 +5916,18 @@ export default async function AdminDashboardPage({
     "today:activity": activityLogTab,
     "logs:all": logsTab,
     "logs:retention": <AdminLogRetentionTab />,
+    // Self-fetching; Logs is Master Admin only.
+    "logs:signed-in-as": <ImpersonationLogSettings />,
     "settings:security": settingsSecurityTab,
   };
 
   // Badges, keyed the same way. A section's own badge is the sum of its
   // tabs', computed inside the shell so the two can never disagree.
-  const badges: Record<string, number> = {
+  const refundsNeedingPerson = await refundsNeedingPersonRead.then(
+    (r) => (r.error ? 0 : r.count ?? 0),
+    () => 0
+  );
+    const badges: Record<string, number> = {
     "today:overview": inboxTotal,
     "sessions:all": unassignedTotal,
     // Waiting on the clinic's decision, and paid with nothing booked: the
@@ -5868,6 +5940,7 @@ export default async function AdminDashboardPage({
     "people:partners": b2bBadgeCount,
     "people:abandoned": abandonedCheckouts?.length ?? 0,
     "money:payouts": payoutRequestsBadgeCount + manualRefundsPending,
+    "money:refunds": refundsNeedingPerson,
     "catalog:areas": homeVisitWaitlist?.filter((w) => w.status === "new").length ?? 0,
     // Checks asking for a person, not rows -- so the badge, the verdict at
     // the top of that screen and the chips under it are all the same number.

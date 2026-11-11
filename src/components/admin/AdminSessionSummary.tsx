@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import PopupLoading from "@/components/system/PopupLoading";
 import { formatClinicDate } from "@/lib/formatDateTime";
 import { SESSION_SUMMARY_FIELDS, type SessionSummaryText } from "@/lib/sessionSummary";
 
@@ -50,7 +51,7 @@ export default function AdminSessionSummary({ appointmentId }: { appointmentId: 
         <p className="text-[11px] text-slate-500">What the patient reads - not the clinical note</p>
       </div>
       {state.kind === "loading" ? (
-        <p className="text-slate-500">Loading…</p>
+        <PopupLoading />
       ) : state.kind === "error" ? (
         <p className="text-amber-700">
           {state.message}{" "}

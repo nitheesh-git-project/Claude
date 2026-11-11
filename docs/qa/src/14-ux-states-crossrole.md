@@ -414,3 +414,39 @@ Repeat with Patient C (Hospital A). **Additional expectation:** the hospital see
 
 **Expected Result.** Step 1: the cover opens like a book (lifts on its rings on a phone); with the device set to reduce motion it simply appears. Step 2: the footer reads **Saving...** then **Saved** without any button; after the reload the text, the heading and the table are all there. Step 3: pages are numbered in the order they were started and dated at the top; the list shows the first words of each. Step 4: the app's own dialog asks first (never a browser prompt), and the page is gone. Step 5: each account has its **own** empty notebook. Step 6: **there is no notebook button** while signed in as the patient. Step 7: there is no screen, export or search that shows it.
 
+#### `XPAY-001` - Find who paid, and follow a refund made on Razorpay · P1
+
+**Steps**
+1. Copy a payment ID (`pay_...`) from a Razorpay email or the Razorpay dashboard. As a Master Admin, paste it into the search at the top of the admin dashboard.
+2. Open the result.
+3. Open the patient's receipt for that payment, and the session's details.
+4. On the Razorpay dashboard, refund a single session's payment (test mode). Wait a minute, then open **Money -> Refunds** and the session.
+5. Refund part of a programme's payment on Razorpay.
+
+**Expected Result.** Step 1: a **Payment** result shows the patient, amount, status and date. Step 2: Money -> Transactions opens filtered to that payment. Step 3: the payment ID is shown with a copy button in both. Step 4: the refund is listed as **Made on Razorpay**, **Refunded**, and the session reads Refunded with the amount; it is **not** cancelled. Step 5: the refund is under **Need a look** with a note to decide the programme, and the Refunds tab carries a badge until it is marked dealt with.
+**Needs** the Razorpay webhook subscribed to `refund.created`, `refund.processed` and `refund.failed`.
+
+#### `XADM-SRCH-001` - The admin search finds screens by the words people use · P2
+
+**Steps**
+1. Type "promo", then "coupon", then "pincode", then "refund window" into the admin's top search.
+
+**Expected Result.** Each shows a **Screen** result naming where it lives (Promo codes: Money › Costs; pincode: Catalog › Service Areas; refund window: Settings › Booking Rules) and opens that screen. A scoped admin is never offered a screen their scope cannot open.
+
+#### `XADM-IMP-001` - Who signed in as whom, and why · P2
+
+**Steps**
+1. As a Master Admin, sign in as a patient with a reason, change their address, and exit.
+2. Open **Logs -> Signed in as**. Filter by your name, by Patients, by today, and tick "Only where something was changed".
+
+**Expected Result.** One entry: you, the patient, the reason you typed, start time, minutes, **Exited**, and "1 change made inside" which expands to the address change. Each filter keeps it; a filter for another admin or Therapists hides it.
+
+#### `XBOOK-STEP-001` - The booking wizard on a phone · P1
+
+**Steps**
+1. As a patient with a confirmed session, open `/book` on a 360px-wide phone and pick that same date and hour. Tap **Continue to your details**.
+2. Pick a free hour and continue. On Step 2 tick the consent box and tap **Review Booking**.
+3. Repeat with a long email address and a long condition name.
+
+**Expected Result.** Step 1: the button reads "Checking your time…", then the wizard stays on Step 1 with "You already have a session scheduled around this time…". Step 2: each new step opens at its own top ("Step 3 of 3" visible), never at the footer. Step 3: the email sits inside the summary box on its own line; nothing runs off the screen.
+

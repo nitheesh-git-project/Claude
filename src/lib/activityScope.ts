@@ -113,6 +113,7 @@ export const ACTION_DOMAIN: Record<string, ActionDomain> = {
   "payout_request.start_review": "money",
   "payout_request.complete": "money",
   "refund.issue": "money",
+  "refund.review": "money",
   "refund.partial": "money",
   "cash.correct_amount": "money",
   "cash.mark_remitted": "money",

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import CopyText from "@/components/system/CopyText";
 import ActivityTimeline from "@/components/admin/ActivityTimeline";
 import {
   formatClinicDate,
@@ -749,7 +750,9 @@ export default async function PatientDetailContent({ id }: { id: string }) {
                     )}
                   </p>
                   {a.razorpay_payment_id && (
-                    <p className="text-slate-500 font-mono">{a.razorpay_payment_id}</p>
+                    <p className="text-slate-500">
+                      <CopyText value={a.razorpay_payment_id} label="Copy payment ID" />
+                    </p>
                   )}
                 </li>
               );

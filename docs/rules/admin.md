@@ -1113,3 +1113,36 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   a row that says what was shown and when; an ended one is reused with
   **Use again**, which copies it into a new draft with its own picture
   folder. The dashboards' half of the rule is in `docs/rules/dashboards.md`.
+- **The top search finds screens as well as people.** Every screen the
+  viewer's scope can open is found by its label, section and description,
+  and `ADMIN_SEARCH_TOPICS` (`src/lib/adminSearchTopics.ts`) lists the
+  things people come looking for under the words they use -- "promo",
+  "coupon" and "discount code" all find Money -> Costs, where promo codes
+  live. A new screen or a moved control updates that list;
+  `adminSearchTopics.test.ts` fails on a topic pointing at a screen that
+  does not exist. Guard: `e2e/admin-find-and-money.spec.ts` FIND-001.
+- **Logs -> Signed in as is the record of every session swap.** Each
+  `admin_impersonation_sessions` window joined to the `impersonation.action`
+  rows written inside it (`src/lib/impersonationLog.ts`): who, whose
+  dashboard, the reason typed, when, how long, whether it was exited or
+  timed out, and each change made inside -- filtered by admin, kind of
+  account, words in the name or reason, day, and "only where something was
+  changed". The reason was always saved; it was only ever readable as one
+  line in All Activity.
+- **Money -> Refunds and the Payouts columns.** Refunds lists
+  `razorpay_refunds` (`docs/rules/payments.md`), badged with the ones that
+  need a person; "Mark as dealt with" (`/api/admin/refunds/review`,
+  `requireAdminScope("money")`, logged as `refund.review`, which moves no
+  money and is not a money action). Payouts shows each therapist's open
+  request ("Asked to be paid", with a filter) and their last payout with how
+  it was paid; the therapist's own Earnings rows show the date and the payout
+  each paid session went out in (`describePayout`).
+- **People -> Abandoned checkouts removes what it says it removes.** The
+  list (`abandoned_checkout_accounts`) and the purge share one rule,
+  `abandoned_checkout_kept_reason()`: money taken, something bought, a
+  session paid, assigned or under way, or every payment try used. Anything
+  else past its date is deleted, its failed-payment records first --
+  `payment_failure_log.patient_id` has no ON DELETE action, and that foreign
+  key is what silently kept nearly every abandoned account before (the purge
+  caught the error and moved on). A kept account says why on its card
+  instead of showing a removal date that would never come.

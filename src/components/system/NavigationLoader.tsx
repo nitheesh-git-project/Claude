@@ -7,7 +7,9 @@ import { isDashboardShellRoute } from "@/lib/dashboardShellRoutes";
 import WordRollLoader from "@/components/system/WordRollLoader";
 
 /** Below this a page change reads as instant, and a loader would only flash. */
-const APPEAR_AFTER_MS = 300;
+// Short: on a phone a tap that shows nothing for a third of a second already
+// reads as a missed tap.
+const APPEAR_AFTER_MS = 150;
 
 /**
  * The word-roll loader over the page while the next page is on its way.

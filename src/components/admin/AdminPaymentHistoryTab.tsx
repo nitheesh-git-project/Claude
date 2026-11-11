@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import CopyText from "@/components/system/CopyText";
 import { EmptyState } from "@/components/dashboard/SurfaceCard";
 import Modal from "@/components/admin/Modal";
 import {
@@ -16,6 +18,7 @@ import {
 import {
   buildPatientReceipts,
   buildTherapistPayoutReceipts,
+  receiptReferences,
   type PatientReceipt,
   type PayoutReceipt,
   type BookingReceiptStage,
@@ -133,7 +136,9 @@ function PatientTransactionTable({
                     "-"
                   ))}
               </td>
-              <td className="py-2.5 pr-3 text-slate-500 font-mono">{t.transactionId ?? "-"}</td>
+              <td className="py-2.5 pr-3 text-slate-500">
+                {t.transactionId ? <CopyText value={t.transactionId} label="Copy payment ID" /> : "-"}
+              </td>
               <td className="py-2.5 pr-3 text-slate-700">{t.modeOfPayment}</td>
               <td className="py-2.5 pr-3 text-right font-semibold text-slate-900">{formatInr(t.amountPaise)}</td>
               <td className="py-2.5 pr-3 text-slate-700">{t.purpose}</td>
@@ -226,6 +231,23 @@ export default function AdminPaymentHistoryTab({
   const [receiptToDate, setReceiptToDate] = useState<string>("");
   const [receiptSessionCodeFilter, setReceiptSessionCodeFilter] = useState<string>("");
   const [openReceipt, setOpenReceipt] = useState<AdminReceiptRow | null>(null);
+
+  // A deep link from the top search (`?view=ref:pay_...`): the list narrows
+  // to that payment, every other filter cleared so nothing hides it. Applied
+  // during render, the same way the sessions list applies its presets, so
+  // the screen paints already filtered.
+  const viewParam = useSearchParams().get("view");
+  const [appliedView, setAppliedView] = useState<string | null>(null);
+  if (viewParam !== appliedView) {
+    setAppliedView(viewParam);
+    if (viewParam?.startsWith("ref:")) {
+      setReceiptPersonFilter("all");
+      setReceiptTypeFilter("all");
+      setReceiptFromDate("");
+      setReceiptToDate("");
+      setReceiptSessionCodeFilter(viewParam.slice("ref:".length));
+    }
+  }
 
   const categoryTitleById = useMemo(
     () => new Map(categories.map((c) => [c.id, c.title])),
@@ -363,11 +385,16 @@ export default function AdminPaymentHistoryTab({
       if (r.personRole !== role || r.personId !== id) return false;
     }
     if (receiptTypeFilter !== "all" && r.typeLabel !== receiptTypeFilter) return false;
-    // One box for both references: a session ID, or a programme ID (new or
-    // old code, with or without its progress).
+    // One box for every reference: a session ID, a programme ID (new or old
+    // code, with or without its progress), or a Razorpay payment or order
+    // ID -- pasted from a Razorpay email, it finds who paid and for what.
     if (
       trimmedReceiptSessionCodeFilter &&
       !(r.sessionCode ?? "").toLowerCase().includes(trimmedReceiptSessionCodeFilter) &&
+      !(r.personRole === "patient" &&
+        receiptReferences(r.detail as PatientReceipt).some((ref) =>
+          ref.toLowerCase().includes(trimmedReceiptSessionCodeFilter)
+        )) &&
       !(r.programme && programmeQueryMatches(receiptSessionCodeFilter, [r.programme.code, ...r.programme.otherCodes]))
     )
       return false;
@@ -618,12 +645,12 @@ export default function AdminPaymentHistoryTab({
           />
 
           <input
-            aria-label="Filter by session or programme ID"
-            type="text"
+            aria-label="Filter by session, programme or payment ID"
+            type="search"
             value={receiptSessionCodeFilter}
             onChange={(e) => setReceiptSessionCodeFilter(e.target.value)}
-            placeholder="Session or programme ID"
-            className="p-2 rounded-lg border border-slate-300 text-xs font-mono w-48"
+            placeholder="Session, programme or payment ID (pay_...)"
+            className="p-2 rounded-lg border border-slate-300 text-xs font-mono w-full sm:w-72"
           />
 
           {(receiptPersonFilter !== "all" ||
@@ -775,9 +802,9 @@ function ReceiptDetail({ row }: { row: AdminReceiptRow }) {
           </span>
         </div>
         {detail.transactionId && (
-          <div className="flex items-center justify-between">
-            <span className="text-slate-500">Transaction ID</span>
-            <span className="font-mono text-slate-600">{detail.transactionId}</span>
+          <div className="flex items-center justify-between gap-3">
+            <span className="shrink-0 text-slate-500">Razorpay payment ID</span>
+            <CopyText value={detail.transactionId} label="Copy payment ID" className="justify-end text-right text-slate-700" />
           </div>
         )}
       </div>
@@ -805,6 +832,18 @@ function ReceiptDetail({ row }: { row: AdminReceiptRow }) {
             <span className="font-semibold text-slate-800">{detail.errorReason}</span>
           </div>
         )}
+        {detail.transactionId && (
+          <div className="flex items-center justify-between gap-3">
+            <span className="shrink-0 text-slate-500">Razorpay payment ID</span>
+            <CopyText value={detail.transactionId} label="Copy payment ID" className="justify-end text-right text-slate-700" />
+          </div>
+        )}
+        {detail.orderId && (
+          <div className="flex items-center justify-between gap-3">
+            <span className="shrink-0 text-slate-500">Razorpay order ID</span>
+            <CopyText value={detail.orderId} label="Copy order ID" className="justify-end text-right text-slate-700" />
+          </div>
+        )}
         {detail.errorDescription && (
           <p className="text-slate-600 pt-2 border-t border-slate-100">{detail.errorDescription}</p>
         )}
@@ -829,7 +868,7 @@ function ReceiptDetail({ row }: { row: AdminReceiptRow }) {
         {detail.reference && (
           <div className="flex items-start justify-between gap-4">
             <span className="text-slate-500 shrink-0">Reference</span>
-            <span className="text-right text-slate-600">{detail.reference}</span>
+            <CopyText value={detail.reference} label="Copy reference" className="justify-end text-right text-slate-600" />
           </div>
         )}
         {detail.sessions.length > 0 && (

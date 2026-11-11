@@ -146,6 +146,7 @@ wrong are exactly the things a restore drill finds:
 | Uploaded reports | Until the patient deletes one | The patient, or cascade on account deletion |
 | Issued credentials (`*_admin_notes.temp_password`) | Not kept | No password is issued any more - accounts get a one-time sign-in link (`src/lib/accessLink.ts`); `schema.sql` clears any plaintext earlier versions stored |
 | `notebook_pages` (a person's private notebook) | Until its owner deletes the page | The owner, or cascade on account deletion. **Read by nobody else:** one RLS policy (own rows), no admin policy, no admin screen or export, and refused to an admin signed in as the owner. It is not a clinical record. |
+| `razorpay_refunds` (a mirror of each Razorpay refund's status) | Indefinitely | The data reset only; a deleted booking or account leaves the row with its link cleared |
 | `announcements`, `announcement_receipts` | Until an admin deletes the announcement | Settings -> Announcements (a live one must be ended first); receipts cascade with the announcement or the account. Its pictures sit in the public `catalog-images` bucket and are removed with it. |
 | `rate_limit_counters` | One window | The next call for that bucket |
 

@@ -39,7 +39,7 @@ test("CHROME-002: a slow dashboard tab shows the word-roll loader with the sideb
   await markDashboardTourSeen(QA_EMAILS.patientA);
   await context.addCookies(await browserCookiesFor(QA_EMAILS.patientA));
   // Hold the next page back so the wait is long enough to see -- the loader
-  // only appears after 300ms by design. Installed before the dashboard
+  // only appears after 150ms by design. Installed before the dashboard
   // opens, so Next's prefetch of the tab is held back too: otherwise the tap
   // lands on a page already in hand and there is no wait to show.
   await page.route("**/patient/dashboard/health-profile**", async (route) => {
@@ -84,8 +84,8 @@ test("CHROME-002: a slow dashboard tab shows the word-roll loader with the sideb
   // never drawn. The rail also shortens labels, so not by name.
   await rail.locator('a[href="/patient/dashboard/health-profile"]').first().click({ noWaitAfter: true });
   const report = await seen;
-  // Waits its 300ms before appearing -- a fast tab never flashes it.
-  expect(Number(/after=(\d+)/.exec(report)![1])).toBeGreaterThanOrEqual(280);
+  // Waits its 150ms before appearing -- a fast tab never flashes it.
+  expect(Number(/after=(\d+)/.exec(report)![1])).toBeGreaterThanOrEqual(130);
   // The sidebar never left, and nothing dark stands in for it.
   expect(report).toContain("rail=true");
   expect(report).toContain("bg=rgb(255, 255, 255)");
@@ -164,4 +164,25 @@ test("CHROME-005: every dashboard sends its loading frame before its data, and t
   await expect(page.getByTestId("dashboard-loading")).toHaveCount(0);
   await expect(page.getByRole("navigation", { name: /navigation$/ }).first()).toBeVisible();
   await context.close();
+});
+
+test("CHROME-006: an in-app link that loads slowly shows the loader, not a page that looks frozen", async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.setViewportSize({ width: 390, height: 844 });
+  // Hold back the in-app fetch of the next page, so the wait is long enough
+  // to see. A next/link navigation fetches the page's data rather than the
+  // document, and the loader used to be released the instant the link took
+  // the click over -- which is every next/link.
+  await page.route(/\/faq(\?|$).*_rsc/, async (route) => {
+    await new Promise((r) => setTimeout(r, 2500));
+    await route.continue();
+  });
+  await page.goto(`${BASE}/conditions`);
+  await waitForSplashToClear(page);
+  const faq = page.getByRole("contentinfo").getByRole("link", { name: "FAQ" });
+  await faq.scrollIntoViewIfNeeded();
+  await faq.click();
+  await expect(page.getByTestId("navigation-loader")).toBeVisible({ timeout: 2_000 });
+  await expect(page).toHaveURL(/\/faq/, { timeout: 30_000 });
+  await expect(page.getByTestId("navigation-loader")).toHaveCount(0, { timeout: 30_000 });
 });

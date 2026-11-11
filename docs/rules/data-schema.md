@@ -827,3 +827,10 @@ unknown one, and the caller must say so rather than publish it.
   the service role from routes, so insert/update/delete are revoked from
   the browser roles, and none is append-only. The data reset truncates the
   receipts and the pages and leaves the announcements, like the FAQs.
+- **`razorpay_refunds` is a mirror, not evidence.** It follows Razorpay's
+  status for each refund id, so it is updated in place and has no
+  append-only guard; Razorpay is the record. Admin read, service-role writes
+  (the webhook and one review route); foreign keys set null; the data reset
+  truncates it. `payment_failure_log.patient_id` references profiles with no
+  ON DELETE action -- anything that deletes an account removes that
+  account's failed-payment rows first, as the abandoned-checkout purge does.

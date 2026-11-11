@@ -295,7 +295,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
       ? supabase
           .from("payment_failure_log")
           .select(
-            "id, patient_id, appointment_id, package_purchase_id, amount_paise, error_code, error_reason, error_description, created_at"
+            "id, patient_id, appointment_id, package_purchase_id, amount_paise, error_code, error_reason, error_description, created_at, razorpay_payment_id, razorpay_order_id"
           )
           .eq("patient_id", user.id)
           .order("created_at", { ascending: false })

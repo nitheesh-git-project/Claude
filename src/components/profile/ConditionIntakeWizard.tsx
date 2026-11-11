@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useStepScroll } from "@/lib/useStepScroll";
 import { useRouter } from "@/lib/useRouter";
 import { AnimatePresence, motion } from "motion/react";
 import AreaPainPicker from "@/components/profile/AreaPainPicker";
@@ -104,6 +105,9 @@ export default function ConditionIntakeWizard({
     const firstUnanswered = initialQuestions.findIndex((q) => !isAnswered(q, initialData));
     return firstUnanswered === -1 ? initialQuestions.length + 1 : firstUnanswered + 1;
   });
+  // Each step starts at the top of the pop-up's scroll box.
+  const stepBodyRef = useRef<HTMLDivElement>(null);
+  useStepScroll(step, stepBodyRef);
   const [stepError, setStepError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -365,7 +369,7 @@ export default function ConditionIntakeWizard({
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-6 py-5">
+          <div ref={stepBodyRef} className="flex-1 overflow-y-auto px-6 py-5">
             {step === 0 && (
               <div className="space-y-4 text-sm text-slate-600">
                 <p className="text-base font-semibold text-slate-800">

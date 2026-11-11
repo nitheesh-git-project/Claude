@@ -132,8 +132,10 @@ export default function Navbar({
   const showSignedOut = isAuthCtaSignedOutRoute(pathname) || signedIn !== true;
 
   return (
+    // Solid, not frosted: a translucent blurred bar showed the page sliding
+    // under it as a smeared "glass" strip on phones.
     <nav
-      className={`bg-white/85 backdrop-blur-md border-b sticky z-40 transition-shadow ${
+      className={`bg-white border-b sticky z-40 transition-shadow ${
         offsetTop ? "top-[41px]" : "top-0"
       } ${scrolled ? "shadow-md border-slate-200" : "shadow-none border-transparent"}`}
     >

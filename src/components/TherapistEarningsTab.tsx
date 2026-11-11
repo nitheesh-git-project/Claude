@@ -313,6 +313,15 @@ export default function TherapistEarningsTab({
                       >
                         {r.status === "paid_out" ? "Paid Out" : "Pending"}
                       </span>
+                      {/* When it was paid, and how, so a payout can be matched
+                          to a bank statement line. */}
+                      {r.status === "paid_out" && (r.paidAt || r.paidVia) && (
+                        <span className="mt-1 block text-[12px] text-slate-600" data-testid="earning-paid-detail">
+                          {r.paidAt ? formatDate(r.paidAt) : ""}
+                          {r.paidAt && r.paidVia ? " \u00b7 " : ""}
+                          {r.paidVia ?? ""}
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))

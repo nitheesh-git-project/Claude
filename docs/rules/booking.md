@@ -415,3 +415,18 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
   nothing under 13px (Step 3's summary labels are 14px, values 16px), 48px
   chips and buttons. `e2e/booking-wizard-clarity.spec.ts` holds Step 1, Step 2
   and the server's side of "Who is this for?".
+- **A clash with the patient's own session is caught on Step 1.** Continue
+  asks `/api/appointments/check-slot`, which applies `ownSlotConflict`
+  (`src/lib/bookingDraft.ts`) -- the same rule `/api/appointments/create`
+  binds with, and the database trigger after it. Not signed in is
+  `{ checked: false }` (no bookings to clash with); a check that could not
+  run lets the patient on, since create checks again. A patient who signs in
+  on Step 2 is checked again on Review Booking and sent back to Step 1 with
+  the message. Guard: `e2e/booking-wizard-clarity.spec.ts` BWC-004.
+- **Every step of a multi-step flow starts at its top.** `useStepScroll`
+  (`src/lib/`) scrolls the flow's root just under whatever is pinned to the
+  top of the screen (measured, not assumed) on each step change, or a
+  pop-up's own scroll box back to its start, and focuses the element marked
+  `data-step-heading`. Without it a shorter next step left a phone at the
+  footer. Used by both booking wizards and the health intake pop-up; a new
+  stepped flow calls it too. Guard: BWC-005.

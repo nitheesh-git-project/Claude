@@ -69,6 +69,9 @@ export type AdminActivityAction =
   | "payout_request.complete"
   | "refund.issue"
   | "refund.partial"
+  // A refund Razorpay reported that needed a person, marked dealt with.
+  // Moves no money (not counted by isMoneyAction).
+  | "refund.review"
   // The therapist's own route no longer accepts an amount, so this is the
   // only way a collected figure ever changes after the fact -- and it is a
   // money move in its own right, since what a therapist owes the clinic is
@@ -335,6 +338,7 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
   "payout_request.start_review": "Started payout review",
   "payout_request.complete": "Completed payout request",
   "refund.issue": "Issued refund",
+  "refund.review": "Reviewed a Razorpay refund",
   "refund.partial": "Issued partial refund",
   "cash.correct_amount": "Corrected cash collected",
   "cash.mark_remitted": "Marked cash remitted",
@@ -418,7 +422,7 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
 export function isMoneyAction(action: string): boolean {
   return (
     action.startsWith("payout") ||
-    action.startsWith("refund") ||
+    (action.startsWith("refund") && action !== "refund.review") ||
     action.startsWith("cash.") ||
     action.startsWith("expense.") ||
     action.startsWith("finance.") ||

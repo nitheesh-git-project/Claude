@@ -239,6 +239,14 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
         blurb: "Every payment and refund, one row each.",
         example: "Find what a patient paid on Tuesday, and whether any of it went back.",
       },
+      // Every refund Razorpay reports, including ones made on the Razorpay
+      // website, with where it is and what the app did about it.
+      {
+        key: "refunds",
+        label: "Refunds",
+        blurb: "Every refund, including ones made on the Razorpay website: where it is, who it was for, and what still needs you.",
+        example: "Check a refund you made on Razorpay reached the patient's session, or see one the bank failed.",
+      },
       {
         key: "payouts",
         label: "Payouts",
@@ -343,6 +351,15 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
         label: "All Activity",
         blurb: "Every change an admin has made, newest first \u2014 who, when, and what it changed from.",
         example: "Find who refunded a session last Tuesday, and what reason they gave.",
+      },
+      // Who opened whose dashboard, and why: the reason an admin types before
+      // "Sign in as", with what they changed while inside. It was saved all
+      // along, but only as single lines in All Activity.
+      {
+        key: "signed-in-as",
+        label: "Signed in as",
+        blurb: "Every time an admin opened somebody's dashboard as them, with the reason they gave and what they changed.",
+        example: "See why somebody opened a patient's dashboard last week, and whether they changed anything.",
       },
       {
         key: "retention",

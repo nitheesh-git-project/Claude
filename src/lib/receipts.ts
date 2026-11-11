@@ -81,6 +81,10 @@ export type PaymentFailureRow = {
   error_reason: string | null;
   error_description: string | null;
   created_at: string;
+  /** Razorpay's ids for the attempt, when the gateway gave them. Optional
+   *  so a caller selecting the older column list still type-checks. */
+  razorpay_payment_id?: string | null;
+  razorpay_order_id?: string | null;
 };
 
 export type PayoutBatchRow = {
@@ -152,6 +156,9 @@ export type PaymentFailedReceipt = {
   errorReason: string | null;
   errorDescription: string | null;
   date: string;
+  /** Razorpay's payment ID for the failed attempt, when there was one. */
+  transactionId: string | null;
+  orderId: string | null;
 };
 
 /**
@@ -312,6 +319,8 @@ export function buildPatientReceipts(
     errorReason: f.error_reason,
     errorDescription: f.error_description,
     date: f.created_at,
+    transactionId: f.razorpay_payment_id ?? null,
+    orderId: f.razorpay_order_id ?? null,
   }));
 
   const sessionsBySettlement = new Map<string, SettlementReceipt["sessions"]>();
@@ -423,4 +432,20 @@ export function buildTherapistPayoutReceipts(
       };
     })
     .sort((a, b) => new Date(b.settledAt).getTime() - new Date(a.settledAt).getTime());
+}
+
+/**
+ * Every gateway reference a receipt carries -- the Razorpay payment ID, the
+ * order ID, a settlement's reference -- for a search box to match. Pasting
+ * `pay_...` from a Razorpay email into Transactions finds the row it paid
+ * for.
+ */
+export function receiptReferences(r: PatientReceipt): string[] {
+  const refs =
+    r.kind === "booking"
+      ? [r.transactionId]
+      : r.kind === "payment_failed"
+        ? [r.transactionId, r.orderId]
+        : [r.reference];
+  return refs.filter((v): v is string => !!v && v.trim() !== "");
 }

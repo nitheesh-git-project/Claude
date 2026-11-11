@@ -402,6 +402,11 @@ export default function AdminShell({
   const shortcuts = adminShortcuts(sections);
   const totalBadge = sections.reduce((n, s) => n + sectionBadge(s.key), 0);
   const screenMatches = filterAdminScreens(sections, screenQuery);
+  // Every screen this viewer can open, for the top search to find by name,
+  // section, description or the words people use for it.
+  const searchScreens = sections.flatMap((sec) =>
+    sec.tabs.map((t) => ({ section: sec.key, sectionLabel: sec.label, tab: t.key, label: t.label, blurb: t.blurb }))
+  );
 
   useEffect(() => {
     // The phone menu is a modal: Escape closes it, focus moves into it and
@@ -718,7 +723,7 @@ export default function AdminShell({
 
       {/* Phone top bar */}
       <div
-        className={`sticky z-30 flex h-14 items-center justify-between border-b border-slate-200 bg-white/95 pl-3 pr-1 backdrop-blur lg:hidden ${
+        className={`sticky z-30 flex h-14 items-center justify-between border-b border-slate-200 bg-white pl-3 pr-1 lg:hidden ${
           offsetTop ? "top-[41px]" : "top-0"
         }`}
       >
@@ -901,7 +906,7 @@ export default function AdminShell({
               })()}
             </div>
             <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
-              <AdminGlobalSearch entities={searchEntities} />
+              <AdminGlobalSearch entities={searchEntities} screens={searchScreens} />
               {/* Beside the search: it acts on the screen in front of you. */}
               <RefreshButton />
             </div>

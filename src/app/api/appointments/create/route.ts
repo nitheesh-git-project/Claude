@@ -8,7 +8,7 @@ import {
   profileCheckUnavailable,
 } from "@/lib/supabase/requireActiveProfile";
 import { mintAppointmentOrder } from "@/lib/appointmentOrderServer";
-import { isReplaceableDraft, overlapsSlot } from "@/lib/bookingDraft";
+import { OWN_SLOT_CONFLICT_ERROR, ownSlotConflict } from "@/lib/bookingDraft";
 import { cancelAppointmentAndRefund } from "@/lib/cancelAppointment";
 import { razorpayOrderIsPaid } from "@/lib/razorpayOrderStatus";
 import { buildCheckoutQuoteBody } from "@/lib/checkoutQuoteServer";
@@ -242,26 +242,17 @@ export async function POST(request: NextRequest) {
       { status: 503 }
     );
   }
-  const overlapping = (existing ?? []).filter(
-    (a) =>
-      !!a.slot_time &&
-      overlapsSlot(
-        slotMs,
-        durationMinutes,
-        new Date(a.slot_time).getTime(),
-        a.duration_minutes ?? BASE_DURATION_MINUTES
-      )
+  const { replaceable, conflict } = ownSlotConflict(
+    existing ?? [],
+    slotMs,
+    durationMinutes,
+    BASE_DURATION_MINUTES,
+    body.replacesAppointmentId
   );
-  const replaceable = (existing ?? []).filter(
-    (a) =>
-      isReplaceableDraft(a) &&
-      (overlapping.includes(a) || (!!body.replacesAppointmentId && a.id === body.replacesAppointmentId))
-  );
-  if (overlapping.some((a) => !replaceable.includes(a))) {
+  if (conflict) {
     return NextResponse.json(
       {
-        error:
-          "You already have a session scheduled around this time. Please pick a different slot, or check your dashboard for existing bookings.",
+        error: OWN_SLOT_CONFLICT_ERROR,
       },
       { status: 409 }
     );
@@ -368,8 +359,7 @@ export async function POST(request: NextRequest) {
   if (error?.code === "23P01") {
     return NextResponse.json(
       {
-        error:
-          "You already have a session scheduled around this time. Please pick a different slot, or check your dashboard for existing bookings.",
+        error: OWN_SLOT_CONFLICT_ERROR,
       },
       { status: 409 }
     );
