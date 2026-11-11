@@ -1,4 +1,5 @@
 import { startEarly } from "@/lib/startEarly";
+import { refundsByPayment } from "@/lib/paymentRefunds";
 import type { Metadata } from "next";
 import { buildRecommendationPulse, PAID_UNBOOKED_AFTER_MS, type RecommendationPulseRow } from "@/lib/recommendationPulse";
 import AdminRecommendationPulse from "@/components/admin/AdminRecommendationPulse";
@@ -417,6 +418,19 @@ export default async function AdminDashboardPage({
   // Catalog. Its own tolerant read: without the column the switch is simply
   // not drawn. Started here with the other early reads; awaited where the
   // Catalog screen is built.
+  // Every refund Razorpay has reported, for the Refunded column on Money ->
+  // Transactions (sessions, programmes and home-visit packs alike). Started
+  // here, awaited where that screen is built.
+  const paymentRefundRowsRead = startEarly(
+    admin
+      .from("razorpay_refunds")
+      .select(
+        "razorpay_refund_id, razorpay_payment_id, amount_paise, status, source, processed_at, failed_at, gateway_created_at, first_seen_at"
+      )
+      .order("first_seen_at", { ascending: false })
+      .limit(5000)
+  );
+
   const defaultServiceRead = (async () => {
     try {
       const { data, error } = await admin
@@ -3643,8 +3657,25 @@ export default async function AdminDashboardPage({
     <AdminPayoutRequestsTab requests={payoutRequestRows} part="completed" />
   );
 
+  const paymentRefundRows = await paymentRefundRowsRead;
+  const paymentRefundMap = refundsByPayment(
+    paymentRefundRows.error
+      ? []
+      : (paymentRefundRows.data ?? []).map((r) => ({
+          razorpay_refund_id: r.razorpay_refund_id,
+          razorpay_payment_id: r.razorpay_payment_id,
+          amount_paise: r.amount_paise,
+          status: r.status,
+          source: r.source,
+          at: r.processed_at ?? r.failed_at ?? r.gateway_created_at ?? r.first_seen_at,
+        })),
+    appointmentsWithPayoutBatch
+  );
+
   const paymentHistoryTab = (
     <AdminPaymentHistoryTab
+      refundsByPaymentId={Object.fromEntries(paymentRefundMap)}
+      refundRecordsUnreadable={!!paymentRefundRows.error}
       patients={patients.map((p) => ({
         id: p.id,
         full_name: p.full_name,
