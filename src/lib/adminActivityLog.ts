@@ -22,6 +22,12 @@ export type AdminActivityAction =
   // at all -- anything else is refused -- and recorded before the delete
   // runs, since afterwards there is no row left to name.
   | "account.delete"
+  // Deleting a person whose account has money behind it: the login goes, the
+  // profile and its records stay, marked deleted with the reason given.
+  | "account.delete_keep_records"
+  // Test accounts made and removed from the debug bar's panel.
+  | "debug.test_accounts.create"
+  | "debug.test_accounts.delete"
   // Signing in as somebody, and signing back out. The deepest capability in
   // the app: everything done during the window is written as that user, so
   // these two rows plus admin_impersonation_sessions are the only record
@@ -310,6 +316,9 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
   "account.create": "Created account",
   "account.set_active": "Changed account status",
   "account.delete": "Deleted an account",
+  "account.delete_keep_records": "Deleted an account (records kept)",
+  "debug.test_accounts.create": "Made test accounts",
+  "debug.test_accounts.delete": "Removed test accounts",
   "impersonation.start": "Signed in as a user",
   "impersonation.end": "Stopped signing in as a user",
   "impersonation.action": "Made a change while signed in as a user",

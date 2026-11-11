@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation";
 import { useRouter } from "@/lib/useRouter";
 import { debugNow, getDebugNowOffsetMs, setDebugNowOffsetMs } from "@/lib/debugNow";
 import DebugResetButton from "@/components/DebugResetButton";
+import DebugTestAccountsButton from "@/components/debug/DebugTestAccountsPanel";
+import DebugTestCardOverlay from "@/components/debug/DebugTestCardOverlay";
 import { MARKETING_PAGES } from "@/lib/marketingNav";
 import { isDeveloperRoute } from "@/lib/dashboardShellRoutes";
 import { COUNTRIES, HOME_COUNTRY } from "@/lib/countryPricing";
@@ -184,6 +186,11 @@ export default function DebugNav() {
         {/* Pre-launch only, like the bar itself. The server decides whether
             it actually works -- see DebugResetButton. */}
         <DebugResetButton />
+
+        {/* Throwaway logins and the test card -- see DebugTestAccountsPanel.
+            The server decides whether it works. */}
+        <DebugTestAccountsButton />
+        <DebugTestCardOverlay />
 
         {/* slate-400 on this near-black bar, not slate-500: the contrast rule
             is by surface, and on the dark chrome -400 is the readable one --

@@ -10252,6 +10252,11 @@ begin
     notebook_pages,
     -- The mirror of Razorpay's refunds (end of this file).
     razorpay_refunds,
+    -- Test-account logins from the debug bar, and the record of deleted
+    -- accounts (both at the end of this file). The second is append-only by
+    -- trigger, so it is truncated here rather than left to CASCADE.
+    debug_test_accounts,
+    account_deletions,
     -- The guided video assessment (phase 7a, end of this file): the events
     -- are append-only by trigger and the runs refuse a delete, so they are
     -- named here rather than left to CASCADE; the live display goes with them.
@@ -20495,6 +20500,315 @@ create policy "razorpay_refunds_select_admin" on razorpay_refunds
   for select using (is_admin());
 
 revoke insert, update, delete on razorpay_refunds from anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Test accounts made from the debug bar, and removing them with their data
+-- ---------------------------------------------------------------------------
+--
+-- Testing a feature needs a patient, a therapist, a hospital and an admin of
+-- each desk, and making them by hand was the slowest part of every test. The
+-- debug bar's Test accounts panel (src/app/api/admin/debug-test-accounts)
+-- makes a set in one tap and lists their sign-ins so they can be copied into
+-- the login pages.
+--
+-- This table is the only thing that makes an account a *test* account. The
+-- purge below refuses any id that is not in it, so "Delete all" can never
+-- reach a real person -- whatever the account has done, and whatever points
+-- at it. The password is stored in plain text on purpose: these logins are
+-- throwaway, they exist to be copied, and the table is readable by the
+-- service role alone (RLS on, no policy) behind a Master Admin and a server
+-- switch (ALLOW_DEBUG_TEST_ACCOUNTS).
+create table if not exists debug_test_accounts (
+  user_id uuid primary key,
+  batch_id uuid not null,
+  role text not null check (role in ('patient', 'therapist', 'hospital', 'admin')),
+  admin_scope text check (admin_scope is null or admin_scope in ('operations', 'finance', 'clinical')),
+  label text not null,
+  email text not null,
+  password text not null,
+  created_by uuid references profiles(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists debug_test_accounts_batch_idx on debug_test_accounts (batch_id);
+create index if not exists debug_test_accounts_created_by_idx on debug_test_accounts (created_by) where created_by is not null;
+
+alter table debug_test_accounts enable row level security;
+-- No policy: nobody but the service role reads a test login.
+revoke all on debug_test_accounts from anon, authenticated;
+
+-- Removes one test account and every row that hangs off it, payments
+-- included.
+--
+-- Thirty-five foreign keys into profiles refuse a delete, several money and
+-- evidence tables refuse one by trigger, and the chains run several tables
+-- deep -- so this walks the rows rather than the schema. Starting from the
+-- profile, it collects every row whose foreign key points at a row already
+-- collected, until nothing new turns up, and then deletes them all with
+-- triggers and foreign-key checks off for this transaction only
+-- (`set local session_replication_role = replica`). Walking the schema
+-- instead -- one nested delete per foreign-key path -- was tried and runs to
+-- thousands of paths at depth eight.
+--
+-- Three guards keep it to test data:
+--   * the id must be in debug_test_accounts;
+--   * a foreign key that SETs NULL is nulled, never followed, so a real
+--     patient referred by a test hospital keeps their account;
+--   * a profile reached through a foreign key is never deleted: its column
+--     is nulled when it can be, and the whole purge refuses when it cannot.
+-- The auth user is removed last, with triggers back on, so the auth
+-- schema's own rows cascade exactly as they do for any delete.
+create or replace function public.debug_purge_test_account(p_user_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  fk record;
+  added integer;
+  total integer := 0;
+  rounds integer := 0;
+  rel record;
+  n integer;
+  removed jsonb := '{}'::jsonb;
+  v_test_ids uuid[];
+begin
+  if not exists (select 1 from debug_test_accounts where user_id = p_user_id) then
+    raise exception 'not a test account: only accounts the debug bar created can be removed this way';
+  end if;
+  select array_agg(user_id) into v_test_ids from debug_test_accounts;
+
+  create temp table if not exists _purge_rows (rel oid not null, rid tid not null, primary key (rel, rid)) on commit drop;
+  truncate _purge_rows;
+
+  insert into _purge_rows (rel, rid)
+  select 'public.profiles'::regclass::oid, ctid from profiles where id = p_user_id;
+
+  set local session_replication_role = replica;
+
+  loop
+    rounds := rounds + 1;
+    added := 0;
+    for fk in
+      select con.conrelid as child, con.confrelid as parent,
+             ca.attname::text as child_col, pa.attname::text as parent_col,
+             con.confdeltype as on_delete,
+             ca.attnotnull as not_null
+      from pg_constraint con
+      join pg_class cr on cr.oid = con.conrelid
+      join pg_namespace cn on cn.oid = cr.relnamespace
+      join pg_attribute ca on ca.attrelid = con.conrelid and ca.attnum = con.conkey[1]
+      join pg_attribute pa on pa.attrelid = con.confrelid and pa.attnum = con.confkey[1]
+      where con.contype = 'f'
+        and cn.nspname = 'public'
+        and array_length(con.conkey, 1) = 1
+        and con.confdeltype in ('a', 'r', 'c')
+        and con.confrelid in (select distinct r.rel from _purge_rows r)
+        -- A profile is never collected through a foreign key (see above).
+        and con.conrelid <> 'public.profiles'::regclass
+    loop
+      execute format(
+        'insert into _purge_rows (rel, rid)
+           select %1$s::oid, c.ctid from %2$s c
+            where c.%3$I in (select p.%4$I from %5$s p
+                              where p.ctid in (select rid from _purge_rows where rel = %6$s::oid))
+           on conflict do nothing',
+        fk.child, fk.child::regclass, fk.child_col, fk.parent_col, fk.parent::regclass, fk.parent)
+      ;
+      get diagnostics n = row_count;
+      added := added + n;
+    end loop;
+    exit when added = 0 or rounds > 50;
+  end loop;
+
+  -- Profiles that point at a collected row: real people a test account
+  -- touched (a referral, a pay-later grant). Their column is nulled; a NOT
+  -- NULL one refuses the purge.
+  for fk in
+    select con.confrelid as parent, ca.attname::text as child_col,
+           pa.attname::text as parent_col, ca.attnotnull as not_null
+    from pg_constraint con
+    join pg_attribute ca on ca.attrelid = con.conrelid and ca.attnum = con.conkey[1]
+    join pg_attribute pa on pa.attrelid = con.confrelid and pa.attnum = con.confkey[1]
+    where con.contype = 'f'
+      and con.conrelid = 'public.profiles'::regclass
+      and array_length(con.conkey, 1) = 1
+      and con.confrelid in (select distinct r.rel from _purge_rows r)
+  loop
+    execute format(
+      'select count(*) from profiles c
+        where c.%1$I in (select p.%2$I from %3$s p where p.ctid in (select rid from _purge_rows where rel = %4$s::oid))
+          and not (c.id = any($1))',
+      fk.child_col, fk.parent_col, fk.parent::regclass, fk.parent)
+      into n using v_test_ids;
+    if n > 0 and fk.not_null then
+      raise exception 'a real account depends on this test account (profiles.%), so it was left as it is', fk.child_col;
+    end if;
+    if n > 0 then
+      execute format(
+        'update profiles c set %1$I = null
+          where c.%1$I in (select p.%2$I from %3$s p where p.ctid in (select rid from _purge_rows where rel = %4$s::oid))
+            and not (c.id = any($1))',
+        fk.child_col, fk.parent_col, fk.parent::regclass, fk.parent)
+        using v_test_ids;
+    end if;
+  end loop;
+
+  -- SET NULL / SET DEFAULT foreign keys into collected rows, on rows that are
+  -- staying: done by hand, since the checks that would do it are off.
+  for fk in
+    select con.conrelid as child, con.confrelid as parent,
+           ca.attname::text as child_col, pa.attname::text as parent_col
+    from pg_constraint con
+    join pg_class cr on cr.oid = con.conrelid
+    join pg_namespace cn on cn.oid = cr.relnamespace
+    join pg_attribute ca on ca.attrelid = con.conrelid and ca.attnum = con.conkey[1]
+    join pg_attribute pa on pa.attrelid = con.confrelid and pa.attnum = con.confkey[1]
+    where con.contype = 'f'
+      and cn.nspname = 'public'
+      and array_length(con.conkey, 1) = 1
+      and con.confdeltype in ('n', 'd')
+      and con.conrelid <> 'public.profiles'::regclass
+      and con.confrelid in (select distinct r.rel from _purge_rows r)
+  loop
+    execute format(
+      'update %1$s c set %2$I = null
+        where c.%2$I in (select p.%3$I from %4$s p where p.ctid in (select rid from _purge_rows where rel = %5$s::oid))
+          and c.ctid not in (select rid from _purge_rows where rel = %6$s::oid)',
+      fk.child::regclass, fk.child_col, fk.parent_col, fk.parent::regclass, fk.parent, fk.child);
+  end loop;
+
+  for rel in select distinct r.rel from _purge_rows r loop
+    execute format('delete from %s where ctid in (select rid from _purge_rows where rel = %s::oid)',
+      rel.rel::regclass, rel.rel);
+    get diagnostics n = row_count;
+    total := total + n;
+    removed := removed || jsonb_build_object(replace(rel.rel::regclass::text, 'public.', ''), n);
+  end loop;
+
+  set local session_replication_role = origin;
+
+  delete from auth.users where id = p_user_id;
+  delete from debug_test_accounts where user_id = p_user_id;
+
+  return jsonb_build_object('status', 'deleted', 'rows', total, 'tables', removed);
+end;
+$$;
+
+revoke all on function public.debug_purge_test_account(uuid) from public;
+revoke all on function public.debug_purge_test_account(uuid) from anon;
+revoke all on function public.debug_purge_test_account(uuid) from authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Deleting a person whose account has money behind it
+-- ---------------------------------------------------------------------------
+--
+-- A hard delete is refused for any account with payments, refunds, payouts
+-- or settlements, because the books are built on those rows. What the admin
+-- wants in that case is the person gone, not the books: so the login is
+-- removed (the route bans the auth user and moves it to a placeholder
+-- address, which frees the real one to sign up again) and the profile stays
+-- as the name every money row still points at, marked deleted.
+--
+-- This table is that mark and the reason the admin gave, with the details
+-- the profile no longer carries (its email and phone are cleared so a new
+-- account on the same address is never confused with this one). It is
+-- evidence of who removed whom and why, so it is append-only by trigger.
+create table if not exists account_deletions (
+  user_id uuid primary key references profiles(id) on delete cascade,
+  role text not null,
+  full_name text,
+  email text,
+  phone text,
+  reason text not null check (reason in ('duplicate', 'user_request', 'fraud', 'left_clinic', 'test_account', 'other')),
+  note text check (note is null or char_length(note) <= 1000),
+  records jsonb not null default '{}'::jsonb,
+  deleted_by uuid references profiles(id) on delete set null,
+  deleted_at timestamptz not null default now(),
+  constraint account_deletions_other_needs_note check (reason <> 'other' or char_length(coalesce(trim(note), '')) >= 3)
+);
+
+alter table profiles add column if not exists deleted_at timestamptz;
+
+create index if not exists account_deletions_deleted_by_idx on account_deletions (deleted_by) where deleted_by is not null;
+create index if not exists account_deletions_deleted_at_idx on account_deletions (deleted_at desc);
+
+alter table account_deletions enable row level security;
+
+drop policy if exists "account_deletions_select_admin" on account_deletions;
+create policy "account_deletions_select_admin" on account_deletions
+  for select using (is_admin());
+
+revoke insert, update, delete on account_deletions from anon, authenticated;
+
+create or replace function public.account_deletions_is_append_only()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  raise exception 'account_deletions is append-only: the record of who removed an account, and why, is never edited or deleted';
+end;
+$$;
+
+revoke all on function public.account_deletions_is_append_only() from public;
+revoke all on function public.account_deletions_is_append_only() from anon;
+revoke all on function public.account_deletions_is_append_only() from authenticated;
+
+drop trigger if exists trg_account_deletions_append_only on account_deletions;
+create trigger trg_account_deletions_append_only
+  before update or delete on account_deletions
+  for each row execute function public.account_deletions_is_append_only();
+
+-- Writes the mark and clears the profile in one transaction, so a deleted
+-- account is never half-marked. The login itself is removed by the route,
+-- through GoTrue, after this succeeds.
+create or replace function public.admin_mark_account_deleted(
+  p_user_id uuid,
+  p_reason text,
+  p_note text,
+  p_records jsonb,
+  p_actor uuid,
+  p_placeholder_email text
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_profile record;
+begin
+  select id, role, full_name, email, phone, deleted_at into v_profile
+  from profiles where id = p_user_id for update;
+  if not found then
+    return jsonb_build_object('status', 'not_found');
+  end if;
+  if v_profile.deleted_at is not null then
+    return jsonb_build_object('status', 'already');
+  end if;
+
+  insert into account_deletions (user_id, role, full_name, email, phone, reason, note, records, deleted_by)
+  values (p_user_id, v_profile.role, v_profile.full_name, v_profile.email, v_profile.phone,
+          p_reason, nullif(trim(coalesce(p_note, '')), ''), coalesce(p_records, '{}'::jsonb), p_actor);
+
+  update profiles
+     set deleted_at = now(),
+         active = false,
+         email = p_placeholder_email,
+         phone = null
+   where id = p_user_id;
+
+  delete from auth.sessions where user_id = p_user_id;
+
+  return jsonb_build_object('status', 'deleted');
+end;
+$$;
+
+revoke all on function public.admin_mark_account_deleted(uuid, text, text, jsonb, uuid, text) from public;
+revoke all on function public.admin_mark_account_deleted(uuid, text, text, jsonb, uuid, text) from anon;
+revoke all on function public.admin_mark_account_deleted(uuid, text, text, jsonb, uuid, text) from authenticated;
 
 -- ---------------------------------------------------------------------
 -- service_role's EXECUTE, written out rather than inherited.
