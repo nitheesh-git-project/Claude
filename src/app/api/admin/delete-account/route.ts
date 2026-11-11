@@ -12,6 +12,7 @@ import {
   CANNOT_DELETE_SELF,
   NO_ACCOUNT_REFERENCES,
   countAccountReferences,
+  describeRecordsOnFile,
   describeAccountBlockers,
   describeRefusedDelete,
   type AccountReferences,
@@ -246,7 +247,10 @@ export async function POST(request: NextRequest) {
     const money = await readAccountMoneyRecords(admin, userId);
     return NextResponse.json({
       deletable: !blockers,
-      message: blockers?.message ?? null,
+      // What is on file, as a plain list: this confirmation goes on to keep
+      // those records, so the old refusal sentence ("cannot be deleted")
+      // would contradict the button beneath it.
+      message: describeRecordsOnFile(refs),
       total: blockers?.total ?? 0,
       references: refs,
       moneyChecked: money.ok,

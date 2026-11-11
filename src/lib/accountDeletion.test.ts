@@ -7,6 +7,7 @@ import {
   NO_ACCOUNT_REFERENCES,
   countAccountReferences,
   describeAccountBlockers,
+  describeRecordsOnFile,
   describeRefusedDelete,
   type AccountReferences,
 } from "@/lib/accountDeletion";
@@ -144,5 +145,15 @@ describe("uploaded files are their own blocker", () => {
     expect(
       countAccountReferences({ ...NO_ACCOUNT_REFERENCES, files: 3, sessions: 1 })
     ).toBe(4);
+  });
+});
+
+describe("describeRecordsOnFile", () => {
+  it("lists what is on file in plain words, without refusing", () => {
+    expect(describeRecordsOnFile(NO_ACCOUNT_REFERENCES)).toBeNull();
+    expect(describeRecordsOnFile({ ...NO_ACCOUNT_REFERENCES, sessions: 3, money: 1, backOffice: 12 })).toBe(
+      "3 sessions, 1 money record and 12 back-office actions"
+    );
+    expect(describeRecordsOnFile({ ...NO_ACCOUNT_REFERENCES, files: 1 })).toBe("1 uploaded file");
   });
 });

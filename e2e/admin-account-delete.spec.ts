@@ -207,6 +207,8 @@ test.describe("deleting an account", () => {
       await expect(dialog).toContainText(/back-office action/i);
       await expect(dialog).toContainText("No payments, refunds or payouts.");
       await expect(dialog).not.toContainText(/did not say why/i);
+      // It keeps the records, so it never says it "cannot be deleted".
+      await expect(dialog).not.toContainText(/cannot be deleted/i);
       // ...and Other needs a note.
       await dialog.getByRole("button", { name: "Delete user, keep records" }).click();
       await expect(dialog.getByRole("alert")).toContainText("Say why");
@@ -215,7 +217,7 @@ test.describe("deleting an account", () => {
       await dialog.getByLabel(/^Note/).fill("Left to join another clinic");
       await dialog.getByRole("button", { name: "Delete user, keep records" }).click();
       await expect(
-        page.locator("[role='dialog']:visible").filter({ hasText: "can no longer sign in" }).first()
+        page.getByRole("dialog", { name: "Account deleted" }).filter({ hasText: "can no longer sign in" })
       ).toBeVisible({ timeout: 60_000 });
 
       // The profile stays (the note still points at it), marked deleted with
@@ -259,7 +261,14 @@ test.describe("deleting an account", () => {
 
       await context.addCookies(await browserCookiesFor(QA_EMAILS.admin));
       await openDashboard(page, `${BASE}/admin/dashboard/therapists/${id}`);
-      const tag = page.getByTestId("deleted-user-tag").filter({ visible: true }).first();
+      // The profile's own header: the People list behind the profile carries
+      // the same tag, under the profile's overlay.
+      const tag = page
+        .locator("h1", { hasText: `${MARKER} tagged` })
+        .filter({ visible: true })
+        .first()
+        .locator("xpath=..")
+        .getByTestId("deleted-user-tag");
       await expect(tag).toBeVisible({ timeout: 60_000 });
       await tag.getByRole("button", { name: "Why was this account deleted?" }).click();
       const info = page.getByTestId("deleted-user-info").filter({ visible: true }).first();

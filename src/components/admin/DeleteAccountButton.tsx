@@ -173,7 +173,7 @@ export default function DeleteAccountButton({
               <>
                 <p>
                   <span>This account has records that have to stay</span>
-                  {preview.message ? <span>{`: ${preview.message}`}</span> : <span>.</span>}
+                  {preview.message ? <span>{`: ${preview.message} on file.`}</span> : <span>.</span>}
                 </p>
                 <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-slate-600">
                   Deleting removes <strong>{name}</strong>: their login stops working and their email and phone are

@@ -90,7 +90,11 @@ test.describe("Debug test accounts", () => {
         .in("id", accounts.map((a) => a.user_id));
       expect(profiles?.length).toBe(6);
       expect(profiles!.every((p) => p.approved)).toBe(true);
-      expect(profiles!.some((p) => p.admin_scope === "full")).toBe(false);
+      // admin_scope defaults to "full" on every profile and only means
+      // something on an admin's, so the test admins are checked by desk.
+      expect(
+        profiles!.filter((p) => p.role === "admin").map((p) => p.admin_scope).sort()
+      ).toEqual(["clinical", "finance", "operations"]);
 
       // One role at a time: a single tap makes just that account.
       const one = await post(cookie, { action: "create", key: "patient" });
@@ -109,7 +113,7 @@ test.describe("Debug test accounts", () => {
       // A payment, which an ordinary delete is refused for.
       const { error: payError } = await admin.from("payments").insert({
         patient_id: patient.user_id,
-        purpose: "appointment",
+        purpose: "consultation",
         razorpay_order_id: `order_dta_${Date.now()}`,
         amount_paise: 99900,
         status: "created",
