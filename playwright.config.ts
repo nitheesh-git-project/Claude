@@ -48,6 +48,14 @@ const gateResolverRules =
       ]
     : [];
 
+// DIAGNOSTIC, to be removed: in the gate, Chromium writes its own network log
+// next to the traces. A Playwright trace lists only requests that finished,
+// so a page that never reaches "networkidle" leaves no trace of the request
+// still open; the net log records it from the start.
+if (gateResolverRules.length && artifactDir) {
+  gateResolverRules.push(`--log-net-log=${artifactDir}/test-results/chromium-netlog.json`, "--net-log-capture-mode=Default");
+}
+
 export default defineConfig({
   testDir: "./e2e",
   globalSetup: "./e2e/global-setup.ts",
