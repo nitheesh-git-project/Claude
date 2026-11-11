@@ -56,9 +56,9 @@ const PANELS: Record<ShowcaseSpecialty, ComponentType<SampleProps>> = {
  * content below stays put. Once a visitor picks a tab the minimum is dropped,
  * since the page then changes only because they asked it to.
  *
- * It lives on /how-it-works only. The home page carries just the headline
- * change (HealthProfileTeaser) and a link here: the tour is heavy, and on a
- * phone it stood between "how it works" and the programmes.
+ * It lives on /how-it-works only. The home page carries a light animated
+ * story per kind of care (RecoveryGist) whose sheet links here: the tour is
+ * heavy, and on a phone it stood between "how it works" and the programmes.
  */
 export default function HealthProfileShowcase({ profiles }: { profiles: ShowcaseProfile[] }) {
   const baseId = useId();

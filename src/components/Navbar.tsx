@@ -158,22 +158,25 @@ export default function Navbar({
             >
               <BrandMark size={44} variant="flat" />
             </motion.div>
+            {/* Short name on a phone and again from 1024 to 1279px, where the
+                five links and two buttons leave the full name truncated
+                ("MoveResto..."); the full name and tagline come back at xl. */}
             <div className="min-w-0">
               <span
                 aria-hidden="true"
-                className="font-display text-lg font-bold text-slate-800 tracking-tight block leading-tight whitespace-nowrap sm:hidden"
+                className="font-display text-lg font-bold text-slate-800 tracking-tight block leading-tight whitespace-nowrap sm:hidden lg:block xl:hidden"
               >
                 {shortBrandName(siteName)}
               </span>
               <span
                 aria-hidden="true"
-                className="font-display hidden text-lg font-bold text-slate-800 tracking-tight leading-tight truncate sm:block"
+                className="font-display hidden text-lg font-bold text-slate-800 tracking-tight leading-tight truncate sm:block lg:hidden xl:block"
               >
                 {siteName}
               </span>
               <span
                 aria-hidden="true"
-                className="hidden text-[10px] font-semibold text-teal-700 uppercase tracking-wider sm:block sm:tracking-widest truncate"
+                className="hidden text-[10px] font-semibold text-teal-700 uppercase tracking-wider sm:block sm:tracking-widest truncate lg:hidden xl:block"
               >
                 {siteTagline}
               </span>

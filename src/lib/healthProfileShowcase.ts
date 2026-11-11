@@ -39,6 +39,14 @@ export type ShowcaseProfile = {
   /** The invented patient the sample draws: the first name (the unit test
    *  holds it to the sample record) and a line about them. */
   sample: { name: string; line: string };
+  /** Where the drawn figure glows (BodyFocus). */
+  area: "knee" | "head" | "hips" | "chest";
+  /** The headline as numbers, for the animated meter. `from`/`to` print as
+   *  the headline does (the unit test holds them to it); `max` is the scale
+   *  the bar is drawn against, and `lowerIsBetter` says which way is better. */
+  meter: { from: number; to: number; max: number; lowerIsBetter: boolean; format: "of-10" | "x-of-n" | "metres" };
+  /** The tools this profile uses, in plain words, as the product names them. */
+  tools: { icon: string; label: string }[];
 };
 
 const PROFILES: Omit<ShowcaseProfile, "label" | "icon">[] = [
@@ -53,6 +61,14 @@ const PROFILES: Omit<ShowcaseProfile, "label" | "icon">[] = [
     ],
     headline: { metric: "Pain score", from: "7/10", to: "3/10" },
     picture: "Body map and knee bend",
+    area: "knee",
+    meter: { from: 7, to: 3, max: 10, lowerIsBetter: true, format: "of-10" },
+    tools: [
+      { icon: "fa-person", label: "Pain Map" },
+      { icon: "fa-gauge-high", label: "Knee bend dial" },
+      { icon: "fa-dumbbell", label: "Strength check" },
+      { icon: "fa-chart-line", label: "Progress graph" },
+    ],
   },
   {
     specialty: "neuro",
@@ -65,6 +81,14 @@ const PROFILES: Omit<ShowcaseProfile, "label" | "icon">[] = [
     ],
     headline: { metric: "How much help to walk", from: "2 of 5", to: "4 of 5" },
     picture: "Walking ladder and examination",
+    area: "head",
+    meter: { from: 2, to: 4, max: 5, lowerIsBetter: false, format: "x-of-n" },
+    tools: [
+      { icon: "fa-person-walking", label: "Walking ladder" },
+      { icon: "fa-scale-balanced", label: "Balance tests" },
+      { icon: "fa-stopwatch", label: "Up and Go timer" },
+      { icon: "fa-chart-line", label: "Progress graph" },
+    ],
   },
   {
     specialty: "pediatrics",
@@ -77,6 +101,14 @@ const PROFILES: Omit<ShowcaseProfile, "label" | "icon">[] = [
     ],
     headline: { metric: "Milestones reached", from: "1 of 6", to: "4 of 6" },
     picture: "Milestone windows by age",
+    area: "hips",
+    meter: { from: 1, to: 4, max: 6, lowerIsBetter: false, format: "x-of-n" },
+    tools: [
+      { icon: "fa-baby", label: "Milestone windows" },
+      { icon: "fa-calendar-days", label: "Corrected age" },
+      { icon: "fa-stopwatch", label: "Timed standing" },
+      { icon: "fa-flag-checkered", label: "Milestone cards" },
+    ],
   },
   {
     specialty: "geriatric",
@@ -89,6 +121,14 @@ const PROFILES: Omit<ShowcaseProfile, "label" | "icon">[] = [
     ],
     headline: { metric: "Tests in the safer range", from: "0 of 4", to: "3 of 4" },
     picture: "Fall-risk dial and the four tests",
+    area: "hips",
+    meter: { from: 0, to: 3, max: 4, lowerIsBetter: false, format: "x-of-n" },
+    tools: [
+      { icon: "fa-gauge", label: "Fall-risk dial" },
+      { icon: "fa-list-check", label: "Four short tests" },
+      { icon: "fa-house-circle-check", label: "Home safety check" },
+      { icon: "fa-chart-line", label: "Progress graph" },
+    ],
   },
   {
     specialty: "cardiopulmonary",
@@ -101,6 +141,14 @@ const PROFILES: Omit<ShowcaseProfile, "label" | "icon">[] = [
     ],
     headline: { metric: "Six-minute walk", from: "285 m", to: "372 m" },
     picture: "Six-minute walk and oxygen",
+    area: "chest",
+    meter: { from: 285, to: 372, max: 450, lowerIsBetter: false, format: "metres" },
+    tools: [
+      { icon: "fa-person-walking", label: "Six-minute walk" },
+      { icon: "fa-lungs", label: "Oxygen bar" },
+      { icon: "fa-heart-pulse", label: "Heart rate check" },
+      { icon: "fa-book-open", label: "Activity diary" },
+    ],
   },
 ];
 
@@ -128,6 +176,14 @@ export function enabledShowcaseProfiles(enabled: readonly ConditionSpecialty[]):
 export function showcaseFrameInView(visiblePx: number, framePx: number, viewportPx: number): boolean {
   if (!(visiblePx > 0) || !(framePx > 0) || !(viewportPx > 0)) return false;
   return visiblePx >= 0.5 * Math.min(framePx, viewportPx);
+}
+
+/** A meter value written the way its headline writes it. */
+export function formatMeterValue(meter: ShowcaseProfile["meter"], value: number): string {
+  const v = Math.round(value);
+  if (meter.format === "of-10") return `${v}/10`;
+  if (meter.format === "metres") return `${v} m`;
+  return `${v} of ${meter.max}`;
 }
 
 /** What every sample says about itself, beside every profile. */

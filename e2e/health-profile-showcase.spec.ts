@@ -59,17 +59,47 @@ test.describe("health profile showcase", () => {
     await expect(selected).toHaveText("Paediatric physiotherapy");
   });
 
-  test("HPS-003 the home page shows only the headline change, with a link to the full tour", async ({ page }) => {
+  test("HPS-003 the home page tells one recovery story at a time, and never moves on its own", async ({ page }) => {
+    test.setTimeout(120_000);
     await page.goto(`${BASE}/`);
     await waitForSplashToClear(page);
     const band = page.locator("section#health-profile");
     await band.scrollIntoViewIfNeeded();
-    await expect(band).toContainText("Sample patient - figures are made up");
-    await expect(band).toContainText("first visit to latest");
-    // No tour on the home page: no tabs, no graph, no milestone cards.
-    await expect(band.getByRole("tab")).toHaveCount(0);
+    const story = band.getByTestId("recovery-story");
+    await expect(story).toContainText("Sample patient - figures are made up");
+    // The sample's figure counts from its first visit to its latest review
+    // and lands on the headline the sample prints.
+    await expect(story).toContainText("Riya");
+    await expect(story).toContainText("3/10", { timeout: 10_000 });
+    await expect(story).toContainText("from 7/10");
+    await expect(story.getByRole("list", { name: "Tools this profile uses" })).toContainText("Pain Map");
+    // The real graph and milestone cards stay on /how-it-works.
     await expect(band.getByRole("region", { name: "Progress" })).toHaveCount(0);
-    await band.getByRole("link", { name: /See the full health profile/ }).click();
-    await expect(page).toHaveURL(/\/how-it-works#health-profile$/);
+
+    // A kind of care is picked, never rotated to: it stays where it is put.
+    const neuro = band.getByRole("tab", { name: "Neurological care" });
+    await neuro.click();
+    await expect(story).toContainText("Arun");
+    await page.waitForTimeout(6_000);
+    await expect(neuro).toHaveAttribute("aria-selected", "true");
+  });
+
+  test("HPS-004 See the full health profile opens every kind of care and ends on booking", async ({ page }) => {
+    test.setTimeout(120_000);
+    await page.goto(`${BASE}/`);
+    await waitForSplashToClear(page);
+    const band = page.locator("section#health-profile");
+    await band.scrollIntoViewIfNeeded();
+    await band.getByRole("button", { name: "See the full health profile" }).click();
+    const tour = page.getByRole("dialog", { name: "From sore to better, measured" });
+    await expect(tour).toBeVisible();
+    const tabs = await band.getByRole("tab").count();
+    await expect(tour.getByTestId("recovery-story")).toHaveCount(Math.max(tabs, 1));
+    const unlock = tour.getByTestId("recovery-unlock");
+    await unlock.scrollIntoViewIfNeeded();
+    await expect(unlock).toContainText("Your profile opens with your first booking");
+    await expect(unlock.getByRole("link", { name: /Book a video session/ })).toHaveAttribute("href", "/book");
+    await page.keyboard.press("Escape");
+    await expect(tour).toHaveCount(0);
   });
 });

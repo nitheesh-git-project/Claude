@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
 import { useHydrationSafeReducedMotion } from "@/lib/useHydrationSafeReducedMotion";
 import { CARE_AREAS } from "@/lib/careAreas";
 import { photo } from "@/lib/marketingPhotos";
+import BodyFocus from "@/components/marketing/BodyFocus";
 
 /**
  * What we treat - one area at a time: photograph on the left, the answer on
@@ -97,8 +98,77 @@ export default function CareAreaShowcase({
 
   const slide = reduceMotion ? 0 : 28;
 
+  // The figure on the photograph tells each area's story in one breath: it
+  // glows where it hurts, then cools to teal. Replayed on every pick, and
+  // shown cooled at once under reduced motion.
+  const [cooled, setCooled] = useState(false);
+  useEffect(() => {
+    // Every pick starts the story again from "sore".
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setCooled(reduceMotion);
+    if (reduceMotion) return;
+    const t = window.setTimeout(() => setCooled(true), 1400);
+    return () => window.clearTimeout(t);
+  }, [active, reduceMotion]);
+
+  const picker = (
+    <div
+      role="tablist"
+      aria-label="Areas of practice"
+      aria-orientation="horizontal"
+      onKeyDown={onTabKeyDown}
+      // A row of tiles you can swipe on a phone, a grid of six from lg: each
+      // names the complaint and shows where on the body it sits, so a
+      // visitor finds theirs before reading a word of the answer.
+      className="-mx-4 mb-8 flex snap-x scroll-px-4 gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0 lg:grid-cols-6"
+    >
+      {CARE_AREAS.map((item, index) => {
+        const selected = index === active;
+        return (
+          <motion.button
+            key={item.key}
+            ref={(el) => {
+              tabsRef.current[index] = el;
+            }}
+            type="button"
+            role="tab"
+            id={`${baseId}-tab-${item.key}`}
+            aria-selected={selected}
+            aria-controls={`${baseId}-panel-${item.key}`}
+            // Roving tabindex: one stop for the whole set, then arrow keys.
+            tabIndex={selected ? 0 : -1}
+            onClick={() => select(index)}
+            whileHover={reduceMotion ? undefined : { y: -3 }}
+            whileTap={reduceMotion ? undefined : { scale: 0.97 }}
+            className={`flex w-40 shrink-0 snap-start items-center gap-3 rounded-2xl border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 sm:w-auto ${
+              selected
+                ? "border-teal-600 bg-teal-50 shadow-[0_10px_24px_-14px_rgba(15,118,110,0.6)]"
+                : "border-slate-200 bg-white hover:border-teal-300"
+            }`}
+          >
+            <span className="flex h-14 w-8 shrink-0 items-center justify-center" aria-hidden="true">
+              <BodyFocus
+                area={item.body.area}
+                state={selected && cooled ? "better" : "sore"}
+                reduceMotion={reduceMotion || !selected}
+                className="h-14 w-auto"
+              />
+            </span>
+            <span className="min-w-0">
+              <span className={`block text-sm font-bold leading-tight ${selected ? "text-teal-900" : "text-slate-800"}`}>
+                {item.title}
+              </span>
+              <span className="mt-0.5 block text-xs leading-snug text-slate-500">{item.body.label}</span>
+            </span>
+          </motion.button>
+        );
+      })}
+    </div>
+  );
+
   return (
     <div>
+      {picker}
       <div className="grid items-center gap-8 lg:grid-cols-2 lg:gap-14">
         {/* PHOTOGRAPH - draggable on touch. The fixed aspect ratio means the
             panel never changes height as areas swap, which is what stops the
@@ -137,6 +207,22 @@ export default function CareAreaShowcase({
               </motion.div>
             </AnimatePresence>
 
+            {/* Where it hurts, on the photograph: the sore area glows, then
+                cools. A drawing of an area, not a diagnosis. */}
+            <div className="pointer-events-none absolute bottom-3 left-3 flex items-center gap-3 rounded-2xl bg-white/90 py-2 pl-2 pr-4 shadow-lg ring-1 ring-slate-900/5 backdrop-blur sm:bottom-4 sm:left-4">
+              <BodyFocus
+                area={area.body.area}
+                state={cooled ? "better" : "sore"}
+                reduceMotion={reduceMotion}
+                className="h-14 w-auto sm:h-20"
+              />
+              <span>
+                <span className="block text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500 sm:text-[11px]">
+                  {cooled ? "What we work on" : "Where it hurts"}
+                </span>
+                <span className="block text-sm font-bold text-slate-900">{area.body.label}</span>
+              </span>
+            </div>
           </div>
 
           {/* Step controls sit under the photo on the side it belongs to,
@@ -163,7 +249,7 @@ export default function CareAreaShowcase({
               {/* Shown on every width: swipe is the affordance that needs
                   announcing on a phone, and that is exactly the width where
                   hiding it left no hint at all. */}
-              <span className="ml-2">· swipe, or tap a name below</span>
+              <span className="ml-2">· swipe, or tap one above</span>
             </p>
           </div>
         </div>
@@ -218,46 +304,6 @@ export default function CareAreaShowcase({
         </div>
       </div>
 
-      {/* THE PICKER - all six always visible, so nobody has to swipe blind to
-          find out whether their complaint is on the list. */}
-      <div
-        role="tablist"
-        aria-label="Areas of practice"
-        aria-orientation="horizontal"
-        onKeyDown={onTabKeyDown}
-        className="mt-10 flex flex-wrap justify-center gap-2 border-t border-slate-200/70 pt-8"
-      >
-        {CARE_AREAS.map((item, index) => {
-          const selected = index === active;
-          return (
-            <button
-              key={item.key}
-              ref={(el) => {
-                tabsRef.current[index] = el;
-              }}
-              type="button"
-              role="tab"
-              id={`${baseId}-tab-${item.key}`}
-              aria-selected={selected}
-              aria-controls={`${baseId}-panel-${item.key}`}
-              // Roving tabindex: one stop for the whole set, then arrow keys.
-              tabIndex={selected ? 0 : -1}
-              onClick={() => select(index)}
-              className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 ${
-                selected
-                  ? "border-teal-600 bg-teal-700 text-white shadow-sm"
-                  : "border-slate-200 bg-white text-slate-600 hover:border-teal-300 hover:text-teal-800"
-              }`}
-            >
-              <i
-                className={`fa-solid ${item.icon} text-xs ${selected ? "text-white/80" : "text-teal-600"}`}
-                aria-hidden="true"
-              />
-              {item.title}
-            </button>
-          );
-        })}
-      </div>
     </div>
   );
 }

@@ -3394,7 +3394,9 @@
           "spec": "health-profile-showcase.spec.ts",
           "tests": [
             "HPS-001",
-            "HPS-002"
+            "HPS-002",
+            "HPS-003",
+            "HPS-004"
           ],
           "level": "browser"
         }

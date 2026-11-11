@@ -1,4 +1,5 @@
 import type { PhotoId } from "@/lib/marketingPhotos";
+import type { BodyArea } from "@/lib/bodyAreas";
 
 /**
  * What we treat, in the words a patient would use to describe it.
@@ -36,6 +37,8 @@ export type CareArea = {
    */
   photoAlt: string;
   icon: string;
+  /** Where the drawn figure glows, and what that area is called. */
+  body: { area: BodyArea; label: string };
 };
 
 export const CARE_AREAS: CareArea[] = [
@@ -52,6 +55,7 @@ export const CARE_AREAS: CareArea[] = [
     photo: "care-back",
     photoAlt: "A patient resting on her mat between exercises, smiling at her laptop",
     icon: "fa-bone",
+    body: { area: "lower-back", label: "Lower back" },
   },
   {
     key: "neck",
@@ -64,8 +68,9 @@ export const CARE_AREAS: CareArea[] = [
       "Where your screen sits",
     ],
     photo: "care-neck",
-    photoAlt: "A patient smiling through a side stretch at home, laptop in front of her",
+    photoAlt: "A patient laughing on a video call at her desk, laptop open in front of her",
     icon: "fa-user-injured",
+    body: { area: "neck", label: "Neck and shoulders" },
   },
   {
     key: "knee",
@@ -80,6 +85,7 @@ export const CARE_AREAS: CareArea[] = [
     photo: "care-knee",
     photoAlt: "A patient working with light dumbbells on her mat, laptop open beside her",
     icon: "fa-person-walking",
+    body: { area: "knee", label: "Knees and joints" },
   },
   {
     key: "posture",
@@ -94,6 +100,7 @@ export const CARE_AREAS: CareArea[] = [
     photo: "care-posture",
     photoAlt: "A patient stretching out her arms at her desk, laptop open in front of her",
     icon: "fa-chair",
+    body: { area: "upper-back", label: "Upper back" },
   },
   {
     key: "sports",
@@ -108,6 +115,7 @@ export const CARE_AREAS: CareArea[] = [
     photo: "care-sports",
     photoAlt: "Two patients mid-workout at home, following the session on a laptop",
     icon: "fa-person-running",
+    body: { area: "ankle", label: "Ankles and knees" },
   },
   {
     key: "mobility",
@@ -122,5 +130,6 @@ export const CARE_AREAS: CareArea[] = [
     photo: "care-mobility",
     photoAlt: "An older couple smiling through a video consultation on their tablet",
     icon: "fa-hands-holding-child",
+    body: { area: "hips", label: "Hips and legs" },
   },
 ];

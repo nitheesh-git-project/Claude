@@ -62,8 +62,11 @@ const PROGRAM_ART: CareIllustrationId[] = ["neckback", "mobility", "sports", "er
 export default function ProgramCards({
   programs,
   columns = "two",
+  compact = false,
 }: {
   programs: PublicProgram[];
+  /** The home page's shorter cards (CatalogCard `compact`). */
+  compact?: boolean;
   /** /conditions runs a two-column grid; the home page matches it. */
   columns?: "two" | "three";
 }) {
@@ -118,6 +121,7 @@ export default function ProgramCards({
                   art: PROGRAM_ART[i % PROGRAM_ART.length],
                 }}
                 onOpenDetails={() => setSelected({ program, index: i })}
+                compact={compact}
               />
             </StaggerItem>
           );

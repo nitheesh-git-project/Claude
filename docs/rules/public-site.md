@@ -221,7 +221,34 @@ Eight pages from one design system, the word budgets, why every photograph carri
   copy can be a real answer (`detail` plus three `checks` in `careAreas.ts`)
   rather than the six words a card could fit. Reach for this shape whenever a
   grid's images would be interchangeable; reach for a grid when they would
-  not.
+  not. Because no photograph can show *where* it hurts (a person in pain
+  breaks the "glad to be there" rule), the area is drawn instead. Each tile
+  in the picker, which sits above the photograph, shows a small `BodyFocus`
+  figure with its area lit (`CareArea.body`), and a card on the photograph
+  repeats it. There the area glows ("Where it hurts"), then cools to teal
+  ("What we work on"), replayed on each pick. It names an area, never a
+  structure.
+- **A hero's figures sit on one line.** `PageHero` draws its stats as one
+  strip of equal cells (`HeroStats`). Each cell is a reversed flex column, so
+  it needs `justify-end`: without it the column stacked from the bottom, and a
+  label that wrapped lifted its own value above the others (the "price, time
+  and rating not in a straight line" report). Labels stay short enough not to
+  wrap at 360px ("Each session", "Starting price", "N ratings"). From lg the
+  strip closes the copy column, and the photograph keeps its own landscape
+  shape, centred against it. A stretched crop lost the laptop, which every
+  photo here must show. On a phone the order is words, photograph, figures.
+  The short phone band anchors its crop low (`object-[50%_68%]`) so the
+  screen stays in frame.
+- **The home page's programme cards are the compact ones.** `ProgramCards
+  compact` gives `CatalogCard` a two-line summary, no bullet points (they are
+  in "View full details"), and the length and price on one line at the
+  card's foot, so a row of cards ends on one baseline. `/conditions` keeps
+  the full card.
+- **The header and the sticky bar never cut a word off.** From 1024 to
+  1279px the header shows the short brand name, because the full name was
+  truncated beside five links and two buttons. Below 420px the phone's
+  booking bar drops its two lines of text (they could only read "Video or a
+  visit a...") and the button takes the width.
 - **A carousel that moves on its own is a carousel nobody can read.**
   `CareAreaShowcase` never advances by itself: the home page already carries
   the auto-rotating `JourneySteps`, and a second thing moving while you read
@@ -565,11 +592,21 @@ Eight pages from one design system, the word budgets, why every photograph carri
   profile has drawn at that width, so the page below does not move. On
   `/how-it-works` it sits above the five-step strip (profile, goal and
   milestones, scores after each session, reviews, the PDF record). **The home
-  page does not carry the tour**: `HealthProfileTeaser` (a Server Component)
-  shows the first enabled profile's headline change - one sample patient's
-  first-visit-to-latest figure, labelled as a sample - and a link to
-  `/how-it-works#health-profile`. The tour was a long, heavy band between
-  "how it works" and the programmes a phone visitor came to price.
+  page does not carry the tour**: it tells one recovery story at a time
+  (`RecoveryGist`, `recovery/RecoveryStory`). The sample's drawn figure
+  (`BodyFocus`) glows rose where it hurts and cools to teal, the headline
+  figure counts from the first visit to the latest review, the bar refills,
+  four review dots light in turn, and the tools that profile uses
+  (`ShowcaseProfile.tools`) arrive one by one. `meter` is the headline as
+  numbers, and `healthProfileShowcase.test.ts` holds it to the printed
+  headline. It plays when it comes into view and when a kind of care is
+  picked, and **never rotates on its own**. "See the full health profile"
+  opens a sheet (`RecoveryTourSheet`) with every enabled kind of care, each
+  with its story, what it watches and its tools. The sheet ends on the
+  unlock: your own profile opens with your first booking (Book a video
+  session), and the real screens are at `/how-it-works#health-profile`.
+  Every story carries the sample note. The wording says what a profile
+  shows, never what treatment will achieve. Guards: HPS-003 and HPS-004.
   **It is the one public widget that moves on its own**, every five seconds,
   which the carousel rule below otherwise forbids, so the movement is held
   to the reader: only while its frame is at least half on screen - or fills
