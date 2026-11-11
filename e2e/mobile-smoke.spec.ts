@@ -9,7 +9,7 @@
 // Read-only: it signs in with the QA fixtures and looks. Like the rest of the
 // suite it must never be pointed at a database holding real patients.
 import { test, expect, type Page } from "@playwright/test";
-import { BASE, browserCookiesFor, QA_EMAILS } from "./helpers";
+import { BASE, browserCookiesFor, QA_EMAILS, settleNetwork } from "./helpers";
 
 async function expectNoSidewaysScroll(page: Page) {
   const overflow = await page.evaluate(
@@ -25,7 +25,7 @@ async function settle(page: Page) {
       timeout: 30_000,
     })
     .catch(() => {});
-  await page.waitForLoadState("networkidle").catch(() => {});
+  await settleNetwork(page);
 }
 
 for (const path of ["/", "/book", "/home-visit", "/faq"]) {
