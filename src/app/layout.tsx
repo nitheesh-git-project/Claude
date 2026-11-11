@@ -7,6 +7,7 @@ import FarewellBanner from "@/components/FarewellBanner";
 import Footer from "@/components/Footer";
 import DebugNav from "@/components/DebugNav";
 import ScrollHint from "@/components/ScrollHint";
+import ScrollTopOnNavigate from "@/components/system/ScrollTopOnNavigate";
 import PublicBookBar from "@/components/PublicBookBar";
 import { SectionNavProvider } from "@/components/SectionNavContext";
 import { getLayoutSettings } from "@/lib/siteSettingsCache";
@@ -211,6 +212,10 @@ export default async function RootLayout({
     // mismatch anywhere inside the page still warns.
     <html
       lang="en"
+      // Next 16 no longer turns off globals.css's `scroll-behavior: smooth`
+      // while it navigates; this asks it to, so a new page does not glide in
+      // from the old page's scroll position (ScrollTopOnNavigate).
+      data-scroll-behavior="smooth"
       suppressHydrationWarning
       className={`h-full antialiased ${inter.variable} ${jakarta.variable}`}
     >
@@ -310,6 +315,7 @@ export default async function RootLayout({
             devCreditEnabled={devCreditEnabled}
           />
           <ScrollHint />
+          <ScrollTopOnNavigate />
           <PublicBookBar homeVisitEnabled={homeVisitEnabled} contact={contactLinks} />
         </SectionNavProvider>
           </PricingProvider>

@@ -10,10 +10,10 @@ import { nextSectionId, scrollToSection } from "@/lib/scrollToSection";
 /**
  * Floating "there's more below" control for the public marketing pages -- a
  * bottom-right chevron that bobs inside a still button (mostly smooth, with
- * a couple of sharper little nudges per cycle) to read as "scroll down,"
- * fades in on landing, and disappears once the visitor is near the bottom of
- * the page (or the page never had enough content to scroll in the first
- * place).
+ * a clear jump and a smaller second hop per cycle) to read as "there is more
+ * below," fades in on landing, and at the foot of the page turns round to
+ * point up: "Back to top" takes the visitor to the start of the page. It is
+ * absent only where the page never had enough content to scroll.
  *
  * Tapping it advances one section at a time, using the same section list the
  * left-hand rail renders (published through SectionNavProvider), so the two
@@ -34,6 +34,8 @@ export default function ScrollHint() {
   // motion -- an endlessly moving target is harder to hit, not just showier.
   const reduceMotion = useReducedMotion();
   const [visible, setVisible] = useState(false);
+  // At the foot of the page the same button turns round and goes back up.
+  const [atBottom, setAtBottom] = useState(false);
 
   useEffect(() => {
     // No listeners to attach off a front page -- render already gates on
@@ -44,7 +46,8 @@ export default function ScrollHint() {
       const scrollable = document.documentElement.scrollHeight > window.innerHeight + 80;
       const nearBottom =
         window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 48;
-      setVisible(scrollable && !nearBottom);
+      setVisible(scrollable);
+      setAtBottom(scrollable && nearBottom);
     }
 
     update();
@@ -57,6 +60,10 @@ export default function ScrollHint() {
   }, [onFrontPage, pathname]);
 
   function goToNext() {
+    if (atBottom) {
+      window.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });
+      return;
+    }
     const id = nextSectionId(sectionIds);
     if (id) {
       scrollToSection(id);
@@ -80,7 +87,7 @@ export default function ScrollHint() {
           <motion.button
             type="button"
             onClick={goToNext}
-            aria-label="Scroll to next section"
+            aria-label={atBottom ? "Back to top" : "Scroll to next section"}
             initial={false}
             whileHover={{ scale: 1.06 }}
             whileTap={{ scale: 0.94 }}
@@ -97,22 +104,34 @@ export default function ScrollHint() {
               element before clicking, which is how the automated checks
               caught it.
             */}
-            <motion.i
+            {/* A real jump: up, a small second hop, then a rest, so it reads
+                as "there is more" without being a constant wobble. At the
+                bottom the chevron turns to point up and hops upwards. The
+                rotation sits on a wrapper so it never fights the hop. */}
+            <motion.span
               aria-hidden="true"
-              className="fa-solid fa-chevron-down text-sm"
+              className="flex"
               initial={false}
-              animate={reduceMotion ? { y: 0 } : { y: [0, 3, 0, 3, 0, 7, 0] }}
-              transition={
-                reduceMotion
-                  ? { duration: 0 }
-                  : {
-                      duration: 2.6,
-                      repeat: Infinity,
-                      ease: "easeInOut",
-                      times: [0, 0.16, 0.32, 0.48, 0.64, 0.82, 1],
-                    }
-              }
-            />
+              animate={{ rotate: atBottom ? 180 : 0 }}
+              transition={{ duration: reduceMotion ? 0 : 0.35, ease: [0.16, 1, 0.3, 1] }}
+            >
+              <motion.i
+                key={atBottom ? "up" : "down"}
+                className="fa-solid fa-chevron-down text-base"
+                initial={false}
+                animate={reduceMotion ? { y: 0 } : { y: [0, 7, 0, 3, 0, 0] }}
+                transition={
+                  reduceMotion
+                    ? { duration: 0 }
+                    : {
+                        duration: 1.8,
+                        repeat: Infinity,
+                        ease: ["easeOut", "easeIn", "easeOut", "easeIn", "linear"],
+                        times: [0, 0.18, 0.36, 0.48, 0.6, 1],
+                      }
+                }
+              />
+            </motion.span>
           </motion.button>
         </motion.div>
       )}

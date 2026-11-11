@@ -53,7 +53,11 @@ The site's own index lives in **one array**, which the header nav, the footer's 
 
 #### `PUB-NAV-001` - The section rail and the scroll arrow · P1
 **Steps.** On each public page, use the section rail's entries and then the bottom-right scroll arrow repeatedly.
-**Expected Result.** Every rail entry corresponds to a section that **actually rendered** (several bands are conditional on admin-controlled catalog data), and the entries are in **DOM order**. The arrow walks the list **top to bottom** - if it ever sends you backwards, an entry is out of order.
+**Expected Result.** Every rail entry corresponds to a section that **actually rendered** (several bands are conditional on admin-controlled catalog data), and the entries are in **DOM order**. The arrow walks the list **top to bottom** - if it ever sends you backwards, an entry is out of order. It **hops** while there is more below; at the foot of the page it turns to point **up** ("Back to top") and takes you to the very top.
+
+#### `PUB-NAV-002` - A tab opens the next page at its top · P1
+**Steps.** On any public page, scroll to the footer. Tap a tab in the top bar (Conditions, FAQ, ...). Repeat on a phone from the menu.
+**Expected Result.** The new page opens **at its very top** (the header fully in view), at once - it does not glide down through the old page or stop a header's height short. A link to a section on the same page (`#...`) still scrolls to that section.
 
 #### `PUB-CAT-001` - A catalog card opens a dialog; booking is its own button · P1
 **Steps.** On `/` and `/conditions`, tap a programme (treatment category) card's **body**. Then tap its **Book …** link.
@@ -99,7 +103,7 @@ Covered by `PAT-HV-001` and `ADM-SET-013`.
 #### `PUB-DEV-001` - The developer credit and its Say hello flow · P1
 **Steps.**
 1. On any public page, scroll to the footer. Under the copyright read the second line, then tap **Contact me**.
-2. On `/developer` read the heading and tap **Say hey!**.
+2. On `/developer` read the heading and tap **Tap to say hey**.
 3. On `/developer/lets-talk`, tap **Let's talk ↗** with the form empty. Then fill **Full name**, **Email** and **Message**, leave **Contact number** blank, and tap it again.
 4. Repeat with a contact number of `abc`, and with a number that is too short for the country shown.
 5. Resize to 375px wide and repeat step 3.

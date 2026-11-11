@@ -74,7 +74,7 @@ test.describe("DEV -- the developer credit and its reachouts", () => {
       await expect(page.getByRole("navigation")).toHaveCount(0);
       await expect(page.getByRole("contentinfo")).toHaveCount(0);
       await expect(page.getByRole("link", { name: "Back to home" })).toHaveCount(1);
-      await page.getByRole("link", { name: "Say hey!" }).click();
+      await page.getByRole("link", { name: "Tap to say hey" }).click();
 
       await expect(page).toHaveURL(/\/developer\/lets-talk$/);
       await expect(page.getByRole("heading", { name: /Let's build something/ })).toBeVisible();

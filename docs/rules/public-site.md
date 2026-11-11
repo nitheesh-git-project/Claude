@@ -245,6 +245,15 @@ Eight pages from one design system, the word budgets, why every photograph carri
   than half a laptop screen and holds the centre - the last section still on
   screen (`src/lib/sectionNavActive.ts`).
 
+- **A public page opens at its very top, and the arrow brings you back up.**
+  Next 16 no longer turns off `scroll-behavior: smooth` while it navigates,
+  and it scrolls the new *segment* into view, which is under the 106px
+  header: a tab tapped from the footer glided for two seconds and stopped
+  short. `<html data-scroll-behavior="smooth">` restores Next's override and
+  `ScrollTopOnNavigate` sets the window to 0 after each public navigation
+  (not on a page load or Back, and not for a `#` link). `ScrollHint` hops
+  while there is more below and, at the foot of the page, turns into "Back
+  to top". Guards: `e2e/section-nav.spec.ts` SN-003 and SN-008.
 - **Every catalog card has a cover slot, and one component owns the empty
   state.** Programmes, session packages and home-visit packages are all
   admin-created rows with a nullable `image_url`, so all three need an answer
@@ -847,6 +856,15 @@ Eight pages from one design system, the word budgets, why every photograph carri
   Analytics calls never throw and never wait: a blocked script must not break
   checkout.
 - GA is for funnels. Revenue, utilisation and no-shows come from Supabase.
+- **The consent card asks once, then rests for 7 days if it is ignored.**
+  Ignoring it is not a "no", but showing it in every new tab was nagging.
+  When the card is shown to someone who has not answered, `noteConsentAsked`
+  stores the time (`mr_analytics_asked_at`, localStorage) and marks the tab
+  (sessionStorage). That tab keeps the card on later pages; every other tab
+  stays quiet until `CONSENT_REST_MS` (7 days) has passed, then it asks once
+  more (`shouldAskForConsent`, unit-tested). A Yes or Not now is kept for
+  good, and the footer link reopens the card at any time. Guard:
+  `e2e/analytics-consent.spec.ts` AC-007.
 - **The footer's "Analytics settings" works before the page has hydrated.** It
   is a link to `#analytics-settings` (`ANALYTICS_SETTINGS_HASH`), not a
   button: a tap that lands before React has attached its click handler still
