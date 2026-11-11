@@ -24,7 +24,11 @@ Availability as periods over hour rows, specialisation as a value, what readines
   periods and the hour rows the tables store. The storage model is
   unchanged and must stay that way: every existing schedule, including a
   sparse exception written one cell at a time by the old grid, reads back as
-  exactly the same hours. Six rules hold this together:
+  exactly the same hours. Its shift presets are Morning 6 AM - 3 PM,
+  Afternoon 3 PM - 12 AM and Full day 6 AM - 12 AM (`SCHEDULE_PRESETS`):
+  the two shifts meet at 3 PM, so Morning + Afternoon is exactly Full day
+  and no hour belongs to neither. A preset only fills the editor; hours
+  already saved are never moved by a change to it. Six rules hold this together:
   1. **The three concepts stay separate.** A weekly schedule is what
      somebody normally works; an exception is one date that differs; leave
      takes them off entirely. Leave never clears the schedule -- there is

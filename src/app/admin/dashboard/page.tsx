@@ -2295,6 +2295,7 @@ export default async function AdminDashboardPage({
                           ? {
                               name: p.full_name ?? p.email ?? "this therapist",
                               email: p.email,
+                              phone: p.phone,
                               credentials: p.credentials,
                               specialization: p.specialization,
                             }

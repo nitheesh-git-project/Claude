@@ -1074,7 +1074,8 @@ date and an eighteen-column grid of hourly cells, which was the storage
 model drawn on screen.
 
 Nobody clicks an hour. The editor works in ranges ("Monday 9 AM – 1 PM and
-2 PM – 6 PM") with per-day presets, copy-to-days and apply-to-weekdays;
+2 PM – 6 PM") with per-day presets (Morning 6 AM – 3 PM, Afternoon 3 PM – 12 AM, Full day
+6 AM – 12 AM; the two shifts add up to Full day with no gap), copy-to-days and apply-to-weekdays;
 `src/lib/availabilityRanges.ts` converts between those ranges and the hour
 rows the tables have always stored, in both directions. The storage model is
 unchanged, so every existing schedule reads back as exactly the same hours -

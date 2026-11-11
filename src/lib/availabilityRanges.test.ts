@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   DAY_END_HOUR,
   DAY_START_HOUR,
+  SCHEDULE_PRESETS,
   cloneWeekly,
   describeDay,
   describeException,
@@ -461,5 +462,20 @@ describe("date helpers", () => {
       "No end date set"
     );
     expect(describeLeave({ onLeave: false, from: null, to: null, reason: null })).toBeNull();
+  });
+});
+
+describe("SCHEDULE_PRESETS", () => {
+  const byKey = (k: string) => SCHEDULE_PRESETS.find((p) => p.key === k)!.ranges;
+  it("Morning is 6 AM - 3 PM, Afternoon 3 PM - 12 AM, Full day 6 AM - 12 AM", () => {
+    expect(byKey("morning")).toEqual([{ startHour: 6, endHour: 15 }]);
+    expect(byKey("afternoon")).toEqual([{ startHour: 15, endHour: 24 }]);
+    expect(byKey("full_day")).toEqual([{ startHour: 6, endHour: 24 }]);
+  });
+  it("Morning plus Afternoon is exactly Full day, with no hour in neither", () => {
+    const hours = (r: { startHour: number; endHour: number }[]) =>
+      r.flatMap((x) => Array.from({ length: x.endHour - x.startHour }, (_, i) => x.startHour + i));
+    expect([...hours(byKey("morning")), ...hours(byKey("afternoon"))]).toEqual(hours(byKey("full_day")));
+    for (const p of SCHEDULE_PRESETS) expect(validateRanges(p.ranges)).toBeNull();
   });
 });

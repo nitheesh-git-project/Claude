@@ -432,6 +432,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
                     therapist={{
                       name: therapist.full_name ?? therapist.email ?? "this therapist",
                       email: therapist.email,
+                      phone: therapist.phone,
                       credentials: therapist.credentials,
                       specialization: therapist.specialization,
                     }}

@@ -11,6 +11,7 @@ import { APPROVAL_NOTE_MAX_LENGTH, parseSharePercent } from "@/lib/therapistAppr
 export type ApproveTherapistSummary = {
   name: string;
   email?: string | null;
+  phone?: string | null;
   credentials?: string | null;
   specialization?: string | null;
 };
@@ -187,6 +188,21 @@ export default function ApproveTherapistDialog({
                 <div className="flex gap-2">
                   <dt className="w-24 shrink-0 text-slate-500">Specialisation</dt>
                   <dd className="text-slate-800">{specialty ?? "Not given"}</dd>
+                </div>
+                <div className="flex gap-2">
+                  <dt className="w-24 shrink-0 text-slate-500">Phone</dt>
+                  <dd className="text-slate-800" data-testid="approve-therapist-phone">
+                    {therapist.phone?.trim() ? (
+                      <a
+                        href={`tel:${therapist.phone.replace(/[^\d+]/g, "")}`}
+                        className="font-semibold text-sky-700 underline-offset-2 hover:underline"
+                      >
+                        {therapist.phone.trim()}
+                      </a>
+                    ) : (
+                      "Not given"
+                    )}
+                  </dd>
                 </div>
                 {therapist.email && (
                   <div className="flex gap-2">
