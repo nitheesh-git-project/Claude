@@ -31,14 +31,22 @@ test.describe("finding things in the admin dashboard", () => {
   });
 
   test("FIND-002 a Razorpay payment ID finds the payment and opens Transactions filtered to it", async ({ page }) => {
-    const { data } = await adminClient()
-      .from("payments")
-      .select("razorpay_payment_id")
-      .not("razorpay_payment_id", "is", null)
-      .limit(1)
-      .maybeSingle();
-    test.skip(!data?.razorpay_payment_id, "no payment with a Razorpay ID on this database");
-    const payId = data!.razorpay_payment_id as string;
+    // Its own payment, so it runs on a fresh database too. Payments refuse a
+    // DELETE by trigger, so the row stays until `npm run clean:e2e -- --apply`,
+    // which finds it by the same order prefix admin-payment-search uses.
+    const admin = adminClient();
+    const { data: patient } = await admin.from("profiles").select("id").eq("email", QA_EMAILS.patientA).single();
+    const stamp = Date.now();
+    const payId = `pay_e2esearch${stamp}`;
+    const { error } = await admin.from("payments").insert({
+      patient_id: patient!.id,
+      purpose: "other",
+      razorpay_order_id: `order_e2esearch${stamp}`,
+      razorpay_payment_id: payId,
+      amount_paise: 100,
+      status: "created",
+    });
+    expect(error, error?.message).toBeNull();
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto(`${BASE}/admin/dashboard`);
     const search = page.getByRole("searchbox", { name: "Search the admin dashboard" });

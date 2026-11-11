@@ -75,6 +75,7 @@ test.describe("Debug test accounts", () => {
       "Clinical admin",
     ]);
     const admin = adminClient();
+    let cleanup: { status: number; body: string } | null = null;
     try {
       // Each login works with the password the panel shows.
       const anon = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
@@ -132,13 +133,17 @@ test.describe("Debug test accounts", () => {
       const { data: authUser } = await admin.auth.admin.getUserById(patient.user_id);
       expect(authUser?.user ?? null).toBeNull();
     } finally {
+      // Cleanup only here. Its own checks come after, so a failure above is
+      // reported as itself rather than masked by a cleanup that then fails.
       const all = await post(cookie, { action: "delete_all" });
-      expect(all.status).toBe(200);
-      const { count } = await admin
-        .from("profiles")
-        .select("id", { count: "exact", head: true })
-        .in("id", accounts.map((a) => a.user_id));
-      expect(count).toBe(0);
+      cleanup = { status: all.status, body: await all.text() };
     }
+    expect(cleanup?.status, cleanup?.body).toBe(200);
+    expect((JSON.parse(cleanup!.body) as { failed: unknown[] }).failed, cleanup?.body).toEqual([]);
+    const { count } = await admin
+      .from("profiles")
+      .select("id", { count: "exact", head: true })
+      .in("id", accounts.map((a) => a.user_id));
+    expect(count).toBe(0);
   });
 });

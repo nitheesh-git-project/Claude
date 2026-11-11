@@ -841,6 +841,14 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
      home-visit supply alongside the settings rather than after them.
   4. **The frame first.** Each dashboard's `loading.tsx` is the dashboard
      frame with the loader (`frontend.md`), streamed before the page's data.
+     **Never above a page that answers 404.** A loading boundary streams
+     every page under it, and a streamed page can no longer set its status:
+     `notFound()` then renders the not-found page with a 200. So the
+     therapist dashboard keeps its home loader in the `(home)` route group
+     and one per screen, and the patient pages
+     (`assessment/[patientId]`, `health-profile/[patientId]`) have none: a
+     therapist with no link to the patient must get a real 404
+     (`assessment-cockpit` AC-007, `neuro-exam` NE-004).
   Measured on the production build against staging from a distant server:
   patient 5.5s to 2.5s, therapist 5.5s to 2.2s, hospital 2.1s to 1.5s,
   admin 11s to 6.3s, and the loading frame within about a second on all of

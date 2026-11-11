@@ -276,7 +276,9 @@ Dates in the clinic's zone, voice, no browser default ever speaking to a person,
     component rendering nothing rather than a hook the wrapper could call.
   **And the wait is the word-roll loader: over the old page while the next
   one is requested, then in the dashboard's own frame while it is built.**
-  Each dashboard has a `loading.tsx` rendering `DashboardLoading`
+  Each dashboard has a `loading.tsx` rendering `DashboardLoading` (the
+  therapist's per screen, never above a page that answers 404 -- see
+  `dashboards.md`)
   (`src/components/dashboard/`): the phone top bar and tab bar, the laptop
   rail and the desktop sidebar as blank outlines in the shell's exact sizes
   and places, with `WordRollLoader` in the content area. It is streamed
