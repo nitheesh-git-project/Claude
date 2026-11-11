@@ -20552,8 +20552,10 @@ revoke all on debug_test_accounts from anon, authenticated;
 --
 -- Three guards keep it to test data:
 --   * the id must be in debug_test_accounts;
---   * a foreign key that SETs NULL is nulled, never followed, so a real
---     patient referred by a test hospital keeps their account;
+--   * a foreign key that SETs NULL is nulled, never followed -- unless it
+--     is the row's owner column (patient_id, therapist_id, ...) pointing at
+--     the test account itself, as payments.patient_id does -- so a real row
+--     that merely names a test admin as its reviewer keeps everything else;
 --   * a profile reached through a foreign key is never deleted: its column
 --     is nulled when it can be, and the whole purge refuses when it cannot.
 -- The auth user is removed last, with triggers back on, so the auth
@@ -20603,7 +20605,17 @@ begin
       where con.contype = 'f'
         and cn.nspname = 'public'
         and array_length(con.conkey, 1) = 1
-        and con.confdeltype in ('a', 'r', 'c')
+        and (
+          con.confdeltype in ('a', 'r', 'c')
+          -- A row the test account *owns* goes with it even where the key
+          -- would only SET NULL: payments.patient_id is one, and a test
+          -- patient's payments left behind with no owner would sit on the
+          -- money screens for ever. Other SET NULL keys (reviewed_by,
+          -- created_by ...) are a mention, not ownership, and are nulled below.
+          or (con.confdeltype in ('n', 'd')
+              and con.confrelid = 'public.profiles'::regclass
+              and ca.attname in ('patient_id', 'therapist_id', 'hospital_id', 'user_id', 'owner_id', 'profile_id'))
+        )
         and con.confrelid in (select distinct r.rel from _purge_rows r)
         -- A profile is never collected through a foreign key (see above).
         and con.conrelid <> 'public.profiles'::regclass
@@ -20748,6 +20760,13 @@ language plpgsql
 set search_path = public
 as $$
 begin
+  -- The record is never edited, and never removed while the profile it
+  -- explains still stands. When the profile itself goes (a cascade from its
+  -- auth user -- the data reset, a test fixture's cleanup), the profile row is
+  -- already gone by the time this fires, and the record goes with it.
+  if tg_op = 'DELETE' and not exists (select 1 from profiles where id = old.user_id) then
+    return old;
+  end if;
   raise exception 'account_deletions is append-only: the record of who removed an account, and why, is never edited or deleted';
 end;
 $$;

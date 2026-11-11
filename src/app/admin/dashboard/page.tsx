@@ -151,6 +151,7 @@ import BrandContactDetailsForm from "@/components/admin/BrandContactDetailsForm"
 import { SOCIAL_LINKS_SELECT, SOCIAL_LINK_COLUMNS } from "@/lib/socialLinks";
 import ProfileChangeRequestActions from "@/components/admin/ProfileChangeRequestActions";
 import AdminPeopleDirectory from "@/components/admin/AdminPeopleDirectory";
+import { readAccountDeletions } from "@/lib/accountDeletionsServer";
 import PagedList from "@/components/dashboard/PagedList";
 import ReadOnlyDeskNote from "@/components/admin/ReadOnlyDeskNote";
 import AdminScreenLink from "@/components/admin/AdminScreenLink";
@@ -302,6 +303,9 @@ export default async function AdminDashboardPage({
 
   const supabase = await createClient();
   const admin = createAdminClient();
+  // People deleted with their records kept, for the "Deleted user" tag on the
+  // People lists. Started now, awaited where the lists are built.
+  const accountDeletionsRead = readAccountDeletions(admin);
 
   // Runs before the big read below so this same request already sees any
   // purchase this sweep just flipped to 'expired' -- see the helper's own
@@ -2077,6 +2081,7 @@ export default async function AdminDashboardPage({
       autoRetryAttempts: a.access?.meet_access_attempts ?? 0,
     }));
 
+  const accountDeletions = await accountDeletionsRead;
   const hospitals = (allProfiles ?? []).filter((p) => p.role === "hospital");
   const patients = (allProfiles ?? [])
     .filter((p) => p.role === "patient")
@@ -3061,6 +3066,7 @@ export default async function AdminDashboardPage({
                 ? conditionSpecialtyByPatientId.get(p.id) ?? DEFAULT_CONDITION_SPECIALTY
                 : null,
               searchRefs: searchRefsByPatientId.get(p.id),
+              deletion: accountDeletions.get(p.id) ?? null,
             };
           })}
         />
@@ -3097,6 +3103,7 @@ export default async function AdminDashboardPage({
             // Passing it at all is what puts the specialisation filter and
             // column on this directory rather than the patients one.
             specialization: t.specialization ?? null,
+            deletion: accountDeletions.get(t.id) ?? null,
           }))}
         />
       )}

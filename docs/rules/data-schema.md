@@ -827,6 +827,16 @@ unknown one, and the caller must say so rather than publish it.
   the service role from routes, so insert/update/delete are revoked from
   the browser roles, and none is append-only. The data reset truncates the
   receipts and the pages and leaves the announcements, like the FAQs.
+- **`account_deletions` is evidence; `debug_test_accounts` is the only
+  licence to purge.** The first records who deleted a person with records
+  kept, and why: append-only by trigger (`account_deletions_is_append_only`),
+  which lets a DELETE through only when the profile it explains is already
+  gone (a cascade from the reset or a fixture's cleanup). `profiles.deleted_at`
+  marks the profile. The second is the list `debug_purge_test_account()`
+  checks before it removes anything: an id not in it is refused, so the purge
+  -- which turns triggers off with `session_replication_role = replica` for its
+  own transaction -- can never reach a real account. Both are in the newest
+  `debug_reset_all_data()` truncate list.
 - **`razorpay_refunds` is a mirror, not evidence.** It follows Razorpay's
   status for each refund id, so it is updated in place and has no
   append-only guard; Razorpay is the record. Admin read, service-role writes

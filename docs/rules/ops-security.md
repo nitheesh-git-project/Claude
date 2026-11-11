@@ -719,6 +719,37 @@ took an e2e case down with a deadlock the first time it was run, which is a red
 line describing nothing but carelessness. Before real patients exist, remove
 `ALLOW_DEBUG_DATA_RESET` and drop the function.
 
+## Test accounts from the debug bar
+
+The debug bar's **Test accounts** button (`DebugTestAccountsPanel` ->
+`/api/admin/debug-test-accounts`) makes one of every role a test needs -- a
+patient (with a home address in a served pincode), a therapist approved with
+Full day hours Monday to Saturday, a hospital partner, and an Operations,
+Finance and Clinical admin -- and lists each login's email and password with
+copy buttons. **Never a Master Admin**: a test login with full scope could
+reset the database.
+
+- **Gated like the reset.** `ALLOW_DEBUG_TEST_ACCOUNTS` must be exactly
+  `"true"` on the server (404 otherwise), and the caller a signed-in Master
+  Admin. The public `NEXT_PUBLIC_SHOW_DEBUG_NAV` flag is not reused, for the
+  reset's reason.
+- **Removal only reaches its own accounts.** `debug_purge_test_account()`
+  refuses any id not in `debug_test_accounts`, then collects every row that
+  points at the account (following owner columns such as
+  `payments.patient_id` even where the key would only SET NULL), nulls the
+  mentions on rows that stay, never deletes another profile (it nulls the
+  column, or refuses when it cannot), and deletes the rows with
+  `session_replication_role = replica` for that transaction only, so the
+  append-only and money triggers do not refuse. The auth user goes last with
+  triggers back on.
+- **Passwords are stored in plain text, on purpose.** They are throwaway and
+  exist to be copied; the table has RLS on and no policy.
+- **The test card is copy-and-paste, not autofill.** Razorpay's card form is
+  an iframe on Razorpay's origin and cannot be typed into from the page, so the
+  panel lists the test card with copy buttons and `DebugTestCardOverlay` floats
+  the same box over the checkout while `.razorpay-container` is showing -- only
+  with a `rzp_test_` key.
+
 ## Gotchas
 
 - **The debug bar is on in every environment, on purpose.** The app is

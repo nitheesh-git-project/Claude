@@ -15,6 +15,8 @@ import {
   specialtyFilterOptions,
   specialtyLabel,
 } from "@/lib/therapistSpecialties";
+import DeletedUserTag from "@/components/admin/DeletedUserTag";
+import type { AccountDeletionInfo } from "@/lib/accountDeletionRecords";
 
 type Person = {
   id: string;
@@ -24,6 +26,9 @@ type Person = {
   active: boolean;
   approved?: boolean;
   created_at: string;
+  // Set when the person was deleted with their records kept: the row stays,
+  // tagged "Deleted user" with an (i) giving the reason.
+  deletion?: AccountDeletionInfo | null;
   // New/migration-dependent PT0001/TH0001-style display ID (see
   // supabase/schema.sql's "Unique display IDs" section) -- null until the
   // migration backfilling it has run.
@@ -154,6 +159,7 @@ export default function AdminPeopleDirectory({
   }
 
   function badge(p: Person) {
+    if (p.deletion) return <DeletedUserTag info={p.deletion} />;
     if (!p.active) {
       return (
         <span className="text-[9px] font-bold uppercase text-red-700 bg-red-100 px-1.5 py-0.5 rounded-full">
@@ -270,15 +276,16 @@ export default function AdminPeopleDirectory({
       ) : view === "grid" ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
           {pageRows.map((p) => (
+            // The badge sits beside the card's link, not inside it: a deleted
+            // person's badge carries a button, and a button cannot live in a link.
+            <div key={p.id} className="relative min-w-0">
             <Link
-              key={p.id}
               href={`${basePath}/${p.id}`}
               // min-w-0 and a truncated subtitle: an email is one unbreakable
               // word, and a long one ran out of a two-column card on a phone
               // and over its neighbour (layout-audit, people/patients at 360px).
-              className="flex min-w-0 flex-col items-center text-center p-4 rounded-xl border border-slate-200 hover:border-teal-300 hover:shadow-sm transition relative"
+              className="flex h-full min-w-0 flex-col items-center text-center p-4 rounded-xl border border-slate-200 hover:border-teal-300 hover:shadow-sm transition relative"
             >
-              {badge(p) && <span className="absolute top-2 right-2">{badge(p)}</span>}
               <AvatarThumbnail url={p.avatar_url} name={p.full_name ?? "U"} size={56} />
               <p className="font-bold text-slate-900 text-xs mt-2 line-clamp-1">{p.full_name}</p>
               {p.code && <p className="text-slate-500 text-[10px] font-mono">{p.code}</p>}
@@ -301,6 +308,8 @@ export default function AdminPeopleDirectory({
               )}
               <p className="text-slate-500 text-[10px] mt-1">Joined {formatClinicDateTimeWithZone(p.created_at)}</p>
             </Link>
+            {badge(p) && <span className="absolute top-2 right-2">{badge(p)}</span>}
+            </div>
           ))}
         </div>
       ) : (

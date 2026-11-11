@@ -2199,13 +2199,19 @@ being able to cancel or reassign it.
 
 Every account also carries a **Delete account** button - on the Back office
 rows here, and on a patient's, therapist's and partner hospital's own screen
-- for a Master Admin only. It works on an account with **no history at all**
-and refuses everything else, naming what is on file (sessions, money
-records, programmes, clinical records, back-office actions, referrals) and
-pointing at Suspend. That is the database's rule rather than a chosen one:
-thirty-five tables reference `profiles(id)` with no delete behaviour, so
-removing an account that has done anything would mean removing the books and
-the audit trail with it.
+- for a Master Admin only. It first asks what is behind the account and
+always asks **why** (Duplicate account, The person asked to be removed, Fraud
+or abuse, Left the clinic, Test account, or Other with a note). An account
+with **no history at all** is removed outright. One with history - sessions,
+payments, programmes, clinical records, back-office actions - is deleted
+**with its records kept**: the confirmation lists every money record (payments,
+pay-later, programmes, refunds, payouts, session earnings) with totals, then
+the login is switched off and moved to a placeholder address (so the email
+can sign up again) and the phone and email are cleared from the profile. Every
+record stays under the person's name, tagged **Deleted user**; its (i) shows
+the reason, the note, who deleted it and when, the old contact details and
+the money kept. The records are never removed, because thirty-five tables
+reference `profiles(id)` and the books and the audit trail are built on them.
 
 What is on file is **asked of the database**, not listed in the route:
 `account_blocking_references()` reads `pg_constraint` for every foreign key that

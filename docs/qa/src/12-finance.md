@@ -769,8 +769,8 @@ Four consequences worth holding in mind while testing:
 
 #### `PL-EDGE-004` - Deleting a patient with money history · P1
 
-**Steps.** Try to delete a trusted patient's account.
-**Expected Result.** Refused **in plain words naming the counts**, grouped the way a person describes them, with **suspension offered beside it** - never a raw Postgres foreign-key string.
+**Steps.** Delete a trusted patient's account.
+**Expected Result.** The confirmation names what is on file in plain words and lists the money records that stay, with totals - never a raw Postgres foreign-key string. After **Delete user, keep records** with a reason, every payment, pay-later declaration and write-off stays exactly as it was, under the patient's name tagged **Deleted user**; the figures on the money screens do not change.
 
 #### `PL-EDGE-005` - Impersonation records the patient, not the admin · P2
 

@@ -1791,6 +1791,19 @@
       ],
       "integration": "local",
       "destructive": false
+    },
+    "debug-test-accounts.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "api",
+        "db",
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
     }
   },
   "flows": [
@@ -3088,7 +3101,7 @@
     {
       "id": "admin.account-lifecycle",
       "runner": "admin",
-      "title": "Account creation stamps, deletion only with no history, partner layouts and credential reset",
+      "title": "Account creation stamps, deletion (outright with no history, records kept with a reason otherwise), partner layouts and credential reset",
       "required": true,
       "status": "covered",
       "coverage": [
@@ -3097,7 +3110,8 @@
           "tests": [
             "AD-DEL-001",
             "AD-DEL-002",
-            "AD-DEL-003"
+            "AD-DEL-003",
+            "AD-DEL-004"
           ],
           "level": "browser"
         },
@@ -4701,6 +4715,27 @@
       ],
       "rules": [
         "docs/rules/admin.md"
+      ]
+    },
+    {
+      "id": "admin.debug-test-accounts",
+      "runner": "admin",
+      "title": "The debug bar's Test accounts panel makes a set of approved logins for a Master Admin only, and removes them with their payments while refusing any real account",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "debug-test-accounts.spec.ts",
+          "tests": [
+            "DTA-001",
+            "DTA-002",
+            "DTA-003"
+          ],
+          "level": "api"
+        }
+      ],
+      "rules": [
+        "docs/rules/ops-security.md"
       ]
     }
   ],

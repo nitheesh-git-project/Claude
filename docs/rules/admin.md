@@ -127,7 +127,20 @@ The eight sections, scopes and levels, User Access, the Settings information arc
      the fine-grained matrix whose failure mode is one route quietly falling
      through a gap in it, which is what coarse scopes exist to avoid.
      Changing what a desk reaches is a code change, reviewed.
-  3. **Suspending is not deleting, and delete is the narrow case.**
+  3. **Deleting a person never deletes their records.** An account with
+     history is deleted *with its records kept*: the confirmation lists every
+     money row first (`readAccountMoneyRecords`), a reason from
+     `DELETE_REASONS` is required (Other needs a note), and
+     `admin_mark_account_deleted()` writes the append-only `account_deletions`
+     row, clears the profile's email and phone and signs it out; the route then
+     moves the login to a `@deleted.invalid` placeholder and bans it, so the
+     real address can sign up again. The profile stays as the name every money
+     row points at, tagged **Deleted user** with an (i) showing the reason, the
+     note, who and when (`DeletedUserTag`, on the People lists and profiles).
+     If the login step fails after the mark, pressing Delete again finishes
+     it. The paragraph below is the outright delete, which still only
+     succeeds with no history at all.
+  4. **Suspending is not deleting, and delete is the narrow case.**
      `/api/admin/delete-account` exists on all four roles' screens, and it is
      a delete that can only ever succeed on an account with **no history at
      all** -- the typo'd email, the duplicate, the one created against the

@@ -1,4 +1,6 @@
 import Link from "next/link";
+import DeletedUserTag from "@/components/admin/DeletedUserTag";
+import { readAccountDeletions } from "@/lib/accountDeletionsServer";
 import CopyText from "@/components/system/CopyText";
 import ActivityTimeline from "@/components/admin/ActivityTimeline";
 import {
@@ -95,6 +97,8 @@ export default async function PatientDetailContent({ id }: { id: string }) {
   const canManageMoney = viewer !== null && scopeCanManage(viewer.scope, "money");
 
   const admin = createAdminClient();
+  // Deleted with their records kept? Started now, read beside the header.
+  const deletionRead = readAccountDeletions(admin, [id]);
 
   // Independent of each other -- run in parallel instead of one at a time.
   // See admin/dashboard/page.tsx's identical Promise.all for the reasoning.
@@ -130,6 +134,7 @@ export default async function PatientDetailContent({ id }: { id: string }) {
   if (!patient) {
     notFound();
   }
+  const deletion = (await deletionRead).get(id) ?? null;
 
   const [
     { data: rawAppointments },
@@ -421,6 +426,7 @@ export default async function PatientDetailContent({ id }: { id: string }) {
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-xl font-bold text-slate-900">{patient.full_name}</h1>
+                {deletion && <DeletedUserTag info={deletion} />}
                 {patientCodeRow?.patient_code && (
                   <span className="text-[10px] font-mono font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full">
                     {patientCodeRow.patient_code}

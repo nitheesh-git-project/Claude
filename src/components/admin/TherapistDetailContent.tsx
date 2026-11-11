@@ -1,4 +1,6 @@
 import Link from "next/link";
+import DeletedUserTag from "@/components/admin/DeletedUserTag";
+import { readAccountDeletions } from "@/lib/accountDeletionsServer";
 import ActivityTimeline from "@/components/admin/ActivityTimeline";
 import { formatClinicDate, formatClinicDateTimeWithZone } from "@/lib/formatDateTime";
 import { notFound } from "next/navigation";
@@ -78,6 +80,8 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
   const canManagePeople = viewer !== null && scopeCanManage(viewer.scope, "people");
 
   const admin = createAdminClient();
+  // Deleted with their records kept? Started now, read beside the header.
+  const deletionRead = readAccountDeletions(admin, [id]);
 
   // Independent of each other -- run in parallel instead of one at a time.
   // See admin/dashboard/page.tsx's identical Promise.all for the reasoning.
@@ -127,6 +131,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
   if (!therapist) {
     notFound();
   }
+  const deletion = (await deletionRead).get(id) ?? null;
 
   const [
     { data: note },
@@ -375,6 +380,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
                   360px phone as one unbreakable row. */}
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-xl font-bold text-slate-900">{therapist.full_name}</h1>
+                {deletion && <DeletedUserTag info={deletion} />}
                 {therapistCodeRow?.therapist_code && (
                   <span className="text-[10px] font-mono font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full">
                     {therapistCodeRow.therapist_code}
