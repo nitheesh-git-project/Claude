@@ -114,10 +114,10 @@ test("CHROME-003: the admin sidebar is the same light sidebar as the other dashb
   }
 });
 
-test("CHROME-004: /conditions lists the programmes before the areas of practice", async ({ page }) => {
+test("CHROME-004: /conditions lists the programmes before what treatment works towards", async ({ page }) => {
   await page.goto(`${BASE}/conditions`);
   const programs = page.locator("#programs");
-  const areas = page.locator("#areas");
+  const areas = page.locator("#goals");
   await expect(areas).toBeVisible();
   // Programmes only render when the catalog has some; when it does, they lead.
   if ((await programs.count()) > 0) {

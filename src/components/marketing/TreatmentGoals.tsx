@@ -152,15 +152,19 @@ export default function TreatmentGoals() {
         <div className="absolute inset-0" style={{ clipPath: `inset(0 ${(100 - pct).toFixed(2)}% 0 0)` }}>
           <Side goal={goal} side="after" />
         </div>
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0 w-[3px] -translate-x-1/2 bg-white shadow-[0_0_0_1px_rgba(15,23,42,0.08)] transition-opacity duration-300"
-          style={{ left: `${pct}%`, opacity: progress > 0 && progress < 1 ? 1 : 0 }}
-        >
-          <span className="absolute left-1/2 top-1/2 flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white text-teal-700 shadow-lg">
-            <i className="fa-solid fa-arrows-left-right text-sm" />
-          </span>
-        </div>
+        {/* The divider exists only mid-sweep: rendered hidden, it would put an
+            inline opacity:0 in the server HTML (HY-003). */}
+        {progress > 0 && progress < 1 && (
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-y-0 w-[3px] -translate-x-1/2 bg-white shadow-[0_0_0_1px_rgba(15,23,42,0.08)]"
+            style={{ left: `${pct}%` }}
+          >
+            <span className="absolute left-1/2 top-1/2 flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white text-teal-700 shadow-lg">
+              <i className="fa-solid fa-arrows-left-right text-sm" />
+            </span>
+          </div>
+        )}
         {/* In the card's corner, above both sides, so the tab row stays one
             line on a laptop. */}
         <button
