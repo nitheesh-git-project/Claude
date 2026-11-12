@@ -4732,7 +4732,8 @@
             "FIND-001",
             "FIND-002",
             "FIND-003",
-            "FIND-004"
+            "FIND-004",
+            "FIND-005"
           ],
           "level": "browser"
         }

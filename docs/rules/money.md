@@ -134,6 +134,21 @@ The revenue split and its two invariants, payouts, settlements, Business Health,
   in the drawer it opened. It is a display reading; the money modules keep
   their own fallbacks (`sessionAmount.ts`). Guard:
   `e2e/admin-session-drawer-money.spec.ts` ASD-001.
+- **Money counts on the session's date, and a screen that does so says where
+  money paid ahead went.** A patient who pays today for tomorrow is in no
+  figure on a range that ends today, and an owner reads that as a lost
+  payment. Summary and Business Health show `PaidAheadNote` under their
+  filters (`src/lib/paidAhead.ts`): what came in by the end of the range for
+  sessions dated after it, net of refunds, with a button that widens the
+  range to include them. Revenue itself does not move. Cancelled and
+  programme-covered sessions are left out.
+- **Transactions shows refunds on the payment's own row.** The Refunded
+  column and the card's refund lines come from `refundsByPayment`
+  (`src/lib/paymentRefunds.ts`), which joins the `razorpay_refunds` mirror
+  (any refund Razorpay reports, for sessions, programmes and home-visit packs)
+  with the session's own refund columns (refunds made before the mirror).
+  Both hold the same running total, so it takes the larger, never the sum.
+  If the mirror cannot be read the screen says so rather than showing dashes.
 - **The revenue split has one source and two invariants.**
   `moneyByBucketFor` (`src/lib/adminMetrics.ts`) is the only place the
   clinic's money is divided up, so the strip, the tiles and the breakdown
