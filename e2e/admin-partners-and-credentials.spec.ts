@@ -23,6 +23,9 @@ const SLOW = 240_000;
  *  a spec registers and deletes what it inserts. */
 const LEAD_NAME = "E2E Layout Lead";
 const LEAD_DETAILS = "First line of the enquiry.\nSecond line.\nThird line.";
+/** PC-003's own lead: the form opens from a lead's card, and the gate can run
+ *  PC-003 in a shard without PC-001's row, so it brings its own. */
+const ONBOARD_LEAD_NAME = "E2E Onboard Lead";
 
 async function openScreen(page: Page, section: string, tab: string) {
   await page.goto(`${BASE}/admin/dashboard?section=${section}&tab=${tab}`);
@@ -38,7 +41,7 @@ test.describe("partner surfaces and back-office credentials", () => {
   test.afterAll(async () => {
     // An afterAll rather than the end of the test, so a failed assertion still
     // cleans up.
-    await adminClient().from("b2b_leads").delete().eq("name", LEAD_NAME);
+    await adminClient().from("b2b_leads").delete().in("name", [LEAD_NAME, ONBOARD_LEAD_NAME]);
   });
 
   test("PC-001: a B2B enquiry's lines survive, under their own labels", async ({
@@ -101,23 +104,28 @@ test.describe("partner surfaces and back-office credentials", () => {
     context,
   }) => {
     test.setTimeout(SLOW);
+    // The form opens from a lead's card, so the test brings its own lead
+    // rather than relying on PC-001's or on whatever the database holds: a
+    // shard that ran PC-003 alone found none and skipped.
+    const admin = adminClient();
+    await admin.from("b2b_leads").delete().eq("name", ONBOARD_LEAD_NAME);
+    const { error } = await admin.from("b2b_leads").insert({
+      name: ONBOARD_LEAD_NAME,
+      phone: "+919000090001",
+      email: "e2e.onboard.lead@example.test",
+      source: "Hospitals",
+      org_details: "PC-003 fixture",
+    });
+    expect(error, error ? error.message : "").toBeNull();
+
     await context.addCookies(await browserCookiesFor(QA_EMAILS.admin));
     await openScreen(page, "people", "partners");
 
-    // One trigger per lead card, so it is scoped to a visible card rather than
-    // taken with `.first()` -- which on this dashboard lands on a screen behind
-    // `hidden` and then waits forever for a form nobody can see.
-    const open = page
-      .locator("li:visible")
-      .filter({ has: page.getByRole("button", { name: "Onboard as Hospital" }) })
-      .first()
-      .getByRole("button", { name: "Onboard as Hospital" });
-    const openCount = await open.count();
-    test.skip(
-      openCount === 0,
-      "no B2B lead on this screen to onboard from -- the form is opened from a lead's card"
-    );
-    await open.click();
+    // Its own card, scoped to a visible one: `.first()` across the dashboard
+    // lands on a screen behind `hidden` and waits for a form nobody can see.
+    const card = page.locator("li:visible").filter({ hasText: ONBOARD_LEAD_NAME }).last();
+    await expect(card).toBeVisible({ timeout: 60_000 });
+    await card.getByRole("button", { name: "Onboard as Hospital" }).click();
 
     const share = page.getByLabel(/revenue share/i).first();
     await expect(share).toBeVisible({ timeout: 30_000 });
