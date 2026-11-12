@@ -137,7 +137,7 @@ export const DEFAULT_SITE_NAME = "MoveRestore Physiotherapy";
 export const DEFAULT_SITE_TAGLINE = "Physiotherapy at home or by video";
 export const DEFAULT_SITE_DESCRIPTION =
   "Licensed physiotherapists, by video or at your home, helping you move well again.";
-export const DEFAULT_CONTACT_EMAIL = "hello@drpoojaphysio.com";
+export const DEFAULT_CONTACT_EMAIL = "hello@moverestorephysio.com";
 export const DEFAULT_WHATSAPP_NUMBER = "+91 XXXXX XXXXX";
 export const DEFAULT_CONTACT_PHONE = "+91 XXXXX XXXXX";
 export const DEFAULT_FOOTER_COPYRIGHT_TEXT = "MoveRestore Physiotherapy. All rights reserved.";

@@ -8,7 +8,7 @@
 
 const HONORIFICS = new Set(["dr", "dr.", "mr", "mr.", "mrs", "mrs.", "ms", "ms.", "prof", "prof."]);
 
-/** "Dr. Pooja Sharma" -> "PS"; a single name -> its first letter. */
+/** "Dr. Priya Sharma" -> "PS"; a single name -> its first letter. */
 export function initialsFor(fullName: string | null | undefined): string {
   const words = (fullName ?? "")
     .trim()

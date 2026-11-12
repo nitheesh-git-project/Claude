@@ -20853,6 +20853,19 @@ revoke all on function public.admin_mark_account_deleted(uuid, text, text, jsonb
 revoke all on function public.admin_mark_account_deleted(uuid, text, text, jsonb, uuid, text) from anon;
 revoke all on function public.admin_mark_account_deleted(uuid, text, text, jsonb, uuid, text) from authenticated;
 
+-- =============================================================================
+-- Brand: the contact email moves to the MoveRestore domain.
+-- =============================================================================
+-- Same pattern as the site-name block above: the default moves, and the
+-- singleton row moves only while it still holds the address this file
+-- shipped (hello@drpoojaphysio.com, from before the brand was chosen). An
+-- address an admin typed themselves is left alone. Re-runnable: the second
+-- run matches no row.
+alter table site_settings alter column contact_email set default 'hello@moverestorephysio.com';
+
+update site_settings set contact_email = 'hello@moverestorephysio.com'
+  where contact_email = 'hello@drpoojaphysio.com';
+
 -- ---------------------------------------------------------------------
 -- service_role's EXECUTE, written out rather than inherited.
 --

@@ -187,13 +187,13 @@ test.describe("brand splash", () => {
     await expect(page.locator(".splash-screen__brand")).toHaveText(siteName);
     await settle(page);
 
-    await setSplash({ splash_brand_line: "Pooja Physiotherapy Clinic" });
+    await setSplash({ splash_brand_line: "Riverside Physiotherapy Clinic" });
     const fresh = await page.context().browser()?.newContext();
     if (!fresh) throw new Error("no browser context");
     const overridden = await fresh.newPage();
     await overridden.goto(`${BASE}/`, { waitUntil: "domcontentloaded" });
     await expect(overridden.locator(".splash-screen__brand")).toHaveText(
-      "Pooja Physiotherapy Clinic"
+      "Riverside Physiotherapy Clinic"
     );
     await fresh.close();
     await setSplash({ splash_brand_line: "" });

@@ -30,7 +30,7 @@ OUT = ROOT / "docs" / "qa"
 DOCS = {
     "plan": {
         "src": OUT / "src",
-        "basename": "DrPoojaPhysio-E2E-Test-Plan",
+        "basename": "MoveRestore-E2E-Test-Plan",
         "title": "MoveRestore Physiotherapy - Complete Manual E2E Test Plan & Feature Guide",
         "subtitle": "Feature guide and click-by-click regression suite",
         "meta": [
@@ -43,7 +43,7 @@ DOCS = {
     },
     "audit": {
         "src": OUT / "audit-src",
-        "basename": "DrPoojaPhysio-QA-Audit-Report",
+        "basename": "MoveRestore-QA-Audit-Report",
         "title": "MoveRestore Physiotherapy - QA Audit Report",
         "subtitle": "Static verification against the manual E2E test plan, plus a product review",
         "meta": [

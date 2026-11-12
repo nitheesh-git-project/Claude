@@ -36,22 +36,22 @@ describe("contactLeakScan", () => {
   });
 
   it.each([
-    "pay me at pooja@okhdfcbank instead",
+    "pay me at priya@okhdfcbank instead",
     "send it to 9876543210@ybl",
-    "here is my link razorpay.me/@poojaphysio",
+    "here is my link razorpay.me/@priyaphysio",
     "just do a gpay next time",
     "NEFT to my account number 123456789012, IFSC HDFC0001234",
     "phonepe is easier for me",
-    "my upi id is pooja@paytm",
+    "my upi id is priya@paytm",
   ])("refuses payment details: %s", (text) => {
     expect(tier(text)).toBe("block");
   });
 
   it.each([
     "call me on 98765 43210 if it worsens",
-    "reach me at pooja dot sharma at gmail dot com",
+    "reach me at priya dot sharma at gmail dot com",
     "message me on wa.me/919876543210",
-    "my instagram.com/poojaphysio has the videos",
+    "my instagram.com/priyaphysio has the videos",
     "+91 98765-43210",
     "see https://example.com/exercises",
   ])("records but delivers: %s", (text) => {
@@ -72,17 +72,17 @@ describe("contactLeakScan", () => {
   it("reports one finding per real thing, not one per pattern", () => {
     // A UPI handle is also email-shaped and a payment link is also a URL.
     // Counting both would double every row in the admin's queue.
-    const upi = scanForContactLeaks("pay pooja@okhdfcbank");
+    const upi = scanForContactLeaks("pay priya@okhdfcbank");
     expect(upi).toHaveLength(1);
     expect(upi[0].kind).toBe("upi_handle");
 
-    const link = scanForContactLeaks("https://razorpay.me/@pooja");
+    const link = scanForContactLeaks("https://razorpay.me/@priya");
     expect(link.filter((f) => f.kind === "payment_link")).toHaveLength(1);
     expect(link.filter((f) => f.kind === "url")).toHaveLength(0);
   });
 
   it("names what it refused, so the writer can act on it", () => {
-    const msg = blockingLeakMessage(scanForContactLeaks("pooja@okhdfcbank"));
+    const msg = blockingLeakMessage(scanForContactLeaks("priya@okhdfcbank"));
     expect(msg).toContain("upi handle");
     expect(msg).toContain("through the platform");
   });

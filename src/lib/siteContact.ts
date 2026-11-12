@@ -1,1 +1,1 @@
-export const SUPPORT_EMAIL = "hello@drpoojaphysio.com";
+export const SUPPORT_EMAIL = "help@moverestorephysio.com";

@@ -84,7 +84,7 @@ type IdentifierStats = {
   firstIdentifier: string | null;
   sawDifferent: boolean;
 };
-const STATS_KEY = Symbol.for("drpooja.rateLimitIdentifierStats");
+const STATS_KEY = Symbol.for("moverestore.rateLimitIdentifierStats");
 
 function stats(): IdentifierStats {
   const holder = globalThis as unknown as Record<symbol, IdentifierStats | undefined>;

@@ -5,7 +5,7 @@
 // it ended in an ellipsis ("MoveRestore Physio...") on every page. The header
 // shows the first word below `sm` -- the brand proper -- and the full name from
 // there up. A one-word name is returned untouched, and so is a name whose first
-// word is too short to stand for it ("Dr Pooja Physio").
+// word is too short to stand for it ("Dr Priya Physio").
 export function shortBrandName(siteName: string): string {
   const name = siteName.trim();
   const words = name.split(/\s+/);
