@@ -985,6 +985,18 @@
       "integration": "local",
       "destructive": false
     },
+    "legal-pages.spec.ts": {
+      "runner": "platform",
+      "levels": [
+        "browser",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "invite-promise.spec.ts": {
       "runner": "platform",
       "levels": [
@@ -3607,6 +3619,27 @@
             "SOC-001",
             "SOC-002",
             "SOC-003"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/public-site.md"
+      ]
+    },
+    {
+      "id": "platform.legal-pages",
+      "runner": "platform",
+      "title": "The public legal pages render, the footer reaches each one, and the refund page quotes the live refund window",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "legal-pages.spec.ts",
+          "tests": [
+            "LEG-001",
+            "LEG-002",
+            "LEG-003"
           ],
           "level": "browser"
         }

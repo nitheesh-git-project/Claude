@@ -7,6 +7,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { isDashboardShellRoute, isDeveloperRoute } from "@/lib/dashboardShellRoutes";
 import { BOOK_CONNECTOR, visibleMarketingPages } from "@/lib/marketingNav";
+import { LEGAL_PAGES } from "@/lib/legal/legalDocs";
 import { digitsOnly, hasRealEmail, hasRealPhone } from "@/lib/contactLinks";
 import BrandMark from "@/components/BrandMark";
 import type { ReactNode } from "react";
@@ -198,6 +199,22 @@ export default function Footer({
         </div>
       </div>
       <div className="border-t border-slate-800 py-4 text-center text-[11px] text-slate-400">
+        {/* The legal pages, on every public page: Razorpay, the IT Rules and
+            the E-Commerce Rules all expect them one tap from anywhere. */}
+        <nav aria-label="Legal">
+          <ul className="flex flex-wrap justify-center gap-x-4 px-4">
+            {LEGAL_PAGES.map((page) => (
+              <li key={page.slug}>
+                <Link
+                  href={page.href}
+                  className="inline-flex min-h-11 items-center hover:text-teal-400 transition"
+                >
+                  {page.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
         <p>
           {/* The year is the reader's, and the cached HTML's can be last
               year's (ISR) or UTC's (the server) on New Year's morning in

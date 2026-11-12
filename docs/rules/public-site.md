@@ -784,6 +784,25 @@ Eight pages from one design system, the word budgets, why every photograph carri
   inline SVG in `BrandGlyphs.tsx`, not the fa-brands webfont, in 44px
   circles like every other footer target (`mobile-smoke` MOB-003).
 
+- **The legal pages are content in `src/lib/legal/`, rendered by one
+  layout, linked from every footer.** `/privacy`, `/terms`, `/refunds`,
+  `/cookies`, `/medical-disclaimer` and `/grievances` are listed once in
+  `LEGAL_PAGES` (`src/lib/legal/legalDocs.ts`), which the footer's Legal row
+  and each page's "other legal pages" strip both read. They are not marketing
+  pages and do not use the marketing template: no hero, photograph or
+  closing band, just the title, the "Last updated" date, a contents list and
+  the sections (`src/components/legal/LegalPage.tsx`). Three rules, guarded
+  by `legalDocs.test.ts`: the refund window and booking notice are the
+  admin's live settings (`readOnlineBookingRules()`), never typed; the
+  cookie table names only cookies and storage keys the code really sets, so
+  a new cookie means a new row; and the facts only the owner can supply
+  (legal entity, address, registration, Grievance Officer, jurisdiction) sit
+  in `src/lib/legal/legalFacts.ts` and a blank one is **left out of the
+  page, never shown as a placeholder** -- `missingLegalFacts()` lists what is
+  still blank. Bump `effectiveDate` there with every change to a policy's
+  substance. The wording is a draft for the owner's lawyer; do not present
+  it as reviewed. Guard: `e2e/legal-pages.spec.ts`.
+
 - **The header changes by width, and booking is always one tap away.** Below
   `lg` the page links are in the menu and every marketing page has a sticky
   **Book a video session** bar at the foot of the screen (`PublicBookBar`,

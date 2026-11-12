@@ -129,6 +129,11 @@ Covered by `PAT-HV-001` and `ADM-SET-013`.
 **Steps.** In DevTools → Console on `/developer/lets-talk`, post to `/api/developer/reachout` (a) with a body that is not JSON, (b) with a valid body that also carries `website: "http://spam.example"`, and (c) six valid bodies in a row from one address.
 **Expected Result.** (a) is a **400**, not a 500. (b) answers `{ "success": true }` exactly as a real submission does but **writes nothing** - no row appears on Developer messages. (c) The sixth is refused with **429** and `Retry-After`, in words with no number in them and no blame; the form tells the visitor roughly when to try again. With the credit switched off, every call answers **404**. The table cannot be written from a browser with the publishable key at all - there is no insert policy.
 
+
+#### `PUB-LEG-001` - The legal pages · P0
+**Steps.** On any public page, scroll to the footer's bottom bar and open each link in the **Legal** row: Privacy policy, Terms of use, Refunds & cancellations, Cookie policy, Medical disclaimer, Grievances. Then change **Feature Control → online cancellation refund hours** and reload `/refunds` after five minutes.
+**Expected Result.** Each page opens with its title, a "Last updated" date and an "On this page" list whose links jump to the sections. No page shows a placeholder such as `[Company name]`, `undefined` or `TODO`; a fact the owner has not supplied (legal entity, address, Grievance Officer) is simply absent. `/refunds` and `/terms` quote the refund window and booking notice as set in Feature Control, never a different figure. The Cookie policy's essential cookies match what DevTools → Application → Cookies shows for a signed-out visitor who declined analytics (plus `_ga` cookies only after accepting). Automated: `e2e/legal-pages.spec.ts`.
+
 ---
 
 ## 18. Security and authorization test plan

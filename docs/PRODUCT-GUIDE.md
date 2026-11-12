@@ -497,6 +497,12 @@ admin action.
 `/mission`, `/hospitals`, `/faq`, `/get-started`, `/book`, `/home-visit`,
 `/book-home-visit`.
 
+**Legal (public):** `/privacy`, `/terms`, `/refunds`, `/cookies`,
+`/medical-disclaimer`, `/grievances` - linked from the footer's Legal row on
+every public page. Content in `src/lib/legal/legalDocs.ts`; the owner-only
+facts (legal entity, Grievance Officer, jurisdiction) in
+`src/lib/legal/legalFacts.ts` must be filled before launch.
+
 **Developer credit (public, deliberately not a marketing page):** `/developer`
 ("Say hello!") and `/developer/lets-talk` (the contact form), reached only by
 the "Contact me" link in the credit line under the footer's copyright. Both
