@@ -215,20 +215,71 @@ Eight pages from one design system, the word budgets, why every photograph carri
   saying the least: a picture of a patient exercising at home cannot
   distinguish back pain from knee pain, so all six said the same sentence and
   filled most of each card. Stripping the photography out fixed the density
-  and threw away what makes this site legible at a glance. `CareAreaShowcase`
+  and threw away what makes this site legible at a glance. `CareAreaShowcase` (since replaced; see the next rule)
   does neither - photograph left, the answer right, the other five one tap
   away and costing no vertical space. Because only one panel is on screen, the
   copy can be a real answer (`detail` plus three `checks` in `careAreas.ts`)
   rather than the six words a card could fit. Reach for this shape whenever a
   grid's images would be interchangeable; reach for a grid when they would
-  not.
+  not. Because no photograph can show *where* it hurts (a person in pain
+  breaks the "glad to be there" rule), the area is drawn instead. Each tile
+  in the picker, which sits above the photograph, shows a small `BodyFocus`
+  figure with its area lit (`CareArea.body`), and a card on the photograph
+  repeats it. There the area glows ("Where it hurts"), then cools to teal
+  ("What we work on"), replayed on each pick. It names an area, never a
+  structure.
+- **A hero's figures sit on one line.** `PageHero` draws its stats as one
+  strip of equal cells (`HeroStats`). Each cell is a reversed flex column, so
+  it needs `justify-end`: without it the column stacked from the bottom, and a
+  label that wrapped lifted its own value above the others (the "price, time
+  and rating not in a straight line" report). Labels stay short enough not to
+  wrap at 360px ("Each session", "Starting price", "N ratings"). From lg the
+  strip closes the copy column, and the photograph keeps its own landscape
+  shape, centred against it. A stretched crop lost the laptop, which every
+  photo here must show. On a phone the order is words, photograph, figures.
+  The short phone band anchors its crop low (`object-[50%_68%]`) so the
+  screen stays in frame.
+- **The home page's programme cards are the compact ones.** `ProgramCards
+  compact` gives `CatalogCard` a two-line summary, no bullet points (they are
+  in "View full details"), and the length and price on one line at the
+  card's foot, so a row of cards ends on one baseline. `/conditions` keeps
+  the full card.
+- **The header and the sticky bar never cut a word off.** The header keeps
+  the full brand name and tagline at every width (see the header rule
+  below); from 1024 to 1279px Our team moves into More to make room, where
+  the name used to be truncated ("MoveResto..."). Below 420px the phone's
+  booking bar drops its two lines of text (they could only read "Video or a
+  visit a...") and the button takes the width.
+- **"What treatment works towards" replaced "Find what hurts", on `/` and
+  `/conditions`.** `TreatmentGoals` shows one kind of care at a time as a
+  before and after. A divider sweeps across the card: the first visit (grey
+  photo, rose figure, three things that are hard today) becomes the goal
+  (colour, teal figure, three goals and the goal in the patient's words). The
+  six kinds of care are the five health profiles plus desk and posture care,
+  in `src/lib/treatmentGoals.ts`. Four rules hold it:
+  1. **Goals, never promises.** Every story is a made-up sample patient,
+     named as one, with "Typical goals; results vary with every person."
+     beside it. The headline figures equal the health-profile samples'
+     (`treatmentGoals.test.ts`), and the words are tested for promises
+     ("cure", "guarantee", "pain-free").
+  2. **It never advances on its own.** The sweep plays once when the band
+     comes into view and again when a kind of care is picked. "Play all six"
+     walks through every one, but only when tapped. Under reduced motion the
+     goal side shows at once.
+  3. **Its photographs show the care, not a screen**: the one exception to
+     the screen rule above, because what changes here is the body. There is
+     one photograph per kind of care (`goal-*` in `marketingPhotos.ts`, free
+     Pexels licence), each with a `focus` so a phone crop stays on the person.
+  4. **Its tablist is "Goals by kind of care"**, distinct from the recovery
+     story's "Kinds of care" and the walkthrough's "How the process works".
+  Guards: `e2e/treatment-goals.spec.ts` TG-001..003.
 - **A carousel that moves on its own is a carousel nobody can read.**
-  `CareAreaShowcase` never advances by itself: the home page already carries
+  `TreatmentGoals` (and `CareAreaShowcase` before it) never advances by itself: the home page already carries
   the auto-rotating `JourneySteps`, and a second thing moving while you read
   the first is worse than either alone. Swipe, the arrow buttons and the
   picker all go through one `select()` so they cannot disagree about what is
   showing, and the picker is a real tablist with roving focus and arrow keys.
-  Its `aria-label` is "Areas of practice" and must stay distinct from
+  Its `aria-label` is "Goals by kind of care" and must stay distinct from
   JourneySteps' "How the process works" - `e2e/journey-pace.spec.ts` finds
   that widget by its label, and two tablists sharing a name makes both
   unfindable.
@@ -245,6 +296,15 @@ Eight pages from one design system, the word budgets, why every photograph carri
   than half a laptop screen and holds the centre - the last section still on
   screen (`src/lib/sectionNavActive.ts`).
 
+- **A public page opens at its very top, and the arrow brings you back up.**
+  Next 16 no longer turns off `scroll-behavior: smooth` while it navigates,
+  and it scrolls the new *segment* into view, which is under the 106px
+  header: a tab tapped from the footer glided for two seconds and stopped
+  short. `<html data-scroll-behavior="smooth">` restores Next's override and
+  `ScrollTopOnNavigate` sets the window to 0 after each public navigation
+  (not on a page load or Back, and not for a `#` link). `ScrollHint` hops
+  while there is more below and, at the foot of the page, turns into "Back
+  to top". Guards: `e2e/section-nav.spec.ts` SN-003 and SN-008.
 - **Every catalog card has a cover slot, and one component owns the empty
   state.** Programmes, session packages and home-visit packages are all
   admin-created rows with a nullable `image_url`, so all three need an answer
@@ -556,11 +616,21 @@ Eight pages from one design system, the word budgets, why every photograph carri
   profile has drawn at that width, so the page below does not move. On
   `/how-it-works` it sits above the five-step strip (profile, goal and
   milestones, scores after each session, reviews, the PDF record). **The home
-  page does not carry the tour**: `HealthProfileTeaser` (a Server Component)
-  shows the first enabled profile's headline change - one sample patient's
-  first-visit-to-latest figure, labelled as a sample - and a link to
-  `/how-it-works#health-profile`. The tour was a long, heavy band between
-  "how it works" and the programmes a phone visitor came to price.
+  page does not carry the tour**: it tells one recovery story at a time
+  (`RecoveryGist`, `recovery/RecoveryStory`). The sample's drawn figure
+  (`BodyFocus`) glows rose where it hurts and cools to teal, the headline
+  figure counts from the first visit to the latest review, the bar refills,
+  four review dots light in turn, and the tools that profile uses
+  (`ShowcaseProfile.tools`) arrive one by one. `meter` is the headline as
+  numbers, and `healthProfileShowcase.test.ts` holds it to the printed
+  headline. It plays when it comes into view and when a kind of care is
+  picked, and **never rotates on its own**. "See the full health profile"
+  opens a sheet (`RecoveryTourSheet`) with every enabled kind of care, each
+  with its story, what it watches and its tools. The sheet ends on the
+  unlock: your own profile opens with your first booking (Book a video
+  session), and the real screens are at `/how-it-works#health-profile`.
+  Every story carries the sample note. The wording says what a profile
+  shows, never what treatment will achieve. Guards: HPS-003 and HPS-004.
   **It is the one public widget that moves on its own**, every five seconds,
   which the carousel rule below otherwise forbids, so the movement is held
   to the reader: only while its frame is at least half on screen - or fills
@@ -724,8 +794,10 @@ Eight pages from one design system, the word budgets, why every photograph carri
   is **no Get Started in the header**: that hub is a switchboard (patient,
   therapist, hospital sign-ins), so the phone menu's one primary button is
   Book a video session and the hub's other doors live in the footer under
-  "For clinicians and partners". Below `sm` the brand is the short name
-  ("MoveRestore", `shortBrandName`) with no tagline so it fits whole. Menu rows
+  "For clinicians and partners". The brand is the **full name with its tagline at
+  every width**, never the short name and never an ellipsis: on a phone the name
+  scales with the screen (15px at 360px), and from 1024 to 1279px it is 16px,
+  the bar's gaps tighten and Our team steps into More (`LAPTOP_MORE_KEYS`). Menu rows
   and footer links are 44px targets. The WhatsApp / Call chip in the menu and
   the icon beside the sticky bar's Book button exist only for numbers an admin
   has filled in (`contactLinks.ts`; the shipped "+91 XXXXX XXXXX" is not one),
@@ -847,6 +919,15 @@ Eight pages from one design system, the word budgets, why every photograph carri
   Analytics calls never throw and never wait: a blocked script must not break
   checkout.
 - GA is for funnels. Revenue, utilisation and no-shows come from Supabase.
+- **The consent card asks once, then rests for 7 days if it is ignored.**
+  Ignoring it is not a "no", but showing it in every new tab was nagging.
+  When the card is shown to someone who has not answered, `noteConsentAsked`
+  stores the time (`mr_analytics_asked_at`, localStorage) and marks the tab
+  (sessionStorage). That tab keeps the card on later pages; every other tab
+  stays quiet until `CONSENT_REST_MS` (7 days) has passed, then it asks once
+  more (`shouldAskForConsent`, unit-tested). A Yes or Not now is kept for
+  good, and the footer link reopens the card at any time. Guard:
+  `e2e/analytics-consent.spec.ts` AC-007.
 - **The footer's "Analytics settings" works before the page has hydrated.** It
   is a link to `#analytics-settings` (`ANALYTICS_SETTINGS_HASH`), not a
   button: a tap that lands before React has attached its click handler still

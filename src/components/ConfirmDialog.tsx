@@ -33,8 +33,12 @@ export default function ConfirmDialog({
   });
   return (
     <OverlayPortal>
+      {/* z-[80]: a confirmation is always the top layer. It is asked from
+          inside other overlays too (the notebook is z-[70]), and at z-50 it
+          opened *behind* the notebook: the screen dimmed and the question
+          was hidden. Still under the session-timeout warning (z-[100]). */}
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4"
+        className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4"
         onClick={onCancel}
       >
         <div

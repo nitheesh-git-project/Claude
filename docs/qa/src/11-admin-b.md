@@ -52,7 +52,7 @@ Every setting below is read through one shared settings module with defaults. **
 **Steps.** Set the walkthrough seconds to `2`. Open `/` and watch the "How the process works" widget. Then set it to `0`.
 **Expected Result.** At `2`, each step holds ~2 seconds before the next takes over. At **`0` it does not advance on its own** - the same "0 is off" convention used by the session timeout. Values over 300 are refused (`Keep this to 300 seconds or less.`).
 **Accessibility interaction:** a visitor with **reduced motion** requested must not be subjected to auto-rotation.
-**Do not confuse this widget with the care-area showcase**, which **never advances by itself** - a second moving thing while you read the first is worse than either alone. Their `aria-label`s must stay distinct: "How the process works" vs "Areas of practice".
+**Do not confuse this widget with "What treatment works towards"**, which **never advances by itself** - a second moving thing while you read the first is worse than either alone. Their `aria-label`s must stay distinct: "How the process works" vs "Goals by kind of care".
 
 #### `ADM-SET-036` - Mission & Vision · P1
 **Steps.** On Settings → Public Site → **Mission & Vision**, replace the mission with `Seen properly, wherever you are.` and save. Open `/` and `/mission` **immediately** - do not wait five minutes. Then clear the mission box entirely and save again.

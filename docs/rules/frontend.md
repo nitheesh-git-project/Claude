@@ -404,6 +404,12 @@ Dates in the clinic's zone, voice, no browser default ever speaking to a person,
   name comes from `painMapPointLabel()`. A figure carrying controls is a
   labelled `role="group"`, never `role="img"`; decoration inside it is
   `aria-hidden`.
+- **A confirmation is the top layer: `ConfirmDialog` sits at `z-[80]`.** It is
+  asked from inside other overlays, and at `z-50` the notebook's "Delete this
+  page?" opened behind the notebook (`z-[70]`): the screen dimmed and the
+  question could not be seen. Only the session-timeout warning (`z-[100]`),
+  the tutorial and toasts sit above it. A new overlay above `z-[70]` must
+  stay under `z-[80]`.
 - **A dialog opened by a tap uses `useDialogChrome`** (`src/lib/`), which is
   the one implementation of the contract: `role`, `aria-modal`, focus moved
   in on open and restored on close, Escape, a Tab trap and the scroll lock.

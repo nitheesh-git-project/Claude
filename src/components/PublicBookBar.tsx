@@ -59,7 +59,10 @@ export default function PublicBookBar({
         data-tabbar=""
         className="fixed inset-x-0 bottom-0 z-30 flex items-center gap-3 border-t border-slate-200 bg-white/95 px-4 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3 backdrop-blur lg:hidden print:hidden"
       >
-        <div className="min-w-0 flex-1">
+        {/* Under 420px the two lines could only show "Video or a visit a..."
+            beside the buttons, so they step aside and the button takes the
+            width: a cut-off sentence is worse than none. */}
+        <div className="hidden min-w-0 flex-1 min-[420px]:block">
           <p className="truncate text-xs text-slate-600">
             {homeVisitEnabled ? "Video, or a visit at home" : "Over video, wherever you are"}
           </p>
@@ -77,7 +80,7 @@ export default function PublicBookBar({
         )}
         <Link
           href={action.href}
-          className="inline-flex h-12 shrink-0 items-center justify-center rounded-xl bg-teal-700 px-4 text-sm font-bold text-white shadow-sm transition hover:bg-teal-800"
+          className="inline-flex h-12 flex-1 shrink-0 items-center justify-center rounded-xl bg-teal-700 px-4 text-sm font-bold text-white shadow-sm transition hover:bg-teal-800 min-[420px]:flex-none"
         >
           {action.label}
         </Link>

@@ -39,7 +39,7 @@ export default async function DeveloperPage() {
               href="/developer/lets-talk"
               className="mt-8 inline-flex items-center rounded-full border-2 border-slate-800 px-7 py-3 text-sm font-bold text-slate-900 transition hover:bg-slate-900 hover:text-white"
             >
-              Say hey!
+              Tap to say hey
             </Link>
           </div>
         </div>

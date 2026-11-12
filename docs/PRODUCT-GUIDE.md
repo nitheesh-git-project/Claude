@@ -2950,7 +2950,7 @@ having its own layout:
 | `IconCard` | One fact: tinted icon, short title, one line. |
 | `ExploreGrid` / `ExploreSection` | The site's index as photographs. |
 | `CatalogImage` | The cover slot on a programme or package card - the admin's photo when set, one shared tinted placeholder when not. |
-| `CareAreaShowcase` | The six areas of practice, one at a time: photograph left, explanation right. Swipe, arrows or the name picker; never moves on its own. |
+| `TreatmentGoals` | What treatment works towards, for six kinds of care, one at a time: a sweep from the first visit to the goal (sample patients, "results vary"). Tabs, or Play all six; never advances by itself. Replaced `CareAreaShowcase`; never moves on its own. |
 | `Testimonials` | Patient quotes with portraits, shared by Home and `/mission`. |
 | `ClosingCta` | Every page ends the same way: one sentence, one action. |
 

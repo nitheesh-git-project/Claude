@@ -111,7 +111,16 @@ export default function CatalogCard({
   onSelect,
   selected = false,
   selectLabel,
+  compact = false,
 }: (LinkMode | SelectMode) & {
+  /**
+   * The home page's version: a two-line summary, no bullet points (they are
+   * in the detail dialog), and the length and price on one line at the foot,
+   * so every card in the row ends on the same baseline. The home page is the
+   * one place a visitor scans several at once, and the full card there was
+   * the page's densest block of text.
+   */
+  compact?: boolean;
   /**
    * Opens the detail dialog. Optional: the patient's booking screen has the
    * wizard one tap away and no dialog of its own, and a "View full details"
@@ -199,10 +208,12 @@ export default function CatalogCard({
           </h3>
         )}
         {data.summary && (
-          <p className="mt-1 text-[15px] leading-relaxed text-slate-600">{data.summary}</p>
+          <p className={`mt-1 text-[15px] leading-relaxed text-slate-600 ${compact ? "line-clamp-2" : ""}`}>
+            {data.summary}
+          </p>
         )}
 
-        {meta.length > 0 && (
+        {!compact && meta.length > 0 && (
           <div className="mt-2.5 flex flex-wrap gap-1.5">
             {meta.map((m) => (
               <span
@@ -215,7 +226,7 @@ export default function CatalogCard({
           </div>
         )}
 
-        {points.length > 0 && (
+        {!compact && points.length > 0 && (
           <ul className="mt-3 grid grid-cols-2 gap-x-2.5 gap-y-1.5 border-t border-slate-100 pt-3">
             {points.map((pt) => (
               <li key={pt} className="flex min-w-0 items-start gap-1.5 text-[13px] leading-snug text-slate-600">
@@ -227,6 +238,17 @@ export default function CatalogCard({
           </ul>
         )}
 
+        {compact ? (
+          <div className="mt-auto flex items-center justify-between gap-3 border-t border-slate-100 pt-3.5">
+            <span className="flex min-w-0 items-center gap-1.5 truncate text-sm font-medium text-slate-600">
+              <i aria-hidden className="fa-solid fa-clock text-xs text-teal-600" />
+              {meta.join(" · ")}
+            </span>
+            <span className="font-display shrink-0 text-lg font-bold text-slate-900">
+              {data.rupeesOnly ? rupees(data.pricePaise) : <Price paise={data.pricePaise} />}
+            </span>
+          </div>
+        ) : (
         <div className="mt-auto flex flex-wrap items-baseline gap-x-1.5 gap-y-1 pt-3.5">
           <span className="font-display text-lg font-bold text-slate-900">
             {data.rupeesOnly ? rupees(data.pricePaise) : <Price paise={data.pricePaise} />}
@@ -248,6 +270,7 @@ export default function CatalogCard({
           )}
           <span className="text-xs text-slate-600">{data.priceUnit}</span>
         </div>
+        )}
       </div>
 
       <div className="flex flex-col gap-1.5 px-2 pb-1.5 pt-3">

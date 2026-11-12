@@ -342,3 +342,26 @@ describe("showcaseFrameInView", () => {
     expect(showcaseFrameInView(Number.NaN, 600, 900)).toBe(false);
   });
 });
+
+describe("the animated meter and the tools", () => {
+  it("draws each meter from and to exactly the figures its headline prints", async () => {
+    const { SHOWCASE_PROFILES, formatMeterValue } = await import("./healthProfileShowcase");
+    for (const p of SHOWCASE_PROFILES) {
+      expect(formatMeterValue(p.meter, p.meter.from), p.specialty).toBe(p.headline.from);
+      expect(formatMeterValue(p.meter, p.meter.to), p.specialty).toBe(p.headline.to);
+      expect(p.meter.from).toBeLessThanOrEqual(p.meter.max);
+      expect(p.meter.to).toBeLessThanOrEqual(p.meter.max);
+      // "Better" is the direction the headline moves.
+      expect(p.meter.lowerIsBetter ? p.meter.to < p.meter.from : p.meter.to > p.meter.from, p.specialty).toBe(true);
+    }
+  });
+
+  it("lists three or four tools per profile, each named once", async () => {
+    const { SHOWCASE_PROFILES } = await import("./healthProfileShowcase");
+    for (const p of SHOWCASE_PROFILES) {
+      expect(p.tools.length, p.specialty).toBeGreaterThanOrEqual(3);
+      expect(p.tools.length, p.specialty).toBeLessThanOrEqual(4);
+      expect(new Set(p.tools.map((t) => t.label)).size).toBe(p.tools.length);
+    }
+  });
+});

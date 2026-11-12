@@ -1394,6 +1394,17 @@
       "integration": "local",
       "destructive": false
     },
+    "treatment-goals.spec.ts": {
+      "runner": "platform",
+      "levels": [
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "health-profile-showcase.spec.ts": {
       "runner": "platform",
       "levels": [
@@ -3376,7 +3387,8 @@
             "SN-004",
             "SN-005",
             "SN-006",
-            "SN-007"
+            "SN-007",
+            "SN-008"
           ],
           "level": "browser"
         },
@@ -3393,7 +3405,18 @@
           "spec": "health-profile-showcase.spec.ts",
           "tests": [
             "HPS-001",
-            "HPS-002"
+            "HPS-002",
+            "HPS-003",
+            "HPS-004"
+          ],
+          "level": "browser"
+        },
+        {
+          "spec": "treatment-goals.spec.ts",
+          "tests": [
+            "TG-001",
+            "TG-002",
+            "TG-003"
           ],
           "level": "browser"
         }
@@ -4618,7 +4641,8 @@
             "AC-003",
             "AC-004",
             "AC-005",
-            "AC-006"
+            "AC-006",
+            "AC-007"
           ],
           "level": "browser"
         }

@@ -15,7 +15,7 @@ import Section from "@/components/marketing/Section";
 import SplitFeature from "@/components/marketing/SplitFeature";
 import ExploreGrid from "@/components/marketing/ExploreGrid";
 import MissionPreview from "@/components/marketing/MissionPreview";
-import HealthProfileTeaser from "@/components/marketing/HealthProfileTeaser";
+import RecoveryGist from "@/components/marketing/recovery/RecoveryGist";
 import WhatsAppAsk from "@/components/marketing/WhatsAppAsk";
 import { enabledShowcaseProfiles } from "@/lib/healthProfileShowcase";
 import {
@@ -39,7 +39,7 @@ import Testimonials, {
 } from "@/components/marketing/Testimonials";
 import ClosingCta from "@/components/marketing/ClosingCta";
 import { homeConnectors } from "@/lib/marketingNav";
-import CareAreaShowcase from "@/components/marketing/CareAreaShowcase";
+import TreatmentGoals from "@/components/marketing/TreatmentGoals";
 import Price from "@/components/pricing/Price";
 import {
   closingSessionLine,
@@ -234,7 +234,7 @@ export default async function Home() {
     ...(showcaseProfiles.length > 0
       ? [{ id: "health-profile", label: "Your Health Profile", icon: "fa-notes-medical" }]
       : []),
-    { id: "what-we-treat", label: "What We Treat", icon: "fa-bone" },
+    { id: "goals", label: "Treatment Goals", icon: "fa-bullseye" },
     ...(testimonials.length > 0
       ? [{ id: "reviews", label: "Reviews", icon: "fa-star" }]
       : []),
@@ -317,17 +317,17 @@ export default async function Home() {
           // The catalogue's own length (a range when categories differ),
           // and no figure at all when none is known -- never a fixed one.
           ...(sessionLength
-            ? [{ value: sessionLength, label: "One-to-one assessment" }]
+            ? [{ value: sessionLength, label: "Each session" }]
             : []),
           {
             value: <Price paise={startingPricePaise} />,
-            label: "Starting per session",
+            label: "Starting price",
           },
           ...(hasRealRatings
             ? [
                 {
                   value: `★ ${Number(ratingSummary.avg_rating).toFixed(1)}`,
-                  label: `From ${ratingSummary.rating_count} sessions`,
+                  label: `${ratingSummary.rating_count} ratings`,
                 },
               ]
             : []),
@@ -415,7 +415,7 @@ export default async function Home() {
           title="What you can book today"
           lede={programmesLede(categories)}
         >
-          <ProgramCards programs={programs} />
+          <ProgramCards programs={programs} compact />
           {/* Only when there is genuinely more to see: a button opening a
               list identical to the one above it is a dead end with a label
               on it. /conditions is unchanged and still shows everything. */}
@@ -448,31 +448,33 @@ export default async function Home() {
         </Reveal>
       </Section>
 
-      {/* One sample patient's headline change and a link to the full tour on
-          /how-it-works. The tabs, graph and milestone cards stay there: on the
-          home page they were a long, heavy band between "how it works" and the
-          programmes a visitor came to price. */}
+      {/* One recovery story at a time (RecoveryGist): the sample patient's
+          sore spot cooling, their headline figure counting from the first
+          visit to the latest, and the tools that profile uses. Every kind of
+          care is one tap away, and the full set opens in a sheet that ends
+          on booking. The real graph and milestone cards stay on
+          /how-it-works. */}
       {showcaseProfiles.length > 0 && (
         <Section
           id="health-profile"
           tone={bandTone("health-profile")}
           eyebrow="Your recovery, tracked"
-          title="See every step of your recovery"
+          title="Watch sore turn into better"
         >
-          <HealthProfileTeaser profile={showcaseProfiles[0]} />
+          <RecoveryGist profiles={showcaseProfiles} />
         </Section>
       )}
 
-      {/* Breadth of care, as photographs. The old version of this band was
-          six paragraphs of prose, which is exactly the density the redesign
-          exists to remove. */}
+      {/* What treatment works towards, one kind of care at a time: a sweep
+          from the first visit to the goal (TreatmentGoals). It replaced
+          "Find what hurts", which named areas without showing what changes. */}
       <Section
-        id="what-we-treat"
-        tone={bandTone("what-we-treat")}
-        eyebrow="What we treat"
-        title="Find what hurts"
+        id="goals"
+        tone={bandTone("goals")}
+        eyebrow="What treatment works towards"
+        title="From your first visit to your goal"
       >
-        <CareAreaShowcase href="/book" ctaLabel="Book a video session" />
+        <TreatmentGoals />
       </Section>
 
       {testimonials.length > 0 && (
