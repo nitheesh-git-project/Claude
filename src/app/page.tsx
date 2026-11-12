@@ -39,7 +39,7 @@ import Testimonials, {
 } from "@/components/marketing/Testimonials";
 import ClosingCta from "@/components/marketing/ClosingCta";
 import { homeConnectors } from "@/lib/marketingNav";
-import CareAreaShowcase from "@/components/marketing/CareAreaShowcase";
+import TreatmentGoals from "@/components/marketing/TreatmentGoals";
 import Price from "@/components/pricing/Price";
 import {
   closingSessionLine,
@@ -234,7 +234,7 @@ export default async function Home() {
     ...(showcaseProfiles.length > 0
       ? [{ id: "health-profile", label: "Your Health Profile", icon: "fa-notes-medical" }]
       : []),
-    { id: "what-we-treat", label: "What We Treat", icon: "fa-bone" },
+    { id: "goals", label: "Treatment Goals", icon: "fa-bullseye" },
     ...(testimonials.length > 0
       ? [{ id: "reviews", label: "Reviews", icon: "fa-star" }]
       : []),
@@ -465,16 +465,16 @@ export default async function Home() {
         </Section>
       )}
 
-      {/* Breadth of care, as photographs. The old version of this band was
-          six paragraphs of prose, which is exactly the density the redesign
-          exists to remove. */}
+      {/* What treatment works towards, one kind of care at a time: a sweep
+          from the first visit to the goal (TreatmentGoals). It replaced
+          "Find what hurts", which named areas without showing what changes. */}
       <Section
-        id="what-we-treat"
-        tone={bandTone("what-we-treat")}
-        eyebrow="What we treat"
-        title="Find what hurts"
+        id="goals"
+        tone={bandTone("goals")}
+        eyebrow="What treatment works towards"
+        title="From your first visit to your goal"
       >
-        <CareAreaShowcase href="/book" ctaLabel="Book a video session" />
+        <TreatmentGoals />
       </Section>
 
       {testimonials.length > 0 && (

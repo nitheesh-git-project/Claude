@@ -215,7 +215,7 @@ Eight pages from one design system, the word budgets, why every photograph carri
   saying the least: a picture of a patient exercising at home cannot
   distinguish back pain from knee pain, so all six said the same sentence and
   filled most of each card. Stripping the photography out fixed the density
-  and threw away what makes this site legible at a glance. `CareAreaShowcase`
+  and threw away what makes this site legible at a glance. `CareAreaShowcase` (since replaced; see the next rule)
   does neither - photograph left, the answer right, the other five one tap
   away and costing no vertical space. Because only one panel is on screen, the
   copy can be a real answer (`detail` plus three `checks` in `careAreas.ts`)
@@ -250,13 +250,36 @@ Eight pages from one design system, the word budgets, why every photograph carri
   the name used to be truncated ("MoveResto..."). Below 420px the phone's
   booking bar drops its two lines of text (they could only read "Video or a
   visit a...") and the button takes the width.
+- **"What treatment works towards" replaced "Find what hurts", on `/` and
+  `/conditions`.** `TreatmentGoals` shows one kind of care at a time as a
+  before and after. A divider sweeps across the card: the first visit (grey
+  photo, rose figure, three things that are hard today) becomes the goal
+  (colour, teal figure, three goals and the goal in the patient's words). The
+  six kinds of care are the five health profiles plus desk and posture care,
+  in `src/lib/treatmentGoals.ts`. Four rules hold it:
+  1. **Goals, never promises.** Every story is a made-up sample patient,
+     named as one, with "Typical goals; results vary with every person."
+     beside it. The headline figures equal the health-profile samples'
+     (`treatmentGoals.test.ts`), and the words are tested for promises
+     ("cure", "guarantee", "pain-free").
+  2. **It never advances on its own.** The sweep plays once when the band
+     comes into view and again when a kind of care is picked. "Play all six"
+     walks through every one, but only when tapped. Under reduced motion the
+     goal side shows at once.
+  3. **Its photographs show the care, not a screen**: the one exception to
+     the screen rule above, because what changes here is the body. There is
+     one photograph per kind of care (`goal-*` in `marketingPhotos.ts`, free
+     Pexels licence), each with a `focus` so a phone crop stays on the person.
+  4. **Its tablist is "Goals by kind of care"**, distinct from the recovery
+     story's "Kinds of care" and the walkthrough's "How the process works".
+  Guards: `e2e/treatment-goals.spec.ts` TG-001..003.
 - **A carousel that moves on its own is a carousel nobody can read.**
-  `CareAreaShowcase` never advances by itself: the home page already carries
+  `TreatmentGoals` (and `CareAreaShowcase` before it) never advances by itself: the home page already carries
   the auto-rotating `JourneySteps`, and a second thing moving while you read
   the first is worse than either alone. Swipe, the arrow buttons and the
   picker all go through one `select()` so they cannot disagree about what is
   showing, and the picker is a real tablist with roving focus and arrow keys.
-  Its `aria-label` is "Areas of practice" and must stay distinct from
+  Its `aria-label` is "Goals by kind of care" and must stay distinct from
   JourneySteps' "How the process works" - `e2e/journey-pace.spec.ts` finds
   that widget by its label, and two tablists sharing a name makes both
   unfindable.

@@ -219,7 +219,7 @@
 **Expected Result.** A validation failure moves focus to or announces the message, and the message is visible without scrolling on a 390-wide screen.
 
 #### `UX-A11Y-005` - Two tablists must not share a name · P2
-**Expected Result.** The care-area picker is "Areas of practice"; the walkthrough is "How the process works". **Two tablists sharing a name makes both unfindable.**
+**Expected Result.** "What treatment works towards" is "Goals by kind of care", the recovery story is "Kinds of care" and the walkthrough is "How the process works". **Two tablists sharing a name makes both unfindable.**
 
 #### `UX-A11Y-006` - Reduced motion · P1
 **Steps.** Enable "reduce motion" in the OS, then load `/`.

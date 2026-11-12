@@ -1394,6 +1394,17 @@
       "integration": "local",
       "destructive": false
     },
+    "treatment-goals.spec.ts": {
+      "runner": "platform",
+      "levels": [
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "health-profile-showcase.spec.ts": {
       "runner": "platform",
       "levels": [
@@ -3397,6 +3408,15 @@
             "HPS-002",
             "HPS-003",
             "HPS-004"
+          ],
+          "level": "browser"
+        },
+        {
+          "spec": "treatment-goals.spec.ts",
+          "tests": [
+            "TG-001",
+            "TG-002",
+            "TG-003"
           ],
           "level": "browser"
         }

@@ -162,7 +162,8 @@ total, which moves with every spec added.
 | `booking-exit-link` | 2 | the way out of the wizard following the account - and never offering `/pending-approval` mid-booking |
 | `checkout-speed` | 5 | create answering with the quote and the Razorpay order in one trip, and the tap-to-sheet timing route |
 | `service-picker` | 12 | the service chosen before the slot, on both wizards; the home-visit wizard picking a condition (one visit, no count) and a `?category=` link landing on it; Step 2's consent terms readable in a dialog that names the chosen service |
-| `health-profile-showcase` | 3 | the Health Profile of each enabled condition type drawn from sample data (headline, graph with goal band, milestone cards reached / working on / planned), labelled as a sample, that moves on by itself every five seconds and stops for good once a tab is picked (on `/how-it-works`; the home page carries only the headline-change teaser) |
+| `health-profile-showcase` | 4 | the Health Profile of each enabled condition type drawn from sample data (headline, graph with goal band, milestone cards reached / working on / planned), labelled as a sample, that moves on by itself every five seconds and stops for good once a tab is picked (on `/how-it-works`); the home page's recovery story, one kind of care at a time and never rotating, and its sheet that ends on booking |
+| `treatment-goals` | 3 | "What treatment works towards" on `/` and `/conditions`: the sweep from first visit to goal with the sample note, a picked kind of care that stays picked, Play all six, no sideways scroll at 360px, and the goal shown at once under reduced motion |
 | `date-field` | 6 | the clinic's own month grid in place of the browser's panel, including a past date, and Today bringing the grid back to this month |
 | `form-validation-chrome` | 2 | the app's own message in place of the OS tooltip |
 | `numeric-input` | 1 | a number box refusing `e`, `E` and `+` |

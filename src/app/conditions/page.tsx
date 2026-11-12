@@ -6,7 +6,7 @@ import PageHero from "@/components/marketing/PageHero";
 import Section from "@/components/marketing/Section";
 import ExploreSection from "@/components/marketing/ExploreSection";
 import ClosingCta from "@/components/marketing/ClosingCta";
-import CareAreaShowcase from "@/components/marketing/CareAreaShowcase";
+import TreatmentGoals from "@/components/marketing/TreatmentGoals";
 import { readHomeVisitBookable } from "@/lib/homeVisitFlag";
 import { programmesLede } from "@/lib/sessionLengthCopy";
 
@@ -84,7 +84,7 @@ export default async function ConditionsPage() {
   // dead pill and a skipped stop for the scroll arrow. Order matches the DOM.
   const sectionNavItems: SectionNavItem[] = [
     ...(rows.length > 0 ? [{ id: "programs", label: "Programs", icon: "fa-clipboard-list" }] : []),
-    { id: "areas", label: "What We Treat", icon: "fa-bone" },
+    { id: "goals", label: "Treatment Goals", icon: "fa-bullseye" },
     { id: "explore", label: "Explore the Site", icon: "fa-compass" },
     { id: "not-sure", label: "Not Sure?", icon: "fa-circle-question" },
   ];
@@ -117,18 +117,15 @@ export default async function ConditionsPage() {
         </Section>
       )}
 
-      {/* The breadth of practice, below what can be booked. The owner's
-          order: the programmes a visitor can book today come first, and the
-          areas below them answer "what if mine is not one of those" -- the
-          case that, when the page held programmes alone, read as "we do not
-          treat it". */}
+      {/* Below what can be booked: what treatment works towards for each
+          kind of care (TreatmentGoals), which replaced the areas-of-practice
+          picker on this page and the home page. */}
       <Section
-        id="areas"
-        eyebrow="Areas of practice"
-        title="Where we can help"
-        lede="Whichever fits, the first step is the same."
+        id="goals"
+        eyebrow="What treatment works towards"
+        title="From your first visit to your goal"
       >
-        <CareAreaShowcase href="/book" ctaLabel="Book a video session" />
+        <TreatmentGoals />
       </Section>
 
       <ExploreSection current="conditions" homeVisitEnabled={homeVisitEnabled} />
