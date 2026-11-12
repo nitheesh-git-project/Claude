@@ -12,6 +12,8 @@ Delete this file before the release PR if it is not wanted in the repo.
 - Dev branch: claude/wizardly-bell-ba7wr0. Never merge to main.
 - Code checks run in the sandbox: lint 0 errors, 3394/3394 unit tests, build passes (needs NODE_OPTIONS=--max-old-space-size=6144 in the sandbox).
 - Plan page (flowcharts + checklist): https://claude.ai/artifact/FWTRqAmmpWUDUAgJ4Kp1he
+- Full test run page (all 585 QA cases from docs/qa/src, pass/fail/blocked/N/A + notes, Copy bug list): https://claude.ai/artifact/WhgRuAugzCRCrRfiPAro8e
+- Workflow: tester pastes bug lists into chat; Claude logs them here and pushes. No fixing until the tester says so. Cases the tester marks N/A "needs terminal" are for Claude to run later.
 
 ## Progress
 - Phase 0 setup: done (schema re-apply twice deliberately postponed until before release).
