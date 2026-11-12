@@ -1782,13 +1782,15 @@
     "analytics-consent.spec.ts": {
       "runner": "platform",
       "levels": [
-        "browser"
+        "browser",
+        "api",
+        "db"
       ],
       "projects": [
         "desktop"
       ],
       "integration": "local",
-      "destructive": false
+      "destructive": true
     },
     "announcements-notebook.spec.ts": {
       "runner": "platform",
@@ -4693,7 +4695,7 @@
     {
       "id": "platform.analytics-consent",
       "runner": "platform",
-      "title": "Google Analytics loads only after consent, a refusal sticks, the footer link withdraws it, and the signed-in route trees never show the card",
+      "title": "The cookie pop-up: nothing optional loads before a yes, Accept all and Reject all are the same size, a refusal sticks, it opens after load or on scroll but never inside a booking, Cookie settings withdraws it, and each choice is recorded append-only",
       "required": true,
       "status": "covered",
       "coverage": [
@@ -4706,9 +4708,19 @@
             "AC-004",
             "AC-005",
             "AC-006",
-            "AC-007"
+            "AC-007",
+            "AC-008",
+            "AC-009"
           ],
           "level": "browser"
+        },
+        {
+          "spec": "analytics-consent.spec.ts",
+          "tests": [
+            "CC-001",
+            "CC-002"
+          ],
+          "level": "db"
         }
       ],
       "rules": [

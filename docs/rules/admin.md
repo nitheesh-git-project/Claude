@@ -261,6 +261,16 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   than what it sells -- the test the ledger switch fails on both counts
   elsewhere, since its own help text sends the reader to System Health.
   Settings is `full` scope only, so Advanced needs no further gate.
+  **Cookie consent is a read-only screen under *Your website*.** It counts
+  what visitors chose in the public site's cookie pop-up (`cookie_consents`,
+  written by `/api/consent`) over 7, 30 or 90 days -- accepted all, rejected
+  all (and "closed it"), chose their own, analytics and marketing allowed --
+  and lists the latest 50 choices. It is self-fetching
+  (`CookieConsentStats` -> `GET /api/admin/cookie-consents`,
+  `requireAdminScope("settings")`), shows whether a visitor was signed in but
+  never who, and a failed read says so with a retry rather than showing zeros,
+  which would read as "nobody has chosen anything". The summary stops at the
+  newest 20,000 rows and says so when it does.
   **Developer messages is the one screen under Settings that is not about the
   clinic.** It is the developer's own inbox -- messages left through the
   "Contact me" link in the footer's credit line (`/developer/lets-talk` ->

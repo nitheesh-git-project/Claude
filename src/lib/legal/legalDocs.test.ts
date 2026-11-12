@@ -95,8 +95,14 @@ describe("legal pages", () => {
       expect(readFileSync(join(process.cwd(), file), "utf8")).toContain(`"${name}"`);
       expect(text).toContain(name);
     }
-    for (const key of ["mr_analytics_consent", "mr_analytics_asked_at", "mr_ga_purchases"]) {
-      expect(readFileSync(join(process.cwd(), "src/lib/analytics.ts"), "utf8")).toContain(`"${key}"`);
+    const keySources: [string, string][] = [
+      ["src/lib/cookieConsent.ts", "mr_cookie_consent"],
+      ["src/lib/cookieConsent.ts", "mr_cookie_asked_at"],
+      ["src/lib/cookieConsent.ts", "mr_consent_visitor"],
+      ["src/lib/analytics.ts", "mr_ga_purchases"],
+    ];
+    for (const [file, key] of keySources) {
+      expect(readFileSync(join(process.cwd(), file), "utf8")).toContain(`"${key}"`);
       expect(text).toContain(key);
     }
   });

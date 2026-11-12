@@ -96,26 +96,3 @@ describe("buckets", () => {
   });
 });
 
-describe("shouldAskForConsent", () => {
-  const now = Date.parse("2026-11-12T10:00:00Z");
-  const day = 24 * 60 * 60 * 1000;
-  it("asks someone never asked, and never someone who answered", async () => {
-    const { shouldAskForConsent } = await import("./analytics");
-    expect(shouldAskForConsent({ consent: null, askedAtMs: null, askedInThisTab: false, nowMs: now })).toBe(true);
-    expect(shouldAskForConsent({ consent: "granted", askedAtMs: null, askedInThisTab: true, nowMs: now })).toBe(false);
-    expect(shouldAskForConsent({ consent: "denied", askedAtMs: null, askedInThisTab: true, nowMs: now })).toBe(false);
-  });
-  it("rests seven days in other tabs after an ignored card, then asks once more", async () => {
-    const { shouldAskForConsent } = await import("./analytics");
-    const ask = (askedAtMs: number) => shouldAskForConsent({ consent: null, askedAtMs, askedInThisTab: false, nowMs: now });
-    expect(ask(now - 60_000)).toBe(false);
-    expect(ask(now - 6 * day)).toBe(false);
-    expect(ask(now - 7 * day)).toBe(true);
-    // A clock set back is treated as "just asked".
-    expect(ask(now + day)).toBe(false);
-  });
-  it("keeps the card in the tab that is showing it", async () => {
-    const { shouldAskForConsent } = await import("./analytics");
-    expect(shouldAskForConsent({ consent: null, askedAtMs: now - 1000, askedInThisTab: true, nowMs: now })).toBe(true);
-  });
-});

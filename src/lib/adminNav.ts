@@ -411,6 +411,16 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
         blurb: "What visitors read on your website.",
         example: "Add a patient's story to the home page, or answer a new question on the FAQ page.",
       },
+      // What visitors chose in the cookie pop-up. Under "Your website"
+      // because it is about the public site's visitors; read-only, so it
+      // carries no switch of its own.
+      {
+        key: "cookies",
+        label: "Cookie consent",
+        group: "Your website",
+        blurb: "What visitors chose when the website asked about cookies.",
+        example: "See how many visitors accepted analytics in the last 30 days.",
+      },
       {
         key: "booking",
         label: "Booking Rules",

@@ -118,7 +118,7 @@ function privacy(ctx: LegalContext, f: LegalFacts): LegalDoc {
             "Booking details: the sessions you book, for whom (yourself or someone in your care), times, and for home visits, the address and area of the visit.",
             "Payment details: amounts, payment status and refund status. Card, UPI and bank details are collected by Razorpay, our payment provider, and never reach our servers.",
             "Therapist and hospital partner details: qualifications, registration, availability, payout and bank details needed to pay you.",
-            "Technical details: the country your connection comes from (to show prices in your currency), and the cookies described in our Cookie policy.",
+            "Technical details: the country your connection comes from (to show prices in your currency), the cookies described in our Cookie policy, and a record of the cookie choice you made.",
             "Usage analytics on our public pages and the booking widget, only if you agree to it. Never inside your account.",
           ] },
         ],
@@ -434,14 +434,22 @@ function cookies(ctx: LegalContext): LegalDoc {
         ],
       },
       {
+        id: "marketing",
+        heading: "Marketing: only if you say yes",
+        blocks: [
+          "We may use advertising cookies (for example from Meta or Google Ads) to measure our adverts and show relevant ones on other sites. We ask about these separately, and they never load without your yes. They never receive anything about your health.",
+        ],
+      },
+      {
         id: "storage",
         heading: "Settings kept in your browser",
         blocks: [
           { table: {
             head: ["Name", "What it does"],
             rows: [
-              ["mr_analytics_consent", "Your analytics choice"],
-              ["mr_analytics_asked_at", "When we last asked, so we do not ask again too soon"],
+              ["mr_cookie_consent", "Your cookie choice, and which version of this policy it was made under"],
+              ["mr_cookie_asked_at", "When we last asked, so we do not ask again within a day"],
+              ["mr_consent_visitor", "A random id for this browser, so your choices are recorded together"],
               ["mr_ga_purchases", "Stops one payment being counted twice, if you allowed analytics"],
               ["Display preferences", "Things like a list's page size and the opening screen, so they stay as you left them"],
             ],
@@ -452,7 +460,8 @@ function cookies(ctx: LegalContext): LegalDoc {
         id: "choices",
         heading: "Your choices",
         blocks: [
-          "Change your analytics choice at any time with “Analytics settings” at the bottom of every page. Saying no removes Google's cookies.",
+          "Change your choice at any time with “Cookie settings” at the bottom of every page. Saying no removes Google's cookies.",
+          "We keep a record of each choice (what you allowed, when, and on which page), so we can show we asked. It holds no name, contact details or IP address unless you were signed in, when it is linked to your account.",
           "You can also delete cookies in your browser's settings. Deleting essential cookies signs you out.",
           `Questions? Write to ${ctx.contactEmail.trim() || "us"}.`,
         ],

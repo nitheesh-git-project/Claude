@@ -48,6 +48,7 @@ import AdminSystemHealthTab from "@/components/admin/AdminSystemHealthTab";
 import { readCheckoutSpeed } from "@/lib/checkoutSpeedServer";
 import AdminAdvancedTab from "@/components/admin/AdminAdvancedTab";
 import DevReachoutsTab, { type DevReachoutRow } from "@/components/admin/DevReachoutsTab";
+import CookieConsentStats from "@/components/admin/CookieConsentStats";
 import AbandonedCheckoutsTab, { type AbandonedCheckoutRow } from "@/components/admin/AbandonedCheckoutsTab";
 import DeclinedApplicationsTab from "@/components/admin/DeclinedApplicationsTab";
 import PriorDeclineChip from "@/components/admin/PriorDeclineChip";
@@ -5936,6 +5937,8 @@ export default async function AdminDashboardPage({
     ),
     "settings:brand": settingsBrandTab,
     "settings:public": settingsPublicSiteTab,
+    // Self-fetching; its route is requireAdminScope("settings").
+    "settings:cookies": <CookieConsentStats />,
     "settings:booking": settingsBookingTab,
     "settings:offers": settingsOffersTab,
     "settings:programmes": settingsProgrammesTab,

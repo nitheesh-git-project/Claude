@@ -404,8 +404,11 @@ rg -i "<the thing you are seeing>" docs/rules/
 - Google Analytics sees the public pages and the booking widget, after consent, and nothing else
 - An event can only carry what its allowlist entry names
 - `purchase` fires only after the server has confirmed the payment
-- The consent card asks once, then rests for 7 days if it is ignored
-- The footer's "Analytics settings" works before the page has hydrated
+- The cookie pop-up is design 3A, and Reject all is as big as Accept all
+- It opens 2 seconds after the page has fully loaded, or on the first scroll, and never by itself inside a booking
+- An ignored pop-up rests for a day; a new policy version asks everybody again
+- Every choice is recorded, append-only, and nothing identifies the visitor
+- The footer's "Cookie settings" works before the page has hydrated
 
 ## Therapists: roster, readiness and assignment
 

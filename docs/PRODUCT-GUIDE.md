@@ -326,7 +326,8 @@ Copy `.env.example` to `.env.local` and fill in:
 | `GOOGLE_CALENDAR_REFRESH_TOKEN` | Obtained once via `node scripts/get-google-refresh-token.mjs` (see that file's header for the one-time setup) |
 | `GOOGLE_CALENDAR_ID` | Calendar the session events are created on; its authorizing account is the meeting organizer, and the account whose Meet permission opens each meeting |
 | `NEXT_PUBLIC_SHOW_DEBUG_NAV` | Optional kill switch for the pre-launch debug bar. The bar is on in every environment; set to exactly `false` to hide it. Its **Test accounts** panel follows the same flag, so set it to `false` on the live site |
-| `NEXT_PUBLIC_GA_MEASUREMENT_ID` | Optional. Google Analytics 4 ID (`G-...`, public by design). Blank switches analytics off: no banner, no script. Loads only after a visitor accepts, only on public pages and the booking widget |
+| `NEXT_PUBLIC_GA_MEASUREMENT_ID` | Optional. Google Analytics 4 ID (`G-...`, public by design). Blank switches analytics off: no Analytics choice, no script. Loads only after a visitor accepts in the cookie pop-up, only on public pages and the booking widget |
+| `NEXT_PUBLIC_MARKETING_CONSENT_ENABLED` | Optional. `"true"` adds a Marketing choice (ad pixels) to the cookie pop-up. Leave blank until an ad pixel is actually added. The pop-up shows only while this or the GA ID is set |
 | `ALLOW_DEBUG_DATA_RESET` | Optional, pre-launch testing only. Exactly `true` arms the bar's "Reset data" button, which deletes every non-admin account and empties the tables testing fills, while keeping everything a person typed: `site_settings` and `risk_rules` are not touched at all, and the conditions catalogue (`treatment_categories` and their packages), `faqs`, `testimonials`, `mission_principles` and `dev_reachouts` (the developer's own inbox) all survive. Never set it on a deployment holding real data |
 | `SUPABASE_MAX_IN_FLIGHT` | Optional. How many HTTP requests this server may have in flight to Supabase at once, per instance. Default 96, measured: at 40 concurrent admin dashboard renders 48 gave a p50 of 130s, 96 gave 15.3s and 192 gave 16.4s. Without a cap, ~3,300 concurrent requests exhausted the connect timeout and the dashboard rendered the lost rows as zeroes. |
 | `SUPABASE_REQUEST_TIMEOUT_MS` | Optional. Deadline on each Supabase request, covering the wait for a slot. Default 20000. undici's own default is five minutes, and a socket stuck that long holds a slot the requests behind it need. |
@@ -502,6 +503,12 @@ admin action.
 every public page. Content in `src/lib/legal/legalDocs.ts`; the owner-only
 facts (legal entity, Grievance Officer, jurisdiction) in
 `src/lib/legal/legalFacts.ts` must be filled before launch.
+
+**Cookie consent:** the pop-up on the public pages (Accept all / Reject all /
+Choose what to allow) records every choice through `POST /api/consent` into
+`cookie_consents` (append-only, no name, contact detail or IP address).
+**Settings -> Cookie consent** shows the acceptance rates over 7, 30 or 90 days
+and the latest choices (`GET /api/admin/cookie-consents`, settings scope).
 
 **Developer credit (public, deliberately not a marketing page):** `/developer`
 ("Say hello!") and `/developer/lets-talk` (the contact form), reached only by

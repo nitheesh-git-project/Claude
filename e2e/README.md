@@ -91,7 +91,7 @@ total, which moves with every spec added.
 
 | Spec | Cases | Covers |
 | --- | --- | --- |
-| `analytics-consent` | 10 | the Google Analytics consent gate: nothing reaches Google before a choice, Yes, happy to help loads it, Not now sticks across a reload, the footer link reopens the card and withdrawing switches collection off, and the signed-in route trees never show the card. Browser-only and Supabase-free, but skipped unless `NEXT_PUBLIC_GA_MEASUREMENT_ID` is set on the run (Google is stubbed, so any `G-...` value works) |
+| `analytics-consent` | 15 | the cookie pop-up (design 3A): nothing reaches Google before a choice and Accept all loads it and posts the choice; Reject all is the same size as Accept all and sticks across a reload; the first scroll opens it early; an accepted visitor sends page views; Cookie settings reopens it and switching analytics off stops collection; an earlier analytics-only answer is honoured but asked again; an ignored pop-up rests a day in other tabs; it never opens by itself on `/book`; the signed-in route trees never show it. The pop-up half is skipped unless `NEXT_PUBLIC_GA_MEASUREMENT_ID` is set on the run (Google is stubbed, and the pop-up's own POST is answered in the browser). CC-001/CC-002 hit `/api/consent` for real -- a malformed or self-contradicting body is a 400, a valid one is a row, and the row refuses an edit or a delete -- so they write append-only rows and run only with `E2E_ALLOW_APPEND_ONLY_WRITES=1` |
 | `admin-money` | 6 | payout and refund arithmetic, the Money figures, the therapist's own pending payout against what admin owes |
 | `admin-session-drawer-money` | 2 | the Session Details drawer prices a session as the row that opened it does (the service's price, never the global fee), and reads one refund state - a failed cancellation refund after partial refunds names what went back and what is still refundable |
 | `concurrency` | 3 | the CAS-guarded races: refund double-fire, therapist reassignment, referral double-assignment |
@@ -142,7 +142,7 @@ total, which moves with every spec added.
 | Spec | Cases | Covers |
 | --- | --- | --- |
 | `footer-social-links` | 3 | the footer's social icons: only filled-in links drawn, each opening in a new tab, the WhatsApp number too; the save route refusing a non-https or wrong-network link |
-| `accessibility` | 21 | an axe-core WCAG 2.2 A/AA scan (alt text, contrast, labels, landmarks, ARIA) of every public page and sign-in door, and a keyboard walk proving Tab shows a visible focus and is never trapped; `npm run test:a11y`, run before every merge to staging |
+| `accessibility` | 22 | an axe-core WCAG 2.2 A/AA scan (alt text, contrast, labels, landmarks, ARIA) of every public page and sign-in door, a keyboard walk proving Tab shows a visible focus and is never trapped, and the cookie pop-up scanned on its own with focus held inside it (that one only with `NEXT_PUBLIC_GA_MEASUREMENT_ID` set); `npm run test:a11y`, run before every merge to staging |
 | `legal-pages` | 3 | the six public legal pages render with their title, "Last updated" date and contents list and no placeholder text; the footer's Legal row links to each; `/refunds` quotes the live refund window |
 | `invite-promise` | 1 | a patient is promised a calendar invite only where this deployment sends one: on the gate's Google-less stack the public example chip points at the dashboard instead |
 | `admin-dashboard-ui` | 11 | the dashboard in a real browser |

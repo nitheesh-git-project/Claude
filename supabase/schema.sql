@@ -10303,7 +10303,10 @@ begin
     -- rather than left to CASCADE reach it: a campaign pointing at a code
     -- that no longer exists could not say what it was attributed by.
     patient_invites,
-    promo_codes
+    promo_codes,
+    -- Cookie pop-up choices made while the app was being tested are not a
+    -- clinic's consent evidence; launch starts the count from zero.
+    cookie_consents
   cascade;
   -- NOT truncated, and all three for one reason: `faqs`, `testimonials` and
   -- `mission_principles` are the website's own content, written by a person on
@@ -20865,6 +20868,77 @@ alter table site_settings alter column contact_email set default 'hello@moverest
 
 update site_settings set contact_email = 'hello@moverestorephysio.com'
   where contact_email = 'hello@drpoojaphysio.com';
+
+-- =============================================================================
+-- Cookie consent records: every choice made in the cookie pop-up.
+-- =============================================================================
+-- One row per choice (Accept all, Reject all, Save my choices, or closing the
+-- pop-up), written by /api/consent with the service role. It is the clinic's
+-- evidence of what each visitor agreed to and under which policy version, and
+-- what Settings -> Cookie consent counts. No name, email, phone or IP address
+-- is kept: visitor_id is a random id made in the browser, and user_id is set
+-- only when the visitor was signed in (worked out on the server, never sent
+-- by the client).
+--
+-- Append-only by trigger, like the other evidence tables: a choice that was
+-- made is never edited or deleted. The one change allowed is user_id going to
+-- null, which is what `on delete set null` does when an account is removed.
+create table if not exists cookie_consents (
+  id uuid primary key default gen_random_uuid(),
+  visitor_id uuid not null,
+  user_id uuid references profiles(id) on delete set null,
+  analytics boolean not null,
+  marketing boolean not null,
+  action text not null check (action in ('accept_all', 'reject_all', 'save', 'dismiss')),
+  policy_version text not null check (char_length(policy_version) between 1 and 32),
+  page_path text check (page_path is null or char_length(page_path) <= 200),
+  country text check (country is null or country ~ '^[A-Z]{2}$'),
+  created_at timestamptz not null default now(),
+  constraint cookie_consents_accept_all_allows_analytics check (action <> 'accept_all' or analytics),
+  constraint cookie_consents_reject_allows_nothing check (action not in ('reject_all', 'dismiss') or (not analytics and not marketing))
+);
+
+create index if not exists cookie_consents_created_at_idx on cookie_consents (created_at desc);
+create index if not exists cookie_consents_visitor_idx on cookie_consents (visitor_id, created_at desc);
+create index if not exists cookie_consents_user_idx on cookie_consents (user_id) where user_id is not null;
+
+alter table cookie_consents enable row level security;
+
+drop policy if exists "cookie_consents_select_admin" on cookie_consents;
+create policy "cookie_consents_select_admin" on cookie_consents
+  for select using (is_admin());
+
+revoke insert, update, delete on cookie_consents from anon, authenticated;
+
+create or replace function public.cookie_consents_is_append_only()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  -- An account being removed clears its link and nothing else.
+  if tg_op = 'UPDATE'
+     and old.user_id is not null and new.user_id is null
+     and new.id = old.id and new.visitor_id = old.visitor_id
+     and new.analytics = old.analytics and new.marketing = old.marketing
+     and new.action = old.action and new.policy_version = old.policy_version
+     and new.page_path is not distinct from old.page_path
+     and new.country is not distinct from old.country
+     and new.created_at = old.created_at then
+    return new;
+  end if;
+  raise exception 'cookie_consents is append-only: a recorded consent choice is never edited or deleted';
+end;
+$$;
+
+revoke all on function public.cookie_consents_is_append_only() from public;
+revoke all on function public.cookie_consents_is_append_only() from anon;
+revoke all on function public.cookie_consents_is_append_only() from authenticated;
+
+drop trigger if exists trg_cookie_consents_append_only on cookie_consents;
+create trigger trg_cookie_consents_append_only
+  before update or delete on cookie_consents
+  for each row execute function public.cookie_consents_is_append_only();
 
 -- ---------------------------------------------------------------------
 -- service_role's EXECUTE, written out rather than inherited.

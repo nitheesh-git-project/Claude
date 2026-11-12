@@ -153,6 +153,20 @@ export const RATE_LIMITS = {
     message: "I already have your message from a moment ago.",
   },
 
+  /**
+   * A cookie consent choice (/api/consent). Its own scope so a visitor
+   * changing their mind a few times never spends anybody else's allowance.
+   * Generous, because a refusal here costs nothing visible -- the choice is
+   * already kept in the browser -- but bounded, because the table is public
+   * to write to and nothing sweeps it.
+   */
+  cookieConsent: {
+    scope: "cookie-consent",
+    limit: 30,
+    windowSeconds: 3600,
+    message: "Your choice is saved.",
+  },
+
   /** Creating an account from a referral link. */
   registration: {
     scope: "registration",

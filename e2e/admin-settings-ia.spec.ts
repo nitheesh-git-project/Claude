@@ -92,6 +92,7 @@ test.describe("CFG -- Settings information architecture", () => {
     for (const label of [
       "Brand & Contact",
       "Public Site",
+      "Cookie consent",
       "Booking Rules",
       "Offers & Discounts",
       "Programmes & Home Visits",

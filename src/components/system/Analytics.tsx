@@ -7,24 +7,41 @@ import {
   GA_MEASUREMENT_ID,
   cleanPageLocation,
   isTrackablePath,
-  readConsent,
-  readConsentAskState,
-  noteConsentAsked,
-  shouldAskForConsent,
-  ANALYTICS_REOPEN_EVENT,
-  ANALYTICS_SETTINGS_HASH,
+  COOKIE_SETTINGS_EVENT,
+  COOKIE_SETTINGS_HASH,
   withdrawGoogle,
   track,
-  writeConsent,
-  type AnalyticsConsent,
 } from "@/lib/analytics";
+import {
+  COOKIE_CONSENT_EVENT,
+  COOKIE_CONSENT_KEY,
+  CONSENT_OPEN_DELAY_MS,
+  LEGACY_ANALYTICS_CONSENT_KEY,
+  autoOpensOn,
+  consentFor,
+  isCurrentConsent,
+  marketingConsentEnabled,
+  noteConsentAsked,
+  parseStoredConsent,
+  readConsentAskState,
+  recordCookieConsent,
+  shouldAskForCookieConsent,
+  writeCookieConsent,
+  type ConsentAction,
+} from "@/lib/cookieConsent";
+import { useDialogChrome } from "@/lib/useDialogChrome";
 
-// Google Analytics for the public pages and the booking widget.
+// Cookie consent and Google Analytics, for the public pages and the booking
+// widget.
 //
-// Nothing loads until the visitor accepts: no script, no cookie, no request.
-// A visitor who declines is asked once and never again. The signed-in trees
-// and the back office are never recorded (see isTrackablePath), and the
-// banner does not appear on them either.
+// Nothing optional loads until the visitor says yes: no script, no cookie, no
+// request. The pop-up (design 3A) opens 2 seconds after the page has fully
+// loaded, or on the first scroll, whichever comes first -- never by itself
+// inside a booking (autoOpensOn), and never on the signed-in trees or the back
+// office, which are never recorded (isTrackablePath). Accept all and Reject
+// all are the same size; "Choose what to allow" opens the switches. Every
+// choice is kept in this browser and recorded on the server (/api/consent),
+// which is what Settings -> Cookie consent counts.
 //
 // Clicks are read from the DOM by one delegated listener instead of an
 // attribute on every button, so a new button is covered the day it is
@@ -50,52 +67,108 @@ function isBookingLink(href: string): boolean {
   return /^\/(book|book-home-visit|get-started)(\/|\?|#|$)/.test(href);
 }
 
-const CONSENT_EVENT = "mr-analytics-consent";
-
 function subscribeConsent(notify: () => void) {
-  window.addEventListener(CONSENT_EVENT, notify);
+  window.addEventListener(COOKIE_CONSENT_EVENT, notify);
   window.addEventListener("storage", notify);
   return () => {
-    window.removeEventListener(CONSENT_EVENT, notify);
+    window.removeEventListener(COOKIE_CONSENT_EVENT, notify);
     window.removeEventListener("storage", notify);
   };
 }
 
-function snapshotConsent(): AnalyticsConsent | "none" {
-  return readConsent() ?? "none";
+/** The raw stored strings, so the snapshot is stable between renders. */
+function snapshotConsent(): string {
+  try {
+    return `${window.localStorage.getItem(COOKIE_CONSENT_KEY) ?? ""}\u0000${
+      window.localStorage.getItem(LEGACY_ANALYTICS_CONSENT_KEY) ?? ""
+    }`;
+  } catch {
+    return "\u0000";
+  }
+}
+
+const MARKETING_ASKED = marketingConsentEnabled();
+
+function Switch({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      onClick={() => onChange(!checked)}
+      className={`relative h-[26px] w-11 flex-none rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 ${
+        checked ? "bg-teal-700" : "bg-slate-300"
+      }`}
+    >
+      <span
+        aria-hidden="true"
+        className={`absolute top-[3px] h-5 w-5 rounded-full bg-white shadow transition-[left] ${checked ? "left-[21px]" : "left-[3px]"}`}
+      />
+    </button>
+  );
 }
 
 export default function Analytics() {
   const pathname = usePathname();
-  const stored: AnalyticsConsent | "none" | "pending" = useSyncExternalStore(
-    subscribeConsent,
-    snapshotConsent,
-    () => "pending"
-  );
-  const consent = stored === "none" ? null : stored;
+  const raw = useSyncExternalStore(subscribeConsent, snapshotConsent, () => "pending");
+  const pending = raw === "pending";
+  const [rawConsent, rawLegacy] = pending ? ["", ""] : raw.split("\u0000");
+  const consent = pending ? null : parseStoredConsent(rawConsent || null, rawLegacy || null);
+  const granted = !!consent?.analytics;
+
   const [loaded, setLoaded] = useState(false);
   // Off the moment consent is withdrawn, without waiting for a reload.
-  const ready = loaded && consent === "granted";
-  const [reopened, setReopened] = useState(false);
+  const ready = loaded && granted;
+  const trackable = isTrackablePath(pathname);
+  const offered = !!GA_MEASUREMENT_ID || MARKETING_ASKED;
+
+  const [open, setOpen] = useState(false);
   const [leaving, setLeaving] = useState(false);
-  const [celebrating, setCelebrating] = useState(false);
+  const [step, setStep] = useState<1 | 2>(1);
+  const [analyticsOn, setAnalyticsOn] = useState(false);
+  const [marketingOn, setMarketingOn] = useState(false);
   const [thanks, setThanks] = useState<string | null>(null);
-  const [splashGone, setSplashGone] = useState(false);
-  // Whether this visit asks at all (shouldAskForConsent): read once on the
-  // client, after hydration, so the server's render and the first client
-  // render agree.
+  // Whether this visit asks at all: read once on the client, after
+  // hydration, so the server's render and the first client render agree.
   const [askThisVisit, setAskThisVisit] = useState(false);
   useEffect(() => {
-    // Storage exists only in the browser, so this is read after mounting.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setAskThisVisit(
-      shouldAskForConsent({ consent: readConsent(), ...readConsentAskState(), nowMs: Date.now() })
+      shouldAskForCookieConsent({
+        consent: parseStoredConsent(
+          (() => {
+            try {
+              return window.localStorage.getItem(COOKIE_CONSENT_KEY);
+            } catch {
+              return null;
+            }
+          })(),
+          (() => {
+            try {
+              return window.localStorage.getItem(LEGACY_ANALYTICS_CONSENT_KEY);
+            } catch {
+              return null;
+            }
+          })()
+        ),
+        ...readConsentAskState(),
+        nowMs: Date.now(),
+      })
     );
   }, []);
 
   // The init snippet runs after hydration; wait for gtag to exist.
   useEffect(() => {
-    if (consent !== "granted") return;
+    if (!granted) return;
     let tries = 0;
     const timer = window.setInterval(() => {
       tries += 1;
@@ -107,9 +180,7 @@ export default function Analytics() {
       }
     }, 100);
     return () => window.clearInterval(timer);
-  }, [consent]);
-
-  const trackable = isTrackablePath(pathname);
+  }, [granted]);
 
   // One page_view per route change, with the query string left off.
   useEffect(() => {
@@ -160,80 +231,119 @@ export default function Analytics() {
     return () => io.disconnect();
   }, [ready, trackable, pathname]);
 
-  // The card waits for the opening greeting to lift, so it arrives as part of
-  // the welcome rather than on top of it.
+  // When it opens by itself: 2 seconds after the page has fully loaded, or on
+  // the first scroll, whichever is first. Never inside a booking.
+  const autoOpen = offered && askThisVisit && trackable && autoOpensOn(pathname);
   useEffect(() => {
-    let tries = 0;
-    const timer = window.setInterval(() => {
-      tries += 1;
-      if (!document.documentElement.hasAttribute("data-splash") || tries > 60) {
-        setSplashGone(true);
-        window.clearInterval(timer);
-      }
-    }, 150);
-    return () => window.clearInterval(timer);
-  }, []);
+    if (!autoOpen) return;
+    let timer = 0;
+    const show = () => {
+      window.clearTimeout(timer);
+      setOpen(true);
+    };
+    const arm = () => {
+      timer = window.setTimeout(show, CONSENT_OPEN_DELAY_MS);
+    };
+    if (document.readyState === "complete") arm();
+    else window.addEventListener("load", arm, { once: true });
+    window.addEventListener("scroll", show, { once: true, passive: true });
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("load", arm);
+      window.removeEventListener("scroll", show);
+    };
+  }, [autoOpen]);
 
-  // The footer's "Analytics settings" link asks for the card again.
+  // The footer's "Cookie settings" opens it on any public page, booking included.
   useEffect(() => {
-    const open = () => {
+    const reopen = () => {
       setLeaving(false);
-      setReopened(true);
+      setStep(1);
+      setOpen(true);
     };
     // A tap that landed before hydration left the hash instead of the event.
     const fromHash = () => {
-      if (window.location.hash !== ANALYTICS_SETTINGS_HASH) return;
+      if (window.location.hash !== COOKIE_SETTINGS_HASH) return;
       window.history.replaceState(null, "", window.location.pathname + window.location.search);
-      open();
+      reopen();
     };
     fromHash();
-    window.addEventListener(ANALYTICS_REOPEN_EVENT, open);
+    window.addEventListener(COOKIE_SETTINGS_EVENT, reopen);
     window.addEventListener("hashchange", fromHash);
     return () => {
-      window.removeEventListener(ANALYTICS_REOPEN_EVENT, open);
+      window.removeEventListener(COOKIE_SETTINGS_EVENT, reopen);
       window.removeEventListener("hashchange", fromHash);
     };
   }, []);
 
+  // Opening shows the switches as they were last saved.
+  useEffect(() => {
+    if (!open) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setAnalyticsOn(!!consent?.analytics);
+    setMarketingOn(!!consent?.marketing);
+    // Only on opening; the switches are the visitor's from then on.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
   // Withdrawn consent stops collection at once and clears Google's cookies.
   useEffect(() => {
-    if (consent === "pending") return;
-    withdrawGoogle(consent !== "granted");
-  }, [consent]);
+    if (pending) return;
+    withdrawGoogle(!granted);
+  }, [pending, granted]);
 
-  // The card is in front of someone who has not answered: rest it in every
-  // other tab from now (noteConsentAsked).
-  const askingUndecided =
-    !!GA_MEASUREMENT_ID && stored === "none" && askThisVisit && trackable && splashGone;
+  // In front of someone who has not answered: rest it in every other tab.
+  const undecided = !isCurrentConsent(consent);
   useEffect(() => {
-    if (askingUndecided) noteConsentAsked(Date.now());
-  }, [askingUndecided]);
+    if (open && undecided) noteConsentAsked(Date.now());
+  }, [open, undecided]);
 
-  if (!GA_MEASUREMENT_ID || consent === "pending") return null;
-
-  const cardOpen = ((consent === null && askThisVisit) || reopened) && trackable && splashGone;
-
-  function choose(value: AnalyticsConsent) {
-    writeConsent(value);
-    window.dispatchEvent(new Event(CONSENT_EVENT));
-    // A yes gets a beat for the heart before the card slides away.
-    const wait = value === "granted" ? 550 : 0;
-    setCelebrating(value === "granted");
+  function choose(action: ConsentAction) {
+    const next = consentFor(
+      action,
+      { analytics: analyticsOn, marketing: marketingOn },
+      MARKETING_ASKED,
+      Date.now()
+    );
+    writeCookieConsent(next);
+    recordCookieConsent(action, next, pathname ?? "/");
+    setLeaving(true);
     window.setTimeout(() => {
+      setOpen(false);
+      setLeaving(false);
+      setStep(1);
+    }, 250);
+    setThanks(action === "accept_all" ? "Thanks, that really helps" : "Saved");
+    window.setTimeout(() => setThanks(null), 2600);
+  }
+
+  // Escape: someone who already answered keeps their answer; someone who has
+  // not is treated as "only necessary", never as a yes.
+  function close() {
+    if (isCurrentConsent(consent)) {
       setLeaving(true);
       window.setTimeout(() => {
-        setReopened(false);
+        setOpen(false);
         setLeaving(false);
-        setCelebrating(false);
-      }, 400);
-    }, wait);
-    setThanks(value === "granted" ? "Thanks, that really helps" : "No problem, saved");
-    window.setTimeout(() => setThanks(null), 2600 + wait);
+        setStep(1);
+      }, 250);
+    } else {
+      choose("dismiss");
+    }
   }
+
+  const visible = open && offered && !pending;
+  const { panelRef, dialogProps } = useDialogChrome({
+    onClose: close,
+    labelledBy: step === 1 ? "cookie-consent-title" : "cookie-consent-choose",
+    active: visible && !leaving,
+  });
+
+  if (pending) return null;
 
   return (
     <>
-      {consent === "granted" && (
+      {granted && GA_MEASUREMENT_ID && (
         <>
           <Script
             src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
@@ -251,59 +361,130 @@ export default function Analytics() {
           `}</Script>
         </>
       )}
-      {cardOpen && (
-        <>
-          {/* A soft dim on phones so the card is noticed. It never blocks a tap:
-              consent has to be a free choice, so nothing is locked behind it. */}
-          <div aria-hidden="true" className="mr-consent-dim pointer-events-none fixed inset-0 z-40 bg-slate-900/40 sm:hidden" data-leaving={leaving || undefined} />
+      {visible && (
+        <div className="fixed inset-0 z-[60] print:hidden">
           <div
-            role="region"
-            aria-label="Analytics"
+            aria-hidden="true"
             data-leaving={leaving || undefined}
-            className="mr-consent fixed inset-x-0 bottom-0 z-50 rounded-t-3xl border-t border-slate-200 bg-white px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-20px_50px_-20px_rgba(8,40,40,0.45)] sm:inset-x-auto sm:bottom-6 sm:left-1/2 sm:w-[30rem] sm:max-w-[calc(100%-2rem)] sm:rounded-3xl sm:border sm:px-6 sm:pb-5 sm:pt-5 print:hidden"
-          >
-            <div aria-hidden="true" className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-200 sm:hidden" />
-            <div className="flex items-end gap-3">
-              <span className="mr-consent-face relative flex h-14 w-14 flex-none items-center justify-center rounded-full bg-gradient-to-br from-teal-200 to-teal-500 text-white">
-                <svg aria-hidden="true" viewBox="0 0 24 24" className="h-8 w-8" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="8" r="4" />
-                  <path d="M4 21c1-4 4-6 8-6s7 2 8 6" />
-                </svg>
-                <svg aria-hidden="true" viewBox="0 0 24 24" className="mr-consent-heart pointer-events-none absolute left-1/2 top-[40%] -ml-3.5 h-7 w-7 text-rose-400 opacity-0" fill="currentColor" data-on={celebrating || undefined}>
-                  <path d="M12 21s-8-5-8-11a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 10c0 6-8 11-8 11z" />
-                </svg>
-              </span>
-              <div className="mr-consent-bubble rounded-[1.1rem] rounded-bl-sm bg-teal-50 px-3.5 py-3 text-sm leading-snug text-teal-950">
-                <h2 className="inline font-bold">Hi, welcome.</h2>{" "}
-                Can we take a quiet look at which pages help? It never includes your name,
-                contact or health details.
-              </div>
+            className="mr-cookie-dim absolute inset-0 bg-slate-900/45 backdrop-blur-[3px]"
+          />
+          <div className="absolute inset-0 flex items-center justify-center p-4">
+            <div
+              ref={panelRef}
+              {...dialogProps}
+              data-testid="cookie-consent"
+              data-leaving={leaving || undefined}
+              className="mr-cookie w-full max-w-[400px] overflow-hidden rounded-[28px] bg-white px-6 pb-5 pt-7 shadow-[0_24px_60px_rgba(15,23,42,0.25)]"
+            >
+              {step === 1 ? (
+                <div className="flex flex-col items-center gap-3.5 text-center">
+                  <span aria-hidden="true" className="flex h-14 w-14 items-center justify-center rounded-full bg-teal-100 text-teal-700">
+                    <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z" />
+                      <path d="M9 12l2 2 4-4" />
+                    </svg>
+                  </span>
+                  <h2 id="cookie-consent-title" className="font-display text-[22px] font-extrabold leading-tight text-slate-900">
+                    Help us do better
+                  </h2>
+                  <p className="text-[15px] leading-normal text-slate-600">
+                    Cookies help us improve the site. Your health details are never shared.
+                  </p>
+                  <div className="flex w-full flex-col gap-2 pt-1.5">
+                    <button
+                      type="button"
+                      onClick={() => choose("accept_all")}
+                      className="min-h-[54px] rounded-full bg-teal-700 text-[17px] font-semibold text-white transition hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
+                    >
+                      Accept all
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => choose("reject_all")}
+                      className="min-h-[54px] rounded-full border-[1.5px] border-teal-700 bg-white text-[17px] font-semibold text-teal-700 transition hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
+                    >
+                      Reject all
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-center gap-1.5 text-[13px] text-slate-600">
+                    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="5" y="11" width="14" height="10" rx="2" />
+                      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+                    </svg>
+                    <span>Change it any time.</span>
+                    <button
+                      type="button"
+                      onClick={() => setStep(2)}
+                      className="min-h-11 rounded font-semibold text-teal-700 underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
+                    >
+                      Choose what to allow
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="mr-cookie-step flex flex-col gap-3.5">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setStep(1)}
+                      aria-label="Back"
+                      className="-ml-3 flex h-11 w-11 items-center justify-center rounded-full text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
+                    >
+                      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M15 6l-6 6 6 6" />
+                      </svg>
+                    </button>
+                    <h2 id="cookie-consent-choose" className="font-display text-xl font-extrabold text-slate-900">
+                      Choose what to allow
+                    </h2>
+                  </div>
+                  <ul className="divide-y divide-slate-200 rounded-2xl border border-slate-200">
+                    <li className="flex items-center justify-between gap-3 px-4 py-3">
+                      <div>
+                        <p className="text-[15px] font-semibold text-slate-900">Necessary</p>
+                        <p className="text-[13px] text-slate-600">Sign-in, security, payments</p>
+                      </div>
+                      <span className="text-[13px] font-semibold text-teal-700">Always on</span>
+                    </li>
+                    {GA_MEASUREMENT_ID && (
+                      <li className="flex items-center justify-between gap-3 px-4 py-3">
+                        <div>
+                          <p className="text-[15px] font-semibold text-slate-900">Analytics</p>
+                          <p className="text-[13px] text-slate-600">Which pages help people</p>
+                        </div>
+                        <Switch label="Analytics" checked={analyticsOn} onChange={setAnalyticsOn} />
+                      </li>
+                    )}
+                    {MARKETING_ASKED && (
+                      <li className="flex items-center justify-between gap-3 px-4 py-3">
+                        <div>
+                          <p className="text-[15px] font-semibold text-slate-900">Marketing</p>
+                          <p className="text-[13px] text-slate-600">Relevant ads on other sites</p>
+                        </div>
+                        <Switch label="Marketing" checked={marketingOn} onChange={setMarketingOn} />
+                      </li>
+                    )}
+                  </ul>
+                  <button
+                    type="button"
+                    onClick={() => choose("save")}
+                    className="min-h-[50px] rounded-full bg-teal-700 text-base font-semibold text-white transition hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
+                  >
+                    Save my choices
+                  </button>
+                  <a href="/cookies" className="mx-auto inline-flex min-h-11 items-center text-[13px] text-teal-700 underline-offset-2 hover:underline">
+                    Cookie policy
+                  </a>
+                </div>
+              )}
             </div>
-            <button
-              type="button"
-              onClick={() => choose("granted")}
-              className="mr-consent-yes mt-4 flex min-h-14 w-full items-center justify-center gap-2.5 rounded-2xl bg-teal-700 text-base font-bold text-white shadow-[0_10px_24px_-10px_rgba(15,118,110,0.8)] transition hover:-translate-y-px hover:bg-teal-800 active:scale-[0.985]"
-            >
-              Yes, happy to help
-              <i aria-hidden="true" className="fa-solid fa-arrow-right text-sm" />
-            </button>
-            <button
-              type="button"
-              onClick={() => choose("denied")}
-              className="mx-auto mt-1 block min-h-11 rounded-lg px-4 text-sm font-medium text-slate-600 underline decoration-slate-300 underline-offset-4 transition hover:text-teal-800 hover:decoration-teal-700"
-            >
-              Not now
-            </button>
-            <p className="text-center text-xs text-slate-500">
-              Change your mind anytime from the footer.
-            </p>
           </div>
-        </>
+        </div>
       )}
       {thanks && (
         <div
           role="status"
-          className="mr-consent-toast pointer-events-none fixed bottom-28 left-1/2 z-50 flex items-center gap-2 whitespace-nowrap rounded-full bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-lg sm:bottom-6"
+          className="mr-consent-toast pointer-events-none fixed bottom-28 left-1/2 z-[60] flex items-center gap-2 whitespace-nowrap rounded-full bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-lg sm:bottom-6"
         >
           <i aria-hidden="true" className="fa-solid fa-check text-teal-300" />
           {thanks}

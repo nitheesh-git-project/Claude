@@ -924,7 +924,7 @@ Eight pages from one design system, the word budgets, why every photograph carri
   `src/components/system/Analytics.tsx` loads nothing until a visitor accepts;
   `isTrackablePath` in `src/lib/analytics.ts` blocks the admin, dashboard,
   patient, therapist and hospital trees, so no route there is ever recorded
-  and the banner never shows on one.
+  and the cookie pop-up never shows on one.
 - **An event can only carry what its allowlist entry names.** Add an event
   and its parameters in `EVENTS` in `src/lib/analytics.ts`; `sanitizeEvent`
   drops everything else. A catalog service's title is sent (`service_name`) --
@@ -938,18 +938,48 @@ Eight pages from one design system, the word budgets, why every photograph carri
   Analytics calls never throw and never wait: a blocked script must not break
   checkout.
 - GA is for funnels. Revenue, utilisation and no-shows come from Supabase.
-- **The consent card asks once, then rests for 7 days if it is ignored.**
-  Ignoring it is not a "no", but showing it in every new tab was nagging.
-  When the card is shown to someone who has not answered, `noteConsentAsked`
-  stores the time (`mr_analytics_asked_at`, localStorage) and marks the tab
-  (sessionStorage). That tab keeps the card on later pages; every other tab
-  stays quiet until `CONSENT_REST_MS` (7 days) has passed, then it asks once
-  more (`shouldAskForConsent`, unit-tested). A Yes or Not now is kept for
-  good, and the footer link reopens the card at any time. Guard:
-  `e2e/analytics-consent.spec.ts` AC-007.
-- **The footer's "Analytics settings" works before the page has hydrated.** It
-  is a link to `#analytics-settings` (`ANALYTICS_SETTINGS_HASH`), not a
-  button: a tap that lands before React has attached its click handler still
-  sets the hash, and the consent card opens for it on mount or on
-  `hashchange`, then clears the hash. The splash now leaves on a CSS timer, so
-  the page can be tapped before hydration; a button there was a dead control.
+- **The cookie pop-up is design 3A, and Reject all is as big as Accept all.**
+  `src/components/system/Analytics.tsx` draws one centred card ("Help us do
+  better", max 400px, full width on a phone): Accept all, then Reject all at
+  the same size directly under it, then "Change it any time. Choose what to
+  allow", which slides to the switches (Necessary always on, Analytics, and
+  Marketing only while `NEXT_PUBLIC_MARKETING_CONSENT_ENABLED` is "true" --
+  never ask about something the site does not do). The owner wanted Accept
+  big and Reject as small text, with the switches on by default; both were
+  declined on purpose, because a pre-ticked box or a harder Reject is not
+  valid consent under GDPR (EU/UK patients) or the DPDP Act, and every
+  cookie set on such a "yes" is at risk. `AC-002` holds the sizes equal.
+  Escape counts as "only necessary" for someone who has not answered, and
+  changes nothing for someone who has. The rules live in
+  `src/lib/cookieConsent.ts` (unit-tested).
+- **It opens 2 seconds after the page has fully loaded, or on the first
+  scroll, and never by itself inside a booking.** `CONSENT_OPEN_DELAY_MS`
+  after `load`, or the first `scroll`, whichever is first. `/book` and
+  `/book-home-visit` never open it on their own (`autoOpensOn`): interrupting
+  a booking makes people tap whatever gets rid of it. The footer link still
+  opens it there.
+- **An ignored pop-up rests for a day; a new policy version asks everybody
+  again.** When it is shown to someone undecided, `noteConsentAsked` stores
+  the time (`mr_cookie_asked_at`) and marks the tab; that tab keeps asking,
+  every other tab waits `CONSENT_REST_MS` (24 hours). The choice is stored as
+  `mr_cookie_consent` with `COOKIE_POLICY_VERSION`; bump that constant with
+  any change of substance to the Cookie policy and everyone is asked again.
+  An answer to the earlier analytics-only banner (`mr_analytics_consent`) is
+  honoured until the visitor answers the new pop-up. Guard: AC-006, AC-007.
+- **Every choice is recorded, append-only, and nothing identifies the
+  visitor.** `recordCookieConsent` posts to `/api/consent`, which validates
+  the body (a Reject all that claims analytics is refused), works out the
+  signed-in user and country itself -- never from the client, and never while
+  an admin is viewing as someone -- and writes `cookie_consents` with the
+  service role. The row holds a random browser id (`mr_consent_visitor`), the
+  choices, the button, the policy version and the page path without its query
+  string; no name, contact detail or IP address. A trigger refuses any edit or
+  delete except `user_id` going null when an account is removed. Settings ->
+  Cookie consent counts it. The record is evidence, not a gate: a failed post
+  never undoes the visitor's choice.
+- **The footer's "Cookie settings" works before the page has hydrated.** It
+  is a link to `#cookie-settings` (`COOKIE_SETTINGS_HASH`), not a button: a
+  tap that lands before React has attached its click handler still sets the
+  hash, and the pop-up opens for it on mount or on `hashchange`, then clears
+  the hash. The splash leaves on a CSS timer, so the page can be tapped before
+  hydration; a button there was a dead control.

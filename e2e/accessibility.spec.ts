@@ -36,11 +36,14 @@ const PAGES = [
 const WCAG_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 
 async function open(page: Page, path: string) {
-  // Decline analytics up front so the consent card is not part of every scan
-  // (it has its own spec, analytics-consent).
+  // Answer the cookie pop-up up front so it is not part of every scan; the
+  // pop-up itself is scanned in A11Y-003.
   await page.addInitScript(() => {
     try {
-      localStorage.setItem("mr_analytics_consent", "denied");
+      localStorage.setItem(
+        "mr_cookie_consent",
+        JSON.stringify({ version: "2026-11-12", analytics: false, marketing: false, at: Date.now() })
+      );
     } catch {}
   });
   const res = await page.goto(`${BASE}${path}`);
@@ -97,5 +100,19 @@ test("A11Y-002 the keyboard reaches the page, shows focus and is never trapped",
       seen.add(info.key);
     }
     expect(seen.size, `${path}: Tab reached too few controls`).toBeGreaterThan(5);
+  }
+});
+
+test("A11Y-003 the cookie pop-up passes axe and keeps keyboard focus inside it", async ({ page }) => {
+  test.skip(!process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID, "The pop-up shows only when analytics is configured.");
+  await page.goto(`${BASE}/faq`);
+  const dialog = page.getByRole("dialog", { name: "Help us do better" });
+  await expect(dialog).toBeVisible({ timeout: 10_000 });
+  const results = await new AxeBuilder({ page }).include('[data-testid="cookie-consent"]').withTags(WCAG_TAGS).analyze();
+  expect(results.violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
+  for (let i = 0; i < 8; i++) {
+    await page.keyboard.press("Tab");
+    const inside = await page.evaluate(() => !!document.activeElement?.closest('[data-testid="cookie-consent"]'));
+    expect(inside, "focus left the cookie pop-up").toBe(true);
   }
 });
