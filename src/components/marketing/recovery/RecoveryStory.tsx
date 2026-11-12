@@ -104,7 +104,7 @@ export default function RecoveryStory({
           >
             {formatMeterValue(meter, value)}
           </motion.span>
-          <span className="ml-2 align-middle text-base font-semibold text-slate-400">
+          <span className="ml-2 align-middle text-base font-semibold text-slate-500">
             from {profile.headline.from}
           </span>
         </p>

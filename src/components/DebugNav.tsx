@@ -114,7 +114,7 @@ export default function DebugNav() {
     // it and showed as a blurred "glass" strip while scrolling, and the
     // dashboards' top bars hid behind it. On a narrow screen the row scrolls
     // sideways instead of wrapping.
-    <div className="bg-slate-950 text-white border-b border-slate-800 sticky top-0 z-50 h-[41px]">
+    <div data-debug-bar className="bg-slate-950 text-white border-b border-slate-800 sticky top-0 z-50 h-[41px]">
       <div className="max-w-7xl mx-auto h-10 px-4 flex flex-nowrap items-center gap-2 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:shrink-0">
         <span className="bg-amber-500 text-slate-950 text-[10px] font-bold uppercase px-2 py-1 rounded">
           Debug

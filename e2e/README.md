@@ -1,6 +1,6 @@
 # The end-to-end suite
 
-102 spec files, over 500 cases, one worker. `npm run test:e2e` runs all of them;
+103 spec files, over 500 cases, one worker. `npm run test:e2e` runs all of them;
 `npx playwright test e2e/<name>.spec.ts` runs one.
 
 This file is the **inventory** - what exists and what each file is for. The
@@ -142,6 +142,7 @@ total, which moves with every spec added.
 | Spec | Cases | Covers |
 | --- | --- | --- |
 | `footer-social-links` | 3 | the footer's social icons: only filled-in links drawn, each opening in a new tab, the WhatsApp number too; the save route refusing a non-https or wrong-network link |
+| `accessibility` | 21 | an axe-core WCAG 2.2 A/AA scan (alt text, contrast, labels, landmarks, ARIA) of every public page and sign-in door, and a keyboard walk proving Tab shows a visible focus and is never trapped; `npm run test:a11y`, run before every merge to staging |
 | `legal-pages` | 3 | the six public legal pages render with their title, "Last updated" date and contents list and no placeholder text; the footer's Legal row links to each; `/refunds` quotes the live refund window |
 | `invite-promise` | 1 | a patient is promised a calendar invite only where this deployment sends one: on the gate's Google-less stack the public example chip points at the dashboard instead |
 | `admin-dashboard-ui` | 11 | the dashboard in a real browser |

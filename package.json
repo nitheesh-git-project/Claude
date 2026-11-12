@@ -11,6 +11,7 @@
     "seed:qa": "node scripts/seed-qa-accounts.mjs",
     "clean:e2e": "node scripts/clean-e2e-residue.mjs",
     "test:e2e": "playwright test",
+    "test:a11y": "playwright test e2e/accessibility.spec.ts --project desktop",
     "test": "vitest run",
     "test:watch": "vitest",
     "verify": "npm run lint && npm run test && npm run build",
@@ -47,6 +48,7 @@
     "react-dom": "19.2.4"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.10.2",
     "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",

@@ -985,6 +985,17 @@
       "integration": "local",
       "destructive": false
     },
+    "accessibility.spec.ts": {
+      "runner": "platform",
+      "levels": [
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "legal-pages.spec.ts": {
       "runner": "platform",
       "levels": [
@@ -3625,6 +3636,26 @@
       ],
       "rules": [
         "docs/rules/public-site.md"
+      ]
+    },
+    {
+      "id": "platform.accessibility",
+      "runner": "platform",
+      "title": "The public pages and sign-in doors pass an axe WCAG 2.2 AA scan, and the keyboard moves through them with visible focus",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "accessibility.spec.ts",
+          "tests": [
+            "A11Y-001",
+            "A11Y-002"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/frontend.md"
       ]
     },
     {
