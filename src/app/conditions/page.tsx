@@ -6,7 +6,6 @@ import PageHero from "@/components/marketing/PageHero";
 import Section from "@/components/marketing/Section";
 import ExploreSection from "@/components/marketing/ExploreSection";
 import ClosingCta from "@/components/marketing/ClosingCta";
-import TreatmentGoals from "@/components/marketing/TreatmentGoals";
 import { readHomeVisitBookable } from "@/lib/homeVisitFlag";
 import { programmesLede } from "@/lib/sessionLengthCopy";
 
@@ -84,7 +83,6 @@ export default async function ConditionsPage() {
   // dead pill and a skipped stop for the scroll arrow. Order matches the DOM.
   const sectionNavItems: SectionNavItem[] = [
     ...(rows.length > 0 ? [{ id: "programs", label: "Programs", icon: "fa-clipboard-list" }] : []),
-    { id: "goals", label: "Treatment Goals", icon: "fa-bullseye" },
     { id: "explore", label: "Explore the Site", icon: "fa-compass" },
     { id: "not-sure", label: "Not Sure?", icon: "fa-circle-question" },
   ];
@@ -116,17 +114,6 @@ export default async function ConditionsPage() {
           <ProgramCards programs={programs} />
         </Section>
       )}
-
-      {/* Below what can be booked: what treatment works towards for each
-          kind of care (TreatmentGoals), which replaced the areas-of-practice
-          picker on this page and the home page. */}
-      <Section
-        id="goals"
-        eyebrow="What treatment works towards"
-        title="From your first visit to your goal"
-      >
-        <TreatmentGoals />
-      </Section>
 
       <ExploreSection current="conditions" homeVisitEnabled={homeVisitEnabled} />
 

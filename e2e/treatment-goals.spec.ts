@@ -3,7 +3,7 @@ import { BASE, waitForSplashToClear } from "./helpers";
 
 /**
  * "What treatment works towards" (TreatmentGoals): on the home page and
- * /conditions, one kind of care at a time, swept from the first visit to the
+ * /how-it-works, one kind of care at a time, swept from the first visit to the
  * goal. Read-only: nothing here writes a row.
  */
 test.describe("what treatment works towards", () => {
@@ -39,9 +39,9 @@ test.describe("what treatment works towards", () => {
     });
   });
 
-  test("TG-002 it replaces the old areas-of-practice picker on /conditions, and fits a phone", async ({ page }) => {
+  test("TG-002 it sits on /how-it-works, without the old areas-of-practice picker, and fits a phone", async ({ page }) => {
     await page.setViewportSize({ width: 360, height: 780 });
-    await page.goto(`${BASE}/conditions`);
+    await page.goto(`${BASE}/how-it-works`);
     await waitForSplashToClear(page);
     const band = page.locator("section#goals");
     await band.scrollIntoViewIfNeeded();
