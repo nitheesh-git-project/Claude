@@ -23,6 +23,8 @@ import {
 import { guardCommunication } from "@/lib/communicationFlags";
 import { enforceRateLimit } from "@/lib/rateLimitServer";
 import { BOOKING_NOTES_MAX, composeBookingNotes, validateBookingFor } from "@/lib/bookingFor";
+import { recordPolicyAcceptances } from "@/lib/policyAcceptanceServer";
+import { currentTermsVersion } from "@/lib/policyAcceptance";
 
 // Creates the pre-payment appointment row for a single online session --
 // the row /api/razorpay/create-order then mints a Razorpay order against.
@@ -57,6 +59,9 @@ type Body = {
    *  into the notes by this route (src/lib/bookingFor.ts) -- the browser
    *  never sends the finished line. */
   bookingFor?: unknown;
+  /** The telehealth consent box on Step 2. Recorded against the booking
+   *  when true (policy_acceptances); the wizard will not submit without it. */
+  telehealthConsent?: unknown;
   preferredTherapistId?: string | null;
   preferredLanguage?: string | null;
   /** When present, the response carries the payment screen's quote for the
@@ -371,6 +376,17 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+
+  // What the patient agreed to for this booking, with the database's clock.
+  // Best effort: the booking is real whether or not the record lands.
+  await recordPolicyAcceptances(admin, [
+    ...(body.telehealthConsent === true
+      ? [{ userId: user.id, document: "telehealth_consent" as const, version: currentTermsVersion(), context: "booking" as const, appointmentId: created.id }]
+      : []),
+    ...(bookingFor.value?.guardianConfirmed
+      ? [{ userId: user.id, document: "guardian_consent" as const, version: currentTermsVersion(), context: "booking" as const, appointmentId: created.id }]
+      : []),
+  ]);
 
   await recordUserActivity(admin, {
     action: "appointment.requested",

@@ -151,6 +151,7 @@ wrong are exactly the things a restore drill finds:
 | `debug_test_accounts` (the debug bar's throwaway logins, passwords included) | Until deleted from the panel | The panel's Delete, or the data reset |
 | `announcements`, `announcement_receipts` | Until an admin deletes the announcement | Settings -> Announcements (a live one must be ended first); receipts cascade with the announcement or the account. Its pictures sit in the public `catalog-images` bucket and are removed with it. |
 | `rate_limit_counters` | One window | The next call for that bucket |
+| `policy_acceptances` (who agreed to which version of the Terms, the telehealth consent, or a guardian's consent, and when) | Indefinitely - it is the evidence of consent | Nothing in the app. Append-only by trigger; goes with the profile when an account is removed, and loses only its booking link when a booking is deleted |
 | `cookie_consents` (each cookie pop-up choice: a random browser id, the choices, the button, policy version, page path, country, and the account only if signed in) | Indefinitely - it is the evidence of consent | Nothing in the app. Append-only by trigger; `user_id` is cleared when the account is removed. The pre-launch data reset truncates it, so testing's choices are not counted as patients' |
 
 ### The audit log's archival strategy

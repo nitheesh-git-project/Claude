@@ -14,7 +14,7 @@ import {
   cookieHeaderFor,
   insertPastFixtureAppointment,
   markDashboardTourSeen,
-  profileIdFor,
+  profileIdFor, TERMS_METADATA,
 } from "./helpers";
 import { checkoutSignature, gateway, type FakePayment } from "./fakeGateway";
 
@@ -34,7 +34,7 @@ export async function createFixtureAccount(
     email,
     password: TEST_PASSWORD,
     email_confirm: true,
-    user_metadata: { role, full_name: name },
+    user_metadata: { ...TERMS_METADATA, role, full_name: name },
   });
   if (error || !data.user) throw new Error(`could not create ${email}: ${error?.message}`);
   const { error: profileError } = await db

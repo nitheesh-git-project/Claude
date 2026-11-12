@@ -20940,6 +20940,107 @@ create trigger trg_cookie_consents_append_only
   before update or delete on cookie_consents
   for each row execute function public.cookie_consents_is_append_only();
 
+-- =============================================================================
+-- Policy acceptances: what each person agreed to, and when.
+-- =============================================================================
+-- One row per agreement (src/lib/policyAcceptance.ts):
+--   terms_privacy      the Terms of use and Privacy policy, at signup (from the
+--                      signup form's tick box) or on a later sign-in when the
+--                      version changed, or the account was made by staff
+--   telehealth_consent the consent ticked on a video booking
+--   guardian_consent   a parent or guardian confirming a booking for a child
+-- `version` is the legal pages' effective date. `accepted_at` is the
+-- database's clock, never the browser's. Append-only by trigger: an agreement
+-- that was given is never edited. Two changes are allowed: appointment_id
+-- going null when a booking is removed, and the row going with its profile.
+create table if not exists policy_acceptances (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references profiles(id) on delete cascade,
+  document text not null check (document in ('terms_privacy', 'telehealth_consent', 'guardian_consent')),
+  version text not null check (version ~ '^[0-9A-Za-z.-]{1,32}$'),
+  context text not null check (context in ('signup', 'reaccept', 'booking')),
+  appointment_id uuid references appointments(id) on delete set null,
+  accepted_at timestamptz not null default now()
+);
+
+create index if not exists policy_acceptances_user_idx on policy_acceptances (user_id, document, accepted_at desc);
+create index if not exists policy_acceptances_appointment_idx on policy_acceptances (appointment_id) where appointment_id is not null;
+
+alter table policy_acceptances enable row level security;
+
+-- A person reads their own agreements (the dashboards' terms gate does);
+-- staff read everyone's. Writes go through the service role only.
+drop policy if exists "policy_acceptances_select_own" on policy_acceptances;
+create policy "policy_acceptances_select_own" on policy_acceptances
+  for select using (user_id = (select auth.uid()));
+
+drop policy if exists "policy_acceptances_select_admin" on policy_acceptances;
+create policy "policy_acceptances_select_admin" on policy_acceptances
+  for select using (is_admin());
+
+revoke insert, update, delete on policy_acceptances from anon, authenticated;
+
+create or replace function public.policy_acceptances_is_append_only()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if tg_op = 'DELETE' and not exists (select 1 from profiles where id = old.user_id) then
+    return old;
+  end if;
+  if tg_op = 'UPDATE'
+     and old.appointment_id is not null and new.appointment_id is null
+     and new.id = old.id and new.user_id = old.user_id
+     and new.document = old.document and new.version = old.version
+     and new.context = old.context and new.accepted_at = old.accepted_at then
+    return new;
+  end if;
+  raise exception 'policy_acceptances is append-only: an agreement that was given is never edited or deleted';
+end;
+$$;
+
+revoke all on function public.policy_acceptances_is_append_only() from public;
+revoke all on function public.policy_acceptances_is_append_only() from anon;
+revoke all on function public.policy_acceptances_is_append_only() from authenticated;
+
+drop trigger if exists trg_policy_acceptances_append_only on policy_acceptances;
+create trigger trg_policy_acceptances_append_only
+  before update or delete on policy_acceptances
+  for each row execute function public.policy_acceptances_is_append_only();
+
+-- The signup forms put the version they showed in the user's metadata
+-- (`accepted_terms_version`); this records it at the moment the account is
+-- made, with the database's clock. Named to sort after on_auth_user_created,
+-- so the profile it points at already exists. A missing or malformed version
+-- records nothing: that person is asked on their first sign-in instead.
+create or replace function public.record_signup_terms_acceptance()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v text := new.raw_user_meta_data ->> 'accepted_terms_version';
+begin
+  if v is not null and v ~ '^[0-9A-Za-z.-]{1,32}$'
+     and exists (select 1 from public.profiles where id = new.id) then
+    insert into public.policy_acceptances (user_id, document, version, context)
+    values (new.id, 'terms_privacy', v, 'signup');
+  end if;
+  return new;
+end;
+$$;
+
+revoke all on function public.record_signup_terms_acceptance() from public;
+revoke all on function public.record_signup_terms_acceptance() from anon;
+revoke all on function public.record_signup_terms_acceptance() from authenticated;
+
+drop trigger if exists on_auth_user_terms_accepted on auth.users;
+create trigger on_auth_user_terms_accepted
+  after insert on auth.users
+  for each row execute function public.record_signup_terms_acceptance();
+
 -- ---------------------------------------------------------------------
 -- service_role's EXECUTE, written out rather than inherited.
 --

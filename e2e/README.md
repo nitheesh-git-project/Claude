@@ -1,6 +1,6 @@
 # The end-to-end suite
 
-103 spec files, over 500 cases, one worker. `npm run test:e2e` runs all of them;
+104 spec files, over 500 cases, one worker. `npm run test:e2e` runs all of them;
 `npx playwright test e2e/<name>.spec.ts` runs one.
 
 This file is the **inventory** - what exists and what each file is for. The
@@ -143,6 +143,7 @@ total, which moves with every spec added.
 | --- | --- | --- |
 | `footer-social-links` | 3 | the footer's social icons: only filled-in links drawn, each opening in a new tab, the WhatsApp number too; the save route refusing a non-https or wrong-network link |
 | `accessibility` | 22 | an axe-core WCAG 2.2 A/AA scan (alt text, contrast, labels, landmarks, ARIA) of every public page and sign-in door, a keyboard walk proving Tab shows a visible focus and is never trapped, and the cookie pop-up scanned on its own with focus held inside it (that one only with `NEXT_PUBLIC_GA_MEASUREMENT_ID` set); `npm run test:a11y`, run before every merge to staging |
+| `terms-acceptance` | 4 | agreeing to the Terms: an account that never agreed is stopped at "Before you continue" and let in once it agrees (recorded as `reaccept`); a signup that ticked the box is recorded by the database trigger and goes straight in; a booking for a child is a 400 without the guardian box and records the guardian and telehealth consents with it; the patient signup form refuses without the box. Creates and deletes its own accounts |
 | `legal-pages` | 3 | the six public legal pages render with their title, "Last updated" date and contents list and no placeholder text; the footer's Legal row links to each; `/refunds` quotes the live refund window |
 | `invite-promise` | 1 | a patient is promised a calendar invite only where this deployment sends one: on the gate's Google-less stack the public example chip points at the dashboard instead |
 | `admin-dashboard-ui` | 11 | the dashboard in a real browser |

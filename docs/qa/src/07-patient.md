@@ -95,6 +95,10 @@ await fetch("/api/appointments/create", {
 
 ---
 
+#### `PAT-TERMS-001` - Agreeing to the Terms · P0
+**Steps.** (1) On `/patient/login` → Register Account, fill everything but leave **I agree to the Terms of use and Privacy policy** unticked and tap Create Account. (2) Tick it and create the account; have an admin approve it; sign in. (3) As an admin, create a patient from the back office, then sign in as that patient. (4) On `/book`, signed in, choose **Someone in my family** and type age `9`.
+**Expected Result.** (1) Refused with *"Please agree to the Terms of use and Privacy policy to create your account."*, and no account exists. (2) The dashboard opens with no extra screen, and the admin's patient page → **Agreements** shows *Terms of use and Privacy policy · At signup*. (3) A full-page **Before you continue** appears; **Agree and continue** stays disabled until the box is ticked, then the dashboard opens and Agreements shows *On sign-in*. An admin using **View as** this patient is never shown the screen. (4) A box *"I am their parent or legal guardian…"* appears; Review Booking without it says *"Please confirm you are their parent or legal guardian."* After booking, Agreements shows *Parent or guardian consent* and *Telehealth consent · On a booking*. Automated: `e2e/terms-acceptance.spec.ts`.
+
 ### 11.1a The dashboard landing screens
 
 The patient portal's Overview is the screen a patient lands on after every sign-in, and the one that answers "how am I doing / what needs me / what do I do next" in that order - a strip of four figures, the activity feed, then quick actions. It is assembled by `loadPatientDashboard()`, so every figure on it is derived from rows the same loader already read: none of it can disagree with the screen it links to. The booking hub under **Book a Session** is the portal's own front door to the two things a patient may buy directly - **one** video consultation, or **one** visit at home.

@@ -32,6 +32,13 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 
+// The legal pages' effective date (src/lib/legal/legalFacts.ts), read from
+// the source so this script never needs its own copy to keep in step.
+const TERMS_VERSION = (() => {
+  const src = readFileSync(new URL("../src/lib/legal/legalFacts.ts", import.meta.url), "utf8");
+  return /effectiveDate:\s*"([^"]+)"/.exec(src)?.[1] ?? "";
+})();
+
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 function loadEnvLocal() {
@@ -356,7 +363,13 @@ async function seed() {
         // design, and /api/admin/onboard-hospital promotes after insert too,
         // so a seeded partner carrying a PT code is exactly what the real
         // onboarding produces.
-        user_metadata: { full_name: account.fullName, role: account.profile.role },
+        user_metadata: {
+          full_name: account.fullName,
+          role: account.profile.role,
+          // Recorded as agreed by on_auth_user_terms_accepted, so a QA
+          // account is not stopped at "Agree to continue" on first sign-in.
+          accepted_terms_version: TERMS_VERSION,
+        },
       });
       if (error || !data.user) {
         results.push({ ...account, action: `FAILED: ${error?.message ?? "no user"}`, code: "-" });

@@ -18,7 +18,7 @@ import {
   clinicSlot,
   cookieHeaderFor,
   openTherapistHour,
-  profileIdFor, TEST_PASSWORD
+  profileIdFor, TEST_PASSWORD, TERMS_METADATA
 } from "./helpers";
 
 test.describe("Suite H: two admins", () => {
@@ -85,7 +85,7 @@ test.describe("Suite H: two admins", () => {
       email,
       password: TEST_PASSWORD,
       email_confirm: true,
-      user_metadata: { full_name: "QA Pending Signup" },
+      user_metadata: { ...TERMS_METADATA, full_name: "QA Pending Signup" },
     });
     await admin
       .from("profiles")
@@ -154,7 +154,7 @@ test.describe("Suite H: two admins", () => {
         email: `qa.race.${Date.now()}.${round}@example.test`,
         password: TEST_PASSWORD,
         email_confirm: true,
-        user_metadata: { full_name: "QA Race Signup" },
+        user_metadata: { ...TERMS_METADATA, full_name: "QA Race Signup" },
       });
       expect(createError, createError?.message).toBeNull();
       const userId = created!.user!.id;

@@ -11,7 +11,8 @@ import {
   profileIdFor,
   QA_EMAILS,
   waitForSplashToClear,
-  wholeHourFromNow, settleNetwork
+  wholeHourFromNow, settleNetwork,
+  tickBookingAgreements
 } from "./helpers";
 import { BOOKING_FOR_PREFIX } from "../src/lib/bookingFor";
 
@@ -116,7 +117,7 @@ test.describe("booking wizard: honest Step 1, plain Step 2", () => {
     await page.getByLabel("Email").fill(`e2e.family.${Date.now()}@example.test`);
     await page.getByLabel(/Create a password/).fill("e2e-Password-1");
     await page.getByLabel("Phone number", { exact: false }).first().fill("9876543210");
-    await page.getByRole("checkbox").first().check();
+    await tickBookingAgreements(page);
     await page.getByRole("button", { name: /Review Booking/i }).click();
     await expect(page.locator("[data-form-error]")).toContainText(/name of the person/i);
   });
@@ -249,7 +250,7 @@ test.describe("a clash with the patient's own session is caught on Step 1, and e
       await chooseAnyServiceOnStepOne(page);
       await page.getByRole("button", { name: /Continue to your details/ }).click();
       await expect(page.getByText("Step 2 of 3")).toBeInViewport({ timeout: 30_000 });
-      await page.getByRole("checkbox", { name: /I agree/ }).check();
+      await tickBookingAgreements(page);
       await page.getByRole("button", { name: /Review Booking/ }).click();
       // The step's label is on screen, and the footer is not.
       await expect(page.getByText("Step 3 of 3")).toBeInViewport({ timeout: 30_000 });

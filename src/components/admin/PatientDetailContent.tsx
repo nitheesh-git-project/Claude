@@ -21,6 +21,7 @@ import PatientNotesForm from "@/components/admin/PatientNotesForm";
 import ReadOnlyDeskNote from "@/components/admin/ReadOnlyDeskNote";
 import ResetPatientPasswordButton from "@/components/admin/ResetPatientPasswordButton";
 import DeleteAccountButton from "@/components/admin/DeleteAccountButton";
+import PolicyAcceptancesCard from "@/components/admin/PolicyAcceptancesCard";
 import PatientProfitChart from "@/components/admin/PatientProfitChart";
 import RatingManager from "@/components/admin/RatingManager";
 import { adminScreenHref } from "@/lib/adminNav";
@@ -592,6 +593,8 @@ export default async function PatientDetailContent({ id }: { id: string }) {
             </p>
           )}
         </div>
+
+        <PolicyAcceptancesCard userId={patient.id} />
       </div>
 
       <RatingManager

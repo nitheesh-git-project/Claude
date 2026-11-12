@@ -7,7 +7,7 @@
 // Declined lists them, and a returning applicant is flagged in Approvals.
 // Rules: src/lib/declineReasons.ts.
 import { test, expect } from "@playwright/test";
-import { BASE, QA_EMAILS, adminClient, browserCookiesFor, cookieHeaderFor, TEST_PASSWORD } from "./helpers";
+import { BASE, QA_EMAILS, adminClient, browserCookiesFor, cookieHeaderFor, TEST_PASSWORD, TERMS_METADATA } from "./helpers";
 
 async function createPendingPatient(name: string, email: string) {
   const admin = adminClient();
@@ -15,7 +15,7 @@ async function createPendingPatient(name: string, email: string) {
     email,
     password: TEST_PASSWORD,
     email_confirm: true,
-    user_metadata: { full_name: name },
+    user_metadata: { ...TERMS_METADATA, full_name: name },
   });
   expect(error, error?.message).toBeNull();
   const id = created!.user!.id;

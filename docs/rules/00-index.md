@@ -124,6 +124,11 @@ rg -i "<the thing you are seeing>" docs/rules/
 - What a patient's Health Profile shows is the clinic's choice, per condition kind and per patient, and the safety sections are never hidden
 - A patient withdraws a diary entry by saying it was saved by mistake, and nothing is deleted (E1)
 - The patient's own words on the profile (C1/D2/D3)
+- Every agreement is a row in `policy_acceptances`, append-only, with the database's clock
+- A signup records its agreement in the database, not from the browser's word about the time
+- Anyone without the current version is stopped at the dashboards, never at a failed read
+- A booking for a child needs the parent or guardian box, on the server
+- The admin's patient page shows them
 
 ## The four dashboards, and moving between screens
 

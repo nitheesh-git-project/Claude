@@ -504,6 +504,16 @@ every public page. Content in `src/lib/legal/legalDocs.ts`; the owner-only
 facts (legal entity, Grievance Officer, jurisdiction) in
 `src/lib/legal/legalFacts.ts` must be filled before launch.
 
+**Agreements:** every signup form has a required "I agree to the Terms of use
+and Privacy policy" box, recorded with its version in `policy_acceptances`.
+A patient, therapist or hospital partner who has not agreed to the current
+version (older accounts, staff-created accounts, or after the legal pages'
+date moves) sees "Agree to continue" before their dashboard
+(`POST /api/account/accept-terms`). A booking records the telehealth consent,
+and a booking for someone under 18 needs and records a parent's or
+guardian's confirmation. The admin's patient page lists them under
+**Agreements**.
+
 **Cookie consent:** the pop-up on the public pages (Accept all / Reject all /
 Choose what to allow) records every choice through `POST /api/consent` into
 `cookie_consents` (append-only, no name, contact detail or IP address).

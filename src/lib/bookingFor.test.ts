@@ -28,7 +28,7 @@ describe("validateBookingFor", () => {
     const result = validateBookingFor({ ...family, name: "  Asha   Rao ", age: "62" });
     expect(result).toEqual({
       ok: true,
-      value: { name: "Asha Rao", age: 62, relationship: "my mother", someoneWithThem: "yes" },
+      value: { name: "Asha Rao", age: 62, relationship: "my mother", someoneWithThem: "yes", guardianConfirmed: false },
     });
   });
 
@@ -53,8 +53,21 @@ describe("validateBookingFor", () => {
     for (const age of [-1, 121, 3.5, "abc", "1e2", Number.NaN, null, {}]) {
       expect(validateBookingFor({ ...family, age }).ok).toBe(false);
     }
-    expect(validateBookingFor({ ...family, age: 0 }).ok).toBe(true);
+    expect(validateBookingFor({ ...family, age: 0, guardianConfirmed: true }).ok).toBe(true);
     expect(validateBookingFor({ ...family, age: BOOKING_FOR_LIMITS.maxAge }).ok).toBe(true);
+  });
+
+  it("needs a parent or guardian to confirm a booking for someone under 18", () => {
+    const child = { ...family, age: 9, relationship: "my son" };
+    const refused = validateBookingFor(child);
+    expect(refused.ok).toBe(false);
+    expect(refused.ok ? "" : refused.error).toMatch(/parent or legal guardian/);
+    expect(validateBookingFor({ ...child, guardianConfirmed: "yes" }).ok).toBe(false);
+    const ok = validateBookingFor({ ...child, guardianConfirmed: true });
+    expect(ok.ok && ok.value?.guardianConfirmed).toBe(true);
+    // 18 is an adult: no confirmation asked, none recorded.
+    const adult = validateBookingFor({ ...family, age: 18 });
+    expect(adult.ok && adult.value?.guardianConfirmed).toBe(false);
   });
 
   it("caps lengths", () => {
@@ -77,7 +90,7 @@ describe("validateBookingFor", () => {
 });
 
 describe("composeBookingNotes / splitBookingNotes", () => {
-  const value: BookingFor = { name: "Asha Rao", age: 62, relationship: "my mother", someoneWithThem: "no" };
+  const value: BookingFor = { name: "Asha Rao", age: 62, relationship: "my mother", someoneWithThem: "no", guardianConfirmed: false };
 
   it("leaves notes alone when the session is for the patient", () => {
     expect(composeBookingNotes(null, "  my knee  ")).toBe("my knee");

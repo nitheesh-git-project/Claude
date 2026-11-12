@@ -45,6 +45,8 @@ import ChosenServiceSummary from "@/components/booking/ChosenServiceSummary";
 import { homeVisitConditionOption, type HomeVisitConditionRow } from "@/lib/serviceOptions";
 import { formatRupees } from "@/lib/formatMoney";
 import PasswordInput from "@/components/auth/PasswordInput";
+import TermsCheckbox, { TERMS_REQUIRED_MESSAGE } from "@/components/legal/TermsCheckbox";
+import { signupTermsMetadata } from "@/lib/policyAcceptance";
 import {
   daysAheadBucket,
   priceBand,
@@ -164,6 +166,7 @@ export default function HomeVisitBookingWizard({
   const [concern, setConcern] = useState("");
   const [notes, setNotes] = useState("");
   const [consent, setConsent] = useState(false);
+  const [termsAgreed, setTermsAgreed] = useState(false);
 
   // Step 4 -- how to pay. Defaults to prepaid regardless of cashEnabled: a
   // prepaid visit needs no admin approval before it is confirmed (see
@@ -489,6 +492,10 @@ export default function HomeVisitBookingWizard({
       failField("Please confirm you're happy for a therapist to visit this address.", "hv-consent");
       return;
     }
+    if (!isLoggedIn && !termsAgreed) {
+      failField(TERMS_REQUIRED_MESSAGE, "hv-terms");
+      return;
+    }
     setStep(4);
   }
 
@@ -552,6 +559,7 @@ export default function HomeVisitBookingWizard({
             // Locked until it pays or runs out of tries; deleted if it does
             // neither (see purge_abandoned_booking_accounts).
             signup_source: "booking",
+            ...signupTermsMetadata(),
           },
         },
       });
@@ -1079,6 +1087,7 @@ export default function HomeVisitBookingWizard({
               me here at the time I selected.
             </span>
           </label>
+          {!isLoggedIn && <TermsCheckbox id="hv-terms" checked={termsAgreed} onChange={setTermsAgreed} />}
 
           {error && (
             <p data-form-error role="alert" className="text-sm text-red-600">

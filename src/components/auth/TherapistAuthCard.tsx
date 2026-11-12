@@ -11,6 +11,8 @@ import PasswordField from "./PasswordField";
 import { THERAPIST_SPECIALTIES } from "@/lib/therapistSpecialties";
 import { MAX_YEARS_EXPERIENCE } from "@/lib/therapistExperience";
 import PasswordInput from "./PasswordInput";
+import TermsCheckbox, { TERMS_REQUIRED_MESSAGE } from "@/components/legal/TermsCheckbox";
+import { signupTermsMetadata } from "@/lib/policyAcceptance";
 
 export default function TherapistAuthCard() {
   const [tab, setTab] = useState<"login" | "register">("login");
@@ -18,6 +20,7 @@ export default function TherapistAuthCard() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [registerEmail, setRegisterEmail] = useState("");
+  const [termsAgreed, setTermsAgreed] = useState(false);
   const [registerPhone, setRegisterPhone] = useState("");
   const [registerPassword, setRegisterPassword] = useState("");
   const [registerConfirmPassword, setRegisterConfirmPassword] = useState("");
@@ -112,6 +115,12 @@ export default function TherapistAuthCard() {
       return;
     }
 
+    if (!termsAgreed) {
+      setLoading(false);
+      setError(TERMS_REQUIRED_MESSAGE);
+      return;
+    }
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -126,6 +135,7 @@ export default function TherapistAuthCard() {
           credentials,
           specialization,
           years_experience: years,
+          ...signupTermsMetadata(),
         },
       },
     });
@@ -412,6 +422,7 @@ export default function TherapistAuthCard() {
               value={registerConfirmPassword}
               onChange={setRegisterConfirmPassword}
             />
+            <TermsCheckbox id="therapist-register-terms" checked={termsAgreed} onChange={setTermsAgreed} />
             <button
               type="submit"
               disabled={loading}

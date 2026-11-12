@@ -5,7 +5,8 @@ import {
   adminClient,
   browserCookiesFor,
   chooseAnyServiceOnStepOne,
-  waitForSplashToClear, TEST_PASSWORD, settleNetwork
+  waitForSplashToClear, TEST_PASSWORD, settleNetwork, TERMS_METADATA,
+  tickBookingAgreements
 } from "./helpers";
 
 /**
@@ -45,7 +46,7 @@ async function walkToStepThree(page: Page) {
   await chooseAnyServiceOnStepOne(page);
   await page.getByRole("button", { name: /Continue to your details/i }).click();
   await expect(page.getByText(/Booking as/i)).toBeVisible({ timeout: 30_000 });
-  await page.getByRole("checkbox").first().check();
+  await tickBookingAgreements(page);
   await page.getByRole("button", { name: /Review Booking/i }).click();
 }
 
@@ -154,7 +155,7 @@ test.describe("a new patient's payment tries", () => {
     await page.getByLabel("Phone number", { exact: false }).first().fill("9876543210");
     await page.getByLabel("Email").fill(email);
     await page.getByLabel(/Create a password/).fill(TEST_PASSWORD);
-    await page.getByRole("checkbox").first().check();
+    await tickBookingAgreements(page);
     await page.getByRole("button", { name: /Review Booking/i }).click();
 
     const profile = async () =>
@@ -201,7 +202,7 @@ test.describe("signing in to a locked booking account", () => {
         email,
         password: TEST_PASSWORD,
         email_confirm: true,
-        user_metadata: { role: "patient", full_name: "E2E Locked", ...(signupSource ? { signup_source: signupSource } : {}) },
+        user_metadata: { ...TERMS_METADATA, role: "patient", full_name: "E2E Locked", ...(signupSource ? { signup_source: signupSource } : {}) },
       });
       expect(error).toBeNull();
       return data.user!.id;
@@ -269,7 +270,7 @@ test.describe("abandoned checkouts in the back office", () => {
       email,
       password: TEST_PASSWORD,
       email_confirm: true,
-      user_metadata: { role: "patient", full_name: "E2E Abandoned Lead", signup_source: "booking" },
+      user_metadata: { ...TERMS_METADATA, role: "patient", full_name: "E2E Abandoned Lead", signup_source: "booking" },
     });
     expect(error).toBeNull();
     const id = data.user!.id;

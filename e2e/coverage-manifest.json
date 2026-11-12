@@ -985,6 +985,19 @@
       "integration": "local",
       "destructive": false
     },
+    "terms-acceptance.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "accessibility.spec.ts": {
       "runner": "platform",
       "levels": [
@@ -3638,6 +3651,28 @@
       ],
       "rules": [
         "docs/rules/public-site.md"
+      ]
+    },
+    {
+      "id": "patient.terms-acceptance",
+      "runner": "patient",
+      "title": "Agreeing to the Terms: a signup that ticked the box is recorded, an account that never agreed is stopped at the dashboards until it does, the signup form refuses without the box, and a booking for a child needs the guardian box and records the guardian and telehealth consents",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "terms-acceptance.spec.ts",
+          "tests": [
+            "TA-001",
+            "TA-002",
+            "TA-003",
+            "TA-004"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/clinical.md"
       ]
     },
     {

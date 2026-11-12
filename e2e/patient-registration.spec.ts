@@ -22,6 +22,7 @@ import {
   adminClient,
   browserCookiesFor,
   cookieHeaderFor,
+  TERMS_METADATA
 } from "./helpers";
 
 const db = adminClient();
@@ -50,6 +51,8 @@ async function signUp(role: "patient" | "therapist", email: string) {
         full_name: role === "patient" ? "QA Signup Patient" : "QA Signup Therapist",
         phone: "+919999000012",
         ...(role === "therapist" ? { credentials: "QA" } : {}),
+        // What the signup forms send once their tick box is ticked.
+        ...TERMS_METADATA,
       },
     },
   });
@@ -190,6 +193,7 @@ test.describe("Self-registration without email confirmation", () => {
     await form.locator('input[type="tel"]').fill("9999000013");
     await form.locator('input[name="password"]').fill(TEST_PASSWORD);
     await form.locator('input[name="confirmPassword"]').fill(TEST_PASSWORD);
+    await form.getByRole("checkbox", { name: /I agree to the Terms of use/ }).check();
     await page.getByRole("button", { name: "Create Account" }).click();
 
     await page.waitForURL(/\/pending-approval/, { timeout: 60_000 });

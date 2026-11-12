@@ -15,7 +15,8 @@ import {
   E2E_MARKERS,
   deleteHomeVisitFixturePurchases,
   browserCookiesFor,
-  chooseAnyServiceOnStepOne, settleNetwork
+  chooseAnyServiceOnStepOne, settleNetwork,
+  tickBookingAgreements
 } from "./helpers";
 
 test.describe("home-visit lead time (regression for the bulk scheduler bug)", () => {
@@ -380,7 +381,7 @@ test.describe("the cancellation notice a patient is shown before paying", () => 
     await page.getByRole("button", { name: /Continue to your details/i }).click();
     await page.waitForTimeout(1200);
 
-    await page.getByRole("checkbox").first().check();
+    await tickBookingAgreements(page);
     await page.waitForTimeout(300);
 
     await page.getByRole("button", { name: /Review Booking/i }).click();

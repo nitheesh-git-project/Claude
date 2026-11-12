@@ -5,8 +5,35 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
+import { currentTermsVersion, signupTermsMetadata } from "../src/lib/policyAcceptance";
 
 export const BASE = process.env.E2E_BASE_URL ?? "http://localhost:3000";
+
+/**
+ * Signup metadata saying the Terms in force were agreed to, so an account a
+ * spec creates is recorded as agreed by the database trigger and is not
+ * stopped at the dashboards' "Agree to continue" (TermsGate). Only
+ * `terms-acceptance.spec.ts` creates an account without it.
+ */
+export const TERMS_METADATA = signupTermsMetadata();
+
+/** Records the Terms in force as agreed for an account that predates the
+ *  tick box (the fixed QA accounts), unless it already has them. */
+export async function ensureTermsAccepted(admin: SupabaseClient, userId: string): Promise<void> {
+  const version = currentTermsVersion();
+  const { data } = await admin
+    .from("policy_acceptances")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("document", "terms_privacy")
+    .eq("version", version)
+    .limit(1);
+  if (data && data.length > 0) return;
+  const { error } = await admin
+    .from("policy_acceptances")
+    .insert({ user_id: userId, document: "terms_privacy", version, context: "reaccept" });
+  if (error) throw new Error(`could not record terms acceptance for ${userId}: ${error.message}`);
+}
 // The QA accounts' shared password. It lives in .env.local (E2E_QA_PASSWORD)
 // and, on CI's disposable stack, is generated per run -- never in this
 // public repository, where anyone could read it and sign in to staging.
@@ -645,7 +672,7 @@ export async function createFixtureAccount(
     email,
     password: TEST_PASSWORD,
     email_confirm: true,
-    user_metadata: { role: "patient", full_name: name },
+    user_metadata: { ...TERMS_METADATA, role: "patient", full_name: name },
   });
   if (error || !data.user) throw new Error(`could not create the ${label} fixture: ${error?.message}`);
   const { error: profileError } = await admin
@@ -710,4 +737,15 @@ export async function openProfileBlocks(page: import("@playwright/test").Page): 
  */
 export async function settleNetwork(page: Page, timeout = 15_000): Promise<void> {
   await page.waitForLoadState("networkidle", { timeout }).catch(() => {});
+}
+
+/**
+ * Ticks Step 2's agreements on the booking wizard: the telehealth consent
+ * always, and the Terms of use and Privacy policy box when it is there (a
+ * signed-out visitor creating an account on the way).
+ */
+export async function tickBookingAgreements(page: Page): Promise<void> {
+  await page.getByRole("checkbox", { name: /I agree to the Consent terms/ }).check();
+  const terms = page.getByRole("checkbox", { name: /I agree to the Terms of use/ });
+  if (await terms.count()) await terms.check();
 }
