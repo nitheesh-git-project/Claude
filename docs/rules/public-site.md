@@ -244,9 +244,10 @@ Eight pages from one design system, the word budgets, why every photograph carri
   in "View full details"), and the length and price on one line at the
   card's foot, so a row of cards ends on one baseline. `/conditions` keeps
   the full card.
-- **The header and the sticky bar never cut a word off.** From 1024 to
-  1279px the header shows the short brand name, because the full name was
-  truncated beside five links and two buttons. Below 420px the phone's
+- **The header and the sticky bar never cut a word off.** The header keeps
+  the full brand name and tagline at every width (see the header rule
+  below); from 1024 to 1279px Our team moves into More to make room, where
+  the name used to be truncated ("MoveResto..."). Below 420px the phone's
   booking bar drops its two lines of text (they could only read "Video or a
   visit a...") and the button takes the width.
 - **A carousel that moves on its own is a carousel nobody can read.**
@@ -770,8 +771,10 @@ Eight pages from one design system, the word budgets, why every photograph carri
   is **no Get Started in the header**: that hub is a switchboard (patient,
   therapist, hospital sign-ins), so the phone menu's one primary button is
   Book a video session and the hub's other doors live in the footer under
-  "For clinicians and partners". Below `sm` the brand is the short name
-  ("MoveRestore", `shortBrandName`) with no tagline so it fits whole. Menu rows
+  "For clinicians and partners". The brand is the **full name with its tagline at
+  every width**, never the short name and never an ellipsis: on a phone the name
+  scales with the screen (15px at 360px), and from 1024 to 1279px it is 16px,
+  the bar's gaps tighten and Our team steps into More (`LAPTOP_MORE_KEYS`). Menu rows
   and footer links are 44px targets. The WhatsApp / Call chip in the menu and
   the icon beside the sticky bar's Book button exist only for numbers an admin
   has filled in (`contactLinks.ts`; the shipped "+91 XXXXX XXXXX" is not one),

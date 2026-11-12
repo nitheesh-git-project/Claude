@@ -15,13 +15,15 @@ import { BOOK_CONNECTOR, visibleMarketingPages, type MarketingPageKey } from "@/
 import BrandMark from "@/components/BrandMark";
 import { WhatsAppGlyph } from "@/components/visuals/BrandGlyphs";
 import type { PublicContactLinks } from "@/lib/contactLinks";
-import { shortBrandName } from "@/lib/brandName";
 
 
 // The pages a laptop header keeps in its row -- what a first-time visitor
 // reads before booking. Mission and Hospitals (the latter written for a
 // different audience) go under More until 2xl.
 const PRIMARY_KEYS = new Set<MarketingPageKey>(["conditions", "how-it-works", "home-visit", "team", "faq"]);
+// Below xl (1024-1279px) the bar keeps the brand's full name, so one primary
+// link steps into More to make room; it is back in the bar from xl.
+const LAPTOP_MORE_KEYS = new Set<MarketingPageKey>(["team"]);
 
 export default function Navbar({
   offsetTop = false,
@@ -56,6 +58,7 @@ export default function Navbar({
   // on a laptop the secondary ones fold into More.
   const navLinks = links.filter((page) => page.key !== "home");
   const moreLinks = navLinks.filter((page) => !PRIMARY_KEYS.has(page.key));
+  const laptopMoreLinks = navLinks.filter((page) => LAPTOP_MORE_KEYS.has(page.key));
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -140,43 +143,39 @@ export default function Navbar({
       } ${scrolled ? "shadow-md border-slate-200" : "shadow-none border-transparent"}`}
     >
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 2xl:max-w-[1440px]">
-        <div className="flex justify-between gap-6 h-16 items-center">
-          {/* Shrinks rather than shoving the menu button off a 360px phone.
-              Below sm the brand is the short name ("MoveRestore") with no
-              tagline, so it fits whole instead of ending in an ellipsis; from
-              sm up the full name and the tagline return. The link keeps the
+        <div className="flex justify-between gap-3 h-16 items-center xl:gap-6">
+          {/* Shrinks rather than shoving the menu button off a 360px phone:
+              the name scales with the screen instead of being shortened. The
+              link keeps the
               full name as its accessible name either way. */}
           <Link
             href="/"
             aria-label={siteName}
-            className="flex min-w-0 items-center space-x-3 group"
+            className="flex min-w-0 shrink-0 items-center gap-2.5 group sm:gap-3"
           >
             <motion.div
               whileHover={{ rotate: -6, scale: 1.05 }}
               transition={{ type: "spring", stiffness: 400, damping: 15 }}
               className="flex shrink-0"
             >
-              <BrandMark size={44} variant="flat" />
+              <BrandMark size={40} variant="flat" />
             </motion.div>
-            {/* Short name on a phone and again from 1024 to 1279px, where the
-                five links and two buttons leave the full name truncated
-                ("MoveResto..."); the full name and tagline come back at xl. */}
+            {/* The full name and the tagline at every width, never the short
+                name and never an ellipsis: the brand is the one thing in the
+                bar that must read whole. On a phone it scales with the screen
+                (15px at 360, 18px from 430); from 1024 to 1279px, where five
+                links and two buttons share the bar, it is 16px and the bar's
+                gaps tighten instead. */}
             <div className="min-w-0">
               <span
                 aria-hidden="true"
-                className="font-display text-lg font-bold text-slate-800 tracking-tight block leading-tight whitespace-nowrap sm:hidden lg:block xl:hidden"
-              >
-                {shortBrandName(siteName)}
-              </span>
-              <span
-                aria-hidden="true"
-                className="font-display hidden text-lg font-bold text-slate-800 tracking-tight leading-tight truncate sm:block lg:hidden xl:block"
+                className="font-display block whitespace-nowrap text-[clamp(15px,4.2vw,18px)] font-bold leading-tight tracking-tight text-slate-800 lg:text-base xl:text-lg"
               >
                 {siteName}
               </span>
               <span
                 aria-hidden="true"
-                className="hidden text-[10px] font-semibold text-teal-700 uppercase tracking-wider sm:block sm:tracking-widest truncate lg:hidden xl:block"
+                className="block whitespace-nowrap text-[9px] font-semibold uppercase tracking-wider text-teal-700 sm:text-[10px] sm:tracking-widest"
               >
                 {siteTagline}
               </span>
@@ -189,7 +188,7 @@ export default function Navbar({
               2xl has room for every page. Home is the logo on both. Below
               lg everything is in the menu, with the phone's own Book bar
               (PublicBookBar) at the foot of the screen. */}
-          <div className="hidden lg:flex items-center gap-5 whitespace-nowrap text-sm font-medium text-slate-600 2xl:gap-6">
+          <div className="hidden lg:flex items-center gap-4 whitespace-nowrap text-sm font-medium text-slate-600 xl:gap-5 2xl:gap-6">
             {navLinks.map((link) => {
               const active = pathname === link.href;
               const secondary = !PRIMARY_KEYS.has(link.key);
@@ -198,7 +197,9 @@ export default function Navbar({
                   key={link.href}
                   href={link.href}
                   aria-current={active ? "page" : undefined}
-                  className={`relative py-1 transition-colors ${secondary ? "hidden 2xl:inline" : ""} ${
+                  className={`relative py-1 transition-colors ${
+                    secondary ? "hidden 2xl:inline" : LAPTOP_MORE_KEYS.has(link.key) ? "hidden xl:inline" : ""
+                  } ${
                     active ? "text-teal-700" : "hover:text-teal-700"
                   }`}
                 >
@@ -229,13 +230,15 @@ export default function Navbar({
                 {moreOpen && (
                   <div className="absolute right-0 top-full z-50 pt-2">
                     <div className="w-48 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg">
-                      {moreLinks.map((link) => (
+                      {[...laptopMoreLinks, ...moreLinks].map((link) => (
                         <Link
                           key={link.href}
                           href={link.href}
                           onClick={() => setMoreOpen(false)}
                           aria-current={pathname === link.href ? "page" : undefined}
                           className={`flex min-h-10 items-center rounded-lg px-3 text-sm ${
+                            LAPTOP_MORE_KEYS.has(link.key) ? "xl:hidden" : ""
+                          } ${
                             pathname === link.href
                               ? "bg-teal-50 font-semibold text-teal-800"
                               : "text-slate-700 hover:bg-slate-50"
@@ -255,7 +258,7 @@ export default function Navbar({
             <div className="hidden lg:flex items-center gap-2 whitespace-nowrap">
               <Link
                 href="/patient/login"
-                className="text-sm font-semibold text-slate-700 hover:text-teal-700 px-3 py-2 transition"
+                className="text-sm font-semibold text-slate-700 hover:text-teal-700 px-2 py-2 transition xl:px-3"
               >
                 Sign In
               </Link>

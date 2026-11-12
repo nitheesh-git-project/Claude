@@ -73,12 +73,13 @@ test("MOB-003: the phone home page leads with the right things", async ({ page }
 
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Physiotherapy for you or your parent");
 
-  // The brand is the whole short name, not an ellipsis.
-  const brand = page.locator("nav a[href='/'] span").filter({ hasText: /^MoveRestore$/ }).first();
-  if (await brand.count()) {
-    const clipped = await brand.evaluate((el) => el.scrollWidth > el.clientWidth + 1);
-    expect(clipped, "the brand name is cut off").toBe(false);
-  }
+  // The brand is the full name with its tagline, whole: never the short
+  // name and never an ellipsis.
+  const brand = page.locator("nav a[href='/'] span").filter({ hasText: /^MoveRestore Physiotherapy$/ }).first();
+  await expect(brand).toBeVisible();
+  const clipped = await brand.evaluate((el) => el.scrollWidth > el.clientWidth + 1);
+  expect(clipped, "the brand name is cut off").toBe(false);
+  await expect(page.locator("nav a[href='/'] span").filter({ hasText: /LIVE BRIGHTER/i }).first()).toBeVisible();
 
   // Programmes come straight after "Two ways to start" (when any are live).
   const programs = page.locator("section#programs");
