@@ -24,4 +24,5 @@ Delete this file before the release PR if it is not wanted in the repo.
 ## Issues found
 Format: ID | phase/step | what happened | expected | severity (blocker/major/minor) | status (open/fixed/retest)
 
-(none reported yet)
+B-002 | Phase 1 B (home page / conditions page) | Section "What treatment works towards" has a "Play all six" button. | Remove the button. Play all six kinds of care automatically in a loop, with the same before/after transition as when a tab is tapped. If the visitor taps any one condition tab, stay on that condition until the page is reloaded or they leave and come back. | minor (change request) | open
+  - Notes: component src/components/marketing/TreatmentGoals.tsx. This reverses a documented rule (docs/rules/public-site.md "It never advances on its own" and the "carousel that moves on its own" rule), so docs and e2e/treatment-goals.spec.ts TG-001 need updating when it is built. Owner decided; tester asked only to note it, not fix yet.
