@@ -154,3 +154,36 @@ test("NAV-002: a real navigation draws the bar while it is in flight", async ({
 
   expect(await page.evaluate(() => sessionStorage.getItem("barSeen"))).toBe("yes");
 });
+
+test("NAV-004: after signing out, the logo goes back to the top of the home page with no loader", async ({ page }) => {
+  // Signing out lands on `/?farewell=1`. The banner used router.replace to
+  // drop the marker, and Next 16.2 never completes a navigation that only
+  // removes the query from the current path -- so the URL kept the marker
+  // and the next tap on the logo sat behind the page loader for its 12s
+  // give-up, with nothing fetched. The marker now goes with replaceState,
+  // and the logo on the home page scrolls up rather than navigating.
+  await page.goto(`${BASE}/?farewell=1`);
+  await waitForSplashToClear(page);
+  await expect(page.getByText("Sad to see you go!")).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.location.search), { timeout: 10_000 }).toBe("");
+
+  let rscRequests = 0;
+  page.on("request", (r) => {
+    if (r.url().includes("_rsc=") && !r.headers()["next-router-prefetch"]) rscRequests += 1;
+  });
+  await page.evaluate(() => window.scrollTo(0, 1500));
+  await page.getByRole("navigation").getByRole("link", { name: /MoveRestore/ }).first().click();
+  await expect.poll(() => page.evaluate(() => window.scrollY), { timeout: 5_000 }).toBe(0);
+  await page.waitForTimeout(500);
+  await expect(page.getByTestId("navigation-loader")).toHaveCount(0);
+  expect(rscRequests, "nothing is fetched for a page already on screen").toBe(0);
+
+  // A home URL carrying any other query (a shared link) behaves the same.
+  await page.goto(`${BASE}/?utm_source=x`);
+  await waitForSplashToClear(page);
+  await page.evaluate(() => window.scrollTo(0, 1500));
+  await page.getByRole("navigation").getByRole("link", { name: /MoveRestore/ }).first().click();
+  await expect.poll(() => page.evaluate(() => window.location.search), { timeout: 5_000 }).toBe("");
+  await expect.poll(() => page.evaluate(() => window.scrollY), { timeout: 5_000 }).toBe(0);
+  await expect(page.getByTestId("navigation-loader")).toHaveCount(0);
+});

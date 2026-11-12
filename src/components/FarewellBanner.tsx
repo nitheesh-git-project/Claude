@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSearchParams, usePathname } from "next/navigation";
-import { useRouter } from "@/lib/useRouter";
+import { useSearchParams } from "next/navigation";
 
 export default function FarewellBanner({
   /** Seconds to stay up before clearing itself. 0 means "until dismissed",
@@ -14,8 +13,6 @@ export default function FarewellBanner({
   autoDismissSeconds: number;
 }) {
   const searchParams = useSearchParams();
-  const router = useRouter();
-  const pathname = usePathname();
   // Read straight from the URL on first render instead of via an effect +
   // setState - avoids the extra cascading render, and this only ever needs
   // to reflect whatever query param the page loaded with.
@@ -35,13 +32,23 @@ export default function FarewellBanner({
 
   // Strip the marker so a refresh (or a shared link) doesn't say goodbye
   // again. Reads window.location for the same reason the state above does.
+  //
+  // history.replaceState, not router.replace: dropping the marker changes
+  // nothing on the page, so there is nothing to fetch -- and Next 16.2 never
+  // completes a navigation that only removes the query from the current
+  // path (`/?farewell=1` -> `/`). The URL stayed put, and the next tap on
+  // the logo hung behind the page loader for its full 12s give-up. Next
+  // keeps usePathname/useSearchParams in step with replaceState itself.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("farewell") !== "1") return;
     params.delete("farewell");
     const query = params.toString();
-    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    window.history.replaceState(
+      window.history.state,
+      "",
+      `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`
+    );
   }, []);
 
   // Only armed once, when the banner is actually on screen. Cleared on

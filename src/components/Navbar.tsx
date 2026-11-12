@@ -151,6 +151,24 @@ export default function Navbar({
           <Link
             href="/"
             aria-label={siteName}
+            // Already on the home page there is nothing to load: the logo
+            // goes back to the top instead. That includes `/?something` (a
+            // shared link, a campaign tag): the home page reads no query, and
+            // Next 16.2 never completes a navigation that only drops the
+            // query from the current path -- the tap sat behind the page
+            // loader for its full 12s give-up. A modified click (new tab)
+            // is left alone.
+            // LinkProgress listens in the capture phase, before this
+            // onClick, and would start the loader for `/?x` -> `/`.
+            data-no-loader={pathname === "/" ? "" : undefined}
+            onClick={(event) => {
+              if (pathname !== "/" || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+              event.preventDefault();
+              if (window.location.search || window.location.hash) {
+                window.history.replaceState(window.history.state, "", "/");
+              }
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
             className="flex min-w-0 shrink-0 items-center gap-2.5 group sm:gap-3"
           >
             <motion.div
