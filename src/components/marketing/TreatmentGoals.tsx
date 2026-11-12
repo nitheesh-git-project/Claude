@@ -148,6 +148,9 @@ export default function TreatmentGoals() {
         aria-labelledby={`${baseId}-tab-${goal.key}`}
         className="relative mt-6 h-[640px] overflow-hidden rounded-[1.75rem] border border-slate-200 shadow-[0_30px_60px_-36px_rgba(15,23,42,0.45)] sm:h-[600px] md:h-[480px] lg:h-[520px]"
       >
+        {/* The two sides are stacked and the goal is wiped across the first
+            visit, so only one is ever read: the first visit is hidden from
+            assistive tech and the goal side carries it as words. */}
         <Side goal={goal} side="before" />
         <div className="absolute inset-0" style={{ clipPath: `inset(0 ${(100 - pct).toFixed(2)}% 0 0)` }}>
           <Side goal={goal} side="after" />
@@ -165,22 +168,24 @@ export default function TreatmentGoals() {
             </span>
           </div>
         )}
-        {/* In the card's corner, above both sides, so the tab row stays one
-            line on a laptop. */}
+      </div>
+
+      {/* Under the card rather than on it: over the card it sat on the text
+          column's first line (the layout audit's overlap). */}
+      <div className="mt-3 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-slate-500">
+          {goal.sample} · {TREATMENT_GOALS_NOTE}
+        </p>
         <button
           type="button"
           onClick={playAll}
           disabled={playingAll}
-          className="absolute right-3 top-3 z-10 inline-flex min-h-11 items-center gap-2 rounded-full bg-slate-900/85 px-4 text-sm font-bold text-white shadow-lg backdrop-blur transition hover:bg-slate-900 disabled:opacity-80 sm:right-4 sm:top-4"
+          className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 self-start rounded-full bg-slate-900 px-4 text-sm font-bold text-white shadow-lg transition hover:bg-slate-800 disabled:opacity-80 sm:self-auto"
         >
           <i className="fa-solid fa-play text-xs" aria-hidden="true" />
           {playingAll ? "Playing…" : "Play all six"}
         </button>
       </div>
-
-      <p className="mt-3 text-sm text-slate-500">
-        {goal.sample} · {TREATMENT_GOALS_NOTE}
-      </p>
     </div>
   );
 }
@@ -190,6 +195,7 @@ function Side({ goal, side }: { goal: TreatmentGoal; side: "before" | "after" })
   const after = side === "after";
   return (
     <div
+      aria-hidden={after ? undefined : true}
       className={`absolute inset-0 grid grid-rows-[208px_minmax(0,1fr)] md:grid-cols-[42%_minmax(0,1fr)] md:grid-rows-1 ${
         after ? "bg-teal-50" : "bg-rose-50"
       }`}
@@ -212,6 +218,11 @@ function Side({ goal, side }: { goal: TreatmentGoal; side: "before" | "after" })
         </span>
       </div>
       <div className="flex min-w-0 flex-col gap-3 p-5 sm:p-7 lg:p-10">
+        {after && (
+          <p className="sr-only">
+            First visit: {goal.metric} {formatGoalValue(goal, goal.from)}. {goal.before.join(". ")}.
+          </p>
+        )}
         <p className={`text-xs font-bold uppercase tracking-[0.12em] ${after ? "text-teal-800" : "text-rose-800"}`}>
           {goal.metric} · {after ? "goal" : "today"}
         </p>

@@ -79,7 +79,12 @@ test("MOB-003: the phone home page leads with the right things", async ({ page }
   await expect(brand).toBeVisible();
   const clipped = await brand.evaluate((el) => el.scrollWidth > el.clientWidth + 1);
   expect(clipped, "the brand name is cut off").toBe(false);
-  await expect(page.locator("nav a[href='/'] span").filter({ hasText: /LIVE BRIGHTER/i }).first()).toBeVisible();
+  // The tagline is an admin setting, so it is read as "the line under the
+  // name, filled in and whole", never as one particular wording.
+  const tagline = brand.locator("xpath=following-sibling::span[1]");
+  await expect(tagline).toBeVisible();
+  await expect(tagline).not.toHaveText(/^\s*$/);
+  expect(await tagline.evaluate((el) => el.scrollWidth > el.clientWidth + 1), "the tagline is cut off").toBe(false);
 
   // Programmes come straight after "Two ways to start" (when any are live).
   const programs = page.locator("section#programs");
