@@ -49,7 +49,7 @@ describe("hydration safety", () => {
   it("public components that render differently under reduced motion use the hydration-safe hook", () => {
     for (const file of [
       "src/components/marketing/HealthProfileShowcase.tsx",
-      "src/components/marketing/CareAreaShowcase.tsx",
+      "src/components/marketing/TreatmentGoals.tsx",
     ]) {
       const source = code(join(ROOT, file));
       expect(source, file).not.toMatch(/\buseReducedMotion\b/);

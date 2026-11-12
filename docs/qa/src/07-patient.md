@@ -8,7 +8,7 @@ A patient's journey is: **register → get approved (or auto-approve by paying) 
 
 Two rules shape almost everything on the patient's screens:
 
-1. **A screen that can only ever be empty is not in the sidebar.** Your Sessions, Your Packages, Payments and Suggested Sessions appear only once the patient actually has one. **Book a Session is the deliberate exception** - always shown, because that is how a patient gets their first of anything.
+1. **A screen that can only ever be empty is not in the sidebar.** Your Sessions, My programme, Payments and Recommendations appear only once the patient actually has one. **Book a Session is the deliberate exception** - always shown, because that is how a patient gets their first of anything.
 2. **The patient is read-only on their own Health Profile until a therapist writes the first record.** While locked, the "answer your questions" call to action and the answered counter are **absent, not disabled**; the dashboard banner is dropped rather than recoloured; the overview cell reads `-` on slate rather than `0%` on amber. The **reports uploader stays open**, because it is the one useful thing a patient can do beforehand.
 
 ---
@@ -29,7 +29,7 @@ Two rules shape almost everything on the patient's screens:
 4. Tap the **Password** field. Enter the `E2E_QA_PASSWORD` value.
 5. Tap **Sign In**.
 
-**Expected Result.** The button reads `Signing in...` while working. The browser navigates to `/patient/dashboard`. The sidebar shows **Overview**, **Book a Session**, **Health Profile** and **Edit Profile** at minimum, with **Back to Home** at the **foot of the nav, directly above Collapse** (above the profile footer in the mobile drawer, which has no Collapse). The public `Navbar` is **not** rendered on the dashboard. No error banner.
+**Expected Result.** The button reads `Signing in...` while working. The browser navigates to `/patient/dashboard`. The sidebar shows **Home**, **Book a Session**, **My progress** and **Edit Profile** at minimum, with **Back to Home** at the **foot of the nav, directly above Collapse** (above the profile footer in the mobile drawer, which has no Collapse). The public `Navbar` is **not** rendered on the dashboard. No error banner.
 **Cleanup.** Stay signed in for `PAT-DASH-001`.
 
 #### `PAT-AUTH-002` - Register a patient account from `/patient/register` · P0
@@ -47,7 +47,7 @@ Two rules shape almost everything on the patient's screens:
 7. Leave **Referral Code** blank.
 8. Tap **Create Account**.
 
-**Expected Result.** The button reads `Creating account...`, then the browser lands on **`/pending-approval`** - **not** the dashboard, and **not** any "check your email" screen. The page explains the account is waiting for approval. In Supabase, the `profiles` row exists with `role='patient'`, `approved=false`, `active=true`, and a `patient_code` of the form `PT####`.
+**Expected Result.** The button reads `Creating account...`, then the browser lands on **`/pending-approval`** - **not** the dashboard, and **not** any "check your email" screen. The page says the clinic is checking the account (*"usually within 1 working day"* - a default until it has a setting), offers a 16px teal **Book your first session** button to `/book` (checkout opens the account), WhatsApp / call links from Settings -> Brand & Contact (only when a real number is set) and the support email, and never says "admin". In Supabase, the `profiles` row exists with `role='patient'`, `approved=false`, `active=true`, and a `patient_code` of the form `PT####`.
 **Cleanup.** Leave. `ADM-APPR-001` approves this account.
 
 #### `PAT-AUTH-003` - An unapproved patient cannot reach the dashboard · P0
@@ -108,19 +108,19 @@ The patient portal's Overview is the screen a patient lands on after every sign-
 
 **Steps**
 1. Open `/patient/dashboard`.
-2. On a brand-new account only: the dashboard tutorial opens over the screen, marked `Dashboard tour · dummy data`. Confirm it reads `Step 1 of N`, has **Skip**, **Next**, **Back** (from step 2) and a row of chapter chips, and that each scene animates - on **Booking a session**, the session card moves through `Payment not completed`, `waiting for a therapist`, `confirmed with Dr Ananya Rao`, **Tap to Join** and `Session completed` with stars. Tap the **Health profile** chip and read all three of its steps.
+2. On a brand-new account only: the dashboard tutorial opens over the screen, marked `Dashboard tour · dummy data`. Confirm it reads `Step 1 of N`, has **Skip**, **Next**, **Back** (from step 2) and a row of chapter chips, and that each scene animates - on **Booking a session**, the session card moves through `Payment not completed`, `waiting for a physiotherapist`, `confirmed with Dr Ananya Rao`, **Tap to Join** and `Session completed` with stars. Tap the **My progress** chip and read all three of its steps.
 3. Tap **Next** until the last step, then tap **Done - show my dashboard**. Then tap the (i) beside the page title and confirm it opens just the **Home** chapter as a `Quick guide`; tap **Got it**.
 4. Reload the page.
-5. Read the header: `Welcome back, QA Patient A` with `Your virtual physical therapy dashboard` under it.
-6. Read the four figures across the strip, left to right.
+5. Read the header: `Welcome back, QA Patient A` with `Your physiotherapy dashboard` under it.
+6. Read the figures across the strip, left to right. **Home** is also the sidebar name for this screen (it was "Overview"). When a video session is on the books, the headline card carries one full-width, 56px teal **Join your video call** button with the physiotherapist and the time once the join window is open (the session keeps the button from the moment it starts until its window closes), and before that the line **Your join button appears here at 5:45 pm** (clinic zone; with the day when it is not today).
 7. Tap the **Next session** figure.
-8. Tap the browser's Back button, then tap the **Package sessions left** figure.
+8. Tap the browser's Back button, then tap the **Programme sessions left** figure (it exists only for a patient who owns a programme; with none the strip has three figures and no "0 sessions left / you don't own a package yet" tile).
 9. Tap Back again. Read the activity feed under the strip.
 10. Read the four quick actions at the foot: **Book a session**, the health-profile action, **Your sessions**, **Your payments**.
 
 **Expected Result.**
 * The tour appears **only on the first visit**, and uses dummy data only (Priya, Dr Ananya) - nothing of Patient A's. Step 3 writes `profiles.onboarding_seen_at` through `/api/dashboard/tutorial-seen`, so the reload at step 4 shows no tour, and it never opens by itself again. **Skip** asks `Skip the tour?` once and then does the same thing as **Done**. Any (i) replays its own chapter at any time and never re-marks anything.
-* The strip reads: **Next session** (date + time and the therapist's name, or `-` with `Nothing booked yet` for a patient who has never booked, and `No upcoming sessions` for one with a paid or completed session behind them - telling a returning patient "Nothing booked yet" is the `F-03` defect), **Sessions done** (count, `Your history builds up here` at zero), **Package sessions left** (count, `You don't own a package yet` when there are none), and **Health profile**.
+* The strip reads: **Next session** (date + time and the therapist's name, or `-` with `Nothing booked yet` for a patient who has never booked, and `No upcoming sessions` for one with a paid or completed session behind them - telling a returning patient "Nothing booked yet" is the `F-03` defect), **Sessions done** (count, `Your history builds up here` at zero), **Programme sessions left** (count, only for a patient who owns a programme), and **Health profile**.
 * **Health profile before the therapist's first record reads `-` on a slate accent** with `Your therapist fills this in at your first session` - **not** `0%` on amber. An amber zero here is the `PAT-HP-001` defect: it asserts the patient is behind on something nobody has asked them for.
 * Step 7 navigates to `/patient/dashboard/sessions`; step 8 to `/patient/dashboard/packages`. Every figure is a link and lands on the rows it counted.
 * With no history the feed reads `Bookings, payments and health-profile updates show up here as they happen.` Once there is history, items still waiting on the patient (`needsYou`) are **pinned above** everything else regardless of date, and no single title repeats more than the cap allows.
@@ -168,7 +168,7 @@ The patient portal's Overview is the screen a patient lands on after every sign-
 2. Tap **Book a video session** in the header (or the **Book now** card in the connector grid at the foot of the page).
 3. Observe the URL and the wizard header.
 
-**Expected Result.** The URL is `/book`. The dark header reads **Step 1 of 3** and **Book Virtual Physical Therapy Session**. Because no concern is chosen yet, the subtitle reads *"HD Video Call & Custom Rehab Plan - pricing shown once you pick a concern"*.
+**Expected Result.** The URL is `/book`. The dark header reads **Step 1 of 3** and **Book a video physiotherapy session**. Because no concern is chosen yet, the subtitle reads *"A video call with a physiotherapist - the price is shown once you choose what you need help with"*.
 
 #### `PAT-BOOK-002` - Step 1 auto-picks and the lead-time boundary (scenario TIME-A) · P0
 
@@ -179,21 +179,21 @@ The patient portal's Overview is the screen a patient lands on after every sign-
 1. In the Debug bar set **Simulate now** to `2026-09-10T10:00` and tap **Set**.
 2. After the reload, open `/book`.
 3. Read the calendar: note the month heading, which day is marked as today, and which day cells are greyed.
-4. Read the hour chips: note the first one offered.
-5. Read the language chips: note which one is selected.
+4. Read the **Time** chips: note the first one offered and that **none is selected**; read the line beside the disabled **Continue to your details** button.
+5. Read the **Language** chips: with one configured language it is selected; with several, none is.
 6. Tap the day cell **11**.
 7. Read the hour chips again.
 8. Tap the hour chip **09:00**.
-9. Look for **Continue**, then tap the service picker at the top of the screen - the dashed panel reading *"What would you like help with?"*. In the dialog, tap **View full details →** on `QA Back & Spine Care`, read it, then tap **← Back to all services**, then **Choose this session** on that same card.
-10. Tap **Continue**.
+9. Look at **Continue to your details** (it is on screen but disabled), then tap the service picker at the top of the screen - the dashed panel reading *"What would you like help with?"*. In the dialog, tap **View full details →** on `QA Back & Spine Care`, read it, then tap **← Back to all services**, then **Choose this session** on that same card.
+10. Tap **Continue to your details**.
 
 **Expected Result**
 * Step 3: heading `September 2026`; **10** is today; every cell before 10 is greyed and not tappable.
-* Step 4: the earliest offered hour on 10 September is **22:00** (10:00 + 12h). Hours before 22:00 are absent or disabled. A "we picked this for you" hint marks the auto-chosen date, hour and language.
-* Step 5: the first admin-configured booking language is selected - `English` by default.
-* Step 9: **Continue is not on screen before a service is chosen.** The dialog shows one card per active condition, each with its cover photograph, description, chips and price. *View full details* replaces the dialog's contents rather than opening a second dialog over it - there is only ever **one** dialog on screen - and shows the photograph in 16:9 with nothing laid over it, the heading on its own band beneath. **← Back to all services** returns to the grid. Choosing closes the dialog, turns the panel into a summary card with **Change** and **View details**, and the dark header subtitle changes from *"pricing shown once you pick a concern"* to `₹1,999 INR • 60-Min HD Video Call & Custom Rehab Plan`. **Continue** now appears.
-* Step 7: after moving to 11 September, the **full** hour list is offered (every hour on 11 September clears a 12h lead time from 10:00 on the 10th), and the hour has been **re-preselected to that day's earliest**, not carried over from 22:00.
-* Step 10: the wizard advances to **Step 2 of 3**. **No appointment exists yet, no account is created, and nothing is charged.**
+* Step 4: the earliest offered hour on 10 September is **22:00** (10:00 + 12h). Hours before 22:00 are absent or disabled. A "we picked this for you" hint marks the auto-chosen date (and a sole language). **No hour is chosen**: Continue is disabled and reads *"Pick a time to continue"* beside it until step 8. A note above Continue says *"The time you pick is a request. We confirm within N hours. If we can't meet it, we offer you another time or refund you in full."*
+* Step 5: with only `English` configured it is selected; with several languages none is, and Continue reads *"Pick a language to continue"*.
+* Step 9: **Continue is disabled (*"Choose what you'd like help with to continue"*) before a service is chosen.** The dialog shows one card per active condition, each with its cover photograph, description, chips and price. *View full details* replaces the dialog's contents rather than opening a second dialog over it - there is only ever **one** dialog on screen - and shows the photograph in 16:9 with nothing laid over it, the heading on its own band beneath. **← Back to all services** returns to the grid. Choosing closes the dialog, turns the panel into a summary card with **Change** and **View details**, and the dark header subtitle changes from *"pricing shown once you pick a concern"* to `₹1,999 INR • 60-minute video call with a physiotherapist`. **Continue** is enabled once a time (and, with several languages, a language) is also chosen.
+* Step 7: after moving to 11 September, the **full** hour list is offered (every hour on 11 September clears a 12h lead time from 10:00 on the 10th), and the hour has been **cleared** (22:00 is not offered on the 11th as a carried-over choice, and no earliest hour is chosen for you): the patient taps one.
+* Step 10: the wizard advances to **Step 2 of 3**. At the top, a 44px button reads **I already have an account - sign in**; then Your name, Phone, Email, Create a password (with a show button, no retype box), Referral code, and **Who is this for?** (*Me* is selected). **No appointment exists yet, no account is created, and nothing is charged.**
 
 **Cleanup.** Stay in the wizard for `PAT-BOOK-003`.
 
@@ -204,12 +204,12 @@ The patient portal's Overview is the screen a patient lands on after every sign-
 **Test Data.** Patient A from §8.3. Payment: UPI `success@razorpay`.
 
 **Steps**
-1. Tap **Full Name**. Enter `QA Patient A`.
-2. Tap **Email**. Enter `qa.patient.a@example.test`.
-3. Tap **Create Password**. Enter the `E2E_QA_PASSWORD` value.
-4. Tap the phone field. Enter `+91 98765 43210`.
-5. Tap **Confirm Password**. Enter the `E2E_QA_PASSWORD` value.
-6. Leave **Referral Code** blank.
+1. Tap **Your name**. Enter `QA Patient A`.
+2. Tap the phone field. Enter `+91 98765 43210`.
+3. Tap **Email**. Enter `qa.patient.a@example.test`.
+4. Tap **Create a password**. Enter the `E2E_QA_PASSWORD` value; tap the eye to check it reads as typed.
+5. Leave **Who is this for?** on **Me**.
+6. Leave **Referral code** blank.
 7. Read the teal line naming the service chosen on Step 1 - it must read *"Booking a **QA Back & Spine Care** - ₹1,999, 60 min"* beside its photograph, with a **Change** link. There is no dropdown on this step.
 8. Tap the **Anything else we should know?** box. Enter `Desk job, pain worse after sitting all day. Goal: sit through a full workday.`
 9. Tap the underlined **Consent terms & emergency disclaimer** in the consent line: a dialog shows the terms, naming `QA Back & Spine Care`. Close it - the checkbox is still unticked. Then tick the consent checkbox.
@@ -221,9 +221,9 @@ The patient portal's Overview is the screen a patient lands on after every sign-
 
 **Expected Result**
 * Step 10: the wizard advances to **Step 3 of 3**. The dark header subtitle now reads `₹1,999 INR • 60-Min HD Video Call & Custom Rehab Plan`.
-* Step 11: **Name** `QA Patient A`; **Email** `qa.patient.a@example.test`; **Preferred Time** 11 September 2026, 09:00, in local format; **Language** `English`; **Concern** `QA Back & Spine Care`; **Session Fee** `₹1,999 INR`. Two notices are present: the Razorpay/secure line and the cancellation deadline - *"Free cancellation until \<date\>, \<time\>. After that, cancelling isn't refunded."*, where the date is the chosen slot less the 24-hour window, rendered in clinic time. A slot booked less than 24 hours out reads *"This slot is less than 24 hours away, so cancelling it isn't refunded. Pick a later slot if you would rather keep that option."* instead - **check which of the two applies to the slot you picked before calling this a failure**
+* Step 11: **Name** `QA Patient A`; **Email** `qa.patient.a@example.test`; **Time you asked for** 11 September 2026, 09:00, in local format; **Session for** `You`; **Language** `English`; **Concern** `QA Back & Spine Care`; **Session Fee** `₹1,999 INR`. Three notices are present: the "The time you pick is a request" note, the Razorpay/secure line and the cancellation deadline - *"Free cancellation until \<date\>, \<time\>. After that, cancelling isn't refunded."*, where the date is the chosen slot less the 24-hour window, rendered in clinic time. A slot booked less than 24 hours out reads *"This slot is less than 24 hours away, so cancelling it isn't refunded. Pick a later slot if you would rather keep that option."* instead - **check which of the two applies to the slot you picked before calling this a failure**
 * Step 12: the button shows `Please wait...`; the Supabase account is created and signed in **with no email-confirmation step**; the appointment is created; Razorpay checkout opens.
-* Step 14: Step 3 is replaced by a green tick, **Payment Confirmed**, the sentence about confirming the slot and sending the link, and a **Go to Dashboard** button.
+* Step 14: Step 3 is replaced by a green tick, **Payment Confirmed**, the time restated in clinic time (*"Fri 11 Sep, 9-10 am, with a physiotherapist"*), three numbered next steps (the clinic confirms your time; your video link appears on your Home page 15 minutes before; tap *Join your video call*), an **Add to calendar** button (downloads an `.ics`) and a **Go to Dashboard** button.
 * **Data state:** exactly **one** appointment for Patient A - `status='requested'`, `payment_status='paid'`, `therapist_id=null`, `visit_mode='online'`, `duration_minutes=60`, `concern='QA Back & Spine Care'`, `preferred_language='English'`, timezone recorded. Exactly **one** `payments` row for that Razorpay order. Patient A's `approved` is now **true** (flipped by `create-order`).
 * **Cross-role:** Admin → Sessions → All Sessions lists it as unassigned and raises the badge; Admin → Money → Transactions lists the ₹1,999 payment; **no therapist sees it yet**.
 
@@ -305,11 +305,11 @@ Attempt **Review Booking →** once per row, as a guest:
 
 | # | Missing/invalid | Expected message |
 | --- | --- | --- |
-| 1 | Name blank | `Please fill in your name, email, and a password (min 6 characters).` |
-| 2 | Password `abc12` | same as above |
+| 1 | Name blank | `Please enter your full name.` |
+| 2 | Password `abc12` | `Please choose a password of at least 6 characters.` |
 | 3 | Email `not-an-email` | `Please enter a valid email address.` |
 | 4 | Phone `12345` | `Please enter a valid phone number.` |
-| 5 | Confirm password mismatched | `Passwords do not match. Please re-enter them.` |
+| 5 | **Someone in my family** chosen, name blank | `Please tell us the name of the person this session is for.` (age, relationship and the with-them question each have their own message) |
 | 6 | Referral code `ZZZZZZ` (blurred, shown invalid) | `That referral code isn't recognized. Please double-check it or clear the field to continue without one.` |
 | 7 | No concern selected | `Please select what you'd like help with.` |
 | 8 | Consent unticked | `Please agree to the telehealth consent terms to continue.` |
@@ -335,7 +335,7 @@ Attempt **Review Booking →** once per row, as a guest:
 #### `PAT-BOOK-014` - A stale `?package=` link is answered, not ignored · P0
 
 **Steps.** Open `/book?package=00000000-0000-0000-0000-000000000000`.
-**Expected Result.** Instead of the wizard, a panel headed **"Programmes come from your therapist now"** with the explanation *"A course of treatment is arranged by your therapist after they've seen you… Book a first session and they'll recommend the right programme."* and a **Book a first session** link to `/book`. **The wizard must not silently sell one session to somebody who came to buy six.**
+**Expected Result.** Instead of the wizard, a panel headed **"Programmes come from your physiotherapist now"** with the explanation *"A course of treatment is arranged by your physiotherapist after they've seen you… Book a first session and they'll recommend the right programme."* and a **Book a first session** link to `/book`. **The wizard must not silently sell one session to somebody who came to buy six.**
 
 #### `PAT-BOOK-015` - Refresh mid-wizard loses no money and creates nothing · P2
 
@@ -455,7 +455,7 @@ After the third, that line is replaced by an amber panel: *"Having trouble payin
 #### `PAT-HV-005` - A multi-visit home package cannot be bought directly · P0
 
 **Steps.** Open the Step 1 picker on `/book-home-visit` and look for `QA Home Visit Recovery - 4 Visits`. Open `/book-home-visit?package=<HV2 id>`. Then call the API directly: `POST /api/home-visit/create-order` and `/api/home-visit/book-cash` with `packageId` = HV2's id.
-**Expected Result.** HV2 is **not offered** - the picker lists conditions only. The old link shows *"Courses of visits come from your therapist now"* with **Book a first visit**, never a payment step for one visit. Both routes answer **403** with the programme sentence (*"A course of treatment is arranged by your therapist..."*). An old `?package=` link to the **clinic-wide** price row still opens the wizard (on the general consultation), and one to a condition's own price row opens on that condition. HV2 can only reach a patient through a therapist's care plan.
+**Expected Result.** HV2 is **not offered** - the picker lists conditions only. The old link shows *"Courses of visits come from your therapist now"* with **Book a first visit**, never a payment step for one visit. Both routes answer **403** with the programme sentence (*"A course of treatment is arranged by your physiotherapist..."*). An old `?package=` link to the **clinic-wide** price row still opens the wizard (on the general consultation), and one to a condition's own price row opens on that condition. HV2 can only reach a patient through a therapist's care plan.
 
 #### `PAT-HV-006` - Cash on visit · P1
 
@@ -515,7 +515,7 @@ Repeat `PAT-CANCEL-001`/`002` against a home visit. **Expected Result.** The win
 **Preconditions.** `THR-SESS-009` step 1 done for Patient A. Patient B exists.
 **Steps.** As Patient A open **Sessions → Past** and find the session. Then search the whole portal and the PDF export for the note's text (`L4-L5 segmental mobilisation`, the plan for next session). Sign in as Patient B and open their Sessions.
 **Expected Result**
-* Patient A's card has a **Session summary** box: `From <Therapist A> · <date>` (clinic date), then **What we did** and **Before your next session** with the therapist's words; `· updated <date>` after an edit. If a programme was recommended after this session and the clinic has published it, a link **See the programme recommended after this session** goes to Suggested Sessions.
+* Patient A's card has a **Session summary** box: `From <Therapist A> · <date>` (clinic date), then **What we did** and **Before your next session** with the therapist's words; `· updated <date>` after an edit. If a programme was recommended after this session and the clinic has published it, a link **See the programme recommended after this session** goes to Recommendations.
 * A completed session with no summary reads `Your therapist hasn't added a summary for this session.` Upcoming, cancelled and no-show sessions show no summary box at all.
 * **No word of the clinical note appears anywhere the patient can see**, including the PDF.
 * Patient B sees nothing of Patient A's summary.
@@ -557,6 +557,26 @@ Repeat `PAT-CANCEL-001`/`002` against a home visit. **Expected Result.** The win
 **Expected Result.** A typeset **PDF** downloads, named `QA Patient A_PT####.pdf` (name + patient code). It contains the intake answers and the Pain Map data. **Session notes are excluded from every format.** `?format=json` still serves raw JSON for portability but is not linked anywhere in the UI.
 **Boundary.** A patient whose name contains non-Latin characters (set the name to `पूजा शर्मा` temporarily) must still export successfully - the PDF encoder transliterates rather than throwing a 500.
 
+#### `PAT-HP-006` - The guided check's screen: display only, calm, and live · P0
+
+**Preconditions.** Patient A has a video session today with Therapist A; Therapist A has the guided assessment open (`THR-HP-005r`). Open `/patient/dashboard/session` on a second device or a second browser window, signed in as Patient A. Also try it before any assessment is started.
+**Steps.**
+1. Open the screen **before** the assessment starts.
+2. The therapist starts the assessment, then moves to *Sit to stand for 30 seconds*, taps **Get ready**, **Count 3, 2, 1**, **Go and start the clock**, **Done**, **Rest**, then ends the assessment.
+3. Open any other patient screen (for example Your Sessions) while the assessment is running.
+4. With the screen open during a check, switch the device's network off for ten seconds and on again; and separately open it with the live connection blocked (for example a network that refuses websockets).
+5. Look at it from three metres on a laptop and on a phone, in a bright and a dim room.
+6. Tab through it with a keyboard; use a screen reader.
+**Expected Result.** 1: *Your physiotherapist will start the guided check soon*, one calm line and a small *Back to your dashboard* link - nothing else to press. 2: the screen follows without a reload: the step counter and name small, **one** big instruction, a simple picture of the position, and a giant clock only where the step has one (*Starting in 3, 2, 1*, then *Time left*, counting down in amber then white, *Finished* at 0); **Done** says *Well done. You can rest now.*; **Rest** says *Have a rest.*; ending it shows *All done* for a while, then the waiting screen again. It never shows a result, a score, a number other than the clock and the step count, a clinic word or the physiotherapist's notes. 3: every patient screen shows a *Happening now* bar to the check while it runs and loses it when it ends. 4: the clock is the same as the physiotherapist's within a second even with the device's own clock set wrong, and with live updates blocked the screen still follows within about three seconds; if reads keep failing it says *Reconnecting* rather than freezing silently, and when nothing could be read at all (block `/api/patient/assessment-display`) the waiting screen reads *We couldn't load your screen. Trying again…*, never *will start soon*. 5: the instruction and clock read from three metres; nothing is cut off at 360 px, and nothing scrolls sideways. 6: during a live check there is nothing to tab to (no button, link or field); the step changes are announced once each, never the clock every second. The first-visit tour does not open over it.
+
+#### `PAT-HP-007` - Home exercises: the patient reads their plan and fills nothing in · P1 **[API]**
+**Preconditions.** Therapist A has published two versions of Patient A's home exercises and marked them in a guided assessment (`THR-HP-005s`). Patient B exists.
+1. As Patient A, open **Health Profile**: the **Your home exercises** card. Then, with their own signed-in client, read `exercise_plans`, `exercise_plan_items` and `exercise_teaching_events`.
+1a. If Therapist A fixed a mark (`THR-HP-005s` step 6), read `kind` and `correction_reason` of `exercise_teaching_events` with Patient A's client, and look at that exercise on the card.
+2. As Patient A, try to insert, update or delete a row in each.
+3. As Patient B, read Patient A's rows.
+**Expected Result.** 1: exactly one plan - the active version - its items in order with their doses, and Patient A's own marks (fixed keys only: an outcome and, for *needs practice*, a cue); never the replaced version. 1a: the read of those columns is refused; the card shows the latest mark's cue only, and nowhere says a mark was fixed or why. 2: every write is refused. 3: nothing. On the card: each exercise with its picture, plain name, the dose in words (*2 sets of 10. Twice a day, every day.*), the steps under the name (tap to open) and *Practised with your physiotherapist on <date>. Remember: <cue>*; nothing to tick, type or report; a new version appears without a reload; before any plan it says *Your physiotherapist will teach you your exercises in your video session*; a database without the tables says so and a failed read says *We couldn't load your home exercises just now* - neither reads as empty. A child's record says *Home exercises for your child*. Nowhere is the word *care plan* used for these: they are *Home exercises*.
+
 #### `PAT-DOC-001` - Upload a report · P0
 
 **Steps.** On the Health Profile, open the reports panel. Tap the upload control. Choose `Spine_Report_E2E.pdf`. Pick the type `Scan or X-ray`. Submit.
@@ -579,18 +599,99 @@ Repeat `PAT-CANCEL-001`/`002` against a home visit. **Expected Result.** The win
 
 ---
 
+#### `PAT-HP-020` - The orthopaedic Health Profile, as the patient reads it · P0
+**Steps.** As an orthopaedic patient with exams and measurements on record, open **Health Profile** at 360, 834 and 1280 px.
+**Expected Result.** Header with name, condition, status pill (and the physiotherapist's reason when they overruled it) and the phase bar; "Where things stand"; key numbers; **Your body map** with First exam / Latest and a card per area; **Are you getting better?**; the plan's steps; **Your measures**. The condition record, test reports and care plan history follow. No Record, Goal or Phase button appears. No sideways scrolling at any width. A paediatric patient's page is unchanged; a neurological one is `PAT-HP-022`.
+
+---
+
+#### `PAT-HP-021` - The patient diary, at the route · P1 **[API]**
+**Preconditions.** A Parkinson's patient (condition group *Parkinson's disease*) and a stroke patient, both onboarded. The screen for it is `PAT-HP-022`; this case drives the route.
+**Steps.** As the Parkinson's patient, call `POST /api/patient/diary/add` with a fall `{ "kind": "fall", "occurredAt": "<an hour ago>", "details": { "injured": false }, "note": "In the kitchen" }`, then the same body again, then a day's freezing `{ "kind": "freezing", "occurredAt": "<now>", "details": { "period": "day", "count": 3, "medicationState": "off" } }`, then a single episode with `count: 4`, then a fall dated tomorrow. As the stroke patient, send the freezing entry, and a near-miss with `"patientId": "<the Parkinson's patient>"`. As a therapist, send the fall.
+**Expected Result.** The fall is **200** with `enteredByRole: "patient"` and no confirmation; the repeat is **200** `duplicate: true` and the patient has one fall on file, not two. The day's freezing is **200**; one episode counted as four and the fall dated tomorrow are **400** with a sentence. The stroke patient's freezing is **400** `diary_kind_not_offered`; their near-miss lands on **their own** record whatever the body named. The therapist is **403**. An UPDATE of the row by anyone, the service role included, raises *append-only*.
+
+#### `PAT-HP-022` - The neurological and Parkinson's Health Profile, and the diary dialog · P0
+**Steps.** As a stroke patient with examinations and a FAC on record, open **Health Profile** at 360, 834 and 1280 px, light and dark. Press **Log a fall or a near miss**; choose *A fall*, *No, I was not hurt*, save. Open the dialog again as a Parkinson's patient and choose *Feet getting stuck*, *A whole week, added up*, type 6, *Turning round*, save. Open the page's PDF export.
+**Expected Result.** Header with name, condition, *Filled in with your physiotherapist*, status pill and phase bar; **Where things stand** under the physiotherapist's name and date; four key numbers; **How your body is working now** (the figure for your affected side, *How much help you need to walk*, walking speed, and your examination with First exam / Latest); **Your diary**; **Are you getting better?** (*Is it holding, or getting better?* for Parkinson's); steps; measures. The dialog offers **only** a fall and a near miss to the stroke patient, and freezing too to the Parkinson's patient; the Save button never sits under the keyboard; every choice is a real radio at least 44 px tall; a missing answer, a count that is not a whole number and a time in the future each say so in a sentence and save nothing. After saving, the entry reads *You noted this* and the page does not say it was seen. A fall you wrote does **not** change the pill until your physiotherapist confirms it (*You noted this - your physiotherapist has seen it*). The Parkinson's page adds *Tested in ON time* (when recorded), the symptom profile and stage (only when recorded) and a twelve-week freezing chart with an open dot for your own account and a filled one once confirmed; a blank week is *nothing written down*. No Record, Goal or Phase button appears; no sideways scrolling. The PDF has *Diary kept by the patient* with counts split *patient reported* / *confirmed* and no note text.
+
+
+#### `PAT-HP-024` - The paediatric Health Profile, in the parent's voice · P1
+**Preconditions.** A paediatric patient with an exam recorded and standing and step tests recorded.
+1. Open the Health Profile as the family at 360 px and 1280 px, light and dark.
+2. Read the header, the tiles, the chart and the list *What your child does on their own*.
+3. As an admin set the date of birth to an adult date; reload as the family.
+**Expected Result.** Written for the parent: *your child*, *You told us* / *Seen in a session*, *Started to come*, never *triage*, *specialty*, a referral or a doctor's-review prompt; solid dot seen, hollow dot told by parents, dashed ring approximate, diamond not yet/emerging at today's age; the first/latest switch; no horizontal scroll. Step 3: no chart, only *We're checking your child's date of birth*.
+
+#### `PAT-HP-025` - The diary and the PDF for Strength and balance care and Heart and lung rehabilitation · P1 **[API]**
+**Preconditions.** Patients G and H from `THR-HP-005m` (Patient H with the step 5 readings). The screens are phase 6b; this case drives the diary route and the export.
+1. As Patient G, `POST /api/patient/diary/add` a `fall` with `{"injured": false}` dated yesterday, a `near_miss`, and an `active_minutes` entry.
+2. As Patient H, add an `active_minutes` entry of 40 and a `fall`.
+3. As Patient G, export the Health Profile PDF; as Therapist A confirm G's fall, then export again.
+4. As Patient H, export the PDF.
+**Expected Result.** Step 1: the fall and the near miss are saved; active minutes are refused (not a kind this profile keeps). Step 2: active minutes saved; the fall refused. Step 3: the header reads *Their son, Ramesh, helps at home* (or *Her*/*His* by the recorded gender); a **Fall risk and daily living** section opens *Fall risk (CDC STEADI): High.* with the rule (two falls in the last 12 months, whatever the tests show), lists each STEADI test as recorded or *not recorded*, says *1 more fall reported by the patient, not yet confirmed (not counted)* before the confirmation and counts it after, and *Daily living (Katz): 5 of 6 without help; needs help with bathing or washing*. The diary counts say patient reported / confirmed. Step 4: **Safety limits and vitals** opens *Oxygen stop limit: 90% or a drop of 4 from resting (default for a heart condition, until the doctor sets one).*, says *Beta-blocker: not recorded. Paced by the talk test until it is.*, the surgeon's precautions with their end date, the latest resting readings with dates, and no Borg scale anywhere. Neither PDF names a category word to the patient.
+
+#### `PAT-HP-026` - The Strength and balance care and Heart and lung pages, as the patient reads them · P1 **[UI]**
+**Preconditions.** Patients G and H from `THR-HP-005m`, with the readings from `THR-HP-005n` and `THR-HP-005o` recorded, and some diary entries.
+1. As Patient G open **Health Profile** at 360, 834 and 1280 wide, light and dark. Read the header, the tiles and the fall-risk dial.
+2. Scroll the four test cards, **Daily living**, **Making your home safer** and **Blood pressure when you stand up**. Write a fall in the diary.
+3. As Patient H open the page. Read the **Safety limits** row, the walk, the oxygen bar, **How hard to work**, **Your readings** and the red box. Write active minutes (25, moderate).
+**Expected Result.** The words are *Strength and balance care* and *Heart and lung rehabilitation*, never geriatric or cardiopulmonary, and the page speaks to the patient; a named carer is one header line. G's dial names the rule (*High because of 2 falls in the last 12 months*) and *Tests in the safer range: n of 4* is its own line; each test card says in words where it sits (*In the safer range*, *Close to the safer range*, *Not yet*, *Not done yet*) and shows the reading before; a positive standing blood pressure says it is worth telling the doctor. H's oxygen limit is H's own, labelled *default* or *set by your doctor*; on a beta-blocker the page says the exercise is paced by the talk test and shows no heart-rate target; the predicted distance is a percentage or a line naming exactly what is missing; the red box is gentle. Diary entries read *You noted this* until the therapist confirms them. No sideways scroll, targets at least 44 px, nothing cut off at 360, no therapist control anywhere.
+
+#### `PAT-HP-023` - The paediatric examination in the family's PDF, and corrected age · P1 **[API]**
+**Preconditions.** A paediatric patient whose profile has a date of birth (born at 30 weeks: the intake's **Weeks at birth** answered *30 weeks*), with one or more paediatric examinations recorded by Therapist A (`THR-HP-005k`). A second paediatric patient with no date of birth on the profile. The screens are phase 5b; this case drives the export and the rows.
+**Steps.**
+1. As the first patient's family, export the Health Profile PDF and the JSON export.
+2. As the family, read `peds_assessments` through your own session (the browser's Supabase client).
+3. As the second patient, export the PDF.
+4. As an existing paediatric patient who answered the intake before this change, open the Health Profile.
+**Expected Result.**
+* Step 1: the PDF has **Paediatric examination by the therapist** with an *Age* line showing both ages while the child is under two (*16.6 months (14.3 months corrected, born at 30 weeks)*), only the **latest** examination (each assessed milestone with its status, the date first seen, the corrected age it came at and *seen by the physiotherapist* or *parent reports*; a *Not assessed:* line naming the rest; GMFCS and the equipment note when recorded), *N earlier examinations are on file* when there are more, and the windows' *to be verified by a senior physiotherapist* note. **No** referral wording appears anywhere in the family's document. The JSON export carries every row under `peds_assessments`.
+* Step 2: only your own child's examinations come back.
+* Step 3: the *Age* line reads *date of birth not on file*; nothing is charted at a guessed age. A date of birth that makes the patient an adult reads as one to check with the clinic.
+* Step 4: **no** "we've changed some of these questions" banner (the new question is optional); the record still reads complete, and *Weeks at birth* is offered as the last question when the intake is next opened.
+---
+
+#### `PAT-HP-024` - The patient's order, closed blocks and the call line · P1 **[UI]**
+**Preconditions.** An orthopaedic patient with two reviews and home exercises; a geriatric patient whose fall-risk level is High; a heart and lung patient with a flagged reading at the latest review. Brand & Contact has a phone number.
+**Steps.**
+1. As each patient, open **My progress** on a phone (390 wide).
+2. Open each closed block in turn; then tap **Print**.
+3. Clear the phone number in Brand & Contact and reload as the geriatric patient.
+**Expected Result.**
+* Step 1: top to bottom - one card with the name, the status pill and *Where things stand* (and, when the answers are with the clinic, that line inside it); the safety pieces (the fall-risk dial and standing blood pressure / the heart and lung safety box and precautions); **Home exercises**; **Log a fall or a near miss** (neurological and geriatric) or **Log your active minutes** (heart and lung); the one **Are you getting better?** graph, which leads with one plain sentence in large type and says *Lower is better* (or higher) once above the chart, with no *Measured as* line; then closed blocks *Your measures*, *Your body map* (or examination / milestones / tests / readings), *Your diary*, *Your answers*, *Reports and scans*, *Past recommendations*; last, **Share with another doctor** with 44px **Download as PDF** and **Print**. No four-figure snapshot strip on the orthopaedic page. The guided-check bar and the Suggested bar show here as on Home.
+* Each block opens with a tap or the keyboard (48px header). Print opens every block first.
+* The status sentence names the measure (*Pain score: about the same as last time*); a single review reads **First check done**. The High fall-risk dial and the flagged heart and lung reading each carry a calm sentence and a **Call the clinic** button; step 3 replaces the button with *The clinic's phone number isn't set up here yet...*.
+* The body map lists **Area by area** first, the figure after it, labelled *Your right* / *Your left*, front before back; knee straightening reads *Now straightens fully (was 8° short)*.
+---
+
+#### `PAT-HP-025` - Logging a fall, and "I saved this by mistake" · P0 **[UI] [API]**
+**Preconditions.** A neurological (or geriatric) patient; their assigned Therapist A.
+**Steps.**
+1. Tap **Log a fall or a near miss**, choose *Yes, I was hurt*.
+2. Tap **Check and save**, then **Yes, save it**.
+3. Open *Your diary*, tap **I saved this by mistake** on the new fall, then **Yes, it was a mistake**.
+4. As Therapist A, open the chart; try to confirm the withdrawn entry through the route.
+5. Log a second fall; as Therapist A confirm it; as the patient look for **I saved this by mistake** on it.
+**Expected Result.**
+* Step 1: a red box: *If you hit your head, can't put weight on a leg, or feel unwell, call 108 or your doctor now. This diary isn't watched live.*
+* Step 2: before saving, *You're recording a fall on <date and time in the clinic's zone>. Your physiotherapist will see it.*; then it saves.
+* Step 3: the fall moves to *You said these were saved by mistake*, struck through; the falls count drops by one and a status that the fall had turned to *Needs attention* goes back. Nothing is deleted (two rows on `patient_diary_entries`).
+* Step 4: the chart shows it under *Withdrawn by the patient*; confirming answers 409 *The patient has said this entry was saved by mistake*.
+* Step 5: a confirmed entry has no **I saved this by mistake**; the route answers 409 (*talk it through with your physiotherapist*).
+---
+
 ### 11.8 Suggested Sessions, care plans and credits
 
-#### `PAT-SUGG-001` - The Suggested Sessions entry appears only when something waits · P1
+#### `PAT-SUGG-001` - The Recommendations entry appears only when something waits · P1
 
 **Steps.** Before any therapist has suggested anything, check the sidebar. Then have `THR-SUGG-001` send a suggestion, and reload.
-**Expected Result.** Before: **no** Suggested Sessions entry. After: the entry appears **above** Your Sessions - something waiting on the patient's answer outranks a list of what is settled.
+**Expected Result.** Before: **no** Recommendations entry. After: the entry appears **above** Your Sessions - something waiting on the patient's answer outranks a list of what is settled.
 
 #### `PAT-SUGG-002` - Accept a therapist-proposed time · P0
 
 **Preconditions.** `THR-SUGG-001` has proposed a slot on an active programme with credits remaining.
 **Steps.** Open `/patient/dashboard/suggested`. Read the card. Tap **Accept this time**.
-**Expected Result.** The card resolves to **Accepted - clinic confirming**. An appointment is created via the package-session path, **`requested` and unassigned** - never assigned or confirmed by the accept. It appears in Admin → Sessions with no therapist with the locked therapist pre-picked (`ADM-SESS-005`); once the admin assigns it, it is confirmed and gets its Meet link. Until then the patient's session card reads **Booked - confirming your therapist**. `sessions_used` on the purchase increases by exactly **one**. A `reserve`/`consume` ledger entry is written with an idempotency key derived from the appointment id. The therapist's dashboard shows the new session once it is assigned. **A declined suggestion would have claimed nothing** - a suggestion is its own row, never an appointment in a new status.
+**Expected Result.** The card resolves to **Accepted - clinic confirming**. An appointment is created via the package-session path, **`requested` and unassigned** - never assigned or confirmed by the accept. It appears in Admin → Sessions with no therapist with the locked therapist pre-picked (`ADM-SESS-005`); once the admin assigns it, it is confirmed and gets its Meet link. Until then the patient's session card reads **Booked - confirming your physiotherapist**. `sessions_used` on the purchase increases by exactly **one**. A `reserve`/`consume` ledger entry is written with an idempotency key derived from the appointment id. The therapist's dashboard shows the new session once it is assigned. **A declined suggestion would have claimed nothing** - a suggestion is its own row, never an appointment in a new status.
 
 #### `PAT-SUGG-003` - Decline · P2
 **Steps.** Tap **Decline** on a pending suggestion. **Expected Result.** The card shows `Declined`. No appointment. No credit moves. The therapist's control shows the declined state.
@@ -619,7 +720,7 @@ Repeat `PAT-CANCEL-001`/`002` against a home visit. **Expected Result.** The win
 * **Session credits are granted: exactly 6.** Not 5, not 12.
 * The care plan's status becomes `accepted`. **The thread is now closed** - a later recommendation opens a *new* plan with `supersedes_id` set.
 * The payment does **not** refresh into an empty screen. In place of the Review & pay page the patient reads *"Payment received - N sessions are yours"*, who will run them, and one next step. **If the screen goes blank after paying, that is a P0 defect** - it is the highest-intent moment in the product.
-* **Your Programmes** appears in the sidebar (not "Your Packages") and lists the programme with `6 sessions`, `0 used`, `6 remaining`.
+* **My programme** appears in the sidebar (not "Your Packages") and lists the programme with `6 sessions`, `0 used`, `6 remaining`.
 * A second attempt to buy the same plan is refused: `You've already bought this plan.`
 
 #### `PAT-CARE-003` - A recommended home-visit programme quotes travel correctly · P0
@@ -634,7 +735,7 @@ Additionally: if an admin switches **Home Visit enabled** off, `/api/care-plan/c
 
 **Preconditions.** A paid 6-session programme recommended at **2 a week**, with `min_gap_hours` 48 and `max_sessions_per_week` 2.
 
-**Steps.** Tap **Choose my times** (straight after payment) or **Schedule sessions** (from Your Programmes). Read what is already selected. Change one date. Read the panel again.
+**Steps.** Tap **Choose my times** (straight after payment) or **Schedule sessions** (from My programme). Read what is already selected. Change one date. Read the panel again.
 
 **Expected Result**
 * Dates are **already chosen** - as many as the bulk limit allows - spaced roughly 3 days apart, none inside the 12-hour lead time, none past the programme's expiry, and no more than 2 in any calendar week.
@@ -650,7 +751,7 @@ Additionally: if an admin switches **Home Visit enabled** off, `/api/care-plan/c
 #### `PAT-SCHED-003` - Unbooked sessions keep asking · P0
 **Feature.** The one thing a patient can buy and then receive nothing for. Paying is the hard part and it is done; what is left is a calendar step on a screen they have to think to visit.
 **Steps.** Pay for a programme and tap **I'll do it later**. Open `/patient/dashboard`.
-**Expected Result.** The activity feed carries a **needsYou** item - *"N sessions still to book"* - naming the programme and linking to Your Programmes. It stays until the balance is spent and disappears when it is. The figure must agree with the Your Programmes card exactly; a feed claiming a balance that screen disagrees with is a P0.
+**Expected Result.** The activity feed carries a **needsYou** item - *"N sessions still to book"* - naming the programme and linking to My programme. It stays until the balance is spent and disappears when it is. The figure must agree with the My programme card exactly; a feed claiming a balance that screen disagrees with is a P0.
 
 #### `PAT-CARE-005` - A promo code on a recommended programme · P0
 **Preconditions.** Promo codes on. Two codes: `PROG20` (20% off) with **Valid on recommended programmes** ticked, and `WELCOME200` (₹200 off) without it. A recommended 4-session video programme waiting for the patient.
@@ -669,7 +770,7 @@ Additionally: if an admin switches **Home Visit enabled** off, `/api/care-plan/c
 
 **Preconditions.** `PAT-CARE-002` complete: 6 credits, therapist locked.
 **Steps.** Open `/patient/dashboard/packages`. Use the bulk scheduler to book **3** sessions, respecting the package's rules (min gap 24h, max 3/week).
-**Expected Result.** Three appointments are created, each **`requested` and unassigned** - every programme session goes through the admin. The scheduler's result rows and each session card read **Booked - confirming your therapist**, and the Home feed says "Video session booked - confirming your therapist". In Admin → Sessions with no therapist each row reads **Tap to assign · <locked therapist>**, and one tap on **Assign <name>** in the drawer confirms it and creates its Meet link. The widget reads `6 sessions · 3 used · 3 remaining`. Three `reserve` ledger entries exist, each keyed `reserve:<appointment_id>`.
+**Expected Result.** Three appointments are created, each **`requested` and unassigned** - every programme session goes through the admin. The scheduler's result rows and each session card read **Booked - confirming your physiotherapist**, and the Home feed says "Video session booked - confirming your physiotherapist". In Admin → Sessions with no therapist each row reads **Tap to assign · <locked therapist>**, and one tap on **Assign <name>** in the drawer confirms it and creates its Meet link. The widget reads `6 sessions · 3 used · 3 remaining`. Three `reserve` ledger entries exist, each keyed `reserve:<appointment_id>`.
 **Boundary.** Attempting a 4th session in the same week is refused by the package's max-per-week rule. Attempting more than `package_bulk_schedule_max` (default 8) slots in one request is refused with `Too many slots in one request.` Two slots less than 24h apart are refused by the minimum-gap rule.
 
 #### `PAT-PKG-002` - Credits cannot be overdrawn · P0 **[SQL]**
@@ -719,10 +820,24 @@ Additionally: if an admin switches **Home Visit enabled** off, `/api/care-plan/c
 
 **Feature.** Each screen in the portal has its own loading state, named for the screen rather than a bare spinner, and each keeps the sidebar. The patient dashboard renders its sidebar **per page** rather than in a layout, so a skeleton that forgot it blanks the chrome on every navigation - which reads as the app losing its place.
 
-**Steps.** In DevTools → **Network**, set throttling to **Slow 3G**. Then move through the sidebar: Overview, Book a Session, Suggested Sessions, Sessions, Programmes, Payments, Health Profile, Edit Profile.
+**Steps.** In DevTools → **Network**, set throttling to **Slow 3G**. Then move through the sidebar: Home, Book a Session, Recommendations, Sessions, My programme, Payments, My progress, Edit Profile.
 **Expected Result.** Each shows a skeleton with its own label while it loads - `Loading your dashboard`, `Loading booking`, `Loading suggested sessions`, `Loading your sessions`, `Loading your programmes`, `Loading your payments`, `Loading your health profile`, `Loading your profile`. **The sidebar stays on screen throughout**, and the teal progress bar runs above the chrome. No screen flashes empty white, and none shows another screen's label.
 **Note.** Entries hidden for this patient (Programmes and Payments before they own one - see `PAT-EMPTY-001`) are simply not in the sidebar to tap; that is not a missing loading state.
 
 #### `PAT-EMPTY-001` - Empty states across the patient portal · P2
 **Preconditions.** A freshly approved patient with nothing at all.
-**Expected Result.** The sidebar shows only **Overview**, **Book a Session**, **Health Profile**, **Edit Profile**, plus **Back to Home** at the foot of the nav. Sessions, Packages, Payments and Suggested Sessions are **absent**. The Overview shows a friendly empty feed and quick actions, not a blank panel or a zero-filled table.
+**Expected Result.** The sidebar shows only **Home**, **Book a Session**, **My progress**, **Edit Profile**, plus **Back to Home** at the foot of the nav. Sessions, My programme, Payments and Recommendations are **absent**. The Overview shows a friendly empty feed and quick actions, not a blank panel or a zero-filled table.
+
+#### `PAT-HP-009` - Overview: the Your home exercises row · P2
+**Preconditions.** Patient A has an active Home exercises plan with four exercises, one practised with the physiotherapist.
+1. Open the patient dashboard Overview.
+2. Tap the row **Your home exercises**.
+3. Repeat for a child's (paediatric) record, then for a patient with no plan.
+**Expected Result.** 1: one calm, neutral row (never red or amber, not counted under *need you*): *4 exercises from your physiotherapist, last practised together on* the date in the clinic's zone. 2: the Health Profile opens at the *Your home exercises* card. 3: a child's row says *your child's physiotherapist*; with no plan, or when the plan cannot be read, there is no row at all.
+
+#### `PAT-HP-008` - Companion screen: the exercise demo · P1
+**Preconditions.** Patient A has the companion open (`/patient/dashboard/session`) while Therapist A teaches (`THR-HP-005t`).
+1. Therapist A taps **Show the demo** on an exercise.
+2. Therapist A taps **Your turn**.
+3. Therapist A marks it.
+**Expected Result.** 1: the dark screen says *Exercise 2 of 4* and the exercise's name, *Watch how it is done.*, the picture and the steps as large numbered lines, and the calm line; no clock, no button. 2: *Your turn. Show us how you do it.* with the picture and no steps. 3: the screen says *Well done. You can rest now.* Nothing on it can be pressed; at 390 px the picture, the lines and the steps all fit without sideways scrolling; a screen reader hears the counter, the name and the steps.

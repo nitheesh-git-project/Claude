@@ -16,7 +16,7 @@ export default async function Page() {
     <HospitalDashboardShell data={d} title="Earnings" subtitle="What the patients you referred have paid, and your share of it.">
       <SurfaceCard
         id="revenue"
-        title="Earnings"
+        title="Sessions and your share"
         info="card:earnings"
         icon="fa-chart-line"
         subtitle="Completed sessions for the patients you referred, and your share of each. A session keeps the rate that applied on the day it was delivered."

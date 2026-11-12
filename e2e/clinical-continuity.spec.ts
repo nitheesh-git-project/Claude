@@ -12,7 +12,7 @@ import {
   cookieHeaderFor,
   profileIdFor,
   waitForSplashToClear,
-  markDashboardTourSeen,
+  markDashboardTourSeen, openProfileBlocks, settleNetwork
 } from "./helpers";
 
 /**
@@ -93,7 +93,8 @@ async function patientPageText(browser: Browser, path: string): Promise<string> 
     await page.goto(`${BASE}${path}`);
     await waitForSplashToClear(page);
     await expect(page.getByRole("heading").first()).toBeVisible({ timeout: 60_000 });
-    await page.waitForLoadState("networkidle");
+    await settleNetwork(page);
+    if (path.includes("/patient/dashboard/health-profile")) await openProfileBlocks(page);
     return await page.locator("main").innerText();
   } finally {
     await ctx.close();

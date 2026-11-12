@@ -184,7 +184,7 @@ task spans two, read both - they are short.
 | `visit_mode`, a service area, a travel fee, cash at the door, Calendar/Meet | `docs/rules/home-visit.md` |
 | A programme, a package purchase, session credits, a hospital referral | `docs/rules/programmes.md` |
 | `src/lib/adminNav.ts`, a scope, a Settings screen, System Health, the log, an export | `docs/rules/admin.md` |
-| A patient/therapist/hospital dashboard, the Overview feed, realtime, navigation | `docs/rules/dashboards.md` |
+| A patient/therapist/hospital dashboard, the Overview feed, realtime, navigation, an announcement, the notebook | `docs/rules/dashboards.md` |
 | A public page, a photograph, a catalog card, the mission, the splash | `docs/rules/public-site.md` |
 | Any component: dates, voice, a dialog, a disabled control, a toast, a list, accessibility, style | `docs/rules/frontend.md` |
 | `supabase/schema.sql`, a Supabase client, RLS, a grant, the credit ledger, a sweep | `docs/rules/data-schema.md` |
@@ -205,7 +205,7 @@ Other reference, read on demand: `docs/PRODUCT-GUIDE.md` (the product and setup 
 ## Layout
 
 ```
-src/app/                 pages, layouts, API route handlers (193 of them)
+src/app/                 pages, layouts, API route handlers (230 of them)
 src/app/api/**           grouped by audience: admin/, appointments/, patient/,
                          therapist/, hospital/, packages/, razorpay/, and
                          medical-documents/ (the one route every role shares,
@@ -213,7 +213,7 @@ src/app/api/**           grouped by audience: admin/, appointments/, patient/,
 src/components/          UI by area: admin/ auth/ booking/ catalog/ dashboard/
                          home/ hospital/ marketing/ profile/ motion/ system/
                          visuals/
-src/lib/                 domain logic, formatting, Supabase clients (264 files)
+src/lib/                 domain logic, formatting, Supabase clients (667 files)
 src/lib/supabase/        client / server / admin / public, the bounded fetch,
                          the proxy session refresh, and the auth guards
 src/proxy.ts             auth proxy over the four dashboard route trees
@@ -237,7 +237,7 @@ the ones that matter for that area.
 npm run dev                  # Next dev server
 npm run verify               # lint + unit tests + build -- run before pushing
 npm run lint                 # 5 schema/asset checks, then eslint
-npm run test                 # Vitest, 1,304 tests over dependency-free src/lib
+npm run test                 # Vitest, 3,394 tests over dependency-free src/lib
 npm run build
 npm run start:cluster        # production on several Node workers
 

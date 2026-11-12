@@ -6,7 +6,7 @@
 // Driven as a screen because that is where the whole change is -- the two
 // routes it calls are unchanged.
 import { test, expect } from "@playwright/test";
-import { BASE, browserCookiesFor, QA_EMAILS, adminClient } from "./helpers";
+import { BASE, browserCookiesFor, QA_EMAILS, adminClient, settleNetwork } from "./helpers";
 
 const PIN = "560099";
 const NAME = "ZZ QA Waitlist";
@@ -57,7 +57,7 @@ test("WAIT-AREA-001: declining marks served and opens nothing; agreeing opens th
   try {
     await context.addCookies(await browserCookiesFor(QA_EMAILS.admin));
     await page.goto(`${BASE}/admin/dashboard?section=catalog&tab=areas`);
-    await page.waitForLoadState("networkidle");
+    await settleNetwork(page);
 
     // Scoped to the waitlist rather than "any li holding this pincode":
     // this screen carries two lists of the same shape, and once the area
@@ -98,7 +98,7 @@ test("WAIT-AREA-001: declining marks served and opens nothing; agreeing opens th
 
     await admin.from("home_visit_waitlist").update({ status: "new" }).eq("id", seeded!.id);
     await page.reload();
-    await page.waitForLoadState("networkidle");
+    await settleNetwork(page);
     const row2 = requests.getByRole("listitem").filter({ hasText: PIN }).first();
     await row2.scrollIntoViewIfNeeded();
     const serve2 = row2.getByRole("button", { name: "served", exact: true });

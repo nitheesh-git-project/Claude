@@ -4,6 +4,8 @@ import {
   parseRichText,
   parseRichTextInput,
   plainTextToRichDoc,
+  RICH_TABLE_MAX_COLUMNS,
+  RICH_TABLE_MAX_ROWS,
   RICH_TEXT_MAX_STORED_LENGTH,
   richTextToPlain,
   safeHref,
@@ -179,5 +181,95 @@ describe("the editor's scaffolding", () => {
     const text = (t: string) => ({ type: "paragraph", content: [{ type: "text", text: t }] });
     const doc = sanitizeRichDoc({ type: "doc", content: [empty, text("a"), empty, text("b"), empty, empty] });
     expect(doc.content.map((b) => (b.type === "paragraph" ? b.content.length : -1))).toEqual([1, 0, 1]);
+  });
+});
+
+describe("tables (opt-in)", () => {
+  const cell = (type: "tableCell" | "tableHeader", text: string) => ({
+    type,
+    attrs: { colspan: 2, rowspan: 1, colwidth: [120] },
+    content: [{ type: "paragraph", content: [{ type: "text", text }] }],
+  });
+  const table = {
+    type: "doc",
+    content: [
+      {
+        type: "table",
+        content: [
+          { type: "tableRow", content: [cell("tableHeader", "Day"), cell("tableHeader", "Video")] },
+          { type: "tableRow", content: [cell("tableCell", "Friday")] },
+        ],
+      },
+    ],
+  };
+
+  it("drops a table unless the caller allows them", () => {
+    expect(sanitizeRichDoc(table).content).toEqual([]);
+    expect(sanitizeRichDoc(table, { tables: true }).content).toHaveLength(1);
+  });
+
+  it("keeps a plain grid: spans and widths dropped, short rows padded", () => {
+    const [block] = sanitizeRichDoc(table, { tables: true }).content;
+    if (block.type !== "table") throw new Error("expected a table");
+    expect(block.rows.map((r) => r.cells.length)).toEqual([2, 2]);
+    expect(block.rows[0].cells.map((c) => c.header)).toEqual([true, true]);
+    expect(block.rows[1].cells[1]).toEqual({ header: false, content: [{ type: "paragraph", content: [] }] });
+    expect(JSON.stringify(block)).not.toContain("colspan");
+  });
+
+  it("never nests a table in a cell, and caps rows and columns", () => {
+    const nested = {
+      type: "doc",
+      content: [
+        {
+          type: "table",
+          content: [
+            {
+              type: "tableRow",
+              content: [{ type: "tableCell", content: [table.content[0], { type: "paragraph", content: [{ type: "text", text: "in" }] }] }],
+            },
+          ],
+        },
+      ],
+    };
+    const [block] = sanitizeRichDoc(nested, { tables: true }).content;
+    if (block.type !== "table") throw new Error("expected a table");
+    expect(block.rows[0].cells[0].content).toEqual([{ type: "paragraph", content: [{ type: "text", text: "in" }] }]);
+
+    const wide = {
+      type: "doc",
+      content: [
+        {
+          type: "table",
+          content: Array.from({ length: 50 }, () => ({
+            type: "tableRow",
+            content: Array.from({ length: 20 }, () => cell("tableCell", "x")),
+          })),
+        },
+      ],
+    };
+    const [big] = sanitizeRichDoc(wide, { tables: true }).content;
+    if (big.type !== "table") throw new Error("expected a table");
+    expect(big.rows).toHaveLength(RICH_TABLE_MAX_ROWS);
+    expect(big.rows[0].cells).toHaveLength(RICH_TABLE_MAX_COLUMNS);
+  });
+
+  it("round-trips through storage, and reads as text", () => {
+    const stored = serializeRichText(sanitizeRichDoc(table, { tables: true }));
+    expect(stored).toContain('"tableHeader"');
+    const again = parseRichText(stored, { tables: true });
+    expect(again).toEqual(sanitizeRichDoc(table, { tables: true }));
+    expect(richTextToPlain(again)).toBe("Day\tVideo\nFriday");
+    // The same stored value, read by a surface that does not allow tables.
+    expect(parseRichText(stored).content).toEqual([]);
+  });
+
+  it("parseRichTextInput takes the caller's limit and wording", () => {
+    const long = { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "y".repeat(500) }] }] };
+    expect(parseRichTextInput(long, { maxLength: 100, tooLong: "Too long for this." })).toEqual({
+      ok: false,
+      error: "Too long for this.",
+    });
+    expect(parseRichTextInput(long).ok).toBe(true);
   });
 });

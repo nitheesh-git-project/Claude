@@ -75,7 +75,7 @@ Understanding this model is what makes a payment defect report useful.
 | Care-plan programme | `/api/care-plan/create-order` (quoted first by `/api/care-plan/quote` on Review & pay) | `/api/care-plan/verify` | A `patient_package_purchases` or home-visit purchase, plus session credits; a promo code valid on programmes is claimed on the purchase |
 | Webhook (all of the above) | - | `/api/razorpay/webhook` | Confirms whichever the order pointed at |
 
-**Direct programme checkout no longer exists.** `/api/packages/create-order` and `/api/packages/verify` are deleted. `/book?package=<id>` shows a "Programmes come from your therapist now" page instead of quietly selling one session to somebody who came to buy six.
+**Direct programme checkout no longer exists.** `/api/packages/create-order` and `/api/packages/verify` are deleted. `/book?package=<id>` shows a "Programmes come from your physiotherapist now" page instead of quietly selling one session to somebody who came to buy six.
 
 ### 9.4 Refunds
 

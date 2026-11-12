@@ -443,3 +443,29 @@ Razorpay verification, the one capture path, booking idempotency, every refund s
     staff screen stay in rupees: they are records of what was taken.
   - A failed read of the switches or the rows is "rupees for everyone",
     which is how the app behaved before any of this existed.
+- **A refund is followed until Razorpay says it is done, wherever it was
+  started.** The webhook acts on `refund.created`, `refund.processed` and
+  `refund.failed` as well as `payment.captured`
+  (`src/lib/razorpayRefundSync.ts`, `razorpayRefundSyncServer.ts`). Each is
+  mirrored in `razorpay_refunds`, one row per refund id, whose status only
+  moves forward (`nextRefundStatus`: a late `created` never undoes a
+  `processed`). Who started it is decided on the first event and kept --
+  recording a website refund writes its id onto the session, and a later
+  event reading that id back must not take it for one the app started. Then:
+  a website refund against one session's payment is recorded on the session
+  when processed (the same fields an in-app partial refund writes, the total
+  of every processed refund on that payment capped at what was paid, reason
+  "Refunded on Razorpay (rfnd_...)"), and the session is **not** cancelled;
+  an app refund the bank fails turns `refund_status` to `failed`; a
+  programme refund, or a payment with no booking, is `needs_review` on Money
+  -> Refunds, because a programme refund decides sessions, credits and a
+  therapist's pay and is not a thing to infer from an amount. A step that
+  fails marks the event retryable, so Razorpay's next delivery tries again.
+  Guard: `e2e/razorpay-refund-webhook.spec.ts` RFD-001..004.
+- **A payment is found by its Razorpay ID from the admin's top search.**
+  Money scope only (the ids reach the browser only for it): a `pay_`/`order_`
+  id is a Payment result linking to Transactions with `?view=ref:<id>`, which
+  clears that screen's other filters and narrows to it; the Transactions
+  filter also matches every receipt's references (`receiptReferences` in
+  `src/lib/receipts.ts`, failed attempts included). IDs are shown with
+  `CopyText` wherever a payment is.

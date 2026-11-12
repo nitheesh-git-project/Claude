@@ -77,6 +77,18 @@
       "integration": "local",
       "destructive": false
     },
+    "admin-health-profile-reviews.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "admin-approve-therapist.spec.ts": {
       "runner": "admin",
       "levels": [
@@ -358,17 +370,6 @@
       "integration": "local",
       "destructive": false
     },
-    "analytics-consent.spec.ts": {
-      "runner": "platform",
-      "levels": [
-        "browser"
-      ],
-      "projects": [
-        "desktop"
-      ],
-      "integration": "local",
-      "destructive": false
-    },
     "chrome-and-loader.spec.ts": {
       "runner": "platform",
       "levels": [
@@ -611,6 +612,19 @@
       "destructive": false
     },
     "booking-rules.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "booking-wizard-clarity.spec.ts": {
       "runner": "patient",
       "levels": [
         "browser",
@@ -1380,6 +1394,17 @@
       "integration": "local",
       "destructive": false
     },
+    "treatment-goals.spec.ts": {
+      "runner": "platform",
+      "levels": [
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "health-profile-showcase.spec.ts": {
       "runner": "platform",
       "levels": [
@@ -1516,6 +1541,280 @@
       ],
       "integration": "local",
       "destructive": true
+    },
+    "ortho-health-profile.spec.ts": {
+      "runner": "therapist",
+      "levels": [
+        "browser",
+        "api"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/dashboards.md"
+      ],
+      "integration": "local",
+      "destructive": true
+    },
+    "measurements.spec.ts": {
+      "runner": "therapist",
+      "levels": [
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/admin.md"
+      ],
+      "integration": "local",
+      "destructive": true
+    },
+    "parkinsons-profile.spec.ts": {
+      "runner": "therapist",
+      "levels": [
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/data-schema.md"
+      ],
+      "integration": "local",
+      "destructive": true
+    },
+    "neuro-health-profile.spec.ts": {
+      "runner": "therapist",
+      "levels": [
+        "browser",
+        "api"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/dashboards.md"
+      ],
+      "integration": "local",
+      "destructive": true
+    },
+    "peds-exam.spec.ts": {
+      "runner": "therapist",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/roster.md"
+      ],
+      "integration": "local",
+      "destructive": true
+    },
+    "geriatric-cardio-intake.spec.ts": {
+      "runner": "therapist",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/admin.md"
+      ],
+      "integration": "local",
+      "destructive": true
+    },
+    "geriatric-cardio-profile.spec.ts": {
+      "runner": "therapist",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/dashboards.md"
+      ],
+      "integration": "local",
+      "destructive": true
+    },
+    "angle-tool.spec.ts": {
+      "runner": "therapist",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/clinical.md"
+      ],
+      "integration": "local",
+      "destructive": true
+    },
+    "assessment-run.spec.ts": {
+      "runner": "therapist",
+      "levels": [
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/dashboards.md"
+      ],
+      "integration": "local",
+      "destructive": true
+    },
+    "assessment-cockpit.spec.ts": {
+      "runner": "therapist",
+      "levels": [
+        "browser",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/dashboards.md"
+      ],
+      "integration": "local",
+      "destructive": true
+    },
+    "exercise-teaching.spec.ts": {
+      "runner": "therapist",
+      "levels": [
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/dashboards.md"
+      ],
+      "integration": "local",
+      "destructive": true
+    },
+    "exercise-screens.spec.ts": {
+      "runner": "therapist",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/dashboards.md"
+      ],
+      "integration": "local",
+      "destructive": true,
+      "limitation": "Written, not run, in phase 7d-2 (no test project reachable). Writes append-only plans and run events, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack. The cockpit's teach tool (pick, dose, demo, your turn, marks) is not clicked here: its readiness, steppers, request bodies and every refusal sentence are the pure module src/lib/teachTool.ts (teachTool.test.ts), and it is checked by hand (THR-HP-005t) and by screenshot at 390, 834 and 1280 in the phase's review. The 36 pictures are tested as data and rendered (exercisePictureLabels.test.ts)."
+    },
+    "health-profile-layout.spec.ts": {
+      "runner": "therapist",
+      "levels": [
+        "browser",
+        "api"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/admin.md",
+        "docs/rules/dashboards.md"
+      ],
+      "integration": "local",
+      "destructive": true
+    },
+    "analytics-consent.spec.ts": {
+      "runner": "platform",
+      "levels": [
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "announcements-notebook.spec.ts": {
+      "runner": "platform",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "razorpay-refund-webhook.spec.ts": {
+      "runner": "money",
+      "levels": [
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "admin-find-and-money.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "debug-test-accounts.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "api",
+        "db",
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
     }
   },
   "flows": [
@@ -1588,6 +1887,27 @@
             "create-order rejects a pincode"
           ],
           "level": "api"
+        }
+      ],
+      "rules": [
+        "docs/rules/booking.md"
+      ]
+    },
+    {
+      "id": "patient.booking-wizard-clarity",
+      "runner": "patient",
+      "title": "Step 1 leaves the hour for the patient and says why Continue is disabled, the time is described as a request, Step 2 leads with sign-in, and who the session is for is validated by the server",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "booking-wizard-clarity.spec.ts",
+          "tests": [
+            "BWC-001",
+            "BWC-002",
+            "BWC-003"
+          ],
+          "level": "browser"
         }
       ],
       "rules": [
@@ -2612,6 +2932,34 @@
       ]
     },
     {
+      "id": "admin.health-profile-reviews",
+      "runner": "admin",
+      "title": "Today -> Health Profile reviews lists pending answers and therapist access requests as rows, and granting or removing access asks first",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "admin-health-profile-reviews.spec.ts",
+          "tests": [
+            "HPR-001",
+            "HPR-002",
+            "HPR-003"
+          ],
+          "level": "browser"
+        },
+        {
+          "spec": "admin-scoped-dashboard.spec.ts",
+          "tests": [
+            "S-009"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/admin.md"
+      ]
+    },
+    {
       "id": "admin.decline-application",
       "runner": "admin",
       "title": "Declining a signup or hospital inquiry asks why and lists it on People -> Declined",
@@ -2764,7 +3112,7 @@
     {
       "id": "admin.account-lifecycle",
       "runner": "admin",
-      "title": "Account creation stamps, deletion only with no history, partner layouts and credential reset",
+      "title": "Account creation stamps, deletion (outright with no history, records kept with a reason otherwise), partner layouts and credential reset",
       "required": true,
       "status": "covered",
       "coverage": [
@@ -2773,7 +3121,8 @@
           "tests": [
             "AD-DEL-001",
             "AD-DEL-002",
-            "AD-DEL-003"
+            "AD-DEL-003",
+            "AD-DEL-004"
           ],
           "level": "browser"
         },
@@ -3038,7 +3387,8 @@
             "SN-004",
             "SN-005",
             "SN-006",
-            "SN-007"
+            "SN-007",
+            "SN-008"
           ],
           "level": "browser"
         },
@@ -3055,7 +3405,18 @@
           "spec": "health-profile-showcase.spec.ts",
           "tests": [
             "HPS-001",
-            "HPS-002"
+            "HPS-002",
+            "HPS-003",
+            "HPS-004"
+          ],
+          "level": "browser"
+        },
+        {
+          "spec": "treatment-goals.spec.ts",
+          "tests": [
+            "TG-001",
+            "TG-002",
+            "TG-003"
           ],
           "level": "browser"
         }
@@ -3942,6 +4303,330 @@
       "limitation": "Writes append-only neurological exams, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack; the scales, validation, asymmetry, Berg bands and change-since-last are unit-tested in src/lib/neuroExam.test.ts."
     },
     {
+      "id": "therapist.outcome-measurements",
+      "runner": "therapist",
+      "title": "A therapist records an outcome measurement and marks a milestone reached with it; the gate, the neurological-exam boundary and the licence switch refuse; an admin reopens a milestone only with a reason",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "measurements.spec.ts",
+          "tests": [
+            "MS-001",
+            "MS-002",
+            "MS-003",
+            "MS-004",
+            "MS-005"
+          ],
+          "level": "api"
+        }
+      ],
+      "limitation": "Writes append-only measurements and reopen events, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack; no screen draws the layer yet (phase 2b), so it drives the routes and the rows. The registry, trials, series, milestone validation and proof are unit-tested in src/lib/outcomeMeasures.test.ts, outcomeSeries.test.ts and careGoals.test.ts; the reopen door in scripts/append-only-sql-checks.sql."
+    },
+    {
+      "id": "therapist.ortho-health-profile",
+      "runner": "therapist",
+      "title": "The orthopaedic Health Profile opens in the shared layout for patient and therapist; the therapist records range, strength and LEFS and sees them reach the dial, bar and table; controls follow the assignment; the phase and an overrule with a reason reach the patient",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "ortho-health-profile.spec.ts",
+          "tests": [
+            "OHP-001",
+            "OHP-002",
+            "OHP-003",
+            "OHP-004",
+            "OHP-005",
+            "OHP-006"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "Writes append-only measurements and status events, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack. The unreadable-read card is not driven (a browser test cannot fail one server read without dropping a table); it is unit-tested in src/lib/orthoProfileView.test.ts. The geometry, areas, series and wording are in orthoProfile.test.ts, rangeGauge.test.ts and jointLandmarks.test.ts."
+    },
+    {
+      "id": "therapist.parkinsons-sub-profile",
+      "runner": "therapist",
+      "title": "The neurological condition group opens the Parkinson's follow-ups only when it reads Parkinson's; a patient writes freezing, falls and near-misses in their own diary, refused for a kind their profile does not keep; only the assigned therapist confirms an entry, once; the physiotherapist (or the clinic) writes Where things stand and the patient reads it",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "parkinsons-profile.spec.ts",
+          "tests": [
+            "PDP-001",
+            "PDP-002",
+            "PDP-003",
+            "PDP-004"
+          ],
+          "level": "api"
+        }
+      ],
+      "limitation": "Writes append-only diary entries and care_status_events, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack; it drives the routes and the rows; the screens are covered in neuro-health-profile.spec.ts. Visibility, counters, the banner rule, the diary's validation and shaping, the written summary and the comparable-points rule are unit-tested in src/lib/intakeVisibility.test.ts, patientDiary.test.ts, careStatus.test.ts, whereThingsStand.test.ts and medicationState.test.ts; the triggers in scripts/append-only-sql-checks.sql.",
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/data-schema.md"
+      ]
+    },
+    {
+      "id": "therapist.peds-exam",
+      "runner": "therapist",
+      "title": "A therapist records a paediatric examination (WHO milestones, seen or parent-reported) and the family reads it; the route refuses what the chart does not have and a patient not recorded as paediatric; an unassigned therapist is refused and reads nothing; an admin records one with an audit row; a paediatric Done is refused without the session's exam and passes with it; the page is the milestone chart for the family, the therapist and the admin; an implausible date of birth is not charted; a parent's rough date is kept as approximate",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "peds-exam.spec.ts",
+          "tests": [
+            "PE-001",
+            "PE-002",
+            "PE-003",
+            "PE-004",
+            "PE-004b",
+            "PE-005",
+            "PE-005b",
+            "PE-006",
+            "PE-007",
+            "PE-008"
+          ],
+          "level": "api"
+        }
+      ],
+      "limitation": "Writes append-only paediatric exams, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack; the screens are asserted structurally (PE-006, PE-007); the chart geometry, the dialog's form, the session step's wiring and the parent's voice are unit-tested in src/lib/pedsChartGeometry.test.ts, pedsProfile.test.ts, pedsExamForm.test.ts, childVoice.test.ts and sessionCompletion.test.ts. The Done gate is asserted ON. Validation, change since last, corrected age, the milestone windows, the referral prompt and the caregiver line are unit-tested in src/lib/pedsExam.test.ts, pedsAge.test.ts, pedsMilestoneWindows.test.ts and pedsProfileView.test.ts; the trigger in scripts/append-only-sql-checks.sql.",
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/roster.md"
+      ]
+    },
+    {
+      "id": "therapist.geriatric-cardio-intake",
+      "runner": "therapist",
+      "title": "Strength and balance care and Heart and lung rehabilitation are off until an admin switches them on: /onboard refuses a switched-off one (the profile's own type is still allowed on re-triage), stores the geri_/cardio_ sets at schema_version 1 with the STEADI questions required and the carer optional; triage offers and suggests Geriatric only when it is on, naming a switched-off type in the reason, never accepting for the therapist; the diary keeps falls and near-misses for geriatric and active minutes for cardiopulmonary; the vitals are recorded at the shared route with both blood-pressure numbers kept, the licensed Borg scale refused; the PDF export is complete for both",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "geriatric-cardio-intake.spec.ts",
+          "tests": [
+            "GC-001",
+            "GC-002",
+            "GC-003",
+            "GC-004"
+          ],
+          "level": "api"
+        }
+      ],
+      "limitation": "Writes append-only diary entries and measurements, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack. The fall-risk level and its rule, the oxygen stop limit, the pre-exercise red-flag wording, the precautions' end date and the walk prediction are pure modules unit-tested in src/lib/geriatricRisk.test.ts, cardioSafety.test.ts and geriatricCardioProfile.test.ts (the screens that print them are phase 6b); no exam before Done is sessionCompletion.test.ts; the triage rules are triageSuggestion.test.ts.",
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/admin.md"
+      ]
+    },
+    {
+      "id": "therapist.geriatric-cardio-profile",
+      "runner": "therapist",
+      "title": "Strength and balance care and Heart and lung rehabilitation open in the shared layout: the fall-risk dial names the STEADI rule that decided it with the tests-in-the-safer-range line apart, four test cards, daily living and the home safety check (a free measure of one tick per item) are drawn for the patient and the physiotherapist; the safety limits row, the oxygen bar with the patient's own limit and the pre-session check are drawn for the heart and lung page; the guided six-minute walk cannot be started while a pre-exercise red flag stands; active minutes are written in the diary and confirmed once by the assigned therapist; neither page scrolls sideways",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "geriatric-cardio-profile.spec.ts",
+          "tests": [
+            "GP-001",
+            "GP-002",
+            "GP-003",
+            "GP-004",
+            "GP-005",
+            "GP-006"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "Writes append-only measurements and diary entries, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack. The pre-exercise refusal is enforced on the screen that starts exercise, not at a route, so it is driven in the browser (GP-004). The STEADI level, the card badges, the walk track and oxygen bar geometry, the predicted-distance 'needs ...' line, the heart-rate target rules and the readings a walk leaves behind are pure modules unit-tested in src/lib/phase6bProfile.test.ts, steadiCards.test.ts, cardioPicture.test.ts and geriatricCardioProfile.test.ts. The guided falls check is driven only as far as its first two steps (a test does not time itself in a browser test); the unreadable-read cards are unit-tested, not driven. The light and dark rendering and the tablet width are checked by screenshot in the phase's review, not here.",
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/dashboards.md"
+      ]
+    },
+    {
+      "id": "therapist.angle-tool",
+      "runner": "therapist",
+      "title": "Measure from an image in Record a test: a screenshot of a video call is loaded in the browser, three taps give the joint angle in the goniometer's own convention, the number reads out large with at most one plain warning, a drag, the arrow keys, Undo and Start again work, and Use this angle fills the reading as an estimate over video; no request carries the picture; a stored estimate is labelled on the measures table and the route refuses one that claims to be in person",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "angle-tool.spec.ts",
+          "tests": [
+            "AT-001",
+            "AT-002",
+            "AT-003"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "Writes an append-only measurement, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack. The geometry, the conventions per movement, the refusals and the framing warnings are pure modules unit-tested in src/lib/angleMeasure.test.ts, angleView.test.ts, angleFraming.test.ts and imageEstimate.test.ts. Pinch zoom and the touch drag are checked by hand on a phone; the light and dark rendering and the 390, 834 and 1280 widths are checked by screenshot in the build, not here.",
+      "rules": [
+        "docs/rules/clinical.md"
+      ]
+    },
+    {
+      "id": "therapist.assessment-run",
+      "runner": "therapist",
+      "title": "The guided video assessment's server side: the assigned therapist starts one protocol per patient from the server-derived profile kind (a second start answers with the open run); every step after the safety check is refused until the red flags are answered, a save until the step's whole set-up (with its helper) is ticked, a measure the step does not record, a vital sign not marked as read off the patient's own device, and heart and lung exertion until the pre-exercise check from the run's own resting vitals is clear; Stop test saves nothing; the patient reads only the patient-safe live display, never the run or its results; an unassigned therapist is refused and reads nothing; the admin has no run door; a run ends once",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "assessment-run.spec.ts",
+          "tests": [
+            "AR-001",
+            "AR-002",
+            "AR-003",
+            "AR-004",
+            "AR-005",
+            "AR-006",
+            "AR-007",
+            "AR-008"
+          ],
+          "level": "api"
+        }
+      ],
+      "limitation": "Written, not run, in phase 7a (no test project reachable). Writes append-only run events and measurements, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack. The cockpit and the companion screens are phases 7b and 7c; the realtime delivery of the live display is not driven here. The step order, the gates, the patient-safe display whitelist, the pre-exercise derivation and the summary draft are pure modules unit-tested in src/lib/sessionProtocols.test.ts, assessmentRun.test.ts and assessmentSummaryDraft.test.ts; the triggers in scripts/append-only-sql-checks.sql.",
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/dashboards.md"
+      ]
+    },
+    {
+      "id": "therapist.assessment-cockpit",
+      "runner": "therapist",
+      "title": "The guided video assessment's two screens: the chart offers Start guided assessment and the therapist's session cockpit opens on the safety step with the step bar, the card and exactly three actions; Save and next stays disabled until the set-up is ticked and every safety question answered, and says what is missing, with the next step shut until then; Stop test writes a stopped event and saves nothing; the patient's companion waits calmly with no run, then shows only the step counter, the step name and one patient-safe line with nothing to press; neither screen scrolls sideways at 390 px and the three actions stay on screen; an unassigned therapist gets a 404",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "assessment-cockpit.spec.ts",
+          "tests": [
+            "AC-001",
+            "AC-002",
+            "AC-003",
+            "AC-004",
+            "AC-005",
+            "AC-006",
+            "AC-007"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "Written, not run, in phase 7b (no test project reachable). Writes append-only run events, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack. A saved step, the timers, the score sheet, the angle tool and the exam dialogs are not driven here (a test does not time itself in a browser test, and each is the existing recorder embedded): the readiness, the step order, every refusal sentence, the patient-screen clock against server time and the polling and entry rules are pure modules unit-tested in src/lib/cockpit.test.ts, companionScreen.test.ts, latestWins.test.ts and guidedAssessmentEntry.test.ts; the server's gates are assessment-run.spec.ts. The realtime delivery and the three-second polling fallback are checked by hand on two devices (PAT-HP-006), and the light and dark rendering and the 390, 834 and 1280 widths by screenshot in the phase's review, not here.",
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/dashboards.md"
+      ]
+    },
+    {
+      "id": "therapist.exercise-teaching",
+      "runner": "therapist",
+      "title": "Home exercises taught live in the guided video session, server side: the assigned therapist publishes a plan of library exercises with doses (a new version replaces the old, history kept); an exercise from another condition type, one the intake rules out, a bad dose, and a helper exercise outside a run or without the step's helper ticked are refused; teaching happens only inside the therapist's run in progress, behind the red flags; the companion's demo is the library's picture and steps, never request text; each exercise is marked once (performed correctly, needs practice with one fixed cue, not attempted with one fixed reason) and Save and next waits for every mark; a mistaken mark is fixed as a new record with one of three fixed reasons (refused with no earlier mark, the original kept, append-only) and the patient reads only the latest, never the reason; the patient reads their own active plan and marks and not another patient's; an unassigned therapist is refused and reads nothing; the end's draft says what was taught",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "exercise-teaching.spec.ts",
+          "tests": [
+            "ET-001",
+            "ET-002",
+            "ET-003",
+            "ET-004",
+            "ET-005",
+            "ET-006",
+            "ET-007",
+            "ET-008"
+          ],
+          "level": "api"
+        }
+      ],
+      "limitation": "Written, not run, in phase 7d-1 (no test project reachable); ET-008 (correcting a mark, phase 7d-3) likewise. Writes append-only plan items, teaching events and run events, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack. The cockpit's teaching screen and the patient's plan card are phase 7d-2; the realtime delivery of a new version is not driven here. The library, the dose and teach validators, the contraindications, the demo display whitelist and the summary sentence are pure modules unit-tested in src/lib/exerciseLibrary.test.ts, exercisePlan.test.ts, assessmentRun.test.ts and assessmentSummaryDraft.test.ts; the triggers and publish_exercise_plan() in scripts/append-only-sql-checks.sql.",
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/dashboards.md"
+      ]
+    },
+    {
+      "id": "patient.home-exercises-screens",
+      "runner": "therapist",
+      "title": "Home exercises on the screens: before any plan the patient's Health Profile card is calm and has nothing to fill in; a published plan shows each exercise with its picture, dose in words and steps (collapsed under the name) with nothing to tick, type or press; the companion shows the exercise demo (the counter, the name, the numbered steps and the picture) with no button and no clock; the Overview has one calm 'Your home exercises' row linking to the card; the admin's patient detail shows the same chart read only",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "exercise-screens.spec.ts",
+          "tests": [
+            "ES-001",
+            "ES-002",
+            "ES-003",
+            "ES-004",
+            "ES-005"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "Written, not run, in phase 7d-2 (no test project reachable). Writes append-only plans and run events, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack. The cockpit's teach tool (pick, dose, demo, your turn, marks) is not clicked here: its readiness, steppers, request bodies and every refusal sentence are the pure module src/lib/teachTool.ts (teachTool.test.ts), and it is checked by hand (THR-HP-005t) and by screenshot at 390, 834 and 1280 in the phase's review. The 36 pictures are tested as data and rendered (exercisePictureLabels.test.ts).",
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/dashboards.md"
+      ]
+    },
+    {
+      "id": "therapist.neuro-health-profile",
+      "runner": "therapist",
+      "title": "The neurological and Parkinson's Health Profile opens in the shared layout with the examination as its picture and the exam's lines on the graph; a patient writes a fall in their diary and it moves the status only once the assigned therapist confirms it (an admin only reads); the Parkinson's profile adds the ON-time chip and the freezing diary; the export carries the diary as counts and the summary names the physiotherapist",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "neuro-health-profile.spec.ts",
+          "tests": [
+            "NHP-001",
+            "NHP-002",
+            "NHP-003",
+            "NHP-004",
+            "NHP-005"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "Writes append-only exams, diary entries and status events, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack. The unreadable-read cards are not driven (a browser test cannot fail one server read without dropping a table); they are unit-tested in src/lib/neuroProfileView.test.ts. The series, tiles, status input, picture and diary shaping are in neuroProfile.test.ts, patientDiaryForm.test.ts and diaryExport.test.ts.",
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/dashboards.md"
+      ]
+    },
+    {
+      "id": "therapist.health-profile-layout",
+      "runner": "therapist",
+      "title": "The clinic chooses which Health Profile sections a patient sees (per condition type and per patient, locked safety sections never hidden); the patient's page follows the patient's order with closed blocks; the therapist and admin still see hidden sections; a fall saved by mistake is withdrawn without deleting anything",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "health-profile-layout.spec.ts",
+          "tests": [
+            "HPL-001",
+            "HPL-002",
+            "HPL-003",
+            "HPL-004",
+            "HPL-005",
+            "HPL-006"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "Writes append-only diary rows, so it runs only with E2E_ALLOW_APPEND_ONLY_WRITES=1 or on the disposable local stack. The resolution rules, the locked list against the schema CHECK and the export plan are unit-tested in src/lib/profileWidgets.test.ts; the correction rules in src/lib/patientDiary.test.ts and scripts/append-only-sql-checks.sql. Not run in the change that added it."
+    },
+    {
       "id": "platform.analytics-consent",
       "runner": "platform",
       "title": "Google Analytics loads only after consent, a refusal sticks, the footer link withdraws it, and the signed-in route trees never show the card",
@@ -3956,13 +4641,126 @@
             "AC-003",
             "AC-004",
             "AC-005",
-            "AC-006"
+            "AC-006",
+            "AC-007"
           ],
           "level": "browser"
         }
       ],
       "rules": [
         "docs/rules/public-site.md"
+      ]
+    },
+    {
+      "id": "dashboards.announcements",
+      "runner": "platform",
+      "title": "An announcement an admin publishes is a banner and pop-up on its roles' dashboards only; closing sticks per person; a must-see notice cannot be closed and opens once; End now removes it",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "announcements-notebook.spec.ts",
+          "tests": [
+            "ANN-001",
+            "ANN-002",
+            "ANN-003",
+            "ANN-004",
+            "ANN-005",
+            "ANN-006"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/dashboards.md",
+        "docs/rules/admin.md"
+      ]
+    },
+    {
+      "id": "dashboards.notebook",
+      "runner": "platform",
+      "title": "The notebook opens on every dashboard, saves by itself, keeps its pages, and a page is read by its owner and nobody else (route and RLS)",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "announcements-notebook.spec.ts",
+          "tests": [
+            "NB-001",
+            "NB-002"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/dashboards.md",
+        "docs/rules/data-schema.md"
+      ]
+    },
+    {
+      "id": "money.razorpay-refund-sync",
+      "runner": "money",
+      "title": "A refund Razorpay reports reaches the app: one made on the Razorpay website is recorded on its session once and never moves back, one the app started that the bank failed turns Failed, a programme refund waits for a person, a bad signature changes nothing",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "razorpay-refund-webhook.spec.ts",
+          "tests": [
+            "RFD-001",
+            "RFD-002",
+            "RFD-003",
+            "RFD-004"
+          ],
+          "level": "api"
+        }
+      ],
+      "rules": [
+        "docs/rules/payments.md"
+      ]
+    },
+    {
+      "id": "admin.find-screens-and-payments",
+      "runner": "admin",
+      "title": "The admin top search finds a screen by the word used (promo -> Money > Costs) and a payment by its Razorpay ID; Signed in as, Refunds and the Payouts request columns open",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "admin-find-and-money.spec.ts",
+          "tests": [
+            "FIND-001",
+            "FIND-002",
+            "FIND-003",
+            "FIND-004",
+            "FIND-005"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/admin.md"
+      ]
+    },
+    {
+      "id": "admin.debug-test-accounts",
+      "runner": "admin",
+      "title": "The debug bar's Test accounts panel makes a set of approved logins for a Master Admin only, and removes them with their payments while refusing any real account",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "debug-test-accounts.spec.ts",
+          "tests": [
+            "DTA-001",
+            "DTA-002",
+            "DTA-003"
+          ],
+          "level": "api"
+        }
+      ],
+      "rules": [
+        "docs/rules/ops-security.md"
       ]
     }
   ],

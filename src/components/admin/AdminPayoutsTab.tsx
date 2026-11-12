@@ -1,6 +1,7 @@
 "use client";
 
 import FilterChips from "@/components/dashboard/FilterChips";
+import { formatClinicDate } from "@/lib/formatDateTime";
 import { RatingChip } from "@/components/feedback/RatingDisplay";
 import ListPager from "@/components/dashboard/ListPager";
 import { usePagedList } from "@/lib/usePagedList";
@@ -8,6 +9,7 @@ import { Fragment, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import TherapistPayoutButton from "@/components/admin/TherapistPayoutButton";
+import InfoNote from "@/components/admin/InfoNote";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import {
   computeTherapistPayoutSummary,
@@ -122,15 +124,23 @@ export default function AdminPayoutsTab({
   patients,
   categories,
   nowMs,
+  openRequests = [],
+  lastPayouts = [],
 }: {
   therapists: Therapist[];
   appointments: PayoutAppointment[];
   patients: Patient[];
   categories: Category[];
   nowMs: number;
+  /** Each therapist's open payout request (pending or under review). */
+  openRequests?: { therapistId: string; amountPaise: number; requestedAt: string; status: string }[];
+  /** Each therapist's most recent payout: when, how much, how. */
+  lastPayouts?: { therapistId: string; amountPaise: number; paidAt: string; via: string | null }[];
 }) {
+  const requestByTherapist = new Map(openRequests.map((r) => [r.therapistId, r]));
+  const lastPaidByTherapist = new Map(lastPayouts.map((p) => [p.therapistId, p]));
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [payoutFilter, setPayoutFilter] = useState<"all" | "owed" | "settled">("all");
+  const [payoutFilter, setPayoutFilter] = useState<"all" | "owed" | "requested" | "settled">("all");
 
   // Same one-shot preset the other screens honour (adminScreenHref's ?view=)
   // -- Today's "Cash to remit" figure links here, and it means the
@@ -141,7 +151,7 @@ export default function AdminPayoutsTab({
   const [appliedView, setAppliedView] = useState<string | null>(null);
   if (viewParam !== appliedView) {
     setAppliedView(viewParam);
-    if (viewParam === "owed" || viewParam === "settled") setPayoutFilter(viewParam);
+    if (viewParam === "owed" || viewParam === "settled" || viewParam === "requested") setPayoutFilter(viewParam);
     else if (viewParam) setPayoutFilter("all");
   }
 
@@ -171,7 +181,9 @@ export default function AdminPayoutsTab({
       ? true
       : payoutFilter === "owed"
         ? r.summary.netOwedPaise > 0
-        : r.summary.netOwedPaise <= 0
+        : payoutFilter === "requested"
+          ? requestByTherapist.has(r.therapist.id)
+          : r.summary.netOwedPaise <= 0
   );
   const { rows: pageRows, pager } = usePagedList(visibleRows, {
     storageKey: "admin-payouts",
@@ -209,14 +221,17 @@ export default function AdminPayoutsTab({
             · Net payable: <strong className="text-teal-700">{formatInr(totalNetPayablePaise)}</strong>
           </p>
         </div>
-        <p className="text-[11px] text-slate-500 mb-4">
-          All-time, not date-filtered - a payout balance can&apos;t depend on which dates happen
-          to be in view. Revenue billed counts a session once the patient pays; a therapist&apos;s
-          share is only earned once they have actually delivered it, matching how payouts settle.
-          Net payable subtracts any cash the therapist is currently holding from home-visit
-          collections - that is the figure the Pay button transfers, and settling records that
-          cash as remitted.
-        </p>
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <p className="text-[11px] text-slate-500">All-time balances, not date-filtered.</p>
+          <InfoNote label="How these payout figures are worked out">
+            All-time, not date-filtered - a payout balance can&apos;t depend on which dates happen
+            to be in view. Revenue billed counts a session once the patient pays; a therapist&apos;s
+            share is only earned once they have actually delivered it, matching how payouts settle.
+            Net payable subtracts any cash the therapist is currently holding from home-visit
+            collections - that is the figure the Pay button transfers, and settling records that
+            cash as remitted.
+          </InfoNote>
+        </div>
 
         {rows.length > 1 && (
           <FilterChips
@@ -229,6 +244,11 @@ export default function AdminPayoutsTab({
                 key: "owed",
                 label: "Needs paying",
                 count: rows.filter((r) => r.summary.netOwedPaise > 0).length,
+              },
+              {
+                key: "requested",
+                label: "Asked to be paid",
+                count: rows.filter((r) => requestByTherapist.has(r.therapist.id)).length,
               },
               {
                 key: "settled",
@@ -250,6 +270,8 @@ export default function AdminPayoutsTab({
                 <th className="pb-2 pr-3 font-semibold text-right">Therapist&apos;s share</th>
                 <th className="pb-2 pr-3 font-semibold text-right" title="Revenue from this therapist&apos;s sessions less their own share. Unlike Clinic share on the Summary screen, this does not deduct any partner hospital&apos;s referral commission.">Left after their share</th>
                 <th className="pb-2 pr-3 font-semibold">Status</th>
+                <th className="pb-2 pr-3 font-semibold">Requested</th>
+                <th className="pb-2 pr-3 font-semibold">Last paid</th>
                 <th className="pb-2 font-semibold">Action</th>
               </tr>
             </thead>
@@ -301,6 +323,32 @@ export default function AdminPayoutsTab({
                           </span>
                         )}
                       </td>
+                      <td className="py-2.5 pr-3 text-slate-700" data-testid="payout-requested">
+                        {(() => {
+                          const req = requestByTherapist.get(therapist.id);
+                          if (!req) return <span className="text-slate-500">-</span>;
+                          return (
+                            <span>
+                              <strong className="text-amber-800">{formatInr(req.amountPaise)}</strong>
+                              <span className="block text-[11px] text-slate-500">
+                                {req.status === "reviewing" ? "Under review" : "Asked"} {formatClinicDate(req.requestedAt)}
+                              </span>
+                            </span>
+                          );
+                        })()}
+                      </td>
+                      <td className="py-2.5 pr-3 text-slate-700" data-testid="payout-last-paid">
+                        {(() => {
+                          const last = lastPaidByTherapist.get(therapist.id);
+                          if (!last) return <span className="text-slate-500">Never</span>;
+                          return (
+                            <span>
+                              {formatInr(last.amountPaise)} on {formatClinicDate(last.paidAt)}
+                              {last.via && <span className="block text-[11px] text-slate-500 [overflow-wrap:anywhere]">{last.via}</span>}
+                            </span>
+                          );
+                        })()}
+                      </td>
                       <td className="py-2.5">
                         {shareUnset ? (
                           <Link
@@ -320,7 +368,7 @@ export default function AdminPayoutsTab({
                     </tr>
                     {isExpanded && (
                       <tr key={`${therapist.id}-detail`}>
-                        <td colSpan={8} className="pb-4 pt-1">
+                        <td colSpan={10} className="pb-4 pt-1">
                           <TherapistSessionList
                             therapistId={therapist.id}
                             appointments={appointments}

@@ -145,6 +145,11 @@ wrong are exactly the things a restore drill finds:
 | Clinical records (`patient_condition_profiles`, `pain_assessments`, `session_notes`) | Indefinitely | Nothing |
 | Uploaded reports | Until the patient deletes one | The patient, or cascade on account deletion |
 | Issued credentials (`*_admin_notes.temp_password`) | Not kept | No password is issued any more - accounts get a one-time sign-in link (`src/lib/accessLink.ts`); `schema.sql` clears any plaintext earlier versions stored |
+| `notebook_pages` (a person's private notebook) | Until its owner deletes the page | The owner, or cascade on account deletion. **Read by nobody else:** one RLS policy (own rows), no admin policy, no admin screen or export, and refused to an admin signed in as the owner. It is not a clinical record. |
+| `razorpay_refunds` (a mirror of each Razorpay refund's status) | Indefinitely | The data reset only; a deleted booking or account leaves the row with its link cleared |
+| `account_deletions` (who deleted an account with records, when, why, and its old email and phone) | Indefinitely | The data reset, or the profile itself being removed; append-only by trigger |
+| `debug_test_accounts` (the debug bar's throwaway logins, passwords included) | Until deleted from the panel | The panel's Delete, or the data reset |
+| `announcements`, `announcement_receipts` | Until an admin deletes the announcement | Settings -> Announcements (a live one must be ended first); receipts cascade with the announcement or the account. Its pictures sit in the public `catalog-images` bucket and are removed with it. |
 | `rate_limit_counters` | One window | The next call for that bucket |
 
 ### The audit log's archival strategy
@@ -182,10 +187,20 @@ policy anybody chose — 35 foreign keys into `profiles(id)` carry no
 booked, paid, been paid, been treated, or acted in the back office. Deleting
 one "properly" would mean deleting the money and the clinical record with it.
 
-So `delete-account` is for the typo'd email, the duplicate, the account
-created against the wrong person. For everything else the answer is
-**suspension**, and the account stays because the admin's id is on every audit
-row they ever wrote.
+So the outright delete is for the typo'd email, the duplicate, the account
+created against the wrong person. For everything else, deleting removes the
+**person and keeps the records**: the login is switched off, the profile's email
+and phone are cleared, and the row stays as the name the books point at, marked
+deleted. `account_deletions` keeps who did it, when, the reason and note, the
+contact details the profile no longer carries, and a count and total of the
+money kept. It is append-only by trigger; it goes only when the profile itself
+is removed (the data reset, a test fixture's cleanup). Suspension remains the
+answer when the person may come back.
+
+Test accounts from the debug bar (`debug_test_accounts`) are the one exception
+to "records stay": `debug_purge_test_account()` removes the account and every
+row it owns, payments included, and refuses any account the panel did not
+create.
 
 ### What blocks it, and how that is known
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
+import { useSearchParams } from "next/navigation";
 import FilterChips from "@/components/dashboard/FilterChips";
 import ListPager from "@/components/dashboard/ListPager";
 import { usePagedList } from "@/lib/usePagedList";
@@ -32,6 +33,8 @@ export default function PagedList({
   filters,
   filterLabel,
   allLabel = "All",
+  viewPresets,
+  focusPrefix,
 }: {
   items: PagedListItem[];
   noun?: string;
@@ -49,14 +52,46 @@ export default function PagedList({
   filters?: { key: string; label: string }[];
   filterLabel?: string;
   allLabel?: string;
+  /** `?view=` values (adminScreenHref's third part) that open this list on a
+   *  chip: `{ triage: "pending_review" }`. One-shot and applied during
+   *  render, the way AdminAllSessionsTab applies its own presets, so a count
+   *  on another screen opens exactly the rows it counted. Unknown values
+   *  leave the list as it was. */
+  viewPresets?: Record<string, string>;
+  /** A `?view=` that starts with this prefix and ends in an item's `id` shows
+   *  that one item alone, with a way back to the whole list: global search
+   *  opens a partner as `partner:<id>`, not as the list it is somewhere in. */
+  focusPrefix?: string;
 }) {
+  const viewParam = useSearchParams()?.get("view") ?? null;
   const [group, setGroup] = useState("all");
+  const [appliedView, setAppliedView] = useState<string | null>(null);
+  const [focusId, setFocusId] = useState<string | null>(null);
+  if (viewParam !== appliedView) {
+    setAppliedView(viewParam);
+    const preset = viewPresets && viewParam ? viewPresets[viewParam] : undefined;
+    if (preset) setGroup(preset);
+    if (focusPrefix && viewParam?.startsWith(focusPrefix)) {
+      setFocusId(viewParam.slice(focusPrefix.length));
+      setGroup("all");
+    }
+  }
 
+  const focused = focusId ? items.find((item) => item.id === focusId) ?? null : null;
   const visible = useMemo(
-    () => (group === "all" ? items : items.filter((item) => item.group === group)),
-    [items, group]
+    () =>
+      focused
+        ? [focused]
+        : group === "all"
+          ? items
+          : items.filter((item) => item.group === group),
+    [items, group, focused]
   );
-  const { rows, pager } = usePagedList(visible, { storageKey, defaultPageSize });
+  const { rows, pager } = usePagedList(visible, {
+    storageKey,
+    defaultPageSize,
+    resetKey: viewPresets && appliedView && viewPresets[appliedView] ? appliedView : undefined,
+  });
 
   // A filter nobody can act on is noise: chips only appear when more than
   // one of them would actually have rows behind it.
@@ -78,7 +113,19 @@ export default function PagedList({
 
   return (
     <>
-      {choices && (
+      {focused && (
+        <p className="mb-3 flex flex-wrap items-center gap-2 text-xs text-slate-600">
+          Showing the {noun} you searched for.
+          <button
+            type="button"
+            onClick={() => setFocusId(null)}
+            className="font-semibold text-teal-700 hover:underline"
+          >
+            Show all {nounPlural ?? `${noun}s`}
+          </button>
+        </p>
+      )}
+      {choices && !focused && (
         <FilterChips
           label={filterLabel ?? `Filter ${nounPlural ?? `${noun}s`}`}
           value={group}

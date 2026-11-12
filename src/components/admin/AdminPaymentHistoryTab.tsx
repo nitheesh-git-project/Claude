@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import CopyText from "@/components/system/CopyText";
 import { EmptyState } from "@/components/dashboard/SurfaceCard";
 import Modal from "@/components/admin/Modal";
 import {
@@ -16,6 +18,7 @@ import {
 import {
   buildPatientReceipts,
   buildTherapistPayoutReceipts,
+  receiptReferences,
   type PatientReceipt,
   type PayoutReceipt,
   type BookingReceiptStage,
@@ -31,6 +34,8 @@ import ListPager from "@/components/dashboard/ListPager";
 import { usePagedList } from "@/lib/usePagedList";
 import DateField from "@/components/system/DateField";
 import { formatRupees } from "@/lib/formatMoney";
+import { formatClinicDateTimeWithZone } from "@/lib/formatDateTime";
+import { refundsFor, type PaymentRefunds } from "@/lib/paymentRefunds";
 
 type Patient = { id: string; full_name: string | null; code?: string | null };
 type Therapist = { id: string; full_name: string | null; code?: string | null };
@@ -89,14 +94,38 @@ type AdminReceiptRow = {
   /** The programme the money was for (PED_PKG001-2/6): the purchase itself,
    *  or the programme a session was drawn from. */
   programme: ProgrammeTag | null;
+  /** Refunds against this row's Razorpay payment, null where there is no
+   *  payment to refund (a payout, a failed attempt, a package-covered visit). */
+  refunds: PaymentRefunds | null;
 };
+
+/** The Refunded column: what went back, what is still on its way, or a
+ *  failed attempt. A dash when nothing was refunded. */
+function RefundedCell({ refunds }: { refunds: PaymentRefunds | null }) {
+  if (!refunds || (refunds.refundedPaise === 0 && refunds.inProgressPaise === 0 && !refunds.failed)) {
+    return <span className="text-slate-400">-</span>;
+  }
+  return (
+    <span className="flex flex-col items-end gap-0.5">
+      {refunds.refundedPaise > 0 && (
+        <span className="font-semibold text-amber-700">−{formatInr(refunds.refundedPaise)}</span>
+      )}
+      {refunds.inProgressPaise > 0 && (
+        <span className="text-[11px] text-slate-500">{formatInr(refunds.inProgressPaise)} on its way</span>
+      )}
+      {refunds.failed && <span className="text-[11px] font-semibold text-red-700">Refund failed</span>}
+    </span>
+  );
+}
 
 function PatientTransactionTable({
   transactions,
   programmeTagsByPurchase,
+  refundsByPaymentId,
 }: {
   transactions: PatientTransaction[];
   programmeTagsByPurchase: Record<string, ProgrammeTag>;
+  refundsByPaymentId: Map<string, PaymentRefunds>;
 }) {
   if (transactions.length === 0) {
     return (
@@ -117,6 +146,7 @@ function PatientTransactionTable({
             <th className="pb-2 pr-3 font-semibold">Transaction ID</th>
             <th className="pb-2 pr-3 font-semibold">Mode of Payment</th>
             <th className="pb-2 pr-3 font-semibold text-right">Amount</th>
+            <th className="pb-2 pr-3 font-semibold text-right">Refunded</th>
             <th className="pb-2 pr-3 font-semibold">Session / Purpose</th>
             <th className="pb-2 font-semibold">Status</th>
           </tr>
@@ -133,9 +163,16 @@ function PatientTransactionTable({
                     "-"
                   ))}
               </td>
-              <td className="py-2.5 pr-3 text-slate-500 font-mono">{t.transactionId ?? "-"}</td>
+              <td className="py-2.5 pr-3 text-slate-500">
+                {t.transactionId ? <CopyText value={t.transactionId} label="Copy payment ID" /> : "-"}
+              </td>
               <td className="py-2.5 pr-3 text-slate-700">{t.modeOfPayment}</td>
               <td className="py-2.5 pr-3 text-right font-semibold text-slate-900">{formatInr(t.amountPaise)}</td>
+              <td className="py-2.5 pr-3 text-right">
+                <RefundedCell
+                  refunds={t.transactionId ? refundsFor(refundsByPaymentId, t.transactionId) : null}
+                />
+              </td>
               <td className="py-2.5 pr-3 text-slate-700">{t.purpose}</td>
               <td className="py-2.5">
                 <span className="font-semibold text-green-700 bg-green-50 px-2.5 py-1 rounded-full">
@@ -206,6 +243,8 @@ export default function AdminPaymentHistoryTab({
   categories,
   programmeTagsByPurchase = {},
   programmeTagsByAppointment = {},
+  refundsByPaymentId = {},
+  refundRecordsUnreadable = false,
 }: {
   patients: Patient[];
   therapists: Therapist[];
@@ -217,7 +256,13 @@ export default function AdminPaymentHistoryTab({
   /** Programme IDs with progress, so a row tied to a programme names it. */
   programmeTagsByPurchase?: Record<string, ProgrammeTag>;
   programmeTagsByAppointment?: Record<string, ProgrammeTag>;
+  /** Everything refunded against each Razorpay payment (paymentRefunds.ts). */
+  refundsByPaymentId?: Record<string, PaymentRefunds>;
+  /** The refund records could not be read: the column then shows only what
+   *  each session itself records, and says so. */
+  refundRecordsUnreadable?: boolean;
 }) {
+  const refundMap = useMemo(() => new Map(Object.entries(refundsByPaymentId)), [refundsByPaymentId]);
   const [openPatientId, setOpenPatientId] = useState<string | null>(null);
   const [openTherapistId, setOpenTherapistId] = useState<string | null>(null);
   const [receiptPersonFilter, setReceiptPersonFilter] = useState<string>("all");
@@ -226,6 +271,23 @@ export default function AdminPaymentHistoryTab({
   const [receiptToDate, setReceiptToDate] = useState<string>("");
   const [receiptSessionCodeFilter, setReceiptSessionCodeFilter] = useState<string>("");
   const [openReceipt, setOpenReceipt] = useState<AdminReceiptRow | null>(null);
+
+  // A deep link from the top search (`?view=ref:pay_...`): the list narrows
+  // to that payment, every other filter cleared so nothing hides it. Applied
+  // during render, the same way the sessions list applies its presets, so
+  // the screen paints already filtered.
+  const viewParam = useSearchParams().get("view");
+  const [appliedView, setAppliedView] = useState<string | null>(null);
+  if (viewParam !== appliedView) {
+    setAppliedView(viewParam);
+    if (viewParam?.startsWith("ref:")) {
+      setReceiptPersonFilter("all");
+      setReceiptTypeFilter("all");
+      setReceiptFromDate("");
+      setReceiptToDate("");
+      setReceiptSessionCodeFilter(viewParam.slice("ref:".length));
+    }
+  }
 
   const categoryTitleById = useMemo(
     () => new Map(categories.map((c) => [c.id, c.title])),
@@ -293,6 +355,10 @@ export default function AdminPaymentHistoryTab({
                 : "Payment Failed",
           amountPaise: r.kind === "booking" ? (r.isPackageCovered ? null : r.amountPaise) : r.amountPaise,
           detail: r,
+          refunds:
+            r.kind === "booking" && !r.isPackageCovered && r.transactionId
+              ? refundsFor(refundMap, r.transactionId)
+              : null,
           // A settlement covers several sessions, so it has no single one to
           // name. They are listed inside its own detail instead.
           sessionCode:
@@ -326,6 +392,7 @@ export default function AdminPaymentHistoryTab({
           detail: r,
           sessionCode: null,
           programme: null,
+          refunds: null,
         });
       }
     }
@@ -342,6 +409,7 @@ export default function AdminPaymentHistoryTab({
     sessionCodeByAppointmentId,
     programmeTagsByPurchase,
     programmeTagsByAppointment,
+    refundMap,
   ]);
 
   // Parsed with an explicit +05:30 offset, same reasoning as
@@ -363,11 +431,16 @@ export default function AdminPaymentHistoryTab({
       if (r.personRole !== role || r.personId !== id) return false;
     }
     if (receiptTypeFilter !== "all" && r.typeLabel !== receiptTypeFilter) return false;
-    // One box for both references: a session ID, or a programme ID (new or
-    // old code, with or without its progress).
+    // One box for every reference: a session ID, a programme ID (new or old
+    // code, with or without its progress), or a Razorpay payment or order
+    // ID -- pasted from a Razorpay email, it finds who paid and for what.
     if (
       trimmedReceiptSessionCodeFilter &&
       !(r.sessionCode ?? "").toLowerCase().includes(trimmedReceiptSessionCodeFilter) &&
+      !(r.personRole === "patient" &&
+        receiptReferences(r.detail as PatientReceipt).some((ref) =>
+          ref.toLowerCase().includes(trimmedReceiptSessionCodeFilter)
+        )) &&
       !(r.programme && programmeQueryMatches(receiptSessionCodeFilter, [r.programme.code, ...r.programme.otherCodes]))
     )
       return false;
@@ -418,6 +491,7 @@ export default function AdminPaymentHistoryTab({
         { header: "Role", value: (r) => r.personRole },
         { header: "Type", value: (r) => r.typeLabel },
         { header: "Amount (INR)", value: (r) => (r.amountPaise !== null ? r.amountPaise / 100 : "") },
+        { header: "Refunded (INR)", value: (r) => (r.refunds ? r.refunds.refundedPaise / 100 : "") },
       ],
     []
   );
@@ -618,12 +692,12 @@ export default function AdminPaymentHistoryTab({
           />
 
           <input
-            aria-label="Filter by session or programme ID"
-            type="text"
+            aria-label="Filter by session, programme or payment ID"
+            type="search"
             value={receiptSessionCodeFilter}
             onChange={(e) => setReceiptSessionCodeFilter(e.target.value)}
-            placeholder="Session or programme ID"
-            className="p-2 rounded-lg border border-slate-300 text-xs font-mono w-48"
+            placeholder="Session, programme or payment ID (pay_...)"
+            className="p-2 rounded-lg border border-slate-300 text-xs font-mono w-full sm:w-72"
           />
 
           {(receiptPersonFilter !== "all" ||
@@ -646,6 +720,12 @@ export default function AdminPaymentHistoryTab({
           )}
         </div>
 
+        {refundRecordsUnreadable && (
+          <p className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">
+            We couldn&apos;t read Razorpay&apos;s refund records just now, so the Refunded column shows
+            only what each session records. Refresh the page to try again.
+          </p>
+        )}
         {filteredReceiptRows.length === 0 ? (
           <p className="text-xs text-slate-500 py-6 text-center">
             {allReceiptRows.length === 0 ? "No receipts yet." : "No receipts match these filters."}
@@ -660,6 +740,7 @@ export default function AdminPaymentHistoryTab({
                   <th className="pb-2 pr-3 font-semibold">Who</th>
                   <th className="pb-2 pr-3 font-semibold">Type</th>
                   <th className="pb-2 pr-3 font-semibold text-right">Amount</th>
+                  <th className="pb-2 pr-3 font-semibold text-right">Refunded</th>
                   <th className="pb-2 font-semibold">Action</th>
                 </tr>
               </thead>
@@ -697,6 +778,9 @@ export default function AdminPaymentHistoryTab({
                     <td className="py-2.5 pr-3 text-right font-semibold text-slate-900">
                       {r.amountPaise === null ? "-" : formatInr(r.amountPaise)}
                     </td>
+                    <td className="py-2.5 pr-3 text-right">
+                      <RefundedCell refunds={r.refunds} />
+                    </td>
                     <td className="py-2.5">
                       <button
                         onClick={() => setOpenReceipt(r)}
@@ -723,6 +807,7 @@ export default function AdminPaymentHistoryTab({
           <PatientTransactionTable
             transactions={openPatient.transactions}
             programmeTagsByPurchase={programmeTagsByPurchase}
+            refundsByPaymentId={refundMap}
           />
         </Modal>
       )}
@@ -746,6 +831,56 @@ export default function AdminPaymentHistoryTab({
           <ReceiptDetail row={openReceipt} />
         </Modal>
       )}
+    </div>
+  );
+}
+
+const REFUND_STATUS_LABEL = {
+  processed: "Refunded",
+  in_progress: "On its way",
+  failed: "Failed",
+} as const;
+
+/** The refund part of a payment's card: each refund on its own line, then
+ *  what the clinic kept. Nothing at all when nothing was refunded. */
+function RefundLines({ refunds, paidPaise }: { refunds: PaymentRefunds; paidPaise: number }) {
+  if (refunds.lines.length === 0) return null;
+  return (
+    <div className="space-y-2 border-t border-slate-100 pt-3" data-testid="receipt-refunds">
+      <p className="font-semibold text-slate-700">Refunds</p>
+      {refunds.lines.map((l, i) => (
+        <div key={l.refundId ?? i} className="rounded-lg bg-slate-50 px-3 py-2">
+          <div className="flex items-center justify-between gap-3">
+            <span
+              className={`font-semibold ${
+                l.status === "failed" ? "text-red-700" : l.status === "in_progress" ? "text-slate-600" : "text-amber-700"
+              }`}
+            >
+              {REFUND_STATUS_LABEL[l.status]}
+              {l.madeOn === "razorpay" ? " · on the Razorpay website" : l.madeOn === "app" ? " · in the app" : ""}
+            </span>
+            <span className="font-semibold text-slate-800">
+              {l.amountPaise !== null ? formatInr(l.amountPaise) : "-"}
+            </span>
+          </div>
+          {(l.refundId || l.at) && (
+            <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-slate-500">
+              {l.refundId ? (
+                <CopyText value={l.refundId} label="Copy refund ID" className="text-slate-600" />
+              ) : (
+                <span />
+              )}
+              {l.at && <span>{formatClinicDateTimeWithZone(l.at)}</span>}
+            </div>
+          )}
+        </div>
+      ))}
+      <div className="flex items-center justify-between">
+        <span className="text-slate-500">Kept after refunds</span>
+        <span className="font-semibold text-slate-800">
+          {formatInr(Math.max(0, paidPaise - refunds.refundedPaise))}
+        </span>
+      </div>
     </div>
   );
 }
@@ -775,11 +910,12 @@ function ReceiptDetail({ row }: { row: AdminReceiptRow }) {
           </span>
         </div>
         {detail.transactionId && (
-          <div className="flex items-center justify-between">
-            <span className="text-slate-500">Transaction ID</span>
-            <span className="font-mono text-slate-600">{detail.transactionId}</span>
+          <div className="flex items-center justify-between gap-3">
+            <span className="shrink-0 text-slate-500">Razorpay payment ID</span>
+            <CopyText value={detail.transactionId} label="Copy payment ID" className="justify-end text-right text-slate-700" />
           </div>
         )}
+        {row.refunds && <RefundLines refunds={row.refunds} paidPaise={detail.amountPaise} />}
       </div>
     );
   }
@@ -803,6 +939,18 @@ function ReceiptDetail({ row }: { row: AdminReceiptRow }) {
           <div className="flex items-center justify-between">
             <span className="text-slate-500">Reason</span>
             <span className="font-semibold text-slate-800">{detail.errorReason}</span>
+          </div>
+        )}
+        {detail.transactionId && (
+          <div className="flex items-center justify-between gap-3">
+            <span className="shrink-0 text-slate-500">Razorpay payment ID</span>
+            <CopyText value={detail.transactionId} label="Copy payment ID" className="justify-end text-right text-slate-700" />
+          </div>
+        )}
+        {detail.orderId && (
+          <div className="flex items-center justify-between gap-3">
+            <span className="shrink-0 text-slate-500">Razorpay order ID</span>
+            <CopyText value={detail.orderId} label="Copy order ID" className="justify-end text-right text-slate-700" />
           </div>
         )}
         {detail.errorDescription && (
@@ -829,7 +977,7 @@ function ReceiptDetail({ row }: { row: AdminReceiptRow }) {
         {detail.reference && (
           <div className="flex items-start justify-between gap-4">
             <span className="text-slate-500 shrink-0">Reference</span>
-            <span className="text-right text-slate-600">{detail.reference}</span>
+            <CopyText value={detail.reference} label="Copy reference" className="justify-end text-right text-slate-600" />
           </div>
         )}
         {detail.sessions.length > 0 && (

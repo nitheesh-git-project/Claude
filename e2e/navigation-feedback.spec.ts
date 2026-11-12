@@ -9,7 +9,7 @@
 // click that was not written through ProgressLink or useRouter, so the wait
 // itself was silent.
 import { test, expect } from "@playwright/test";
-import { BASE, browserCookiesFor, markDashboardTourSeen, QA_EMAILS, waitForSplashToClear } from "./helpers";
+import { BASE, browserCookiesFor, markDashboardTourSeen, QA_EMAILS, waitForSplashToClear, settleNetwork } from "./helpers";
 
 test("NAV-001: an admin screen link switches in place, with no server round trip", async ({
   page,
@@ -17,7 +17,7 @@ test("NAV-001: an admin screen link switches in place, with no server round trip
 }) => {
   await context.addCookies(await browserCookiesFor(QA_EMAILS.admin));
   await page.goto(`${BASE}/admin/dashboard?section=today&tab=overview`);
-  await page.waitForLoadState("networkidle");
+  await settleNetwork(page);
   // The splash lies over the page while it loads and takes the tap; on the
   // gate it held the click ~2.4s, and the stopwatch below timed the splash
   // rather than the switch (which took ~0.5s).
@@ -62,7 +62,7 @@ test("NAV-003: a count's filter preset survives the switch", async ({ page, cont
   test.setTimeout(180_000);
   await context.addCookies(await browserCookiesFor(QA_EMAILS.admin));
   await page.goto(`${BASE}/admin/dashboard?section=today&tab=overview`);
-  await page.waitForLoadState("networkidle");
+  await settleNetwork(page);
 
   const withPreset = page
     .locator('a[href*="/admin/dashboard?section=sessions&tab=all&view=today"]:visible')
@@ -117,7 +117,7 @@ test("NAV-002: a real navigation draws the bar while it is in flight", async ({
   await markDashboardTourSeen(QA_EMAILS.patientA);
   await context.addCookies(await browserCookiesFor(QA_EMAILS.patientA));
   await page.goto(`${BASE}/patient/dashboard`);
-  await page.waitForLoadState("networkidle");
+  await settleNetwork(page);
   // A cold open shows the brand splash first, and it takes every click until
   // it clears; whether it is still up here depended on how long the page
   // took to compile, so this case passed or timed out on the same code.

@@ -5,7 +5,7 @@ import {
   adminClient,
   browserCookiesFor,
   chooseAnyServiceOnStepOne,
-  waitForSplashToClear, TEST_PASSWORD
+  waitForSplashToClear, TEST_PASSWORD, settleNetwork
 } from "./helpers";
 
 /**
@@ -41,9 +41,9 @@ async function stubRazorpayThatIsClosed(page: Page) {
 async function walkToStepThree(page: Page) {
   // The wizard reads the session on mount; a click before that lands on the
   // signed-out form.
-  await page.waitForLoadState("networkidle");
+  await settleNetwork(page);
   await chooseAnyServiceOnStepOne(page);
-  await page.getByRole("button", { name: /Continue to Medical Details/i }).click();
+  await page.getByRole("button", { name: /Continue to your details/i }).click();
   await expect(page.getByText(/Booking as/i)).toBeVisible({ timeout: 30_000 });
   await page.getByRole("checkbox").first().check();
   await page.getByRole("button", { name: /Review Booking/i }).click();
@@ -145,14 +145,15 @@ test.describe("a new patient's payment tries", () => {
     const email = `e2e.newpatient.${Date.now()}@example.test`;
     await stubRazorpayThatIsClosed(page);
     await page.goto(`${BASE}/book`);
-    await page.waitForLoadState("networkidle");
+    await settleNetwork(page);
     await chooseAnyServiceOnStepOne(page);
-    await page.getByRole("button", { name: /Continue to Medical Details/i }).click();
-    await page.getByLabel("Full Name").fill("E2E New Patient");
-    await page.getByLabel("Email").fill(email);
+    await page.getByRole("button", { name: /Continue to your details/i }).click();
+    // Name, phone, email, password -- there is no retype box (the password
+    // field has a show button instead).
+    await page.getByLabel("Your name").fill("E2E New Patient");
     await page.getByLabel("Phone number", { exact: false }).first().fill("9876543210");
-    await page.getByLabel(/Create Password/).fill(TEST_PASSWORD);
-    await page.getByLabel("Confirm Password").fill(TEST_PASSWORD);
+    await page.getByLabel("Email").fill(email);
+    await page.getByLabel(/Create a password/).fill(TEST_PASSWORD);
     await page.getByRole("checkbox").first().check();
     await page.getByRole("button", { name: /Review Booking/i }).click();
 

@@ -16,7 +16,7 @@
 // so a control that emitted anything else would be a behaviour change dressed as
 // a restyle.
 import { test, expect, type Page } from "@playwright/test";
-import { BASE, browserCookiesFor, QA_EMAILS } from "./helpers";
+import { BASE, browserCookiesFor, QA_EMAILS, settleNetwork } from "./helpers";
 
 const SLOW = 240_000;
 
@@ -27,7 +27,7 @@ async function openScreen(page: Page, section: string, tab: string) {
       timeout: 30_000,
     })
     .catch(() => {});
-  await page.waitForLoadState("networkidle");
+  await settleNetwork(page);
 }
 
 test.describe("date fields are the clinic's own", () => {

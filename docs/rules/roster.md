@@ -24,7 +24,11 @@ Availability as periods over hour rows, specialisation as a value, what readines
   periods and the hour rows the tables store. The storage model is
   unchanged and must stay that way: every existing schedule, including a
   sparse exception written one cell at a time by the old grid, reads back as
-  exactly the same hours. Six rules hold this together:
+  exactly the same hours. Its shift presets are Morning 6 AM - 3 PM,
+  Afternoon 3 PM - 12 AM and Full day 6 AM - 12 AM (`SCHEDULE_PRESETS`):
+  the two shifts meet at 3 PM, so Morning + Afternoon is exactly Full day
+  and no hour belongs to neither. A preset only fills the editor; hours
+  already saved are never moved by a change to it. Six rules hold this together:
   1. **The three concepts stay separate.** A weekly schedule is what
      somebody normally works; an exception is one date that differs; leave
      takes them off entirely. Leave never clears the schedule -- there is
@@ -212,9 +216,16 @@ Availability as periods over hour rows, specialisation as a value, what readines
   therapist since an hour before the slot - 409 `pain_map_required` for an
   **orthopaedic** patient, 409 `neuro_exam_required` for a **neurological**
   one (`missingSessionExam`, `src/lib/sessionCompletion.ts`; see
-  `clinical.md`). A paediatric patient's session finishes on the note
-  alone, and the dialog's exam step stands aside
-  (`e2e/finish-session.spec.ts`, `e2e/neuro-exam.spec.ts` NE-000). Admins and
+  `clinical.md`). A **paediatric** patient needs the paediatric exam
+  the same way (409 `peds_exam_required`; `PEDS_EXAM_REQUIRED_FOR_DONE` is
+  true since phase 5b, which mounted `SessionPedsExamStep` - "Record the
+  paediatric exam" - as the `"peds_exam"` arm of `SessionExamStep`; a unit
+  test fails if the gate is on without that arm). **Geriatric** and **cardiopulmonary** patients
+  (phase 6a) need no exam: `requiredSessionExam` answers null for them (the
+  owner's decision), so their Done is the session note alone. A condition-type read that
+  fails in the note dialog says so with "Try again"; it is never taken for
+  orthopaedic (`e2e/finish-session.spec.ts`, `e2e/neuro-exam.spec.ts`
+  NE-000, `e2e/peds-exam.spec.ts` PE-005). Admins and
   No-show are exempt. The "not started yet" line wraps under the buttons
   (`basis-full`) so No-show stays beside Done.
   **The admin half of it is a Sessions write, and asks for `manage`.** This

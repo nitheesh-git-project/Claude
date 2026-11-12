@@ -305,11 +305,11 @@ test("RC-006: every other patient screen carries a short link to the recommendat
 });
 
 // A paid recommendation is bought against a hidden course package with no
-// photo and an internal title, so Your Programmes showed a placeholder block
+// photo and an internal title, so My programme showed a placeholder block
 // and "<condition> - recommended course". It now carries the condition's
 // photo and name (src/lib/programmeDisplay.ts). The purchase is seeded paid
 // directly - no payment, no ledger - and deleted afterwards.
-test("RC-007: a paid recommendation keeps its condition's photo and name on Your Programmes", async ({ page }) => {
+test("RC-007: a paid recommendation keeps its condition's photo and name on My programme", async ({ page }) => {
   const { versionId, version } = await recommendAndApprove({ sessionCount: 4, handsOnRequired: false });
   const { data: purchase, error } = await db
     .from("patient_package_purchases")

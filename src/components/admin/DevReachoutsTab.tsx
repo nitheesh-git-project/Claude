@@ -49,7 +49,7 @@ export default function DevReachoutsTab({
       <ContactSettingsCard enabled={devContactEnabled} email={devContactEmail} />
 
       <section
-        aria-label="Dev reachouts"
+        aria-label="Developer messages"
         className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6"
       >
         <h2 className="font-display font-bold text-lg text-slate-800 mb-4 flex items-center gap-2">
@@ -70,7 +70,7 @@ export default function DevReachoutsTab({
             noun="message"
             storageKey="admin-dev-reachouts"
             className="space-y-3"
-            filterLabel="Filter dev reachouts"
+            filterLabel="Filter developer messages"
             filters={[
               { key: "new", label: "New" },
               { key: "contacted", label: "Contacted" },
@@ -111,7 +111,7 @@ function ContactSettingsCard({ enabled, email }: { enabled: boolean; email: stri
     const ok = await confirm(
       next
         ? "Show the developer credit? The footer line and the /developer pages go live for every visitor."
-        : "Hide the developer credit? The footer line disappears and /developer stops opening. Reachouts already received stay here."
+        : "Hide the developer credit? The footer line disappears and /developer stops opening. Messages already received stay here."
     );
     if (!ok) return;
     setToggleError(null);

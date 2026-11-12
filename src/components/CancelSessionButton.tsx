@@ -113,7 +113,7 @@ export default function CancelSessionButton({
   }
 
   if (optimisticCancelled && !error) {
-    return <span className="text-[11px] font-semibold text-slate-500">Cancelling...</span>;
+    return <span className="text-sm font-semibold text-slate-600">Cancelling...</span>;
   }
 
   if (closed) return null;
@@ -124,11 +124,11 @@ export default function CancelSessionButton({
         type="button"
         onClick={handleCancel}
         disabled={isPending}
-        className="text-red-600 hover:underline text-[11px] font-semibold disabled:opacity-60"
+        className="min-h-11 px-1 text-red-700 hover:underline text-sm font-semibold disabled:opacity-60"
       >
         Cancel Session
       </button>
-      {error && <span className="text-[11px] text-red-600">{error}</span>}
+      {error && <span className="text-sm text-red-700">{error}</span>}
       {dialog}
     </div>
   );

@@ -31,7 +31,7 @@ describe("patientSessionStatus", () => {
     ).toEqual({ label: PROGRAMME_BOOKED_LABEL, tone: "info" });
     expect(
       patientSessionStatus({ status: "requested", therapist_id: null, home_visit_purchase_id: "h1" }).label
-    ).toBe("Booked - confirming your therapist");
+    ).toBe("Booked - confirming your physiotherapist");
   });
 
   it("keeps Requested for a single consultation not drawn from a programme", () => {

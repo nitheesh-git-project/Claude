@@ -19,8 +19,7 @@ import {
   adminClient,
   browserCookiesFor,
   cookieHeaderFor,
-  profileIdFor, TEST_PASSWORD
-} from "./helpers";
+  profileIdFor, TEST_PASSWORD, openProfileBlocks } from "./helpers";
 
 test.setTimeout(240_000);
 const SEEN = { timeout: 60_000 };
@@ -382,8 +381,10 @@ test("SP-002/006: a paediatric profile shows milestones, no body map, and says 7
   await seedProfile("pediatrics", PEDS_ANSWERS);
   const { ctx, page } = await pageAs(browser, PATIENT);
   await page.goto(`${BASE}/patient/dashboard/health-profile`);
+  await openProfileBlocks(page);
   await expect(page.getByText(/Not sitting without support/i).first()).toBeVisible(SEEN);
-  await expect(page.getByText(/MILESTONES REACHED/i).first()).toBeVisible(SEEN);
+  // The milestone tick list the parent answered, in the paediatric layout.
+  await expect(page.getByTestId("peds-checklist")).toBeVisible(SEEN);
   await expect(page.getByText(/Your body map/i)).toHaveCount(0);
   await expect(page.getByText(/AREAS YOU MARKED/i)).toHaveCount(0);
   const body = await page.locator("body").innerText();
@@ -399,6 +400,7 @@ test("AU-001/002: a therapist-written record is not presented as the patient's t
   await seedProfile("ortho", ORTHO_ANSWERS);
   const { ctx, page } = await pageAs(browser, PATIENT);
   await page.goto(`${BASE}/patient/dashboard/health-profile`);
+  await openProfileBlocks(page);
   await expect(page.getByText(/3 answered with your therapist · 4 you can add/i)).toBeVisible(SEEN);
   await expect(page.getByRole("button", { name: /Add more detail/i })).toBeVisible(SEEN);
   await expect(page.getByRole("button", { name: /Add the missing answers/i })).toHaveCount(0);
@@ -419,6 +421,7 @@ test("AU-005: a therapist's abandoned draft is not shown back to the patient as 
 
   const { ctx, page } = await pageAs(browser, PATIENT);
   await page.goto(`${BASE}/patient/dashboard/health-profile`);
+  await openProfileBlocks(page);
   await expect(page.getByText(/Right knee pain/i).first()).toBeVisible(SEEN);
   await expect(page.getByText(/You left off part-way through/i)).toHaveCount(0);
   await ctx.close();
@@ -446,6 +449,7 @@ test("RT-001/002: re-triage keeps the earlier record and shows only the current 
 
   const { ctx, page } = await pageAs(browser, PATIENT);
   await page.goto(`${BASE}/patient/dashboard/health-profile`);
+  await openProfileBlocks(page);
   await expect(page.getByText(/Right knee pain/i).first()).toBeVisible(SEEN);
   await expect(page.getByText(/Not sitting without support/i)).toHaveCount(0);
   await ctx.close();
@@ -768,6 +772,8 @@ test("SPAM-005: a double click inside one frame sends one request", async ({ bro
   });
 
   await page.goto(`${BASE}/patient/dashboard/health-profile`);
+
+  await openProfileBlocks(page);
   await page.getByRole("button", { name: /Add more detail|Review or update answers/i }).click(SEEN);
   await advanceToReview(page);
 
@@ -798,6 +804,8 @@ test("INT-002: a dropped connection during submit is reported, not swallowed", a
   const { ctx, page } = await pageAs(browser, PATIENT);
 
   await page.goto(`${BASE}/patient/dashboard/health-profile`);
+
+  await openProfileBlocks(page);
   await page.getByRole("button", { name: /Add more detail|Review or update answers/i }).click(SEEN);
   const review = await advanceToReview(page);
 
@@ -825,6 +833,8 @@ test("INT-009: a free-text answer takes a whole sentence, not one letter", async
   const { ctx, page } = await pageAs(browser, PATIENT);
 
   await page.goto(`${BASE}/patient/dashboard/health-profile`);
+
+  await openProfileBlocks(page);
   await page.getByRole("button", { name: /Add more detail|Review or update answers/i }).click(SEEN);
 
   const field = page.locator('[role="dialog"] textarea[id^="intake-"], [role="dialog"] input[type="text"][id^="intake-"]');
@@ -854,6 +864,8 @@ test("A11Y-001: the intake's body map is answered from the keyboard, by name", a
   const { ctx, page } = await pageAs(browser, PATIENT);
 
   await page.goto(`${BASE}/patient/dashboard/health-profile`);
+
+  await openProfileBlocks(page);
   await page.getByRole("button", { name: /Add more detail|Review or update answers/i }).click(SEEN);
 
   const backFigure = page.getByRole("group", { name: /Back of the body - choose each area that hurts/ });

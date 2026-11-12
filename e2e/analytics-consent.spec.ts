@@ -65,6 +65,31 @@ test.describe("analytics consent", () => {
     expect(hits).toHaveLength(0);
   });
 
+  test("AC-007: an ignored card stays in its own tab, rests in new tabs for 7 days, then asks once more", async ({ page, context }) => {
+    await watchGoogle(page);
+    await page.goto(`${BASE}/faq`);
+    await expect(page.getByRole("region", { name: "Analytics" })).toBeVisible();
+    // Still there on the next page of the same tab: they may be reading it.
+    await page.goto(`${BASE}/how-it-works`);
+    await expect(page.getByRole("region", { name: "Analytics" })).toBeVisible();
+
+    // A new tab does not ask again.
+    const second = await context.newPage();
+    await watchGoogle(second);
+    await second.goto(`${BASE}/faq`);
+    await second.waitForTimeout(2500);
+    await expect(second.getByRole("region", { name: "Analytics" })).toBeHidden();
+
+    // Eight days later it asks once more.
+    await second.evaluate(() =>
+      localStorage.setItem("mr_analytics_asked_at", String(Date.now() - 8 * 24 * 60 * 60 * 1000))
+    );
+    const third = await context.newPage();
+    await watchGoogle(third);
+    await third.goto(`${BASE}/faq`);
+    await expect(third.getByRole("region", { name: "Analytics" })).toBeVisible();
+  });
+
   test("AC-004: an accepted visitor sends page views from public pages only", async ({ page }) => {
     const hits = await watchGoogle(page);
     await page.addInitScript(() => localStorage.setItem("mr_analytics_consent", "granted"));
@@ -87,7 +112,7 @@ test.describe("analytics consent", () => {
     await watchGoogle(page);
     await page.addInitScript(() => localStorage.setItem("mr_analytics_consent", "granted"));
     await page.goto(`${BASE}/faq`);
-    await page.getByRole("button", { name: "Analytics settings" }).click();
+    await page.getByRole("link", { name: "Analytics settings" }).click();
     const banner = page.getByRole("region", { name: "Analytics" });
     await expect(banner).toBeVisible();
     await banner.getByRole("button", { name: "Not now" }).click();

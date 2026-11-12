@@ -82,6 +82,13 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   different one earns this partner nothing. Every read is paged
   (`readAllRows` / `readAllRowsByIds`), and a failed read shows the load
   banner instead of "no referrals" or "₹0".
+- **The therapist's headline is a "Next up" card** (`renderTherapistNextUp`,
+  `therapistNextUp.ts`): the session in progress (until half an hour after
+  its end, for the note) or else the next one, with Join, Start guided
+  assessment, Done and Chart - each only when it can be used (Join and the
+  guided assessment decide on the debug clock in the browser, Done once a
+  confirmed session has started) - its time through `formatDateTime`.
+  Availability is the last quick action, not the primary one.
 - **Every dashboard opens on the same Overview.** Patient, therapist,
   hospital and admin all render `DashboardOverview.tsx` - a strip of four
   figures (`StatStrip`), the notification feed (`ActivityFeed`), and a
@@ -143,7 +150,7 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   inbox row opens the stage narrowed to the same two days
   (`?view=late:48`).
 - **A programme is named by its ID everywhere it appears.** The patient's
-  Your Programmes cards and session cards, and the therapist's session
+  My programme cards and session cards, and the therapist's session
   cards and Programmes view, show `ProgrammeIdChip` -- `PED_PKG001-2/6`,
   completed over bought, counted across every session of the programme
   rather than one therapist's share -- read by
@@ -177,9 +184,9 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   `requested`, unassigned and drawn from a purchase is "Booked - confirming
   your therapist" on the session card, the Sessions list row
   (`FilterableSession.statusLabel`), the Home feed ("Video session booked -
-  confirming your therapist", `awaiting_programme_therapist` on
+  confirming your physiotherapist", `awaiting_programme_therapist` on
   `FeedAppointment`) and both bulk schedulers' result rows. A single
-  consultation keeps "Requested" / "waiting for a therapist"; an accepted
+  consultation keeps "Requested" / "waiting for a physiotherapist"; an accepted
   suggestion reads "Accepted - clinic confirming".
 - **Status decides a session's tab before its time does**
   (`src/lib/sessionBucket.ts`). Completed is Past and cancelled is
@@ -217,6 +224,19 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   refreshes once, since nothing that changed during the gap was delivered.
   It used to subscribe with no callback, so a refused or dropped socket
   stopped the dashboard updating with nothing on screen to say so.
+- **A realtime channel joins only after the socket has the person's token.**
+  Every subscription goes through `joinRealtimeChannel`
+  (`src/lib/realtimeJoin.ts`), never `supabase.channel(...).subscribe()`
+  directly. The client library builds the join the moment `subscribe()` is
+  called, with whatever token it holds then; if the session's token lands
+  while that join is still in flight, the library never sends it, and the
+  server keeps the channel as `anon`. The channel then says `SUBSCRIBED`,
+  the server says "Subscribed to PostgreSQL", and RLS filters out every
+  change for as long as the page is open -- a dashboard that silently never
+  updates, decided by milliseconds at page load. The helper settles the token
+  first (`realtime.setAuth()`), then makes and joins the channel; its unit
+  test pins that order, and `admin-refresh-badge` RB-000 reads the role each
+  join carried.
 - **A dashboard refresh is expensive; debounce accordingly.**
   `RealtimeRefresh` turns a `postgres_changes` event into `router.refresh()`,
   which on the admin dashboard re-runs the whole Server Component - ~40
@@ -295,7 +315,14 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   arithmetic and `e2e/admin-refresh-badge.spec.ts` pins what a person reads --
   driven as a screen because no route and no row changed, and carrying its own
   RB-000 egress probe, since the badge is fed by a socket that never opens in
-  a sandbox and every other case would pass vacuously.
+  a sandbox and every other case would pass vacuously. Each case prints the
+  browser's realtime trail (`src/lib/realtimeTrail.ts`, development builds
+  only) as one line, and in full on a failure: the role each join carried,
+  the server's word on the Postgres side of it, every refresh start and
+  landing, every event, and whether it was counted, deferred by the cooldown
+  or judged covered -- the timing a "no badge" assertion cannot show on its
+  own. On the gate's local stack a failed case also attaches what Realtime
+  stored (its subscriptions and the role they are for, its replication slot).
   **And a lazy sweep must not be able to refresh the render that started
   it.** Anything running in the dashboard's `after()` that *writes* a table
   on one of these channels closes a circle: render, write, realtime event,
@@ -430,7 +457,7 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
      `TUTORIAL_FIXTURES` and render miniature copies of the screens, not the
      real components - a tour that read real rows would need every page's
      loaders, and one that wrote anything would be a tour with side effects.
-  2. **The words are the screens' words.** "waiting for a therapist",
+  2. **The words are the screens' words.** "waiting for a physiotherapist",
      "Waiting for the clinic to approve", "Onboarding needed", the five
      referral labels - a person meets each twice, first with nothing at
      stake. Change a label on a screen and change it in
@@ -457,6 +484,133 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   `questionsForSpecialty` directly, so a changed question set changes the
   guide with it; the step text names the questions too, so update it in the
   same commit.
+- **The orthopaedic, the neurological and the paediatric Health Profile are
+  each one layout in three places -- whole for the clinician, in the
+  patient's order for the patient, and only the sections the clinic shows.**
+  Each `*ProfileTop` takes `only` (the widget keys to draw,
+  `src/lib/profileWidgets.ts`), so the therapist's chart and the admin's
+  record draw it whole in the order below, and the patient's page draws it in
+  slices (B2): the status and Where things stand in **one card** (with the
+  intake status and the locked safety pieces) -> home exercises -> *Log a
+  fall* (where the record keeps a diary) -> the one graph -> closed
+  `<details>` blocks (*Your measures*, *Your body map / examination*, *Your
+  diary*, *Your answers*, *Reports and scans*, *Past recommendations*) ->
+  *Share with another doctor* (Download as PDF, Print; print opens every
+  block). No `SpecialtySnapshotStrip` on any new-layout patient page. The
+  page wrapper carries the kind's test id. Both patient stand-alone pages
+  (Health Profile, Edit Profile) use `PatientDashboardShell`, so the
+  guided-check bar, Suggested bar, load banner and `assessment_live_display`
+  subscription are there too (A9). The rest of this rule describes the
+  clinician's whole layout. The patient's page, the
+  therapist's chart and the admin's condition detail render `OrthoProfileTop`
+  for `specialty === "ortho"`, `NeuroProfileTop` for `specialty === "neuro"`
+  (plain neurological or the Parkinson's sub-profile, by `profileKindFor`) and
+  `PedsProfileTop` (`src/components/profile/peds/`, phase 5b) for
+  `"pediatrics"`: the child's name, the concern and the age line
+  (chronological and corrected), the status pill, the phase bar, *Told by
+  Priya Sharma, her mother*, equipment chips -> *Where things stand* -> four
+  tiles (milestones achieved of 6, or of the intake's list before an exam;
+  independent steps; independent standing; sessions) -> the milestone-window
+  chart with the intake's "what your child does on their own" list -> the
+  graph -> steps -> measures. The parent's page is written for the parent
+  ("your child"; `childVoice.ts` turns the shared components' patient
+  sentences into the parent's via a `subject="child"` prop - `"self"`
+  everywhere else, Strength and balance care included, where a named carer is
+  a header line rather than a voice). No four-figure
+  `SpecialtySnapshotStrip` on a neurological or paediatric page (the tiles
+  cover it; it remains for ortho and any specialty not on the new layout). Both share
+  `ProfileHeader`, `ProfileProgressSection` and `KeyNumbers`. It is
+  mobile-first: one column on a phone, two for the cards from `sm`, the sticky
+  picture column (the body map, or the neurological quick-look column) only from
+  `lg`, tables scroll inside their own box, every control is 44px or taller, and
+  the page never scrolls sideways (checked at 360, 390, 834 and 1280 wide, light
+  and dark). A therapist's chart for a patient nobody has onboarded shows the
+  condition card first, because onboarding happens there. The page title is the
+  shell's `h1`; the header's name is an `h2`. A neurological page's realtime
+  tables add `patient_diary_entries`; the admin sees the diary read-only. Detail:
+  `clinical.md`.
+  Strength and balance care and Heart and lung rehabilitation (phase 6b) use
+  the same skeleton (`GeriatricProfileTop`, `CardioProfileTop`: header,
+  where things stand, four tiles, the condition picture, the diary, graph,
+  steps, measures) with `subject="self"`; their realtime tables add
+  `patient_diary_entries` and the progress tables, no new table. No
+  `SpecialtySnapshotStrip` on either. Dials, tracks and bars are SVG or divs
+  that stay readable at 360 and use the chart colour variables so they hold
+  in dark. Detail: `clinical.md` rule 9 of the phase 6a/6b entry.
+- **The guided video assessment's two screens (phase 7b): the cockpit is a
+  standalone second screen, the companion follows it live.** Neither is in a
+  sidebar: they have no dashboard shell, because one is a second screen beside
+  a video call and the other is a display. **The cockpit**
+  (`/therapist/dashboard/assessment/[patientId]`) has no nav entry; it is
+  reached by *Start guided assessment* on a video session's card (decided in
+  the browser on the debug clock, `StartGuidedAssessmentLink`) and on the
+  chart, and it carries its own way back (Chart). It needs no realtime
+  subscription: it is the writer, and what it does it merges into its own
+  state and then `router.refresh()`es. **The companion**
+  (`/patient/dashboard/session`) is not in the patient's sidebar either ("a
+  screen that can only ever be empty is not in the sidebar"): while a check is
+  live every patient screen carries `GuidedCheckBar` (the dashboard loader
+  reads the patient's own display row, `guidedCheckLive`, and the shell
+  subscribes to `assessment_live_display` so the bar appears and goes by
+  itself), and the cockpit tells the therapist the address to hand over
+  (*Open the patient screen*; its badge reads *Not sent yet* until the patient's screen has been sent something, never *Live*). A failed read on the companion says *We couldn't load your screen. Trying again…*, not *will start soon* (`clinical.md`). The companion reads one row, `assessment_live_display`, with the
+  patient's own client (`loadLiveDisplay`; `assessment_live_display_select_own`
+  is the gate) and subscribes to it on the realtime publication filtered to
+  `patient_id=eq.<their id>` - RLS decides what the socket delivers, so the
+  patient never receives the therapist's runs or events, which they have no
+  policy on. Each change is a step or phase change, never a tick: the row
+  holds the clock's start time and length and the screen counts, correcting
+  for its own clock with the loader's `serverNow` (it reads once as soon as it
+  opens, since the page's own `serverNow` is as old as the page load).
+  **Every timer in a guided step drives that clock** (`src/lib/timerClock.ts`):
+  a trial, hold, count or walk starting sends Go with the clock (count-up for
+  trials, the step's countdown for holds and counts), finishing sends Done,
+  throwing it away or **Stop test** sends Rest, which clears it - the
+  physiotherapist never starts it a second time. The brand splash never
+  covers this page (`splashSkipsPath`): it printed a ghost of the greeting
+  behind the picture.
+  **Realtime is not trusted to be there:** until the channel reports
+  `SUBSCRIBED` (after a four-second grace), and again whenever it reports an
+  error, a timeout or a close, the screen polls
+  `/api/patient/assessment-display` every three seconds (the same loader, the
+  patient's own client, rate limited under its own scope and failing open), a
+  tab coming back to the front reads at once, and three failed reads in a row
+  say *Reconnecting* rather than leave a frozen screen unexplained. A row that
+  fails `validateLiveDisplay` is not drawn at all ("unreadable", never a
+  partial screen); an ended run shows *All done* for fifteen minutes, a run
+  nobody has touched for six hours is not a run in progress. The live display
+  is the one realtime table this feature adds. Detail: `clinical.md` rules 9
+  and 10.
+- **Home exercises reach the patient's dashboard live, read-only (phase
+  7d; the card is `HomeExercisesCard` on the Health Profile page).** The patient's plan is read with their **own** client through
+  `loadActiveExercisePlan` (`src/lib/exercisePlanServer.ts`; RLS
+  `exercise_plans_select_own_active` and friends are the gate, so they get
+  their one active version, its items in order and their own teaching
+  marks, never another patient's and never a replaced version) and drawn
+  through `exercisePlanView` - the library's picture and steps, the dose in
+  plain words (`doseText`), the physiotherapist's note, the safety line, a
+  "do this with another adult beside you" line where needed, and *practised
+  with your physiotherapist on <date>* with the one cue to remember, the
+  date through `formatDateTime.ts`. Nothing on it is a control the patient
+  fills in. `exercise_plans` is on the realtime publication, so a version
+  published in the session appears on the patient's dashboard without a
+  reload (`exercise_plans` is in the Health Profile pages' `realtimeTables`;
+  RLS decides what the socket delivers). The card has three states apart
+  from the plan - nothing yet (*Your physiotherapist will teach you your
+  exercises in your video session*), not set up, could not load - and a
+  child's record reads in the parent's voice (`parent`). The therapist's
+  chart has the same data read only, every version, as *Home exercises*. It is called **Home exercises** on every screen,
+  never a care plan, which is the programme recommendation. The patient's
+  **Overview** has one calm row, *Your home exercises* (`homeExercisesFeedItem`
+  in `dashboardFeed.ts`: "4 exercises from your physiotherapist, last
+  practised together on <date>", "your child's physiotherapist" for a
+  paediatric record), neutral and never `needsYou`, linking to
+  `/patient/dashboard/health-profile#home-exercises` (the card's anchor). It
+  reads the plan with the patient's own client in its own call; no plan, or
+  a read that fails, shows no row (never a false "none yet"), and
+  `exercise_plans` is in the patient shell's `realtimeTables`. During the
+  session the demo itself is on the companion (`assessment_live_display`,
+  above), not on the dashboard. Detail: `clinical.md`, "Home exercises".
 - **A patient nobody has onboarded is said in three places on the
   therapist's side**, because until it is done the patient's own Health
   Profile is locked: the Home feed row, a banner above the greeting
@@ -474,7 +628,13 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   them.** The Overview's blocks are placed by `.overview-grid` (globals.css):
   stacked on a phone; feed and Quick actions side by side from `lg`; from
   `2xl` the headline and Quick actions form a right-hand panel beside the
-  figures and the feed. Sessions (`SessionFilterList`) shows a compact row
+  figures and the feed. A dashboard can pass `queues` to `DashboardOverview`
+  (the admin's "what needs you"): its own grid area, placed **before the feed
+  on a phone** -- what is waiting on you is read before the log of what
+  happened -- and under Quick actions from `lg`, spanned by the feed. Absent
+  on the other three dashboards, where the empty area costs nothing.
+  `PagedList` also takes `viewPresets` / `focusPrefix` so a `?view=` link
+  opens a list on the rows a count counted (admin.md). Sessions (`SessionFilterList`) shows a compact row
   per session on the left and the chosen session's card on the right
   (`.session-split`); each card is still rendered exactly once, so nothing
   in a card -- a half-typed form included -- is ever on the page twice. The
@@ -523,3 +683,175 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   bubble when there is a note, struck through when excluded), and
   `RatingManager` shows the average with a bar per star level from
   `computeRatingAggregate().distribution`. `e2e/session-feedback.spec.ts`.
+
+- **Hospital referral list wording.** One word per state: the badge and the
+  filter chip both say **Registered** (`converted`), never "Booked". Overview
+  quick actions use the nav's words (**Earnings**, **Edit Profile**). The
+  Overview "Accepted" cell opens `/hospital/dashboard/referrals?show=accepted`.
+  "Updated" is shown only where the table timestamps a change
+  (`declined_at` / `withdrawn_at`); never invent one.
+
+- **The patient side has one word per concept.** The clinician is always a
+  **physiotherapist** (not therapist, physical therapy or "virtual"): sessions
+  are video physiotherapy. The first screen is **Home** in every patient-facing
+  label (the tab bar always said Home; the sidebar said Overview). The
+  Health Profile screen is **My progress** in the sidebar, on the tab bar and
+  as its page title (the route stays `/patient/dashboard/health-profile`).
+  What the clinician offers is **Recommendations** (`/suggested`); what the
+  patient has bought is **My programme** (`/packages`). The brand label is the
+  clinic's own name from settings (`adminSettings.siteName`), never "Patient
+  Panel". The strip's programme tile ("Programme sessions left") exists only
+  for a patient who owns a programme. Change a label here and change it in
+  `src/lib/tutorial.ts` and `patientScenes.tsx` in the same commit; the
+  therapist, hospital and admin dashboards keep their own words.
+- **Home puts the Join button where a patient looks for it.** The headline card
+  carries `JoinSessionButton size="hero"` for `joinSession`
+  (`pickJoinSession`, `src/lib/joinHeadline.ts`): the soonest booked online
+  session that has not closed yet - so it stays on the headline from the
+  moment the session starts until its window ends, which `nextSession` (future
+  sessions only) did not. Inside the window it is one full-width 56px teal
+  **Join your video call** with the physiotherapist and the time (clinic zone)
+  beneath; before it, *Your join button appears here at 5:45 pm* (with the day
+  when it is not today); with the window open and no link, the same amber "no
+  link yet" line as the card, large. **When the link becomes available is the
+  server's rule and the window comes from Settings; this only decides what is
+  drawn.** The session card's Join is the `large` size (48px, 16px text) and
+  every join note and caption is at least 13px.
+- **Patient text floor: 16px body, 14px secondary, nothing under 13px** on
+  everything a patient reads (the booking wizard, session cards, the waiting
+  screen, Home's strip, the pending-approval page); the phone tab bar and rail
+  labels are 12px with wrapping allowed because six columns share 360px.
+- **A patient waiting on approval is not made to wait.** `/pending-approval`
+  for a patient leads with **Book your first session** (`/book`; checkout opens
+  the account, so booking is the quickest way in), says the wait in words
+  (`approvalWaitPhrase`, `src/lib/clinicPromises.ts` - *usually within 1
+  working day*, a default until a setting has a column), shows WhatsApp / call
+  links only when Brand & Contact holds a real number (`contactLinks.ts`) plus
+  the support email, and says "the clinic", never "an admin". Text is 16px.
+  Get Started's patient card is split the same way: *New here? Book your first
+  session* and *Signed up before? Sign in*.
+- **The guided-check bar is written for a patient with one device.** The video
+  call stays on the phone and the companion screen is meant for a second
+  device, so `GuidedCheckBar` says *Open this on a laptop, tablet or TV and keep
+  your video call on your phone. Only one device? That's fine - your
+  physiotherapist will talk you through it.* (`SECOND_SCREEN_HELP`,
+  `companionScreen.ts`), with a typed short link (`/screen`, a plain redirect
+  to `/patient/dashboard/session`, `companionShortLink`) and a QR code of the
+  same link. The QR is drawn in the browser from the page's own origin by
+  `src/lib/qrCode.ts` - a dependency-free byte-mode encoder for versions 1-10
+  (L/M), tested against the standard's worked Reed-Solomon example, its
+  format and version words, and a decoder in the test; text that does not fit
+  returns null and the QR is simply absent. The waiting screen adds *Keep your
+  video call open.* `e2e/assessment-cockpit.spec.ts` AC-001 / AC-005b.
+- **Announcements are read once by the layout and drawn by the shell: a
+  banner on the dashboard's home, one line everywhere else.** An admin posts
+  one on Settings -> Announcements (`announcements`, `announcement_receipts`;
+  every judgement is in `src/lib/announcements.ts`). Each role's
+  `dashboard/layout.tsx` mounts `DashboardExtrasGate`, which works out who is
+  looking, reads what is live for that role with the service role (the same
+  rule is also an RLS policy), and hands it down a context;
+  `DashboardShell` renders `AnnouncementBar` above the page -- `full` (the
+  6:1 banner) on the base path, `slim` (one line) on every other screen,
+  because a hero-height banner on each step of a booking pushes the task
+  down the page. What follows from that shape:
+  - **Live is worked out from the clock, never stored.** `announcementStatus`
+    reads `published_at` / `starts_at` / `ends_at` against now; nothing has
+    to run for one to end, and the bar re-checks once a minute so an open tab
+    drops it too. "End now" moves `ends_at` to this moment.
+  - **A failed read shows no banner**, logged on the server. "We couldn't
+    read the announcements" is not something to put in front of a patient,
+    and a missing banner costs nobody anything. A failed *receipt* read also
+    shows nothing: without it a closed banner would come back.
+  - **Closing and "seen once" are per person** (`/api/announcements/receipt`).
+    The route re-derives the person and the role, refuses a receipt for a
+    notice that is not live for that role, and refuses "close" for one the
+    admin marked as not closable -- in which case an older "closed" receipt
+    is ignored too. An admin signed in as the person changes nothing: their
+    visit must not close the person's banner or use up their one pop-up.
+    The tab also remembers a close in `sessionStorage`, because the receipt
+    lands a moment after the tap and the very next page could otherwise
+    render the banner once more -- that is a bridge, never the record.
+  - **A button leads to a screen that role can open, or to an https link.**
+    The admin picks from `ANNOUNCEMENT_DESTINATIONS` per dashboard (the
+    dashboards' own nav, minus the conditional entries); a free-typed in-app
+    path is refused on purpose, since a patient path on a therapist's banner
+    is a redirect to `/get-started`.
+  - **The slot is a native scroll-snap row**, so a swipe is the browser's own
+    gesture. It slides by itself only until somebody touches it, pauses on
+    hover and focus, never starts under "reduce motion", and has a Pause
+    button. The pop-up an admin asked to open once does not open over
+    another dialog (the first-visit tutorial, the session-timeout warning).
+  - **Pictures are optional and uploaded through a route**
+    (`/api/admin/announcements/upload-image`, into the public
+    `catalog-images` bucket under `announcements/`). The form crops to 6:1
+    (banner) or 4:3 (pop-up) in the browser before upload; with no banner
+    picture the banner is the title on a brand strip.
+  Guard: `e2e/announcements-notebook.spec.ts` ANN-001..006,
+  `src/lib/announcements.test.ts`.
+- **The notebook is private to its owner, and that is enforced in three
+  places.** Every patient, therapist and hospital dashboard carries a
+  floating notebook (`NotebookLauncher` in `DashboardShell`, `NotebookDialog`
+  loaded on first tap; `notebook_pages`, `src/lib/notebook.ts`). It is the
+  person's own scratch space and deliberately **not** a clinical record --
+  the patient diary (`patient_diary_entries`) is the opposite on every
+  count, so the two share nothing but a word. The promise on its cover is
+  "Only you can read this", kept by:
+  1. **One RLS policy and no admin policy.** `notebook_pages_select_own` is
+     the only policy on the table; every other table in the schema has an
+     `is_admin()` read and this one must not.
+  2. **`/api/notebook` filters every query by the session's own user id** --
+     an id in the body only ever names a page within that person's pages --
+     and nothing else in the app reads the table: no admin screen, no
+     export, no therapist view.
+  3. **An admin signed in as the person is refused** (403) and the button is
+     not rendered for them: a session swap is otherwise indistinguishable
+     from the owner.
+  It is a notebook, not evidence: pages are edited and deleted freely, with
+  no append-only guard, and deleting the account takes them with it. It
+  saves itself a moment after the last keystroke (`NOTEBOOK_AUTOSAVE_MS`),
+  before a page turn and before closing, retries a failed save by itself,
+  and never re-reads a page from the server while it is open -- so nothing
+  overwrites what is being typed. The opening cover is scenery, removed once
+  it has turned, so nothing typed ever sits on a 3D-transformed face; under
+  "reduce motion" there is no cover at all. Its colours are literal
+  (`bg-[#fbf7ec]`), because a notebook is teal with cream pages whatever the
+  theme. Guard: `e2e/announcements-notebook.spec.ts` NB-001 / NB-002,
+  `src/lib/notebook.test.ts`.
+- **A dashboard's reads start as soon as their inputs are known, and nothing
+  in a dashboard layout waits for data.** Every round trip to the database
+  is a few hundred milliseconds from a server that is not beside it, and the
+  loaders were written top to bottom, so each read waited for the one above
+  it whether it needed it or not: fifteen of them in a row was most of a
+  five-second therapist dashboard, and the admin's eleven seconds. The rules
+  that came out of fixing it:
+  1. **Start a read where its inputs exist, await it where it is used.**
+     `startEarly()` (`src/lib/startEarly.ts`) does both halves; each read
+     keeps its own error handling at its await. A Supabase query is
+     **lazy** -- built is not sent -- so a query "started early" by being
+     assigned to a variable and awaited later is not started at all; the
+     admin page had two of those, commented as early reads. Wrap it.
+  2. **Reads that need the same inputs go in one `Promise.all`**, never a
+     loop of awaits (the admin's storage check listed each patient's folder
+     one after another; it now lists eight at a time).
+  3. **A layout hands down promises, not answers.** `TutorialGate` and
+     `DashboardExtrasGate` start their reads and pass the promise to the
+     client (the tour opens when it answers; the banner and the notebook
+     button resolve inside their own Suspense boundary), so the page and the
+     loading frame are never held for them. The root layout reads the
+     home-visit supply alongside the settings rather than after them.
+  4. **The frame first.** Each dashboard's `loading.tsx` is the dashboard
+     frame with the loader (`frontend.md`), streamed before the page's data.
+     **Never above a page that answers 404.** A loading boundary streams
+     every page under it, and a streamed page can no longer set its status:
+     `notFound()` then renders the not-found page with a 200. So the
+     therapist dashboard keeps its home loader in the `(home)` route group
+     and one per screen, and the patient pages
+     (`assessment/[patientId]`, `health-profile/[patientId]`) have none: a
+     therapist with no link to the patient must get a real 404
+     (`assessment-cockpit` AC-007, `neuro-exam` NE-004).
+  Measured on the production build against staging from a distant server:
+  patient 5.5s to 2.5s, therapist 5.5s to 2.2s, hospital 2.1s to 1.5s,
+  admin 11s to 6.3s, and the loading frame within about a second on all of
+  them. The admin page is still the slowest because it builds every screen
+  of the back office on each load, so tab switches need no request.
+

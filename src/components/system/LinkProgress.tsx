@@ -23,10 +23,14 @@ import { usePendingWork } from "@/lib/pendingWork";
 // 1. **It only counts a click the browser will actually act on.** A modified
 //    click (new tab, download, a different `target`), a link off-site, a
 //    bare `#hash` on the page you are already on: all left alone.
-// 2. **A prevented click releases immediately.** A control can call
-//    `preventDefault` in its own handler -- the admin dashboard's screen
-//    links do exactly that -- and the capture listener runs first, so the
-//    outcome is only known once the event has finished dispatching.
+// 2. **A prevented click is still a navigation.** It used to release at
+//    once, on the reading that a control which calls `preventDefault` is
+//    not going anywhere -- but every `next/link` prevents the browser's own
+//    navigation to do its in-app one, so every in-app link tap released the
+//    loader the instant it was raised and the person saw nothing (the
+//    patient's Book card on a phone). A prevented click now keeps it until
+//    the URL changes, with a shorter ceiling; an anchor that genuinely goes
+//    nowhere carries `data-no-loader`.
 // 3. **It is released by the URL changing**, which is the one signal that
 //    means "the navigation landed" for a soft navigation. A hard navigation
 //    never gets there and does not need to: the document is torn down and
@@ -39,6 +43,8 @@ import { usePendingWork } from "@/lib/pendingWork";
 /** Long enough for the slowest real render here (the admin dashboard, ~4s),
  *  short enough that a stuck marker is not a permanent bar. */
 const GIVE_UP_AFTER_MS = 20000;
+/** For an in-app navigation the router has taken over. */
+const SOFT_GIVE_UP_AFTER_MS = 12000;
 
 function isPlainLeftClick(event: MouseEvent): boolean {
   return (
@@ -74,7 +80,7 @@ export default function LinkProgress() {
       if (!(target instanceof Element)) return;
       const anchor = target.closest("a");
       if (!(anchor instanceof HTMLAnchorElement)) return;
-      if (anchor.hasAttribute("download")) return;
+      if (anchor.hasAttribute("download") || anchor.hasAttribute("data-no-loader")) return;
       if (anchor.target && anchor.target !== "_self") return;
 
       const href = anchor.getAttribute("href");
@@ -100,11 +106,14 @@ export default function LinkProgress() {
       releaseRef.current = begin("navigation");
       timerRef.current = window.setTimeout(release, GIVE_UP_AFTER_MS);
 
-      // The anchor's own handlers run after this capture listener, so
-      // whether the click was actually cancelled is only knowable once the
-      // event has finished dispatching.
+      // The anchor's own handlers run after this capture listener. When one
+      // took the click over (an in-app link), the navigation is the
+      // router's: the URL changing releases it below, and the ceiling is
+      // shorter than a full page load's in case the router drops it.
       window.setTimeout(() => {
-        if (event.defaultPrevented) release();
+        if (!event.defaultPrevented || releaseRef.current === null) return;
+        if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+        timerRef.current = window.setTimeout(release, SOFT_GIVE_UP_AFTER_MS);
       }, 0);
     }
 

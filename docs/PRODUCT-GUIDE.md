@@ -325,7 +325,7 @@ Copy `.env.example` to `.env.local` and fill in:
 | `GOOGLE_CALENDAR_CLIENT_ID` / `GOOGLE_CALENDAR_CLIENT_SECRET` | OAuth2 Web application credentials from Google Cloud Console |
 | `GOOGLE_CALENDAR_REFRESH_TOKEN` | Obtained once via `node scripts/get-google-refresh-token.mjs` (see that file's header for the one-time setup) |
 | `GOOGLE_CALENDAR_ID` | Calendar the session events are created on; its authorizing account is the meeting organizer, and the account whose Meet permission opens each meeting |
-| `NEXT_PUBLIC_SHOW_DEBUG_NAV` | Optional kill switch for the pre-launch debug bar. The bar is on in every environment; set to exactly `false` to hide it |
+| `NEXT_PUBLIC_SHOW_DEBUG_NAV` | Optional kill switch for the pre-launch debug bar. The bar is on in every environment; set to exactly `false` to hide it. Its **Test accounts** panel follows the same flag, so set it to `false` on the live site |
 | `NEXT_PUBLIC_GA_MEASUREMENT_ID` | Optional. Google Analytics 4 ID (`G-...`, public by design). Blank switches analytics off: no banner, no script. Loads only after a visitor accepts, only on public pages and the booking widget |
 | `ALLOW_DEBUG_DATA_RESET` | Optional, pre-launch testing only. Exactly `true` arms the bar's "Reset data" button, which deletes every non-admin account and empties the tables testing fills, while keeping everything a person typed: `site_settings` and `risk_rules` are not touched at all, and the conditions catalogue (`treatment_categories` and their packages), `faqs`, `testimonials`, `mission_principles` and `dev_reachouts` (the developer's own inbox) all survive. Never set it on a deployment holding real data |
 | `SUPABASE_MAX_IN_FLIGHT` | Optional. How many HTTP requests this server may have in flight to Supabase at once, per instance. Default 96, measured: at 40 concurrent admin dashboard renders 48 gave a p50 of 130s, 96 gave 15.3s and 192 gave 16.4s. Without a cap, ~3,300 concurrent requests exhausted the connect timeout and the dashboard rendered the lost rows as zeroes. |
@@ -500,7 +500,7 @@ admin action.
 **Developer credit (public, deliberately not a marketing page):** `/developer`
 ("Say hello!") and `/developer/lets-talk` (the contact form), reached only by
 the "Contact me" link in the credit line under the footer's copyright. Both
-404 while **Settings → Dev Reachouts** has the credit switched off, and the
+404 while **Settings → Developer messages** has the credit switched off, and the
 footer line is hidden with them. They are not in `MARKETING_PAGES`, so no nav
 link, Explore card or sitemap entry points at them.
 
@@ -517,11 +517,16 @@ screen.
 
 **Patient:** `/patient/register`, `/patient/login`, `/patient/dashboard`,
 and its sections - `/sessions`, `/book`, `/packages`, `/suggested`,
-`/payments`, `/health-profile`, `/profile`.
+`/payments`, `/health-profile`, `/profile`; plus `/session`, the display-only
+screen the patient follows during a guided video assessment (not in the
+sidebar: a bar on every patient screen offers it while a check is live).
 
 **Therapist:** `/therapist/login`, `/therapist/dashboard`, and its sections -
 `/sessions`, `/availability`, `/earnings`, `/health-profile`,
-`/health-profile/[patientId]`, `/profile`.
+`/health-profile/[patientId]`, `/profile`; plus `/assessment/[patientId]`, the
+session cockpit for a guided video assessment (a standalone second screen, not
+in the sidebar: reached from *Start guided assessment* on a video session's card
+and on the patient's chart).
 
 **Hospital:** `/hospital/login`, `/hospital/dashboard`, and its sections -
 `/refer`, `/referrals`, `/revenue`, `/profile`.
@@ -535,14 +540,14 @@ states" above.
 
 | Section | Screens | Answers |
 | --- | --- | --- |
-| **Today** | Today · Approvals · Risk · Activity | What is waiting on me right now. **Activity** is the one feed scoped by desk: a limited scope reads entries whose action belongs to a section it can work *and* whose actor sits at that desk; a Master Admin reads the whole log under **Logs**. |
+| **Today** | Today · Approvals · Health Profile reviews · Risk · Activity | What is waiting on me right now. **Activity** is the one feed scoped by desk: a limited scope reads entries whose action belongs to a section it can work *and* whose actor sits at that desk; a Master Admin reads the whole log under **Logs**. |
 | **Sessions** | Schedule · All Sessions · Roster · Delivery · New Booking | What is being delivered, and by whom. All Sessions has a **Programme** filter (a programme ID such as `PED_PKG001`, an old SP/HS code, or `any`) and each programme session shows its programme's ID with progress. |
 | **Programmes** | All Programmes · Recommendations | Every recommended and bought programme from the therapist's recommendation to its last session. **All Programmes** is the pipeline (Waiting approval → With patient → Paid - nothing booked → In progress → Completed, plus Declined / Not approved / Withdrawn / Lapsed / Expired / Refunded), one list with each programme's ID and progress (`PED_PKG001-2/6` = 2 of 6 done), filters kept in the URL, and a drawer with the whole story, its sessions, its money (Money scope) and its controls. **Recommendations** is the review queue - a therapist's care plan waits here before the patient sees it, and it is also where an admin writes one on a clinician's behalf. Old Sessions → Recommendations and Catalog → Purchases links land here. |
 | **People** | Patients · Therapists · Partners · Declined · Abandoned checkouts | Who is this person, and their whole history - who was declined and why - and who started a booking but never paid |
 | **Money** | Summary · Business Health · Transactions · Payouts · Owed by Patients · Costs · Breakdown · Your Numbers | What came in, what goes out, what it costs, what is still owed, and how the business reads against the standard finance figures. Each screen states what it is and gives one example, under its heading. |
 | **Catalog** | Conditions · Service Areas · Countries & currency | What we sell, at what price, where. Each condition carries a **Programme code** (PED), the prefix of its programme IDs. |
 | **Logs** | All Activity · Archive & Clear | Who did what, and when. **Master Admin only** - the three limited desks read their own desk's history on Today → Activity. |
-| **Settings** | *Your website:* Brand & Contact · Public Site — *How the clinic runs:* Booking Rules · Offers & Discounts · Programmes & Home Visits · Clinical Questions — *Who gets in:* User Access · Sign-in & Security — *Technical:* System Health · Advanced · Dev Reachouts | How the product behaves. Every screen here states what it is and gives one example, under its heading, and the sidebar groups the eleven under four captions - eleven flat labels is a list nobody reads top to bottom. **Dev Reachouts** is the developer's own inbox: the messages left through the footer's "Contact me" link, a note and a contacted flag per message, the switch that shows the credit (it asks before changing in either direction) and the email published on the contact page. |
+| **Settings** | *Your website:* Brand & Contact · Public Site — *How the clinic runs:* Booking Rules · Offers & Discounts · Programmes & Home Visits · Clinical Questions — *Who gets in:* User Access · Sign-in & Security — *Technical:* System Health · Advanced · Developer messages | How the product behaves. Every screen here states what it is and gives one example, under its heading, and the sidebar groups the eleven under four captions - eleven flat labels is a list nobody reads top to bottom. **Developer messages** is the developer's own inbox: the messages left through the footer's "Contact me" link, a note and a contacted flag per message, the switch that shows the credit (it asks before changing in either direction) and the email published on the contact page. |
 
 Three admin records have a route of their own as well as a place on that
 grid - `/admin/dashboard/patients/[id]`, `/therapists/[id]` and
@@ -740,6 +745,8 @@ still renders the full page.
 
 **Shared:** `/pending-approval`, `/account-suspended`, `/reset-password`.
 
+**Short link:** `/screen` redirects to the patient's companion screen (`/patient/dashboard/session`) so it can be typed or scanned on a second device during a guided check.
+
 **API:** `src/app/api/**` - mutations are POST route handlers grouped by
 audience (`admin/`, `appointments/`, `patient/`, `therapist/`, `hospital/`,
 `packages/`, `home-visit/`, `razorpay/`). Every route re-authenticates
@@ -841,6 +848,30 @@ whose phone loses signal on the way back from their UPI app: before this
 existed, that left a paid Razorpay order sitting against an unpaid booking,
 recoverable only if they returned and pressed Pay again.
 
+**Refunds reach the app the same way.** Subscribe the same webhook to
+`refund.created`, `refund.processed` and `refund.failed` (Razorpay
+Dashboard -> Account & Settings -> Webhooks -> edit the webhook -> tick the
+three refund events -> Save). Every refund Razorpay reports is then kept in
+`razorpay_refunds` and listed on **Money -> Refunds** with where it is
+(Started, On its way, Refunded, Failed) and who started it:
+
+- A refund made **on the Razorpay website** against one session's payment
+  is recorded on that session once Razorpay says it is processed: the
+  session reads Refunded, the patient's receipt and Transactions show it,
+  and the money figures stop counting it. The session itself is not
+  cancelled -- that stays the clinic's call.
+- A refund the **app** started that the bank later fails turns the
+  session's refund to Failed, which every screen shows as work for a person.
+- A refund against a **programme**, or a payment the app has no booking
+  for, waits on Money -> Refunds under "Need a look" (and badges the
+  screen) until an admin marks it dealt with.
+
+To find who paid, paste a Razorpay payment ID (`pay_...`) or order ID into
+the admin's top search: it shows the patient, amount, status and date, and
+opens Money -> Transactions filtered to that payment. Every receipt, the
+patient's own Payments screen, the session drawer and the patient's admin
+page show the payment ID with a copy button.
+
 Both paths go through one database function, `record_payment_capture`,
 which takes a real row lock and either applies the capture or reports it as
 already captured. Duplicate webhooks, Razorpay's at-least-once retries, a
@@ -870,6 +901,43 @@ captured payments nothing is attached to and delivered sessions with no
 payment, package or cash behind them.
 Nothing there is repaired automatically - each finding is either a data
 problem or someone working outside the normal flow, and both want a person.
+
+### Announcements and the notebook
+
+Two things sit on every patient, therapist and hospital dashboard, whatever
+screen the person is on.
+
+**Announcements.** An admin posts one on **Settings → Announcements**: a
+title, which dashboards see it (tick Patients, Therapists, Hospitals), an
+optional wide banner picture (6 : 1, cropped to shape in the form) and an
+optional pop-up picture (4 : 3), formatted text for the pop-up -- the same
+editor as a therapist's bio, plus **tables** -- an optional button with a
+destination per dashboard (a real screen of that dashboard, or an https
+link), and how long it stays: 24 hours, 3 days, 7 days, a number of hours or
+days, or until a date and time; it can start now or be scheduled. Two
+switches decide behaviour: *People can close this banner*, and *Open the
+pop-up once by itself*. A live preview shows the banner, the one-line strip
+and the real pop-up before anything is published.
+
+On the dashboard's home it is a banner above the page, aligned with the
+content; on every other screen it is one line, so it never pushes a booking
+down the page. Several live at once share one slot and slide (swipe, dots,
+arrows, a pause button); an admin orders them with the arrows in the list.
+Tapping one blurs the page and opens the pop-up. It leaves by itself when
+its time ends, or at once with **End now**; an ended one can be reused with
+**Use again**. Rules: `src/lib/announcements.ts`; tables `announcements`,
+`announcement_receipts`; routes `/api/admin/announcements` (+ `/end`,
+`/delete`, `/reorder`, `/upload-image`) and `/api/announcements/receipt`.
+
+**The notebook.** A small notebook floats at the bottom right of each
+dashboard. Tapping it opens it like a real diary -- the cover turns, or
+lifts on its rings on a phone -- onto dated pages the person writes on with
+the same formatting, tables included. It saves by itself, pages turn with
+the arrows, **All pages** lists them with their first words, and a page can
+be deleted. It is private: only its owner reads it, there is no admin
+screen for it, and an admin signed in as the person is not shown it. It is
+not part of the clinical record (the patient diary is a different thing).
+Rules: `src/lib/notebook.ts`; table `notebook_pages`; route `/api/notebook`.
 
 ### System Health
 
@@ -1006,7 +1074,8 @@ date and an eighteen-column grid of hourly cells, which was the storage
 model drawn on screen.
 
 Nobody clicks an hour. The editor works in ranges ("Monday 9 AM – 1 PM and
-2 PM – 6 PM") with per-day presets, copy-to-days and apply-to-weekdays;
+2 PM – 6 PM") with per-day presets (Morning 6 AM – 3 PM, Afternoon 3 PM – 12 AM, Full day
+6 AM – 12 AM; the two shifts add up to Full day with no gap), copy-to-days and apply-to-weekdays;
 `src/lib/availabilityRanges.ts` converts between those ranges and the hour
 rows the tables have always stored, in both directions. The storage model is
 unchanged, so every existing schedule reads back as exactly the same hours -
@@ -1455,7 +1524,7 @@ therapist", with the programme's therapist offered as one tap ("Assign
 <name>" in the session drawer), which confirms a paid session and makes its
 Meet link. Nothing is held while it waits; the queue says when the
 pre-picked therapist is no longer free. The patient reads "Booked -
-confirming your therapist". Admin can reassign a whole programme to a new therapist in
+confirming your physiotherapist". Admin can reassign a whole programme to a new therapist in
 one action, extend or view a purchase's expiry, restore a forfeited session,
 or issue a pro-rata refund on the unused balance (which also cancels any
 still-scheduled future sessions). `sessions_used` counts sessions
@@ -2130,13 +2199,19 @@ being able to cancel or reassign it.
 
 Every account also carries a **Delete account** button - on the Back office
 rows here, and on a patient's, therapist's and partner hospital's own screen
-- for a Master Admin only. It works on an account with **no history at all**
-and refuses everything else, naming what is on file (sessions, money
-records, programmes, clinical records, back-office actions, referrals) and
-pointing at Suspend. That is the database's rule rather than a chosen one:
-thirty-five tables reference `profiles(id)` with no delete behaviour, so
-removing an account that has done anything would mean removing the books and
-the audit trail with it.
+- for a Master Admin only. It first asks what is behind the account and
+always asks **why** (Duplicate account, The person asked to be removed, Fraud
+or abuse, Left the clinic, Test account, or Other with a note). An account
+with **no history at all** is removed outright. One with history - sessions,
+payments, programmes, clinical records, back-office actions - is deleted
+**with its records kept**: the confirmation lists every money record (payments,
+pay-later, programmes, refunds, payouts, session earnings) with totals, then
+the login is switched off and moved to a placeholder address (so the email
+can sign up again) and the phone and email are cleared from the profile. Every
+record stays under the person's name, tagged **Deleted user**; its (i) shows
+the reason, the note, who deleted it and when, the old contact details and
+the money kept. The records are never removed, because thirty-five tables
+reference `profiles(id)` and the books and the audit trail are built on them.
 
 What is on file is **asked of the database**, not listed in the route:
 `account_blocking_references()` reads `pg_constraint` for every foreign key that
@@ -2356,10 +2431,11 @@ state.
 **Health Profile and Pain Map.** Two linked but separate layers of a
 patient's condition data, both surfaced on `/patient/dashboard/health-profile`
 (patient), the therapist's `/therapist/dashboard/health-profile/[patientId]`,
-and the admin's **Patient Conditions** tab.
+and the admin's Health Profile screen (`/admin/dashboard/conditions/[id]`, opened from a patient's card; what is waiting is listed under **Today → Health Profile reviews**).
 
 **The intake is per specialty.** A `patient_condition_profiles` row carries
-`specialty` - `ortho`, `neuro` or `pediatrics` - and that decides everything
+`specialty` - `ortho`, `neuro`, `pediatrics`, `geriatric` or `cardiopulmonary`
+- and that decides everything
 about how the profile reads: which seven questions are asked, which summary
 card renders, which four figures the snapshot strip shows, and what the
 progress line plots. The original set only ever fitted orthopaedic patients:
@@ -2372,10 +2448,12 @@ milestones reached.
 | Orthopaedic | complaint, how long, 0–10 severity, painful areas on the body map, what worsens it, what helps, other notes | pain, from the Pain Map |
 | Neurological | condition and onset, affected side, how they move indoors, 0–10 independence, symptoms present, falls in three months, main goal | `neuro_independence` |
 | Paediatric | main concern, birth history, milestones reached, diagnosis, equipment, hardest day-to-day, goal (plus a caregiver "who is answering" pre-step) | milestones ticked |
+| Geriatric ("Strength and balance care" to the patient) | main concern, falls in 12 months (with or without an injury), unsteady, worried about falling, walking aid, which of the Katz six they need help with, goal (plus an optional carer pre-step) | the STEADI fall-risk level, with the rule that decided it |
+| Cardiopulmonary ("Heart and lung rehabilitation") | condition and when, beta-blocker, breathlessness (mMRC, plain words), home oxygen, the doctor's oxygen stop limit, goal (plus the surgeon's precautions after open-heart surgery, and the oxygen prescription) | the six-minute walk, against the patient's own oxygen limit |
 
-Neither of the two new sets has a pain scale or a body map. Their keys are
-namespaced (`neuro_*`, `peds_*`) so that `patient_condition_profiles.data`
-can stay one flat blob shared by all three: re-triaging a patient keeps the
+None of the non-orthopaedic sets has a pain scale or a body map. Their keys
+are namespaced (`neuro_*`, `peds_*`, `geri_*`, `cardio_*`) so that
+`patient_condition_profiles.data` can stay one flat blob shared by all five: re-triaging a patient keeps the
 previous specialty's answers on file rather than deleting them, and
 approving a change *merges* rather than replaces.
 
@@ -2394,7 +2472,10 @@ then.** The flow, end to end:
    questions (`ConditionTriageDialog`) - age band, presenting problem,
    neurological signs, and, for a child, whether there is a developmental
    concern. Those *suggest* a specialty, with the reason shown; the
-   therapist confirms or overrides. A fourteen-year-old with a sprained
+   therapist confirms or overrides. Geriatric (a falls referral, or 65 or
+   older whose only sign is balance) and Cardiopulmonary (a heart or lung
+   referral) are suggested only once an admin has switched them on - they
+   start off - and a switched-off type is named in the reason instead. A fourteen-year-old with a sprained
    ankle correctly lands on orthopaedic, which is why the child question
    exists.
 4. The dialog runs straight on into that specialty's own questions, in the
@@ -2457,9 +2538,9 @@ everything else.
   both exam-submit routes refuse such a patient rather than accumulating
   rows nothing renders. Those two specialties get a progress line anyway,
   read back out of the approved submissions already on file - independence
-  over time, or milestones reached. The paediatric examination layer
-  (posture and milestones) is still deferred, and `SpecialtyExamPanel` says
-  so in its place.
+  over time, or milestones reached. The paediatric examination layer now
+  exists on the server (`peds_assessments`, phase 5a, below); until its
+  screens ship in phase 5b, `SpecialtyExamPanel` still says it is coming.
 
   **The neurological examination chart** is the neurological profile's
   exam layer (`neuro_assessments`, `src/lib/neuroExam.ts`, `NeuroExamPanel`).
@@ -2485,8 +2566,8 @@ everything else.
   **Finishing a session needs this condition type's exam.** A therapist's
   **Done** opens the session note, whose first step is the patient's
   examination: the Pain Map for an orthopaedic patient, the neurological
-  examination for a neurological one, nothing for a paediatric one (that
-  layer is not built yet). The session closes only once that exam has been
+  examination for a neurological one, the paediatric examination for a
+  paediatric one. The session closes only once that exam has been
   recorded by this therapist since an hour before the slot - the note says
   so before sending anything, and `complete-session` refuses
   (`pain_map_required` / `neuro_exam_required`) if it is not. The window
@@ -2523,9 +2604,192 @@ everything else.
   dropdown, and tapping an assessed point in view mode (patient/admin)
   opens a popup with that region's detail.
 
+  **Outcome measurements and milestones** (Health Profile redesign; the
+  server side is in, the screens follow). Standardised tests - walking
+  speed, Timed Up and Go, LEFS, the six-minute walk and the rest of
+  `src/lib/outcomeMeasures.ts` - are recorded in one append-only
+  `outcome_measurements` table by the assigned therapist from a started or
+  delivered session (`/api/therapist/measurements/submit`) or by an admin
+  (`/api/admin/measurements/submit`), never by the patient. Pain stays on the
+  Pain Map, and an ordinary neurological patient's TUG and 10-metre walk stay
+  on the neurological exam; a Parkinson's patient (a neurological record whose
+  intake says so, `profileKindFor`) records both here with ON/OFF, the last
+  dose and three trials. The patient's goal, in their own words, and the
+  milestones towards it are planned by the assigned therapist
+  (`/api/therapist/care-goals/save`, `/api/therapist/care-milestones/save`); a
+  measurable milestone is marked reached with the measurement that proves it,
+  and a reached one stays reached unless an admin reopens it with a reason
+  (`/api/admin/care-milestones/reopen`), which leaves a permanent record.
+  Licensed scales (Barthel, Oswestry, MDS-UPDRS III...) ship switched off;
+  the Master Admin switches one on under **Settings -> Clinical Questions ->
+  Licensed outcome scales** once the clinic holds the licence. Goals and
+  milestones are therapist-authored; the back office does not edit them.
+  The assigned therapist (or an admin) sets which phase of the course the
+  patient is in and may overrule the computed status pill with a reason of at
+  least 10 characters (`/api/therapist/care-status/set`,
+  `/api/admin/care-status/set`); each change is an append-only
+  `care_status_events` row, so the history of who said what and why is kept.
+  On the 30-second chair stand a "used arms" tick scores 0 and keeps the
+  count done with the arms beside it. The six-minute walk's predicted-distance
+  formula is chosen under **Settings -> Clinical Questions -> Six-minute walk:
+  predicted distance**; until one is, the walk shows no percentage of
+  predicted. Rules: `docs/rules/clinical.md`, `docs/rules/admin.md`.
+
+  **Parkinson's (phase 4a, server side).** The neurological questions start
+  with an optional **Condition group**; choosing *Parkinson's disease* adds
+  five follow-ups (year diagnosed, medicine times, how often the feet feel
+  stuck, worry about falling, the hardest thing day to day) and makes the
+  record the Parkinson's sub-profile, with its own tests and thresholds.
+  Existing neurological patients are not asked to look again. A patient (or
+  family member) writes freezing episodes, falls and near-misses in their
+  own diary (`/api/patient/diary/add`); the physiotherapist confirms an
+  entry (`/api/therapist/diary/confirm`) but never edits it, and everything
+  drawn from it is marked "patient reported". "Where things stand" is now
+  written by the physiotherapist (or the clinic) under **Phase and status**;
+  the sentences worked out from the numbers are a draft to start from and,
+  with nothing written, a fallback labelled as automatic. Parkinson's test
+  results are only compared between readings taken in the same medication
+  state (ON with ON, OFF with OFF).
+
+  **Neurological and Parkinson's screens (phase 4b).** A neurological
+  patient's Health Profile (patient page, therapist chart, admin detail) now
+  opens in the same layout as the orthopaedic one: header, *Where things stand*
+  (under the physiotherapist's name and date), four key numbers (independence,
+  balance, walking speed, falls; for Parkinson's Up-and-go, freezing a week,
+  walking speed, falls), the examination as the picture (First exam / Latest, the
+  affected-side figure, the walking ladder from FAC, walking-speed zones), the
+  diary, the graph (Berg, walking speed and Up-and-go come from the
+  examinations, the rest from recorded tests), steps and measures. The patient
+  writes a fall, a near miss or - for Parkinson's - freezing with **Log ...**;
+  the assigned therapist **Confirm**s entries; an admin only reads. A fall moves
+  the status pill to *Needs attention* only after a physiotherapist has
+  confirmed it. The patient's PDF carries the diary as counts. Rules:
+  `docs/rules/clinical.md`.
+
+  **Paediatric examination (phase 5a, server side).** A child's examination
+  records the six WHO movement milestones (sitting without support,
+  hands-and-knees crawling, standing and walking with help, standing and
+  walking alone): each *not yet*, *emerging* or *achieved*, with the date
+  first seen and whether the physiotherapist saw it or the parent reported
+  it; a milestone nobody looked at is "not assessed", never "not yet". GMFCS
+  (Level I-V) for a child with cerebral palsy and an orthoses and equipment
+  note are optional. Standing time and independent steps are recorded with
+  **Record a test** (best of three), not in the examination. The child's age
+  is shown both ways - chronological and corrected for prematurity while
+  under two and born before 37 weeks - from the date of birth on the patient
+  record and the intake's new optional **Weeks at birth** question; each
+  milestone is placed against its WHO window, gently worded for the family,
+  with a clinicians-only prompt when a child is not walking alone by 18
+  months corrected. Every threshold is to be verified by a senior
+  physiotherapist. Routes: `/api/therapist/peds-assessments/submit` (assigned
+  therapist with a started session) and `/api/admin/peds-assessments/submit`
+  (People scope, audited). The family's PDF prints the latest examination.
+  A paediatric Done requires the examination (the note dialog's
+  "Record the paediatric exam", phase 5b). The paediatric Health Profile is
+  the milestone-window chart (one bar per WHO milestone, a marker for the
+  child: solid seen, hollow told by parents, dashed ring approximate), with
+  the parent's list of what the child does on their own; a date of birth
+  that cannot be a child's is not charted (a card for the clinician, a
+  neutral line for the family). There is no paediatric diary and no screen yet
+  to edit a date of birth (a patient's change goes to the clinic to approve). Rules: `docs/rules/clinical.md`.
+
+  **Strength and balance care and Heart and lung rehabilitation (phase 6a,
+  server side; the screens are 6b).** Two more condition types, off until an
+  admin ticks them on Settings -> Clinical Questions. Neither has an exam
+  before Done. A geriatric record's fall risk is the CDC STEADI level with
+  the rule that decided it - two falls, or one with an injury, in 12 months
+  keeps it high whatever the four tests show, and "tests in the safer range"
+  is said separately - and only falls a physiotherapist confirmed count. A
+  heart and lung record checks every session against the patient's own
+  oxygen stop limit (the doctor's, else 88% for a lung condition and 90% for
+  a heart one, marked as a default), a resting heart rate over 120 and a
+  blood pressure over 180/100; a beta-blocker means the talk test, never a
+  heart-rate target; the surgeon's breastbone precautions run to their end
+  date; the patient logs active minutes against the WHO's 150 a week. The
+  PDF export prints both. Rules: `docs/rules/clinical.md`.
+
+  **The guided video assessment (phase 7a, server side; phase 7b, the session
+  cockpit and the patient's companion screen).** Every measurement in a
+  video session happens live, led by the physiotherapist - nothing relies on
+  the patient measuring alone, and the video itself stays on Google Meet. The
+  therapist runs one protocol per condition type (`src/lib/sessionProtocols.ts`:
+  knee pain first, then joint or back pain, neurological, Parkinson's,
+  paediatric, falls and strength, heart and lung) one step at a time: a short
+  script to say, a set-up checklist to tick, the right tool, and Stop test,
+  Skip or Save and next. The server, not the screen, refuses what the order
+  does not allow: no step after the safety check until every red-flag
+  question is answered, no test once one is answered yes, no save before the
+  step's set-up (with its helper, where one is needed) is ticked, and on the
+  heart and lung protocol no exercise until the resting heart rate, blood
+  pressure and oxygen read off the patient's own devices on camera pass the
+  pre-exercise check. Stop test throws the reading away. The patient's
+  companion shows only the step name, one instruction, a position picture
+  and a clock - never a result - and has nothing to press. When the run ends
+  the physiotherapist gets a draft *Where things stand* built from what was
+  saved, to edit and save as their own. Vital signs read off the patient's
+  own device are labelled so on the graph, the table and the PDF. Every step
+  is marked to be verified by a senior physiotherapist. Routes:
+  `/api/therapist/assessment-runs/{start,event,display,end}`, plus `runId` and
+  `stepId` on `/api/therapist/measurements/submit`, and
+  `/api/patient/assessment-display` (the companion's three-second fallback).
+  **The two screens.** The physiotherapist's cockpit
+  (`/therapist/dashboard/assessment/[patientId]`) is built to sit on a second
+  screen next to Google Meet: the steps across the top, the current step as one
+  card (what to say in large type, the set-up checklist that must be fully
+  ticked, a red safety line where another adult has to stand beside the
+  patient, and the right tool in the same place) and always the same three
+  actions - **Stop test**, **Skip** and one big **Save and next**, which stays
+  grey, with a line saying what is missing, until the set-up and a result are in.
+  Beside it: today's results so far (*Not done* until a step is saved), a small
+  preview of what the patient sees with *Get ready*, *Go*, *Done* and *Rest*,
+  and a *Stop at once if* box. On a phone the results and preview fold away
+  under the step. The patient's screen (`/patient/dashboard/session`) is dark and
+  large, shows one instruction, a picture of the position and a giant clock, has
+  nothing to press, follows the physiotherapist live and polls every three
+  seconds if the live connection is down. With no check running it says *Your
+  physiotherapist will start the guided check soon*; if it cannot load the
+  screen it says *We couldn't load your screen. Trying again…* instead. Rules:
+  `docs/rules/clinical.md`.
+
+  **Home exercises (phase 7d).** After the checks, every guided
+  video assessment has a *Home exercises* step, just before the summary. The
+  physiotherapist picks exercises from the clinic's library
+  (`src/lib/exerciseLibrary.ts`: a starter set for each condition type, each
+  with a plain name, a demo picture, three to five short steps, a default dose
+  and a safety line, every one marked to be verified by a senior
+  physiotherapist), sets the dose (sets, repetitions or a hold, times a day,
+  days a week, an optional two-sentence note), shows the patient a demo on the
+  companion screen - the library's picture and steps, never typed text -
+  watches them do each one on camera and marks it *performed correctly*,
+  *needs practice* (with one coaching cue from a fixed list) or *not
+  attempted* (with a reason). A mark made by mistake is fixed with *Fix this
+  mark*: a new record with one of three fixed reasons, the first kept on the
+  record; the patient sees only the latest. The server refuses an exercise not offered for
+  the patient's condition type, one their Health Profile rules out (a high
+  falls risk, the surgeon's precautions after open-heart surgery, not being
+  able to stand), and an exercise that needs another adult beside the patient
+  unless that helper was ticked on the step. Saving makes a new version of the
+  plan that replaces the last one (history kept); the patient reads their
+  current plan on their dashboard - the picture, the steps, the dose in plain
+  words and when they practised it with their physiotherapist - and never has
+  to fill anything in. The session's draft *Where things stand* says what was
+  taught and what needs more practice. This is **Home exercises**, not a
+  *care plan* (the programme recommendation). The session note keeps its own
+  free-text home exercise field. Routes:
+  `/api/therapist/exercise-plans/publish` and
+  `/api/therapist/assessment-runs/teach`. Rules: `docs/rules/clinical.md`,
+  "Home exercises". The screens: the cockpit's teach tool (pick from the
+  library, set the dose with big steppers, *Use this plan*, then *Show the
+  demo*, *Your turn* and one row of three marks), the 36 line pictures, the
+  companion's demo, the patient's read-only *Your home exercises* card on the
+  Health Profile page (parent's voice for a child) and a read-only *Home
+  exercises* section on the therapist's chart and, read only, on the admin's
+  patient detail (People scope), plus one calm *Your home exercises* row on
+  the patient's Overview linking to the card. A mark is not corrected in the
+  app yet (it needs a schema change).
+
 Both question banks (Health Profile and Pain Map) are managed from
-one place - a **Manage Questions** section at the top of the admin's
-**Patient Conditions** tab (`QuestionBankManager.tsx`), not per-patient -
+one place - **Settings → Clinical Questions** (`QuestionBankManager.tsx`; People → Patients links to it for Master Admin), not per-patient -
 since question wording/required-ness is global config, not something tied
 to one patient's record. The intake bank has one tab per specialty, and
 above it sit the toggles for which specialties triage offers. Switching one
@@ -2594,8 +2858,8 @@ data useful once it's collected, not just to collect it:
   locked and there is nothing in the chart to prepare from. Below them,
   patients with no *approved* access grant yet are flagged "New" (a
   merely-requested grant still counts) so a first-time assignment doesn't
-  go unnoticed. The admin's Patient Conditions list has the same queue as
-  an "Awaiting onboarding" filter, beside a specialty filter and chip.
+  go unnoticed. The admin's People → Patients directory has the same queue as
+  an "Awaiting first record" Health Profile filter, beside a condition-type filter and chip.
 - **Admin audit trail** - a direct intake edit (`ConditionDirectEditForm`)
   also inserts an already-"approved" `condition_change_requests` row, so it
   shows up in the same Review History as every reviewed submission instead
@@ -2656,7 +2920,7 @@ data useful once it's collected, not just to collect it:
 - `area_pain` entries can carry an optional free-text note per area (e.g.
   "started after a fall"), shown alongside the pain score everywhere it's
   displayed.
-- The admin Patients tab (not Patient Conditions) shows a compact severity
+- The admin Patients tab shows a compact severity
   signal - self-reported severity and pain-area count - right where admin
   already manages patients, without a separate trip.
 
@@ -2686,15 +2950,16 @@ having its own layout:
 | `IconCard` | One fact: tinted icon, short title, one line. |
 | `ExploreGrid` / `ExploreSection` | The site's index as photographs. |
 | `CatalogImage` | The cover slot on a programme or package card - the admin's photo when set, one shared tinted placeholder when not. |
-| `CareAreaShowcase` | The six areas of practice, one at a time: photograph left, explanation right. Swipe, arrows or the name picker; never moves on its own. |
+| `TreatmentGoals` | What treatment works towards, for six kinds of care, one at a time: a sweep from the first visit to the goal (sample patients, "results vary"). Tabs, or Play all six; never advances by itself. Replaced `CareAreaShowcase`; never moves on its own. |
 | `Testimonials` | Patient quotes with portraits, shared by Home and `/mission`. |
 | `ClosingCta` | Every page ends the same way: one sentence, one action. |
 
 ### The opening splash
 
 Every page under the root layout paints a full-screen brand greeting -
-the site name, the line **"Movement Is Medicine"** - for about a second and
-a half, then dissolves into the page underneath, which was fully rendered
+the site name, the line **"Movement Is Medicine"** - for a beat (no more
+than about 0.6 seconds on a public page; the admin's longer hold applies in
+the signed-in workspaces), then dissolves into the page underneath, which was fully rendered
 the whole time.
 
 It shows on the **first load of a browser tab**, and again when a tab left
@@ -2713,7 +2978,7 @@ which writes four `site_settings` columns:
 | Whether it runs at all | `splash_enabled` | on |
 | The name above the line | `splash_brand_line` | blank - follows `site_name` |
 | The line it says | `splash_phrase` | "Movement Is Medicine" |
-| How long it holds before fading | `splash_hold_seconds` | 1.5 |
+| How long it holds before fading (clipped to ~0.25 s on public pages, so hold + fade stay under ~0.6 s) | `splash_hold_seconds` | 1.5 |
 | Minutes away that earn a second greeting | `splash_revisit_minutes` | 15 |
 
 Leaving the **name** blank means the splash prints the site name from Brand
@@ -2726,11 +2991,13 @@ the setting that would splash over a payment in progress. Switching the
 splash off removes the overlay and its boot script from the page entirely
 rather than hiding them.
 
-The fade length is **not** admin-configurable on purpose: it is the same
-duration written twice, as `SPLASH_FADE_MS` in `src/lib/splashScreen.ts` and
-as the transition at the foot of `src/app/globals.css`, and the timer is
-what takes the sheet out of the page. Change those two together or the fade
-either cuts short or leaves an invisible sheet swallowing clicks.
+The hold and the fade are a CSS animation, not a timer that starts after the
+page hydrates: the inline boot script writes `--splash-hold` and
+`--splash-fade` on `<html>` before first paint and the stylesheet does the
+rest, so the sheet leaves on schedule even on a slow connection. The fade
+length is **not** admin-configurable on purpose (`SPLASH_FADE_MS` in
+`src/lib/splashScreen.ts`, written to `--splash-fade`); the component only
+clears the `data-splash` attribute afterwards.
 
 The defaults every caller falls back to (including a database that has not
 run the migration adding those columns) live in `src/lib/splashScreen.ts`;

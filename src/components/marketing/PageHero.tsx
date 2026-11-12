@@ -31,6 +31,8 @@ export default function PageHero({
   alt,
   overlay,
   size = "default",
+  extras,
+  shortPhotoOnMobile = false,
 }: {
   eyebrow: string;
   title: React.ReactNode;
@@ -44,6 +46,12 @@ export default function PageHero({
   /** Small card floated over the photo - one fact, never a paragraph. */
   overlay?: { icon: string; title: string; body: string };
   size?: "default" | "large";
+  /** Under the buttons: tappable chips, a "WhatsApp us" line, an inline
+   *  pincode box. One short row, never a paragraph. */
+  extras?: React.ReactNode;
+  /** On a phone, crop the photograph to a short 16:9 band so the figures
+   *  below it stay in the first screens. From lg it is the full photograph. */
+  shortPhotoOnMobile?: boolean;
 }) {
   const img = photo(photoId);
   const large = size === "large";
@@ -65,21 +73,28 @@ export default function PageHero({
       <div
         // Copy column slightly wider than the photo: at 1280-1536px an even
         // split wrapped every hero headline onto an extra line.
-        className={`relative mx-auto grid max-w-7xl items-center gap-12 px-4 sm:px-6 lg:grid-cols-[1.08fr_0.92fr] lg:gap-14 lg:px-8 ${
-          large ? "py-16 lg:py-24" : "py-14 lg:py-20"
+        className={`relative mx-auto grid max-w-7xl items-center gap-8 px-4 sm:px-6 lg:grid-cols-[1.08fr_0.92fr] lg:gap-x-14 lg:gap-y-8 lg:px-8 ${
+          large ? "py-12 sm:py-16 lg:py-20" : "py-12 sm:py-14 lg:py-20"
         }`}
       >
-        <Reveal>
+        {/* Three blocks in a grid rather than two columns: on a phone the
+            order is words, photograph, figures (the photograph used to sit
+            under the figures, a full screen below the buttons); from lg the
+            figures return under the words and the photograph spans both. */}
+        <Reveal className="lg:col-start-1 lg:row-start-1 lg:self-center">
           <span className="inline-flex items-center gap-2 rounded-full border border-teal-200 bg-teal-50 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-teal-800">
             <span className="h-1.5 w-1.5 rounded-full bg-teal-500" />
             {eyebrow}
           </span>
 
           <h1
-            className={`font-display mt-5 font-extrabold leading-[1.04] tracking-[-0.035em] text-slate-900 ${
+            // Sized so the home headline sits on three lines beside the
+            // photograph from 1024px up; at 3.6rem it took four and pushed
+            // the figures below the fold.
+            className={`font-display mt-5 font-extrabold leading-[1.05] tracking-[-0.03em] text-slate-900 text-balance ${
               large
-                ? "text-[2.4rem] sm:text-[3.25rem] xl:text-[3.6rem]"
-                : "text-[2.1rem] sm:text-[2.75rem] xl:text-5xl"
+                ? "text-[2.25rem] sm:text-[3rem] xl:text-[3.25rem]"
+                : "text-[2rem] sm:text-[2.6rem] xl:text-[2.9rem]"
             }`}
           >
             {title}
@@ -108,37 +123,27 @@ export default function PageHero({
             </div>
           )}
 
+          {extras}
+
+          {/* From lg the figures close the copy column (see the photograph's
+              note); on a phone they follow the photograph instead. */}
           {stats && stats.length > 0 && (
-            // Columns follow the count. It was fixed at three, so a hero with
-            // anything else to say left a dead cell -- which is what the home
-            // page needs, since its third stat is a real rating and there is
-            // not always one to quote.
-            <dl
-              className={`mt-10 grid max-w-lg gap-6 border-t border-slate-200/80 pt-6 ${
-                stats.length >= 3 ? "grid-cols-3" : "grid-cols-2"
-              }`}
-            >
-              {stats.map((stat) => (
-                // dt before dd, as a definition list requires, then flipped
-                // visually. It used to hide the label in an `sr-only` dt and
-                // draw it again inside the dd, so a screen reader read every
-                // stat's label twice.
-                <div key={stat.label} className="flex flex-col-reverse">
-                  <dt className="mt-0.5 block text-xs font-medium text-slate-500">
-                    {stat.label}
-                  </dt>
-                  <dd className="font-display block text-xl font-bold text-slate-900 sm:text-2xl">
-                    {stat.value}
-                  </dd>
-                </div>
-              ))}
-            </dl>
+            <div className="mt-8 hidden lg:block">
+              <HeroStats stats={stats} />
+            </div>
           )}
         </Reveal>
 
-        <Reveal delay={0.12}>
+        {/* The photograph keeps its own landscape shape (a stretched crop lost
+            the laptop, and every photo here has to show the screen) and is
+            centred against the copy column, which from lg carries the
+            figures too: the two columns are one pair, so the hero no longer
+            ends on a gap under whichever side was shorter. */}
+        <Reveal delay={0.12} className="lg:col-start-2 lg:row-start-1 lg:self-center">
           <div className="relative">
-            <div className="relative overflow-hidden rounded-[1.75rem] bg-slate-100 shadow-[0_24px_64px_-24px_rgba(15,23,42,0.35)] ring-1 ring-slate-900/5">
+            <div className={`relative overflow-hidden rounded-[1.75rem] bg-slate-100 shadow-[0_24px_64px_-24px_rgba(15,23,42,0.35)] ring-1 ring-slate-900/5 ${
+                shortPhotoOnMobile ? "aspect-[16/9] lg:aspect-auto" : ""
+              }`}>
               <Image
                 src={img}
                 alt={alt}
@@ -146,7 +151,12 @@ export default function PageHero({
                 // of these pages. `priority` is deprecated in Next 16.
                 preload
                 sizes="(max-width: 1024px) 100vw, 50vw"
-                className="h-full w-full object-cover"
+                // The short phone/tablet band is a centre crop of a 4:3
+                // photograph, which cut the laptop off: anchored lower, the
+                // screen stays in frame with the face.
+                className={`h-full w-full object-cover ${
+                  shortPhotoOnMobile ? "object-[50%_68%] lg:object-center" : ""
+                }`}
               />
             </div>
 
@@ -167,10 +177,48 @@ export default function PageHero({
             )}
           </div>
         </Reveal>
+
+        {stats && stats.length > 0 && (
+          <Reveal delay={0.06} className="lg:hidden">
+            <HeroStats stats={stats} />
+          </Reveal>
+        )}
       </div>
 
       {/* Breathing room for the overlay card, which hangs past the photo. */}
       {overlay && <div className="h-6" />}
     </div>
+  );
+}
+
+/** The figures under a hero, as one strip of equal cells. */
+function HeroStats({ stats }: { stats: HeroStat[] }) {
+  // One strip of equal cells, so the figures read as one line. Columns
+  // follow the count (the home page's third is a real rating, and there is
+  // not always one to quote). Each cell is a reversed column -- dt before
+  // dd, as a definition list requires, value drawn first -- and
+  // `justify-end` is what keeps the values on one line: a reversed column
+  // stacks from the bottom, so a label that wrapped lifted its own value
+  // above the others. Labels are short enough not to wrap at 360px.
+  return (
+    <dl
+      className={`grid max-w-xl divide-x divide-slate-200 overflow-hidden rounded-2xl border border-slate-200 bg-white/80 shadow-sm backdrop-blur ${
+        stats.length >= 3 ? "grid-cols-3" : "grid-cols-2"
+      }`}
+    >
+      {stats.map((stat) => (
+        <div
+          key={stat.label}
+          className="flex min-w-0 flex-col-reverse justify-end px-3 py-3 sm:px-5 sm:py-4"
+        >
+          <dt className="mt-0.5 block truncate text-xs font-medium text-slate-500 sm:text-sm">
+            {stat.label}
+          </dt>
+          <dd className="font-display block whitespace-nowrap text-lg font-bold leading-tight text-slate-900 sm:text-2xl">
+            {stat.value}
+          </dd>
+        </div>
+      ))}
+    </dl>
   );
 }

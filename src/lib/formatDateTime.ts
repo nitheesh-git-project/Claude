@@ -76,6 +76,21 @@ export function clinicDayParts(value: string | number | Date | null | undefined)
 }
 
 /** `12 Sep 2026, 6:00 pm` */
+const DATE_LONG = formatter({ weekday: "long", day: "numeric", month: "long", year: "numeric" });
+
+/** "Tuesday, 10 November 2026": a date written out, for a page that is
+ *  dated like a diary (the notebook). */
+export function formatClinicDateLong(value: string | number | Date | null | undefined) {
+  if (value === null || value === undefined || value === "") return "-";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  // Assembled from parts: the locale's own long form puts the comma before
+  // the year ("Tuesday 10 November, 2026"), which is not how a date is
+  // written at the top of a page.
+  const parts = Object.fromEntries(DATE_LONG.formatToParts(date).map((part) => [part.type, part.value]));
+  return `${parts.weekday}, ${parts.day} ${parts.month} ${parts.year}`;
+}
+
 export function formatClinicDateTime(value: string | number | Date | null | undefined) {
   return safe(value, DATE_TIME);
 }

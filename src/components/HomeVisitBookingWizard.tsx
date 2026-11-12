@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useStepScroll } from "@/lib/useStepScroll";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { preloadRazorpayScript } from "@/lib/razorpay";
@@ -107,6 +108,9 @@ export default function HomeVisitBookingWizard({
   const leadTimeMs = leadTimeMsFromHours(leadTimeHours);
 
   const [step, setStep] = useState(1);
+  // Each step starts at its top, not where the last one's button was.
+  const wizardRootRef = useRef<HTMLDivElement>(null);
+  useStepScroll(step, wizardRootRef);
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [signedInRole, setSignedInRole] = useState<NonPatientRole | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -733,11 +737,11 @@ export default function HomeVisitBookingWizard({
   }
 
   return (
-    <div className="relative rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
+    <div ref={wizardRootRef} className="relative rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
       {loading && payStage && step === 4 && (
         <CheckoutProgress stage={payStage} includeAccount={payIncludesAccount} />
       )}
-      <p className="mb-6 text-xs font-semibold uppercase tracking-wide text-slate-500">
+      <p data-step-heading className="mb-6 text-xs font-semibold uppercase tracking-wide text-slate-500 outline-none">
         Step {step} of 4
       </p>
 
@@ -1109,27 +1113,27 @@ export default function HomeVisitBookingWizard({
 
           <dl className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm">
             <div className="flex justify-between gap-4">
-              <dt className="text-slate-500">Home visit for</dt>
-              <dd className="text-right font-semibold text-slate-900">
+              <dt className="shrink-0 text-slate-500">Home visit for</dt>
+              <dd className="min-w-0 text-right font-semibold text-slate-900 [overflow-wrap:anywhere]">
                 {selectedCondition.title}
               </dd>
             </div>
             <div className="flex justify-between gap-4">
-              <dt className="text-slate-500">Length</dt>
-              <dd className="text-right text-slate-700">
+              <dt className="shrink-0 text-slate-500">Length</dt>
+              <dd className="min-w-0 text-right text-slate-700 [overflow-wrap:anywhere]">
                 {selectedOption?.durationMinutes ?? selectedCondition.visit_duration_minutes} min
               </dd>
             </div>
             <div className="flex justify-between gap-4">
-              <dt className="text-slate-500">When</dt>
-              <dd className="text-right text-slate-700">
+              <dt className="shrink-0 text-slate-500">When</dt>
+              <dd className="min-w-0 text-right text-slate-700 [overflow-wrap:anywhere]">
                 {bookDate && formatDateKeyLong(bookDate)},{" "}
                 {slotDateTime && formatSlotTime(new Date(slotDateTime).toISOString(), timezone)}
               </dd>
             </div>
             <div className="flex justify-between gap-4">
-              <dt className="text-slate-500">Address</dt>
-              <dd className="max-w-[60%] text-right text-slate-700">
+              <dt className="shrink-0 text-slate-500">Address</dt>
+              <dd className="min-w-0 max-w-[60%] text-right text-slate-700 [overflow-wrap:anywhere]">
                 {address.line1}
                 {address.landmark ? `, near ${address.landmark}` : ""}, {address.pincode}
               </dd>
@@ -1138,13 +1142,13 @@ export default function HomeVisitBookingWizard({
 
           <dl className="space-y-2 border-t border-slate-200 pt-4 text-sm">
             <div className="flex justify-between gap-4">
-              <dt className="text-slate-500">Visit</dt>
+              <dt className="shrink-0 text-slate-500">Visit</dt>
               <dd className="text-slate-900">
                 ₹{formatRupees(total.packagePricePaise)}
               </dd>
             </div>
             <div className="flex justify-between gap-4">
-              <dt className="text-slate-500">Travel</dt>
+              <dt className="shrink-0 text-slate-500">Travel</dt>
               <dd className="text-slate-900">
                 {total.travelLabel === "included"
                   ? "Included"

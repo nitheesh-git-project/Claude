@@ -3,6 +3,7 @@ import { getAdminContextResult } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
+import { serverError } from "@/lib/apiError";
 import {
   ACCOUNT_ALREADY_GONE,
   ACCOUNT_DELETE_REFUSED,
@@ -11,10 +12,14 @@ import {
   CANNOT_DELETE_SELF,
   NO_ACCOUNT_REFERENCES,
   countAccountReferences,
+  describeRecordsOnFile,
   describeAccountBlockers,
   describeRefusedDelete,
   type AccountReferences,
 } from "@/lib/accountDeletion";
+import { placeholderEmail, recordsSnapshot, validateDeleteReason } from "@/lib/accountDeletionRecords";
+import { readAccountMoneyRecords } from "@/lib/accountMoneyRecordsServer";
+import { unknowablePassword } from "@/lib/accessLink";
 
 // Deleting an account outright, when there is nothing behind it.
 //
@@ -73,6 +78,19 @@ const GROUP_BY_TABLE: Record<string, keyof AccountReferences> = {
   care_plan_reviews: "clinical",
   pain_assessments: "clinical",
   neuro_assessments: "clinical",
+  peds_assessments: "clinical",
+  outcome_measurements: "clinical",
+  care_goals: "clinical",
+  care_milestones: "clinical",
+  care_milestone_events: "clinical",
+  care_status_events: "clinical",
+  patient_diary_entries: "clinical",
+  assessment_runs: "clinical",
+  assessment_run_events: "clinical",
+  assessment_live_display: "clinical",
+  exercise_plans: "clinical",
+  exercise_plan_items: "clinical",
+  exercise_teaching_events: "clinical",
   pain_map_question_templates: "clinical",
   session_notes: "clinical",
   session_note_revisions: "clinical",
@@ -134,7 +152,7 @@ function groupFor(row: BlockingReference): keyof AccountReferences {
   );
 }
 
-type Body = { userId?: string };
+type Body = { userId?: string; preview?: boolean; reason?: string; note?: string };
 
 export async function POST(request: NextRequest) {
   const guard = await getAdminContextResult();
@@ -173,7 +191,7 @@ export async function POST(request: NextRequest) {
 
   const { data: target } = await admin
     .from("profiles")
-    .select("id, full_name, email, role, admin_scope")
+    .select("id, full_name, email, role, admin_scope, deleted_at")
     .eq("id", userId)
     .maybeSingle();
 
@@ -222,11 +240,34 @@ export async function POST(request: NextRequest) {
   }
 
   const blockers = describeAccountBlockers(refs, target.full_name ?? "This account");
-  if (blockers) {
-    return NextResponse.json(
-      { error: blockers.message, blocked: true, total: blockers.total },
-      { status: 409 }
-    );
+
+  // The confirmation asks first: what is behind this account, and the money
+  // in particular, so the admin sees exactly what will stay before choosing.
+  if (parsed.data.preview) {
+    const money = await readAccountMoneyRecords(admin, userId);
+    return NextResponse.json({
+      deletable: !blockers,
+      // What is on file, as a plain list: this confirmation goes on to keep
+      // those records, so the old refusal sentence ("cannot be deleted")
+      // would contradict the button beneath it.
+      message: describeRecordsOnFile(refs),
+      total: blockers?.total ?? 0,
+      references: refs,
+      moneyChecked: money.ok,
+      money: money.ok ? money.summary : null,
+      alreadyDeleted: !!target.deleted_at,
+    });
+  }
+
+  // Why, every time: it is what the (i) beside "Deleted user" shows later.
+  const why = validateDeleteReason(parsed.data.reason, parsed.data.note);
+  if (!why.ok) {
+    return NextResponse.json({ error: why.error }, { status: 400 });
+  }
+
+  // Records behind it: the person goes, the records stay.
+  if (blockers || target.deleted_at) {
+    return deleteKeepingRecords(admin, context.id, target, refs, why.reason, why.note);
   }
 
   // Recorded *before* the delete, unlike every other action in this app.
@@ -245,6 +286,8 @@ export async function POST(request: NextRequest) {
       role: target.role,
       email: target.email,
       historyRowsFound: countAccountReferences(refs),
+      reason: why.reason,
+      note: why.note,
     },
   });
 
@@ -331,4 +374,97 @@ export async function POST(request: NextRequest) {
   }
 
   return NextResponse.json({ success: true });
+}
+
+/**
+ * Deleting a person whose account has history: the login is removed and the
+ * contact details cleared, and every record stays under their name, marked
+ * deleted with the reason given.
+ *
+ * In two steps, in this order. The mark first (`admin_mark_account_deleted`,
+ * one transaction: the account_deletions row, the profile cleared, their
+ * sessions signed out), then the login through GoTrue -- moved to a
+ * placeholder address, given a password nobody knows, and banned. If the
+ * second step fails the account is already marked, and pressing Delete again
+ * finishes it: the mark answers "already" and the login step runs again.
+ */
+async function deleteKeepingRecords(
+  admin: ReturnType<typeof createAdminClient>,
+  actorId: string,
+  target: { id: string; full_name: string | null; email: string | null; role: string; deleted_at?: string | null },
+  refs: AccountReferences,
+  reason: string,
+  note: string | null
+) {
+  const userId = target.id;
+  const money = await readAccountMoneyRecords(admin, userId);
+  if (!money.ok) {
+    return NextResponse.json(
+      { error: "Could not read this account's money records just now, so nothing was deleted. Please try again.", retryable: true },
+      { status: 503 }
+    );
+  }
+  const placeholder = placeholderEmail(userId);
+
+  const { data: marked, error: markError } = await admin.rpc("admin_mark_account_deleted", {
+    p_user_id: userId,
+    p_reason: reason,
+    p_note: note,
+    p_records: recordsSnapshot(money.summary, { ...refs }),
+    p_actor: actorId,
+    p_placeholder_email: placeholder,
+  });
+  if (markError) {
+    if (markError.code === "PGRST202" || markError.code === "42883") {
+      return NextResponse.json(
+        {
+          error:
+            "This database has not been updated yet, so deleting an account with records is switched off. Re-apply supabase/schema.sql, then try again.",
+          blocked: true,
+        },
+        { status: 409 }
+      );
+    }
+    return serverError("admin/delete-account keep-records", markError);
+  }
+  const status = (marked as { status?: string } | null)?.status;
+  if (status === "not_found") {
+    return NextResponse.json({ error: ACCOUNT_ALREADY_GONE }, { status: 404 });
+  }
+
+  const { error: loginError } = await admin.auth.admin.updateUserById(userId, {
+    email: placeholder,
+    email_confirm: true,
+    password: unknowablePassword(),
+    ban_duration: "876000h",
+  });
+  if (loginError) {
+    console.error("delete-account: login not removed after marking", userId, loginError);
+    return NextResponse.json(
+      {
+        error:
+          "The account is marked deleted and its records kept, but its login could not be switched off yet. Press Delete again to finish.",
+        retryable: true,
+      },
+      { status: 502 }
+    );
+  }
+
+  if (status !== "already") {
+    await recordAdminActivity(admin, actorId, {
+      action: "account.delete_keep_records",
+      targetId: userId,
+      targetLabel: `${target.full_name ?? "Unnamed"} (${target.role})`,
+      details: {
+        role: target.role,
+        email: target.email,
+        reason,
+        note,
+        moneyRecords: money.summary.count,
+        historyRowsFound: countAccountReferences(refs),
+      },
+    });
+  }
+
+  return NextResponse.json({ success: true, keptRecords: true });
 }

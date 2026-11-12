@@ -2,30 +2,66 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "@/lib/useRouter";
+import { useConfirm } from "@/lib/useConfirm";
+import { useToast } from "@/lib/toast";
 
-export default function ConditionRequestActions({ requestId }: { requestId: string }) {
+/**
+ * Approve or decline a patient's Health Profile submission.
+ *
+ * Approving says what it does before it does it -- the answers go live on the
+ * patient's profile straight away -- and the toast afterwards names the
+ * patient, because the row it was on disappears when the screen refreshes.
+ */
+export default function ConditionRequestActions({
+  requestId,
+  patientName = "the patient",
+}: {
+  requestId: string;
+  /** Whose Health Profile this is, for the confirmation and the toast. */
+  patientName?: string;
+}) {
   const [declining, setDeclining] = useState(false);
   const [notes, setNotes] = useState("");
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const { confirm, dialog } = useConfirm();
+  const { show } = useToast();
 
-  function decide(action: "approve" | "decline") {
+  const possessive = patientName === "the patient" ? "the patient's" : `${patientName}'s`;
+
+  async function decide(action: "approve" | "decline") {
     if (action === "decline" && !notes.trim()) {
       setError("Please explain why you're declining this.");
       return;
     }
     setError(null);
+    // The decision is awaited BEFORE the transition: a dialog that resolves
+    // inside the transition waiting on it never paints (frontend.md).
+    if (
+      action === "approve" &&
+      !(await confirm(
+        `Approve these answers? They go live on ${possessive} Health Profile straight away, and the therapists who can see it will read them.`,
+        { confirmLabel: "Approve", cancelLabel: "Not yet" }
+      ))
+    ) {
+      return;
+    }
     startTransition(async () => {
       const res = await fetch("/api/admin/condition-requests/decide", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ requestId, action, adminNotes: notes }),
-      });
-      if (res.ok) {
+      }).catch(() => null);
+      if (res?.ok) {
+        show(
+          action === "approve"
+            ? `${possessive.charAt(0).toUpperCase()}${possessive.slice(1)} Health Profile answers are now live`
+            : `Declined ${possessive} Health Profile submission - they can amend and resubmit`
+        );
         router.refresh();
       } else {
-        const data = await res.json().catch(() => ({}));
+        const data = (await res?.json().catch(() => ({}))) ?? {};
         setError(data.error ?? "Could not save. Please try again.");
       }
     });
@@ -34,11 +70,13 @@ export default function ConditionRequestActions({ requestId }: { requestId: stri
   if (declining) {
     return (
       <div className="space-y-2">
+        {dialog}
         <textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           placeholder="Reason for declining (shown to the submitter)"
           rows={2}
+          aria-label="Reason for declining"
           className="w-full p-2 rounded-lg border border-slate-300 text-xs"
         />
         {error && <p className="text-[11px] text-red-600">{error}</p>}
@@ -63,6 +101,7 @@ export default function ConditionRequestActions({ requestId }: { requestId: stri
 
   return (
     <div className="flex flex-col items-end gap-1">
+      {dialog}
       <div className="flex gap-2">
         <button
           onClick={() => setDeclining(true)}

@@ -65,7 +65,7 @@ export default function FinishBookingCard({
           </div>
 
         {keptUntilLabel && (
-          <p className="text-[11px] text-slate-500 mt-5 leading-relaxed">
+          <p className="text-[13px] text-slate-500 mt-5 leading-relaxed">
             If it isn&apos;t paid, this account and its booking are removed after {keptUntilLabel}.
           </p>
         )}

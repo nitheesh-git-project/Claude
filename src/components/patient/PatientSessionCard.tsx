@@ -53,15 +53,15 @@ export function renderPatientSessionCard(
     const addressLines = visitAddress ? formatAddressBlock(visitAddress) : [];
     const mapsUrl = visitAddress ? mapsSearchUrl(visitAddress) : null;
     return (
-      <div className="p-4 rounded-xl border border-slate-200 text-xs space-y-3">
+      <div className="p-4 rounded-xl border border-slate-200 text-sm space-y-3">
         {visit?.visit_mode === "home_visit" && (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-teal-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-teal-700">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-teal-50 px-2.5 py-1 text-[13px] font-bold uppercase tracking-wide text-teal-700">
             <i className="fa-solid fa-house-medical" /> Home visit
           </span>
         )}
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div>
-            <p className="font-bold text-sm text-slate-900">
+            <p className="font-bold text-base text-slate-900">
               {a.concern ?? "General Consultation"}
               {/* Labelled, not a bare code: an unexplained string next to
                   the concern reads as a glitch. Patients are asked for this
@@ -69,19 +69,19 @@ export function renderPatientSessionCard(
                   as something to quote. */}
               {a.session_code && (
                 <span
-                  className="ml-2 font-normal text-[11px] text-slate-500"
+                  className="ml-2 font-normal text-[13px] text-slate-600"
                   title="Quote this reference if you contact the clinic about this session."
                 >
                   Ref <span className="font-mono">{a.session_code}</span>
                 </span>
               )}
             </p>
-            <p className="text-sm text-slate-500 mt-1">
+            <p className="text-base font-semibold text-slate-800 mt-1">
               {formatSlotTime(a.slot_time, a.timezone)}
               {a.duration_minutes && ` • ${a.duration_minutes} min`}
             </p>
-            <p className="text-sm text-slate-500 mt-1">
-              Therapist:{" "}
+            <p className="text-sm text-slate-600 mt-1">
+              Physiotherapist:{" "}
               <span className="text-slate-700">
                 {a.therapist_id
                   ? therapistMap.get(a.therapist_id) ?? "Unknown"
@@ -95,14 +95,14 @@ export function renderPatientSessionCard(
               />
             )}
             {visitProgramme && (
-              <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-600">
+              <p className="mt-1 flex flex-wrap items-center gap-1.5 text-sm text-slate-600">
                 Part of <ProgrammeIdChip tag={visitProgramme} size="xs" />
               </p>
             )}
           </div>
           <div className="flex items-center gap-2">
             {/* A programme session waiting on the clinic's assign says
-                "Booked - confirming your therapist" rather than "requested":
+                "Booked - confirming your physiotherapist" rather than "requested":
                 it is paid for and booked, and what is outstanding is the
                 clinic's (patientSessionStatus). */}
             <span
@@ -188,7 +188,7 @@ export function renderPatientSessionCard(
               <Link
                 href={resumeCheckoutHref(a.id)}
                 data-testid="resume-checkout"
-                className="bg-teal-700 hover:bg-teal-800 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition"
+                className="inline-flex min-h-11 items-center bg-teal-700 hover:bg-teal-800 text-white text-base font-semibold px-4 py-2 rounded-lg transition"
               >
                 Pay now
               </Link>
@@ -242,7 +242,7 @@ export function renderPatientSessionCard(
               </p>
             )}
             {patientRefund.reason && (
-              <p className="text-slate-500">
+              <p className="text-slate-600">
                 <span className="font-semibold text-slate-600">Why:</span> {patientRefund.reason}
               </p>
             )}
@@ -251,8 +251,8 @@ export function renderPatientSessionCard(
 
         {addressLines.length > 0 && (
           <div className="rounded-lg bg-slate-50 p-3 space-y-1">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-              Your therapist is coming to
+            <p className="text-[13px] font-semibold uppercase tracking-wide text-slate-600">
+              Your physiotherapist is coming to
             </p>
             {addressLines.map((line: string) => (
               <p key={line} className="text-slate-700">
@@ -261,7 +261,7 @@ export function renderPatientSessionCard(
             ))}
             {visit?.visit_access_notes && (
               <p className="pt-1 text-slate-600">
-                <span className="font-semibold text-slate-500">Getting in:</span>{" "}
+                <span className="font-semibold text-slate-600">Getting in:</span>{" "}
                 {visit.visit_access_notes}
               </p>
             )}
@@ -270,13 +270,13 @@ export function renderPatientSessionCard(
                 href={mapsUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 pt-1 text-[11px] font-semibold text-teal-700 hover:text-teal-800"
+                className="inline-flex items-center gap-1.5 pt-1 text-[13px] font-semibold text-teal-700 hover:text-teal-800"
               >
                 <i className="fa-solid fa-location-dot" /> View on map
               </a>
             )}
             {visit?.travel_fee_paise !== null && (visit?.travel_fee_paise ?? 0) > 0 && (
-              <p className="pt-1 text-[11px] text-slate-500">
+              <p className="pt-1 text-[13px] text-slate-600">
                 Includes ₹{formatRupees((visit?.travel_fee_paise ?? 0))} travel
               </p>
             )}
@@ -288,6 +288,7 @@ export function renderPatientSessionCard(
               travelling to the address above. */}
           {visit?.visit_mode !== "home_visit" && (
             <JoinSessionButton
+              size="large"
               meetLink={a.meet_link}
               slotTime={a.slot_time}
               status={a.status}

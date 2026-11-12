@@ -21,8 +21,31 @@ export type CommunicationSurface =
   | "appointment_notes"
   | "condition_answer"
   | "neuro_assessment_note"
+  /** The free-text note and the orthoses and equipment note on a
+   *  paediatric examination; the family reads both. */
+  | "peds_assessment_note"
   /** The patient-facing summary a therapist writes beside the session note. */
-  | "session_summary";
+  | "session_summary"
+  /** The free-text conditions on a measurement: walking aid, footwear,
+   *  who measured. The patient reads them beside the number. */
+  | "outcome_measurement_condition"
+  /** The patient's goal, typed by the therapist in the patient's words. */
+  | "care_goal_text"
+  /** A milestone's title and its criterion. */
+  | "care_milestone_text"
+  /** The reason on a status override, or the note on a phase change; the
+   *  patient reads it beside the pill. */
+  | "care_status_reason"
+  /** The free-text note on a patient's diary entry (a fall, a freezing
+   *  episode); the therapist reads it. Recorded, never blocked -- it is the
+   *  patient's own account, the booking-note posture. */
+  | "patient_diary_note"
+  /** The physiotherapist's written "Where things stand"; the patient
+   *  reads it. */
+  | "care_status_summary"
+  /** The optional plain-words note on a home exercise's dose (phase 7d);
+   *  the patient reads it on their plan. */
+  | "exercise_plan_note";
 
 /** Longest fragment of the original text kept as evidence. */
 const MAX_EVIDENCE_CHARS = 2000;

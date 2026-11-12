@@ -11,6 +11,10 @@ export type AbandonedCheckoutRow = {
   tries: number;
   next_slot: string | null;
   next_concern: string | null;
+  /** Why this account is kept rather than removed; null when it will be
+   *  removed (abandoned_checkout_kept_reason). Absent on a database that has
+   *  not applied that function. */
+  kept_reason?: string | null;
 };
 
 // People -> Abandoned checkouts: people who signed up inside a booking
@@ -74,6 +78,8 @@ function AbandonedCheckoutCard({
   tryLimit: number;
 }) {
   const removedOn = new Date(new Date(row.created_at).getTime() + deleteAfterDays * 86_400_000);
+  // Server-rendered list; the clock is read once per render of the card.
+  const nowMs = nowTimestamp();
   return (
     <div className="p-4 rounded-xl border border-slate-200 text-xs space-y-3">
       <div className="flex items-start justify-between flex-wrap gap-2">
@@ -112,9 +118,28 @@ function AbandonedCheckoutCard({
             ? `${row.next_concern ?? "A session"} on ${formatClinicDateTime(row.next_slot)}`
             : "No booking held"}
         </dd>
-        <dt className="font-semibold text-slate-500">Removed on</dt>
-        <dd className="text-slate-800">{formatClinicDate(removedOn)}, if still unpaid</dd>
+        {row.kept_reason ? (
+          <>
+            <dt className="font-semibold text-slate-500">Kept</dt>
+            <dd className="text-slate-800" data-testid="abandoned-kept-reason">
+              {row.kept_reason}, so this account is not removed
+            </dd>
+          </>
+        ) : (
+          <>
+            <dt className="font-semibold text-slate-500">Removed on</dt>
+            <dd className="text-slate-800">
+              {removedOn.getTime() <= nowMs
+                ? "Due now. It goes at the next automatic check (every time this dashboard opens, and nightly)."
+                : `${formatClinicDate(removedOn)}, if still unpaid`}
+            </dd>
+          </>
+        )}
       </dl>
     </div>
   );
+}
+
+function nowTimestamp() {
+  return Date.now();
 }

@@ -8,7 +8,7 @@
 // patients, and a picker that says who each option is for. Every one of
 // those is invisible to an API test.
 import { test, expect } from "@playwright/test";
-import { BASE, browserCookiesFor, QA_EMAILS, adminClient, profileIdFor } from "./helpers";
+import { BASE, browserCookiesFor, QA_EMAILS, adminClient, profileIdFor, settleNetwork } from "./helpers";
 
 test.describe("therapist specialisation", () => {
   test("TS-001: the admin directory shows it and filters by it", async ({ page, context }) => {
@@ -34,7 +34,7 @@ test.describe("therapist specialisation", () => {
 
       await context.addCookies(await browserCookiesFor(QA_EMAILS.admin));
       await page.goto(`${BASE}/admin/dashboard?section=people&tab=therapists`);
-      await page.waitForLoadState("networkidle");
+      await settleNetwork(page);
 
       // Every admin screen stays mounted behind `hidden`, so an unscoped
       // locator matches the same chip on four screens nobody is looking at.
@@ -98,7 +98,7 @@ test.describe("therapist specialisation", () => {
       // Run against `next dev` -- /team is ISR-cached, so a production
       // server would hand back HTML generated before this update.
       await page.goto(`${BASE}/team`);
-      await page.waitForLoadState("networkidle");
+      await settleNetwork(page);
       // The opening splash paints over the page for its own hold; a
       // screenshot taken under it is a teal sheet that proves nothing.
       await page

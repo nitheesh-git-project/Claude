@@ -9,7 +9,7 @@
 // Read-only: it signs in with the QA fixtures and looks. Like the rest of the
 // suite it must never be pointed at a database holding real patients.
 import { test, expect, type Page } from "@playwright/test";
-import { BASE, browserCookiesFor, QA_EMAILS } from "./helpers";
+import { BASE, browserCookiesFor, QA_EMAILS, settleNetwork } from "./helpers";
 
 async function expectNoSidewaysScroll(page: Page) {
   const overflow = await page.evaluate(
@@ -25,7 +25,7 @@ async function settle(page: Page) {
       timeout: 30_000,
     })
     .catch(() => {});
-  await page.waitForLoadState("networkidle").catch(() => {});
+  await settleNetwork(page);
 }
 
 for (const path of ["/", "/book", "/home-visit", "/faq"]) {
@@ -61,3 +61,55 @@ for (const { role, email, path } of DASHBOARDS) {
     expect(reachable, "no visible menu button or navigation").toBe(true);
   });
 }
+
+// MOB-003: the public home page on a phone, after the UX pass -- the menu's
+// one primary button names the mode, the brand fits whole, the programmes sit
+// straight after the two ways to start, and the footer's links are real
+// tap targets.
+test("MOB-003: the phone home page leads with the right things", async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.goto(`${BASE}/`);
+  await settle(page);
+
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Physiotherapy for you or your parent");
+
+  // The brand is the full name with its tagline, whole: never the short
+  // name and never an ellipsis.
+  const brand = page.locator("nav a[href='/'] span").filter({ hasText: /^MoveRestore Physiotherapy$/ }).first();
+  await expect(brand).toBeVisible();
+  const clipped = await brand.evaluate((el) => el.scrollWidth > el.clientWidth + 1);
+  expect(clipped, "the brand name is cut off").toBe(false);
+  // The tagline is an admin setting, so it is read as "the line under the
+  // name, filled in and whole", never as one particular wording.
+  const tagline = brand.locator("xpath=following-sibling::span[1]");
+  await expect(tagline).toBeVisible();
+  await expect(tagline).not.toHaveText(/^\s*$/);
+  expect(await tagline.evaluate((el) => el.scrollWidth > el.clientWidth + 1), "the tagline is cut off").toBe(false);
+
+  // Programmes come straight after "Two ways to start" (when any are live).
+  const programs = page.locator("section#programs");
+  if (await programs.count()) {
+    const twoWays = await page.locator("section#two-ways").boundingBox();
+    const how = await page.locator("section#how-it-works").boundingBox();
+    const prog = await programs.boundingBox();
+    expect(prog!.y).toBeGreaterThan(twoWays!.y);
+    expect(prog!.y).toBeLessThan(how!.y);
+  }
+
+  // The menu: Book a video session is the primary button, and the hub is gone.
+  await page.getByRole("button", { name: "Toggle menu" }).click();
+  const nav = page.getByRole("navigation").first();
+  await expect(nav.getByRole("link", { name: /Book a video session/ })).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Get Started" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Toggle menu" }).click();
+
+  // Footer links are 44px tall targets.
+  const footerLinks = page.getByRole("contentinfo").getByRole("link");
+  const count = await footerLinks.count();
+  for (let i = 0; i < count; i++) {
+    const link = footerLinks.nth(i);
+    if (!(await link.isVisible())) continue;
+    const box = await link.boundingBox();
+    expect(box!.height, `footer link ${i} is a 44px target`).toBeGreaterThanOrEqual(43);
+  }
+});

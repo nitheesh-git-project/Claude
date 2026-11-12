@@ -157,8 +157,17 @@ Every Money screen opens with a **needs-you strip**: `N things need you` over on
 **Steps.** Open **Money → Transactions**. Reconcile every row against the dataset. Export CSV and PDF.
 **Expected Result.** One row per payment, with the order id and payment id. **No payment id appears on two rows.** The CSV and the PDF describe the **same table** - they are generated from one column definition, and the PDF route is sent the exact filtered rows the browser rendered. Both cover the **whole filtered set**. The PDF carries a subtitle naming the scope and the date. **No JSON export exists.**
 
+#### `FIN-TXN-002` - Refunds on Transactions · P0
+**Steps.** Pay ₹499 for a session as a patient. On the Razorpay Dashboard, refund ₹100 of it. Open **Money → Transactions**, find the payment by its ID, and open **View**.
+**Expected Result.** The row's **Refunded** column reads **−₹100**; the patient's own Payment History table has the same column. The card lists the refund on its own line - **Refunded · on the Razorpay website**, ₹100, the refund ID with a copy button and the time in IST - then **Kept after refunds ₹399**. A refund still on its way reads "on its way" and a failed one "Refund failed", neither counted as refunded. The CSV carries a **Refunded (INR)** column. A programme or home-visit pack refunded on Razorpay shows the same way.
+
+#### `FIN-SUM-002` - Money paid for upcoming sessions · P1
+**Steps.** With the payment above for a session tomorrow, open **Money → Summary** and **Business Health** on their default range (ending today).
+**Expected Result.** The figures do **not** include it - money counts on the session's date. Directly under the filters a blue line says **Paid for upcoming sessions: ₹399 from 1 session dated after this range (₹499 paid, ₹100 refunded)**. **Show up to <date>** moves the To date to that session, and the figures then include it. A cancelled session, a programme-covered one, and one paid after the range ends are not in the line. With none, the line is absent.
+
 #### `FIN-PAY-001` - Payouts · P0
-**Steps.** Open **Money → Payouts**. Read Therapist A's row.
+**Steps.** Open **Money → Payouts**. Read Therapist A's row. With a payout request open, read the top of the screen.
+**Order.** The screen opens on the **open payout requests**, each with **Pay** on the row (beside Start review / Mark completed; *Set their share first* when no share is set), then the balances table, then the completed requests and the cash ledger. The paragraph on how the figures are worked out is behind an **(i)** beside the heading.
 **Expected Result.** `Owed` matches §16.1's therapist share for A, **less anything already settled**. **The Pay button shows the net figure** - owed minus cash held - not the gross owed. A therapist with **no revenue share set** shows the "not set" state rather than `₹0`; paying them is refused with `Set this therapist's revenue share % before paying out.`
 
 #### `FIN-PAY-002` - Settling a payout · P0
@@ -768,8 +777,8 @@ Four consequences worth holding in mind while testing:
 
 #### `PL-EDGE-004` - Deleting a patient with money history · P1
 
-**Steps.** Try to delete a trusted patient's account.
-**Expected Result.** Refused **in plain words naming the counts**, grouped the way a person describes them, with **suspension offered beside it** - never a raw Postgres foreign-key string.
+**Steps.** Delete a trusted patient's account.
+**Expected Result.** The confirmation names what is on file in plain words and lists the money records that stay, with totals - never a raw Postgres foreign-key string. After **Delete user, keep records** with a reason, every payment, pay-later declaration and write-off stays exactly as it was, under the patient's name tagged **Deleted user**; the figures on the money screens do not change.
 
 #### `PL-EDGE-005` - Impersonation records the patient, not the admin · P2
 

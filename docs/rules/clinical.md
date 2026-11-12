@@ -2,7 +2,7 @@
 
 Per-specialty intake, the Pain Map, care plans and their review, session notes, patient files, who may read a record, and the vocabulary all three roles share.
 
-**Mostly lives in:** src/lib/conditionIntake.ts · painMap.ts · neuroExam.ts · carePlanAuthoring.ts · clinicalAccess.ts · healthProfileSummary.ts
+**Mostly lives in:** src/lib/conditionIntake.ts · painMap.ts · neuroExam.ts · outcomeMeasures.ts · milestones.ts · patientDiary.ts · careStatus.ts · geriatricRisk.ts · cardioSafety.ts · sessionProtocols.ts · assessmentRun.ts · exerciseLibrary.ts · exercisePlan.ts · carePlanAuthoring.ts · clinicalAccess.ts · healthProfileSummary.ts
 
 > Part of `docs/rules/`. `CLAUDE.md` says which file a task needs; this one
 > is the detail. Keep it current in the same change that makes it wrong --
@@ -12,14 +12,16 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
 
 - **Patient Care Intake and Pain Map are two separate data layers**, and
   the intake is **per specialty**. A `patient_condition_profiles` row
-  carries `specialty` - `ortho`, `neuro` or `pediatrics` - and that
+  carries `specialty` - `ortho`, `neuro`, `pediatrics`, `geriatric` or
+  `cardiopulmonary` (the last two since phase 6a, below) - and that
   decides its question set (`src/lib/intakeOrtho.ts` / `intakeNeuro.ts` /
-  `intakePediatrics.ts`, assembled in `conditionIntake.ts`), its summary
-  card, its snapshot strip and its progress line. Four things about this
-  are load-bearing:
-  1. **Question keys are globally unique across the three sets and `data`
+  `intakePediatrics.ts` / `intakeGeriatric.ts` / `intakeCardio.ts`,
+  assembled in `conditionIntake.ts`), its summary card, its snapshot strip
+  and its progress line. Four things about this are load-bearing:
+  1. **Question keys are globally unique across the five sets and `data`
      stays flat.** Ortho keys are unchanged, neuro keys are all `neuro_*`,
-     peds keys all `peds_*`. That is what lets a re-triaged patient keep
+     peds keys all `peds_*`, geriatric keys all `geri_*`, cardiopulmonary
+     keys all `cardio_*`. That is what lets a re-triaged patient keep
      the previous specialty's answers in the same blob (hidden, never
      deleted) with no jsonb migration inside a re-runnable file. A
      module-load assertion in `conditionIntake.ts` throws if the rule is
@@ -53,7 +55,9 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      `specialty` column on `pain_assessments`. Its components import
      nothing from `painMap.ts` (no `PAIN_MAP_REGIONS`, no `parseAreaPain`);
      that import boundary is what keeps the rule true in practice. The
-     paediatric layer is still deferred and still says so.
+     paediatric layer followed the same shape (phase 5a, below): its own
+     table (`peds_assessments`), its own module (`src/lib/pedsExam.ts`),
+     nothing imported from `painMap.ts` or `neuroExam.ts`.
 
   **The therapist owns the first fill, and it is not reviewed.** A
   patient's record does not exist until a therapist triages them
@@ -125,7 +129,7 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   inputs, and every reading figure on the page is derived in
   `src/lib/healthProfileSummary.ts`, not inside a component - that module
   now carries `orthoSnapshot` / `neuroSnapshot` / `pediatricsSnapshot`
-  plus `intakeTrendSeries()`, which gives the two specialties with no
+  plus `intakeTrendSeries()`, which gave the two specialties that had no
   exam layer a progress line read back out of the approved submissions
   already on file (no new table, no cron).
 
@@ -154,12 +158,16 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
 
   **Admin edits wording per specialty, and can switch one off.**
   `intake_question_templates` is keyed `(specialty, question_key)`;
-  Manage Questions has one tab per specialty (tabs, not three stacked
+  Manage Questions has one tab per specialty (tabs, not stacked
   sections - twenty-odd textareas is the wall-of-fields shape this
   codebase keeps correcting). `enabled_intake_specialties` removes a
   specialty from **triage only**: an existing profile carrying it must
   keep rendering, and a therapist re-triaging such a patient is still
-  offered it. Ortho can never be switched off.
+  offered it. Ortho can never be switched off. **Geriatric and
+  cardiopulmonary are off until an admin switches them on**: the setting
+  is the list of what triage offers, its default (and what an unreadable
+  read fails open to) is the three original types, and a type the clinic
+  has not staffed must not appear in a therapist's picker on deploy.
 
   **"None of these" means none of the others.** A `multi_select` whose list
   carries a "None" answer declares it in `exclusiveOptions`, and every tap
@@ -414,6 +422,13 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   user-facing exam figure goes through `formatPainOutOfTen()`
   (`painMap.ts`). Storage is unchanged - this is display only, and new
   surfaces must use the helper rather than printing `pain_percent`.
+  **Entering it is eleven buttons, 0 to 10** (`PainScaleButtons`,
+  `painScale.ts`), each at least 44px, in the Pain Map exam dialog and the
+  guided assessment's pain step alike, stored times ten exactly as the old
+  slider's stops were; an older in-between reading (34) is still shown as
+  3.4/10, never rounded onto a button. Nothing is preselected: the slider
+  sat at 0 and saved "no pain" for an area nobody had scored, so the dialog
+  now asks for the number before it saves.
 - **A permission gate belongs beside the thing it gates.** The therapist's
   "Request access to edit" card sat three sections above the Pain Map, the
   only thing it unlocks; it is now inside that card, stating what is
@@ -521,13 +536,1262 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      (`SessionExamStep` -> `SessionNeuroExamStep`). Which layer is required
      is one decision, `requiredSessionExam()` / `missingSessionExam()` in
      `sessionCompletion.ts`: Pain Map for ortho, neurological exam for
-     neuro, **nothing for paediatrics** (no layer to record in yet), and
-     neither layer stands in for the other. A failed read of the required
-     layer answers 503, never a pass.
+     neuro, the paediatric exam for paediatrics (phase 5b: its dialog step
+     shipped and `PEDS_EXAM_REQUIRED_FOR_DONE` is true), **none** for
+     geriatric and cardiopulmonary (phase 6a, the owner's decision: their
+     progress is recorded measurements, and no layer means "examined"), and
+     no layer stands in for another. A failed read of the required layer answers 503, never a pass.
   7. **Every read of it is its own call**, so a database without the table
      costs the card - which says it could not load, rather than "nothing
      recorded" - and not the page. `e2e/neuro-exam.spec.ts`,
      `src/lib/neuroExam.test.ts`.
+- **Every standardised test goes in one shared measurement table, and the
+  layers that already own a measure keep it.** The Health Profile redesign
+  (phase 1: modules and schema; phase 2a: the routes and loaders below; no
+  screen draws them yet) records
+  walking speed, Timed Up and Go, LEFS, the six-minute walk and the rest in
+  **one** append-only `outcome_measurements` table for every condition type -
+  the owner's decision, because the graph, the status pill and the milestone
+  maths all ask the same question of every measure. Seven rules:
+  1. **One registry decides what a measure is.** `src/lib/outcomeMeasures.ts`
+     holds every measure in the assessment handbook's summary table: unit,
+     range, which direction is better, MDC/MCID, cut-offs per profile kind,
+     norms, licence, where it may be done (video, with a helper, home device),
+     trial rule, score sheet. The future dialog renders from it and the future
+     route validates with `validateMeasurement()`, so a value the screen
+     cannot offer is a 400. A module-load assertion throws on a duplicate key.
+     **Every threshold in it is marked "to be verified by a senior
+     physiotherapist against its source"** and none reaches a patient before
+     that review; a cut-off means "higher risk", never a diagnosis.
+  2. **The Pain Map and the two exams are not copied.** Pain stays
+     on the Pain Map (orthopaedic only, `source: "pain_map"`); Berg and its
+     item scores, the Modified Ashworth and MRC grades, and a neurological
+     patient's 10-metre walk and TUG stay in `neuro_assessments`
+     (`neuroExam` on the entry); a child's WHO milestones and GMFCS level stay
+     in `peds_assessments` (`source: "peds_exam"`, phase 5a), while standing
+     time and independent steps are measurements. `measurementSource()` says where a graph
+     reads each one, and `validateMeasurement()` refuses to store a measure
+     another layer owns - two sources for one line is a "change" that is only
+     a change of table.
+  3. **Parkinson's is a neuro sub-profile, not a condition type.** Six
+     profile kinds exist in the registry and the milestone templates -
+     `ortho`, `neuro`, `neuro_parkinsons`, `pediatrics`, `geriatric`,
+     `cardiopulmonary` - and the neurological intake's condition group
+     decides Parkinson's (phase 4a, below). Geriatric ("Strength and balance
+     care") and cardiopulmonary ("Heart and lung rehabilitation") became
+     condition types in phase 6a, each resolving to its own kind. On a
+     Parkinson's measurement ON/OFF and the last dose time are required.
+  4. **A licensed scale exists and is switched off.** Barthel, Oswestry, NDI,
+     QuickDASH, GMFM, AIMS, Peabody, CAT, both Borg scales, MDS-UPDRS III
+     (and NFOG-Q until checked) are `licence: "licensed"`,
+     `enabledByDefault: false`; the module throws at load if one is on, and
+     `validateMeasurement()` refuses one the clinic has not enabled - the
+     admin's `enabled_licensed_measures` switch (`admin.md`), read failing
+     closed. Never
+     reword a licensed scale to avoid paying: it is no longer the validated
+     scale. The Parkinson's symptom profile is the physiotherapist's own
+     rating and is labelled so.
+  5. **A change below the MDC is "no change".** `changeDirection()` uses the
+     MDC (falling back to the MCID, the conservative end of a range, and the
+     between-tester allowance when testers differ); a measure with no
+     direction or no known threshold answers "changed", never "better".
+     `riskBand()` answers "unknown" when a line needs an age, a sex or the
+     patient's own limit that was not supplied. Calculators
+     (`clinicalCalculators.ts`) refuse rather than guess - the six-minute walk
+     equation is a named table and **the clinic's choice is a setting**
+     (phase 3a, below): the placeholder entry refuses, and nothing falls back
+     to the US equation, Karvonen refuses a beta-blocker or an unknown, and a
+     score sheet with too many blanks has no total. STEADI keeps two falls (or
+     one injurious fall) in 12 months **high** whatever the tests show.
+  6. **Same gate and posture as the neurological exam.** Read by the patient,
+     the clinical-access therapist and an admin; inserted by an active
+     assigned therapist with a started or delivered session, and only against
+     their own session when one is linked; therapist or admin, never the
+     patient - what a patient reports goes in the diary (phase 4a, below),
+     never in this table. Append-only by trigger; the one
+     permitted change is `appointment_id` cleared by `on delete set null`.
+  7. **Milestones are a plan, and "reached" is the one fact in it.**
+     `care_goals` (the patient's goal in their own words, one active at a
+     time) and `care_milestones` (title, measurable criterion, optional linked
+     measure, target and baseline) are edited by the assigned therapist under
+     the same rule. `reached_at` is written once and a reached milestone stays
+     reached (trigger and CHECK); a regression is a new milestone.
+     `deriveMilestone()` (`milestones.ts`) suggests "reached" when the linked
+     reading meets the target and names it as the proof, but only the
+     physiotherapist marks it; planned to working is theirs too. Starter
+     templates (`milestoneTemplates.ts`, at least six per profile kind, each
+     with a measurable bar) are copied and edited, never read back. **Goals
+     and milestones are therapist-authored, and the back office does not
+     edit them** (the owner's decision, phase 3a): an admin reads them, and
+     the one admin door is reopening a milestone marked reached by mistake.
+  `src/lib/outcomeMeasures.test.ts`, `clinicalCalculators.test.ts`,
+  `milestones.test.ts`; `scripts/append-only-sql-checks.sql` for the triggers.
+  **Phase 2a, the server side.** Five POST routes, every body through
+  `parseJsonBody`, every role, patient and profile kind re-derived on the
+  server (the request contracts are in each route's header comment):
+  - `/api/therapist/measurements/submit` and `/api/admin/measurements/submit`
+    share `prepareMeasurement()` / `insertMeasurement()`
+    (`src/lib/outcomeMeasurementRoute.ts`), so neither door stores what the
+    other refuses. The therapist's gate is the neurological exam's
+    (`therapistClinicalGate.ts`: active, a therapist, assigned, and a started
+    or delivered session on the debug clock); a linked `appointmentId` must
+    be this patient's and, for a therapist, their own. The admin's is
+    `requireAdminScope("people")` with an `outcome_measurement.create` audit
+    row. The free-text conditions are scanned
+    (`outcome_measurement_condition`).
+  - **The profile kind comes from `profileKindFor(specialty, intake)`**
+    (`src/lib/profileKind.ts`): `neuro_parkinsons` when the intake key
+    `neuro_subtype` reads "Parkinson's disease" (apostrophe and spacing
+    normalised), else the specialty's own kind. The question arrived with
+    the neurological set's `schema_version` 2 (phase 4a) and is optional, so
+    a record without it is `neuro`. **No profile on file is a 409, an
+    unreadable one a 503** - never the column's ortho default, which is how a neurological
+    patient would be measured against the wrong thresholds.
+  - **For a Parkinson's patient TUG and the 10-metre walk are stored here**,
+    not in the neurological exam (the registry's `ownsFor: ["neuro"]` makes
+    the sub-profile the exception), with ON/OFF, the last dose and **all
+    three trials** (`trialsRequired()`): a timed test's trials travel in
+    `items` as a list in the measure's own unit and the value must equal the
+    keep rule (average, best or median) over them. An ordinary
+    neurological patient's TUG posted here is a 400 naming the exam.
+  - `/api/therapist/care-goals/save` (create, or edit the keys sent; a
+    second active goal is a 409 `active_goal_exists` naming the one in the
+    way, never a silent close) and `/api/therapist/care-milestones/save`
+    (`create` under the active goal, `update` an unreached milestone's plan,
+    `mark_reached`) gate on the assignment alone, like their RLS policies -
+    except `mark_reached`, which is an observation and needs a started
+    session. A milestone with a measurable target held in
+    `outcome_measurements` is reached only with its proving measurement
+    (`measurementProvesMilestone()`: this patient's, the same measure,
+    variant and side, meeting the target), and `reached_at` is that
+    measurement's `measured_at`; one described in words, or linked to a
+    measure the Pain Map or the exam holds, is reached on the clinician's
+    judgement with no id. A reached milestone is not edited (409
+    `milestone_reached`). Goal and milestone text is scanned
+    (`care_goal_text`, `care_milestone_text`); writes are compare-and-set on
+    `updated_at` when the screen sends `expectedUpdatedAt`.
+  - **A milestone marked reached by mistake is reopened by the clinic, never
+    edited.** `/api/admin/care-milestones/reopen`
+    (`requireAdminScope("people")`, a reason of at least 10 characters,
+    `care_milestone.reopen` audit row) calls `reopen_care_milestone()`, which
+    in one transaction writes an append-only `care_milestone_events` row
+    (the `reached_at` withdrawn, the proving measurement, who, why) and moves
+    the milestone back to working or planned. The newest
+    `care_milestones_guard()` lets `reached_at` go only when that event, for
+    exactly that `reached_at`, was written in the same transaction
+    (`xact_id = txid_current()`) - two PostgREST calls cannot do it, so the
+    guarantee still holds for every route and the service role. Loosening
+    the guard for the service role was the rejected alternative: every route
+    is the service role. The events are admin-read only.
+  - **Reads** (`src/lib/outcomeServer.ts`) are one call each and answer a
+    discriminated result: `loadMeasurements()` (paged through `readAllRows`,
+    "unreadable" past 5,000 rows rather than a short graph),
+    `loadGoalAndMilestones()` (both reads or neither), `loadPatientProfileKind()`,
+    `loadEnabledLicensedMeasures()` (see `admin.md`). Shaping is pure and
+    tested: `outcomeSeries.ts` (one line per measure, variant, side and - on
+    the Parkinson's sub-profile - ON/OFF; one point per review, the session
+    or else the clinic-zone day, newest reading kept; the measures table's
+    first / now / goal, the goal being the target of the last step planned
+    on exactly that line) and `careGoals.ts` (row shapes, validation, the
+    milestone views). The three tables are on the realtime publication for
+    the screens phase 2b adds. `e2e/measurements.spec.ts`,
+    `src/lib/profileKind.test.ts`, `outcomeSeries.test.ts`,
+    `careGoals.test.ts`, `licensedMeasures.test.ts`.
+- **The shared progress screens, timers and export (Health Profile redesign,
+  phase 2b; no page draws them yet - phase 3 wires the orthopaedic page).**
+  Components live in `src/components/profile/progress/`; every figure they
+  draw is computed in a tested, dependency-free module, never in JSX.
+  - **Graph and tiles.** `ProgressGraph` (tabs as `aria-pressed` buttons, one
+    dot per review spaced evenly, goal as a green band, a dotted risk line only
+    when near the data, `role="img"` summary plus a visually hidden table),
+    `KeyNumbers`, `MeasuresTable`, `PhaseBar`, `MilestoneCards`,
+    `WhereThingsStand` and `ProfileStatusPill` take `voice: "patient" |
+    "clinician"` and read `MeasureSeries`/`MilestoneView` from
+    `outcomeSeries.ts`/`careGoals.ts`. Geometry is `progressChart.ts`, words
+    and picks are `progressView.ts`, the pill's rule is `profileStatus.ts`
+    (Improving = MCID reached since first and not worse than the previous review
+    beyond the MDC; Needs attention = worse beyond the MDC, a new fall or a red
+    flag; a physiotherapist override with a reason is stored data, applied by the
+    pill). `--chart-good` tokens colour the band. A failed read, nothing
+    recorded and a single reading are three different states.
+  - **Recording.** `RecordTestDialog` offers only what `recordableMeasures()`
+    allows (never a Pain Map or exam measure; a licensed scale that is off is
+    listed but unselectable, "we couldn't check" when the switch was
+    unreadable), validates with the route's own `validateMeasurement`, and
+    posts to the therapist route (or the admin route with `asAdmin`). Refusals
+    go through `progressErrors.ts`: 503 is "couldn't check", 429 is "wait",
+    409 `stale` says reload. The test time is the debug clock's now; there is
+    no backdating. `GoalMilestonePlanner` (therapist only) sets the goal and
+    steps, templates are suggestions that fill the form, and Mark reached asks
+    for the proving reading (`proofCandidates`) or says it is on clinical
+    judgement. `ReopenMilestoneDialog` is mounted by `MilestoneCards` only when
+    the parent passes `reopen`, which it must do only for
+    `scopeCanManage(scope, "people")`.
+  - **Timers** (`timers/`: `TapTimer`, `CountdownCounter`, `BalanceHolds`,
+    `SixMinuteWalkGuide`). The logic is `testTimers.ts`: a timer stores its
+    start timestamp (`performance.now()` via `useRunClock`) and derives elapsed
+    time, so a throttled tab cannot lose time; there is no pause (a clinical
+    test that was interrupted is discarded); a hidden page or a device that
+    slept is flagged, not silently recorded. Trials are rounded to the
+    measure's precision before they are kept, so the route's re-derivation
+    agrees. The six-minute walk needs every safety box ticked, shows the five
+    standard phrases word for word, and names the predicted-distance equation -
+    saying so when the clinic has not chosen one.
+  - **Export.** `progressExport.ts` shapes the goal, steps and a first / now /
+    goal table as text for `healthProfilePdf.ts` ("Goal and progress"); the
+    export route reads measurements and goals with the patient's own client and
+    answers 503 if either read fails ("complete or refused"). The JSON format
+    includes the three tables too. `healthProfilePdf.test.ts` builds one.
+    **Deployment: `supabase/schema.sql` must be applied to staging's database
+    before this branch merges** (`STAGING.md`) - on a database without these
+    tables the export answers 503 rather than a shorter document, which is
+    the rule working, not a bug.
+- **The phase, the status override, used arms and the walk equation
+  (Health Profile redesign, phase 3a, server side; the orthopaedic page that
+  draws them is phase 3b).**
+  - **The phase and an override of the status pill are history, not a
+    cell.** The assigned therapist (assignment alone, like a goal) or an
+    admin (`requireAdminScope("people")`, a `care_status.set` audit row with
+    from and to) sets the current phase - one of the profile kind's four,
+    `PHASES_BY_PROFILE_KIND` - or overrules the computed pill (Improving /
+    Holding steady / Needs attention) with a reason of at least 10
+    characters (`validateStatusOverride`), or clears the override. Each
+    change is a row in the append-only `care_status_events` (kind `phase` |
+    `status_override` | `override_cleared`, value, reason, profile kind,
+    who, role, when); a shape CHECK and a trigger hold it for every caller.
+    `careStatus.ts` shapes what is in force: the latest phase for this
+    profile kind wins (a phase chosen under another kind is passed over),
+    the latest override wins, a clear ends the one before it, and an
+    override older than the latest review is `stale` so the screen asks the
+    physiotherapist to look again. **An override never hides a safety signal
+    that came after it:** a computed Needs attention for a red flag or a new
+    fall whose time (`StatusResult.signalAt`, the latest of the two) is later
+    than the override's `setAt` wins, `effectiveStatus()` says
+    `overrideSuperseded`, and the clinician is told why on the pill; a
+    signal or an override with no known time counts as newer (we could not
+    tell is not "already seen"). A measure-based Needs attention (worse than
+    the first or previous review) is exactly what an override is for, and
+    stays overridable. `inferPhase()` is only the fallback when
+    no phase is set. The reason reaches the patient and is scanned
+    (`care_status_reason`). Read by the patient, the clinical-access
+    therapist and an admin; on the realtime publication.
+  - `/api/therapist/care-status/set` and `/api/admin/care-status/set` share
+    `applyCareStatusChange()` (`src/lib/careStatusRoute.ts`): every body
+    through `parseJsonBody`; the role, assignment and profile kind
+    re-derived; 409 `no_condition_profile` with no profile on file, 503 when
+    it or the current state cannot be read (never "no override"); the same
+    phase or the same override again is 200 `unchanged` with no row; a clear
+    with nothing in force is 409 `no_override`. `loadCareStatus()`
+    (`outcomeServer.ts`) answers ok with the events, the phase and the
+    override, or "unreadable".
+  - **Used arms on the 30-second chair stand.** Per the CDC method a stand
+    that needs the arms scores 0: `conditions.usedArms` (only on a measure
+    with `usedArmsScoresZero`, today the chair stand alone) true means the
+    value must be 0 and the stands done with the arms travel in `items` as
+    `{ standsWithArms }` (`validateUsedArms`, `usedArmsEntry`); false means
+    no items. The countdown's tick records it; nothing goes in a session
+    note. The chair stand is a geriatric measure, reachable at the route
+    since phase 6a made geriatric a condition type.
+  - **The six-minute walk equation is the clinic's choice.**
+    `site_settings.six_minute_walk_equation` (nullable text) is set on
+    Settings -> Clinical Questions (`admin.md`). Null, an unknown key and
+    the placeholder all mean "formula not chosen yet": the guide says so and
+    shows no percentage of predicted; an unreadable setting says "we
+    couldn't check". `predictedSixMinuteWalk()` takes the key with no
+    default and `DEFAULT_SIX_MINUTE_WALK_EQUATION` is the placeholder, so
+    nothing silently uses Enright and Sherrill, which stays selectable and
+    is labelled "US adults".
+  `src/lib/careStatus.test.ts`, `sixMinuteWalkEquation.test.ts`,
+  `outcomeMeasures.test.ts`, `recordTest.test.ts`, `testTimers.test.ts`;
+  `e2e/measurements.spec.ts` MS-006 to MS-008;
+  `scripts/append-only-sql-checks.sql` for the trigger.
+- **The orthopaedic Health Profile (Health Profile redesign, phase 3b).** For
+  a patient whose specialty is `ortho` - and only then - the patient's page,
+  the therapist's chart and the admin's condition detail share
+  `OrthoProfileTop` (`src/components/profile/ortho/`): header (name,
+  condition line, `ProfileStatusPill`, `PhaseBar`) -> `WhereThingsStand` ->
+  `KeyNumbers` -> body map card -> `ProgressGraph` -> `MilestoneCards` ->
+  `MeasuresTable`. Every page keeps what it had (condition record, reports,
+  care plan history, notes, banners, gates) and places it around that.
+  Neurological and paediatric pages have their own layouts (the next rules);
+  neither **makes these reads** (same two-phase
+  rule as `pain_assessments`).
+  - **Every figure is computed in a tested module.** `orthoProfile.ts` (pain as
+    a line, per-area first/now/change, the knee and strength picks, extension
+    lag, status input, summary sentences), `orthoProfileView.ts` (one shaper
+    for all three pages), `rangeGauge.ts` (dial and bar geometry),
+    `jointLandmarks.ts` (how to measure each movement; the handbook table), `angleMeasure.ts` / `angleFraming.ts` / `angleView.ts` (the image-angle tool's maths, camera guide and picture geometry).
+  - **Pain is not a measurement.** The Pain Map owns it; it is drawn as one
+    more line by `painMapSeries()` (average of each area's latest score after
+    each exam, 0-10, one decimal) and is the main measure for the status rule
+    when an exam exists. Nothing is written to `outcome_measurements` for it.
+    Falls and red flags are not collected for an orthopaedic profile, so the
+    rule never gets them.
+  - **Three reads, each its own call** (`loadOrthoReads`): measurements, goal
+    and steps, phase and status history. A failed one degrades only its card
+    ("We couldn't load ... They are not missing"); an unreadable measurement
+    read keeps the Pain Map line and the body map; an unreadable status read
+    shows the computed pill with a line saying the override could not be
+    checked. Unreadable is never "none yet". The realtime tables gain
+    `outcome_measurements`, `care_goals`, `care_milestones`,
+    `care_status_events` for an orthopaedic page.
+  - **Who may do what.** *Record a test*, *Goal and steps* and *Phase and
+    status* render for the assigned therapist (the neurological exam
+    button's rule: assignment; the measurement route adds its started-session
+    check). On the admin's condition detail, *Record a test*, the phase and
+    status controls and the milestone reopen need `scopeCanManage(scope,
+    "people")`, matching the routes. A patient has none. A control the route
+    would refuse is absent, not disabled.
+  - **Record a test** offers the registry's orthopaedic tests: goniometry
+    (movement chosen from `JOINT_MOVEMENTS`, active or passive, side; the
+    handbook's landmarks under "How to measure"; the other side's latest
+    reading and the last reading of the same line beside the entry; typing a
+    knee-straightening reading shows the extension lag against its partner
+    line), limb symmetry from three trials a side, the LEFS score sheet, and
+    KOOS-12 (free). Licensed scales are listed and unselectable while off.
+    The spine's modified Schober (centimetres) is **not** in the registry yet.
+  - **An angle taken from an image is an estimate, and the image is never
+    kept.** Goniometry's "Measure from an image" (`AngleTool.tsx`, maths in
+    `angleMeasure.ts`) draws the joint angle from three taps on a screenshot of
+    the video call, in the goniometer's own convention (straight knee 0, short
+    of straight negative). The picture is drawn to a canvas in the browser and
+    is never uploaded, stored or logged, and neither are the landmark
+    positions: "Use this angle" hands back one whole-degree number, which the
+    dialog files as `conditions.estimatedFromImage` over video. That mark is
+    labelled everywhere a video estimate is shown (hollow dots on the graph,
+    the measures table's First and Now, the PDF), a goniometer reading taken
+    at the same review is kept in front of it, and the route refuses the mark
+    on anything but a joint range over video. Photo error is about 5 to 10
+    degrees and grows off side-on, so never word it as equal to a goniometer.
+    Placing is not pointer-only: the photo is a tab stop, the arrow keys move
+    a cross (Shift for bigger steps, with the magnifier), Enter or Space puts
+    the next point there, and a placed point is moved with the arrow keys as
+    before.
+    The screen shows one step, one big number and at most one warning at a time.
+  - **"Where things stand" is the physiotherapist's written text** when
+    there is one (phase 4a, below); the sentences generated from the numbers
+    are only a draft for the writing box and, with nothing written, a
+    fallback labelled as worked out automatically. Either way it is wording,
+    not a judgement - the status pill and the overrule are the judgement.
+  - **The PDF export** prints the current phase and any active overrule with
+    its reason and date under "Goal and progress"; the export refuses (503) if
+    the status history cannot be read ("complete or refused").
+  `src/lib/orthoProfile.test.ts`, `orthoProfileView.test.ts`,
+  `rangeGauge.test.ts`, `jointLandmarks.test.ts`, `recordTest.test.ts`,
+  `progressExport.test.ts`; `e2e/ortho-health-profile.spec.ts`; QA
+  `THR-HP-005c` to `005f`, `PAT-HP-020`.
+- **Parkinson's is a sub-profile of neurological care, and its server side
+  is three layers (Health Profile redesign, phase 4a; the screens are the
+  next rule, phase 4b).**
+  - **The condition group opens the follow-ups; a hidden question is never
+    unanswered.** The neurological set gains `neuro_subtype` (*Condition
+    group*: Stroke or brain injury, Spinal cord injury, Parkinson's disease,
+    Multiple sclerosis, Nerve injury or neuropathy, Other or not sure) and
+    five follow-ups asked only when it reads Parkinson's:
+    `neuro_pd_year_diagnosed` and `neuro_pd_freezing` (how often the feet
+    feel stuck) required, `neuro_pd_medication_times`,
+    `neuro_pd_falls_worry` and `neuro_pd_main_difficulty` optional, each
+    with patient-plain `helpText` and a `shortLabel`, all `neuro_`-prefixed
+    and flat. Visibility is `showWhen` on the question, decided by **one**
+    pure function, `visibleQuestions()` (`conditionIntake.ts`, apostrophe
+    and spacing normalised): the wizard (the follow-ups are the very next
+    steps), triage, the summary panel, the required check, every "N of M"
+    counter (`countedQuestions(questions, answers)` now takes the answers),
+    the patient dashboard's total, the admin's direct-edit form and question
+    bank (which notes "Asked only when ...") and the PDF all go through it.
+    A follow-up the group has since closed keeps its stored answer (the flat
+    blob never deletes) and is neither listed, counted nor required. The
+    module-load assertion also refuses a `showWhen` naming a later or
+    unknown question, or an answer the controller cannot give.
+  - **Only the neurological `schema_version` moved (to 2), and nobody is
+    nagged for it.** The group is **optional** and every follow-up hidden
+    until it opens, so an existing record is exactly as complete under v2;
+    and the "we've changed some of these questions" banner now needs a
+    *required, visible* question unanswered as well as an older version
+    (`intakeNeedsAnotherLook`). Both, because either alone leaves a door
+    open: a required group would refuse every existing patient's next
+    unrelated edit and raise the banner for all of them, and a banner on
+    version alone fires at records that are complete. An admin who makes the
+    group required gets the banner shown to the records missing it - an
+    honest consequence. No template rows are seeded in `schema.sql`, so the
+    question bank lists the new questions from the code.
+  - **The diary is the patient's own account, append-only.**
+    `patient_diary_entries` (one generic table: `freezing`, `fall`,
+    `near_miss`, `active_minutes`; `details` validated key by key by
+    `validateDiaryDetails()` in `src/lib/patientDiary.ts`; the free text in
+    its own `note` column, scanned as `patient_diary_note` and recorded, never
+    blocked - the booking-note posture). Which kinds a patient keeps follows
+    the server-derived profile kind (`DIARY_KINDS_BY_PROFILE_KIND`: freezing
+    for Parkinson's only; falls and near-misses wherever falls are the risk,
+    geriatric included; active minutes for cardiopulmonary, reachable since
+    phase 6a). `/api/patient/diary/add` takes the patient, author and role from
+    the session (never the body), is rate limited (`patientDiary`), refuses
+    a future time and one older than 92 days, and answers a double tap as
+    `duplicate` (a unique index over the content). RLS: the patient reads
+    and inserts their own, the clinical-access therapist and an admin read.
+    **A physiotherapist confirms an entry once and never edits it**
+    (`/api/therapist/diary/confirm`, the assignment alone, compare-and-set):
+    the trigger permits exactly that stamp on a patient's own entry and sets
+    its time itself. Everything shaped from it says **"Patient reported"**
+    (`diaryProvenance`); weekly totals are clinic weeks, Monday start
+    (`weeklyDiaryTotals`, `freezingWeeklySeries` - an empty week is "nothing
+    written down", not "no freezing"; `fallsSince`). Reads are
+    `loadDiaryEntries` / `loadDiaryEntry` (`patientDiaryServer.ts`, ok or
+    unreadable). The registry's therapist-entered `freezing_episodes`
+    measure is unchanged and separate.
+  - **"Where things stand" is written, and kept as history.** A fourth
+    `care_status_events` kind, `summary` (the text in `value`, up to 1,200
+    characters, line breaks kept), set through the care-status routes with
+    `{ action: "set_summary", text }` - the assigned therapist, or an admin
+    with `requireAdminScope("people")` and a `care_status.set` audit row
+    carrying from and to - scanned as `care_status_summary`, the same text
+    again `unchanged`. `shapeCareStatus()` returns the latest summary
+    whatever profile kind it was written under, `stale` once a review is
+    newer. The card (`WhereThingsStand`, shaped by `whereThingsStand.ts`)
+    shows the written text with its byline - the physiotherapist's name and
+    the date ("Dr Farhan Sheikh, 12 Oct"), "The clinic" for an admin's text,
+    "Your physiotherapist" when the name could not be read; the generated sentences are a **draft** the
+    writing box starts from, and with nothing written a fallback labelled as
+    worked out automatically - never presented as the physiotherapist's
+    view. The PDF prints only a written summary. The box sits in the *Phase and
+    status* panel of the orthopaedic and the neurological chart. The name is
+    looked up with the admin client by the id on the event
+    (`careStatusAuthor.ts`, the care plan cards' rule: a therapist's name is not
+    readable through anyone's own session), never for the clinic's own text, and
+    its failure only costs the name.
+  - **Parkinson's tests compare like with like.** TUG, the 10-metre walk,
+    five times sit-to-stand and the Mini-BESTest (and every measure marked
+    `medicationStateRequired`) need ON/OFF and the last dose on the
+    sub-profile at both measurement routes, and `pointsAreComparable()`
+    (`outcomeSeries.ts`) joins only readings in the same **known** state. A
+    line whose state was not recorded (readings from before the record
+    became Parkinson's) has `joinPoints: false`: dots with no line, and no
+    change claimed in the table.
+  `src/lib/intakeVisibility.test.ts`, `patientDiary.test.ts`,
+  `careStatus.test.ts`, `whereThingsStand.test.ts`, `medicationState.test.ts`;
+  `e2e/parkinsons-profile.spec.ts`; `scripts/append-only-sql-checks.sql`.
+
+- **The neurological and Parkinson's Health Profile (Health Profile
+  redesign, phase 4b).** For `specialty === "neuro"` - and only then - the
+  patient's page, the therapist's chart and the admin's condition detail render
+  `NeuroProfileTop` (`src/components/profile/neuro/`), the orthopaedic
+  skeleton with the neurological parts in its slots (`ProfileHeader`,
+  `ProfileProgressSection`, `ProfileStatusControls`, `KeyNumbers` are shared
+  with `OrthoProfileTop`): header (name, condition line from
+  `neuro_diagnosis`, condition group, **Tested in ON time**, status pill, phase
+  bar, "filled in with ...") -> *Where things stand* -> **four key numbers** ->
+  the **condition picture** -> [Parkinson's: symptom profile, stage] -> the
+  **diary** -> graph -> steps -> measures. `profileKindFor` decides plain
+  neurological or Parkinson's; the page is the same with the Parkinson's parts
+  switched on. A neurological page makes the progress reads
+  (`loadNeuroReads`, each its own call: measurements, goal and steps, phase and
+  status, the diary, the intake history, the licence switch) and a
+  non-neurological one makes none of them; realtime gains
+  `outcome_measurements`, `care_goals`, `care_milestones`,
+  `care_status_events` and `patient_diary_entries`.
+  - **Two stores, one graph, and each measure has one owner** (the registry's
+    `neuroExam.ownsFor`, `measurementSource`). For a neurological record Berg,
+    the 10-metre walk (as m/s) and Timed Up and Go are drawn **from the
+    exams**, one point per exam, and a recorded copy is dropped; on the
+    Parkinson's sub-profile the exam owns none of them (they are ON/OFF
+    measurements) so no exam point is drawn for them. FAC, Fugl-Meyer, the
+    Parkinson's tests and the rest come from `outcome_measurements`. The
+    freezing line is **one point per clinic week**: the therapist's weekly
+    count and the patient's diary weeks, the therapist's count winning for a
+    week they share; the week in progress is never a point (it would read as an
+    improvement before it is over), and a week nobody wrote in is no point
+    (`neuroProfile.ts`). The stage (Hoehn and Yahr) is a card, not a graph tab.
+  - **The four key numbers are always four** (`neuroKeyTiles`): independence,
+    balance, walking speed, falls - or, for Parkinson's, Up-and-go (the ON
+    line), freezing per week, walking speed, falls. Independence is the
+    **Barthel Index only when its licence is on and it has a reading**
+    (an unreadable licence switch does not hide a Barthel line already on the
+    record), otherwise the intake's 0-10 answer over time. A tile with no
+    reading says "Not yet"; one whose source could not be read says
+    "Unavailable" - never the same words.
+  - **A fall moves the pill only when a person stands behind it** (owner's
+    decision). The status rule's `newFall` is a fall entry a physiotherapist
+    **confirmed** (or a clinician recorded) after the last review (a recorded
+    measurement or an exam - never a diary week); a patient's unconfirmed
+    report is shown as *patient reported* and changes nothing. The main measure
+    is the first of the kind's preference list that can be compared, and a
+    Parkinson's line is only ever a single ON or OFF line whose state was
+    recorded. An unreadable diary says so under the pill and does not pretend a
+    fall check was made.
+  - **The condition picture is the examination.** `NeuroPicture` holds the
+    existing `NeuroExamPanel` (the dialog, the Done gate's exam, the change
+    since the exam before) with a **First exam / Latest** switch (the panel's
+    `snapshot`, mirroring the Pain Map's), beside the affected-side figure
+    (drawn only from the intake's `neuro_affected_side`; "Not sure" is not drawn
+    as "nothing affected"), the **walking ladder** (FAC 0-5, therapist-entered) and
+    the **walking-speed zones** (under 0.4, 0.4-0.8, 0.8 and over m/s, the
+    exam's own bands). The quick-look column is sticky only from `lg`.
+  - **Parkinson's extras draw only what exists.** The symptom profile is the
+    registry's `pd_symptom_rating` (the clinic's own six-part 0-4 rating,
+    labelled as such - not the MDS-UPDRS) and appears only when one has been
+    recorded; the stage only when recorded; "Tested in ON time" only when every
+    ON/OFF reading was ON, with the hours after the dose when it was recorded.
+    A line whose medication state was not recorded draws as unjoined dots with
+    **State not recorded** (graph heading and tab), and its tile and graph claim
+    no move.
+  - **The diary screens.** The patient's page has **Log feet getting stuck, a
+    fall or a near miss** (`DiaryLogDialog`: only the kinds `diaryKindsFor` gives
+    the profile kind, checked with the route's own `validateDiaryEntry` first,
+    real radios, 44px targets, every refusal worded for the patient -
+    `progressErrorMessage(..., "diary")`; 503 is "nothing was saved", 429 "wait",
+    never "not allowed"). The assigned therapist's chart has **Confirm** on each
+    entry waiting for them (`entriesAwaitingConfirmation`); an **admin reads the
+    diary and nothing more** - neither control is mounted, there is no admin
+    write or confirm door. The Parkinson's card draws twelve clinic weeks of
+    freezing (a blank week is "nothing written down", an open dot is the
+    patient's own account, a filled one a confirmed week) and the triggers.
+  - **The PDF export carries the diary as counts** (`diaryExport.ts`: falls,
+    near-misses and freezing episodes, split into patient reported and
+    confirmed, and the weeks with a freezing entry - never a note) for a record
+    whose profile kind keeps a diary, under "complete or refused": an unreadable
+    diary refuses the export (503), and the JSON export gains
+    `patient_diary_entries`.
+  - **Who may do what** is the orthopaedic rule: *Record a test* (neuro-aware:
+    FAC, Fugl-Meyer and, for Parkinson's, the ON/OFF measures - never what the
+    exam owns), *Goal and steps* and *Phase and status* (with the summary box)
+    for the assigned therapist; on the admin's detail the test, phase and status
+    and milestone reopen need `scopeCanManage(scope, "people")`. The "Record a
+    neurological examination" button, the exam dialog and the Done gate are
+    unchanged. The neurological summary card has a designed Parkinson's block
+    (condition group chip, year diagnosed, usual medicine times, how often the
+    feet feel stuck, worry about falling, the hardest thing), shown only while the
+    group still reads Parkinson's.
+  `src/lib/neuroProfile.test.ts`, `neuroProfileView.test.ts`,
+  `patientDiaryForm.test.ts`, `diaryExport.test.ts`; `e2e/neuro-health-profile.spec.ts`;
+  QA `THR-HP-005i`, `THR-HP-005j`, `PAT-HP-022`.
+- **The paediatric examination is a milestone chart, and "not assessed" is
+  never "not yet" (Health Profile redesign, phase 5a: the server side; the
+  screens are phase 5b, the next rule).** `peds_assessments` - one append-only row per
+  examination (trigger, like `neuro_assessments`), `findings` jsonb in the
+  shape `validatePedsFindings()` (`src/lib/pedsExam.ts`) accepts,
+  `schema_version` = `PEDS_EXAM_VERSION`. Eight rules:
+  1. **Six WHO milestones, one table of windows.** The windows (1st to 99th
+     percentile) and the "counts as reached when" definitions live once, in
+     `WHO_MOTOR_MILESTONES` (`outcomeMeasures.ts`); `pedsExam.ts` refuses to
+     load if its keys drift from it. Each milestone is `not_yet` /
+     `emerging` / `achieved`; emerging and achieved need **who saw it**
+     (`seen` - in a session or on a parent's video - or `reported`, the
+     handbook's "parent reports"), achieved needs the **date first seen**
+     (never after the clinic's today, never before the date of birth), and
+     not yet has no date. A milestone nobody looked at is **absent**; "not
+     yet" means looked for and not there. GMFCS (Level I-V, for a child with
+     cerebral palsy) classifies and is never better or worse; the orthoses
+     and equipment note and the note are free text.
+  2. **One owner per measure.** The exam owns the WHO milestones and GMFCS
+     (the registry's `who_motor_milestone` and `gmfcs` are `source:
+     "peds_exam"`, so the measurement route refuses them). **Standing time
+     and independent steps stay in `outcome_measurements`**, where their
+     three-try best-kept rule, the Record a test timer and the starter
+     milestones that link to them already live; the exam refuses them by
+     name and points at Record a test. Two tables for one line is a change
+     that is only a change of table.
+  3. **Change is only between findings recorded both times**
+     (`comparePedsExams()`): along not yet -> emerging -> achieved is better,
+     back is worse, a parent's report now seen in a session is "changed".
+  4. **Corrected age is derived, never stored** (`pedsAge.ts`): the date of
+     birth is the patient record's own `profiles.date_of_birth` (the
+     patient is the child; the intake does not ask again), weeks at birth is
+     the paediatric intake's optional `peds_weeks_at_birth` (22-44, the
+     set's `schema_version` 2, at the end of the set, so nobody is nagged -
+     `intakeNeedsAnotherLook` needs a required question). Corrected only
+     below 37 weeks and under 24 months chronological; no weeks is
+     chronological age, said so; no date of birth is "not on file"; one that
+     makes the patient an adult is implausible and never charted. "Today" is
+     the clinic's day (`pedsTodayIso`).
+  5. **Where a milestone sits is derived** (`pedsMilestoneWindows.ts`): an
+     achieved one by the corrected age on the day first seen (within, or
+     later than most; earlier than most is still within), one not there by
+     the age today (before, within or past its window). The parent's words
+     are gentle and never diagnostic ("Came a little later than most
+     children"); **the referral prompt - not walking alone by 18 months
+     corrected - is for clinicians only** (`referral` is null in the
+     patient's voice and never printed in the family's PDF). Every window
+     and line is marked *to be verified by a senior physiotherapist*.
+  6. **Same gate and posture as the neurological exam.** Assigned, active,
+     with a started or delivered session on the debug clock
+     (`/api/therapist/peds-assessments/submit` mirrors
+     `peds_assessments_insert_assigned_therapist`; the note and equipment
+     note are scanned, `peds_assessment_note`); an admin through
+     `/api/admin/peds-assessments/submit` (`requireAdminScope("people")`,
+     `peds_assessment.create`). Both share `pedsExamRoute.ts`, 400
+     `not_paediatric` for a patient not recorded as paediatric (503 when
+     that cannot be read), validate against the child's date of birth, and
+     503 on a database without the table. Reads follow the clinical-access
+     rule plus the family's own and the admin's.
+  7. **Done requires it** (phase 5b). A paediatric Done needs this exam like
+     the other two: the 409 `peds_exam_required`, the `sessionExamWindowStartMs`
+     window and the complete-session read. `SessionPedsExamStep` ("Record the
+     paediatric exam", in the note dialog) is mounted as the `"peds_exam"` arm
+     of `SessionExamStep` and `PEDS_EXAM_REQUIRED_FOR_DONE` is true in that
+     same change; a unit test fails if it is on without that arm. A failed read
+     of the exams, or of the condition type, says so and is never "recorded",
+     and the record button stays pressable - nobody faces a gate with nothing to
+     press.
+  8. **What the screens get** (5b): `loadPedsReads()` / `loadPedsExams()`
+     (`pedsProfileServer.ts`, each ok or unreadable - an unreadable exam
+     read is never "nothing recorded"; the date of birth is read with the
+     admin client and never leaves the server, only the ages do) and
+     `shapePedsExamView()` (`pedsProfileView.ts`): the header's provenance
+     from the caregiver pre-step (*Told by Priya Sharma, her mother*,
+     "their" when the child's gender is not on file; a relationship it does
+     not know stays in the caregiver's words) - while **"Where things
+     stand" keeps the physiotherapist's byline**; the latest and first
+     exams with a chart for each, the tally and the change. **No paediatric
+     diary** (`DIARY_KINDS_BY_PROFILE_KIND.pediatrics` stays empty). The PDF
+     export prints the latest exam with the age line and the age each
+     milestone came at, complete or refused; the JSON export carries every
+     row.
+  `src/lib/pedsExam.test.ts`, `pedsAge.test.ts`, `pedsMilestoneWindows.test.ts`,
+  `pedsProfileView.test.ts`, `sessionCompletion.test.ts`;
+  `e2e/peds-exam.spec.ts`; `scripts/append-only-sql-checks.sql`; QA
+  `THR-HP-005k`, `PAT-HP-023`.
+- **The paediatric Health Profile is the milestone-window chart (Health
+  Profile redesign, phase 5b).** One layout in three places (`PedsProfileTop`;
+  see dashboards.md). Rules:
+  1. **Every figure is computed in a tested module**: `pedsChartGeometry.ts`
+     (axis, bars, markers, the text for every row and the legend),
+     `pedsProfile.ts` (the milestones-achieved line, the four tiles, the
+     status input, the generated "where things stand", equipment chips),
+     `pedsProfileView.ts` `shapePedsView()` (all of it for any reader),
+     `pedsExamForm.ts` (the dialog's state, what it posts, every refusal
+     worded). The milestones-achieved line is the registry's
+     `peds_milestones_achieved` (`source: "peds_exam"`, so Record a test and the
+     measurement route refuse it): the count of the six achieved as at each
+     exam, a skill staying counted when a later exam did not look at it. GMFCS
+     and the six WHO milestones are never in Record a test; standing time and
+     independent steps always are.
+  2. **Marker encodings** are never colour alone: a **dot** is a skill that came
+     (solid = seen by the physiotherapist, hollow = told by parents, **dashed
+     ring** = the date is approximate); a **diamond** is a skill not there,
+     placed at the child's age today (half-filled = emerging); nothing for one
+     nobody checked ("not checked yet" is a gap). Each row is a real button
+     named by a full sentence; "Show as a table" is the text alternative. Phones
+     stack the name above a full-width track; a name column from `sm`.
+  3. **A rough date** (`approximate: true`, in the findings jsonb; no schema
+     change, `schema_version` unchanged - old rows are valid): only a parent's
+     report with a date; a seen date is exact. Said "about" in the chart, the
+     table, `describePedsExamForText` and so the PDF. It is not a change
+     between exams.
+  4. **An implausible date of birth is not charted** (age 19 or more, or in the
+     future): the clinician gets a "Check the date of birth" card, the family a
+     neutral "We're checking your child's date of birth". The gap: **there is
+     no screen where a therapist or an admin edits a date of birth** - only the
+     patient's Profile, as a reviewed change request. Add one deliberately
+     before relying on this card.
+  5. **Walking alone never assessed** past 18 months corrected is, to a
+     clinician only, "Walking alone not assessed yet" (`walkingNotAssessed`); the
+     doctor's-review prompt still needs a finding that the child is not walking.
+  6. **The parent's voice**: the shared progress components take `subject`
+     (`"self" | "child"`, `ProfileSubject` in `childVoice.ts`; it replaced a
+     boolean `child` in phase 6a) and speak "your child's ..." through
+     `subjectWords(subject, voice)`, which rewrites patient-voice text only.
+     A new patient-voice sentence there is covered by its rules (a unit test
+     walks the status reasons).
+  7. **Realtime**: the paediatric pages refresh on `peds_assessments`
+     (appended to the publication at the end of `schema.sql`),
+     `appointments` (the sessions tile) and the progress tables.
+  `src/lib/pedsChartGeometry.test.ts`, `pedsProfile.test.ts`,
+  `pedsExamForm.test.ts`, `childVoice.test.ts`; `e2e/peds-exam.spec.ts`
+  PE-005 to PE-008; QA `THR-HP-005l`, `PAT-HP-024`.
+- **Strength and balance care and Heart and lung rehabilitation are
+  condition types of their own (Health Profile redesign, phase 6a: the
+  server side and the data; phase 6b draws the screens).** `geriatric` and
+  `cardiopulmonary` join `ConditionSpecialty` and `CONDITION_SPECIALTIES`
+  (sky `fa-person-cane` and rose `fa-lungs`, the same icon and colour as
+  the therapist specialisations of those names). Parkinson's stays inside
+  neuro. Eight rules:
+  1. **The words.** The clinician's `label` is **Geriatric** /
+     **Cardiopulmonary**; the patient's `patientLabel` is exactly **Strength
+     and balance care** / **Heart and lung rehabilitation**
+     (`PROFILE_KIND_LABELS` agrees). A patient never reads "geriatric",
+     "elderly" or "cardiopulmonary".
+  2. **Two intake sets, seven counted questions each**, `schema_version` 1,
+     every key prefixed (`geri_*`, `cardio_*`), each question with a
+     patient-plain `helpText` and a `shortLabel`. Geriatric
+     (`intakeGeriatric.ts`): main concern; the three **STEADI screening
+     questions**, required - falls in the last 12 months (*No falls / One
+     fall, without an injury / One fall, with an injury / Two or more
+     falls*), unsteady standing or walking, worried about falling; walking
+     aid; **which of the Katz six they need help with** (`multi_select`,
+     "None - I manage all of these on my own" exclusive); goal. An
+     **optional carer pre-step** (`geri_carer_name`,
+     `geri_carer_relationship`) is the paediatric caregiver pattern, but
+     optional and excluded from the count. Cardiopulmonary
+     (`intakeCardio.ts`): condition (open-heart surgery, heart attack,
+     stent, heart failure, COPD, another lung condition, other) and when;
+     beta-blocker (*Yes / No / Not sure*); breathlessness today as the
+     **mMRC grade 0-4 in plain words** (the option index is the grade);
+     home oxygen; the doctor's oxygen stop limit (a select, *No limit given,
+     or not sure* or 85-94%, so the answer is always a number); goal.
+     Three follow-ups ask only when they apply (`showWhen`, the Parkinson's
+     precedent): the surgeon's breastbone precautions and their end date
+     **only after open-heart surgery** (a COPD patient is never asked about
+     a breastbone), the oxygen prescription only with home oxygen. No
+     template rows are seeded; the question bank lists them from the code.
+  3. **Triage suggests them, never picks them.**
+     `suggestSpecialtyFromTriage(answers, { offered })` (presenting problem
+     *Falls, unsteadiness or getting weaker with age* and *A heart or lung
+     condition, or after heart surgery or a heart attack*) suggests
+     Cardiopulmonary for a heart or lung referral (adults; before any sign),
+     neuro for a stroke or long-term neurological referral, Geriatric for a
+     falls referral with at most the balance sign, or **65 or older whose
+     only sign is balance or walking**, then neuro for any other sign. Never
+     for a child. **It only suggests what the dialog offers** (the enabled
+     types plus the profile's own): a rule whose type is switched off is
+     passed over and the reason says so ("Geriatric would fit, but it is
+     switched off in Settings") - which also stopped a switched-off
+     neurological type being pre-selected. Still arrives pre-selected and is
+     never auto-accepted. `triageSuggestion.test.ts`.
+  4. **No exam before Done** (owner's decision): `requiredSessionExam`
+     answers null for both, so Done needs the session note alone. Both have
+     no exam layer; `SpecialtyExamPanel` renders nothing for them (no
+     "still being built" notice for a chart that is not coming).
+  5. **The fall-risk level is STEADI's, with the rule that decided it**
+     (`geriatricRisk.ts`, over `steadiFallRisk`). Two or more falls, or one
+     with an injury, in 12 months is **high whatever the tests show**, until
+     those falls are a year old; "Tests in the safer range: n of 4" is a
+     separate line, never folded into the level (the handbook's fix for the
+     mockup). Without that history a fully negative screen is low, and
+     otherwise the four tests (TUG at 12 s, the chair stand against the CDC
+     age-and-sex norm - 0 when the arms were used, unjudged with no age or
+     sex - the heel-to-toe stage, walking speed under 0.8 m/s) decide low or
+     moderate; with no test it is "not known yet", never low. **Falls come
+     from two places and are never counted twice**: the intake's answer,
+     dated when that answer was **first** given (`answerFirstGivenAt` - a
+     re-save of the same answer does not move it; an unreadable history
+     dates it today, the conservative way) and counting for a year after;
+     and diary falls **after** that answer that a physiotherapist confirmed
+     or a clinician entered. A patient's unconfirmed report is shown as
+     patient reported and decides nothing. Katz is the physiotherapist's
+     score sheet when there is one, else six less the intake's ticks;
+     standing blood pressure is re-derived from the three stored readings
+     (positive at 20 top or 10 bottom: "for the patient's doctor").
+  6. **The heart and lung safety rules** (`cardioSafety.ts`). The oxygen stop
+     limit is **the patient's own**: the doctor's figure, else the default
+     for the condition - **88% for a lung condition, 90% (or a 4-point fall
+     from the resting reading) for a heart one and for no answer** - always
+     labelled as a default. Before exercise, resting heart rate over 120,
+     blood pressure over 180/100 or resting oxygen below the limit is "do not
+     exercise today, tell the doctor" (patient: *Please don't exercise today.
+     Rest, and tell your physiotherapist and your doctor about this
+     reading.*; clinician: *Do not exercise or test today. Contact the
+     patient's doctor.*); a reading not taken is "not checked", never clear.
+     **Each blood pressure number is judged on its own:** a top number over
+     180 or a bottom number over 100 is a stop even when the other was never
+     taken (the missing one is still listed as not checked, and a stored top
+     number with no bottom is judged the same way). A half-entered pair
+     cannot be saved as a reading, so the Safety check and the walk's
+     vitals say "not saved: needs both numbers" rather than toasting saved
+     (`walkMeasurements.unsavedBloodPressure`).
+     Karvonen only for a patient recorded as **not** on a beta-blocker with
+     an exercise-test maximum (never 220 minus age); "Yes", "Not sure" and
+     no answer are the talk test. The surgeon's precautions are active
+     through their end date in the clinic's zone (`parseClinicDate` reads
+     ISO, "20 Sep 2026" and day-first "20/09/2026"; anything else is "end
+     date unknown", never passed). The six-minute walk's % of predicted uses
+     the clinic's equation setting: "formula not chosen yet", "we couldn't
+     check", or - height and weight not being on the record yet - "needs the
+     patient's height, weight".
+  7. **New free measures, no licensed ones switched on.** The registry gains
+     `blood_pressure` (rest / after exercise; both numbers in `items`, the
+     top one the value), `resting_spo2` (against the patient's limit) and
+     `talk_test` (0 too easy, 1 just right, 2 too hard; a classification).
+     Borg (both), CAT and Barthel stay licensed and off. Diary:
+     `DIARY_KINDS_BY_PROFILE_KIND` gives geriatric falls and near-misses and
+     cardiopulmonary active minutes; `activeMinutesWeeklySeries` totals
+     clinic weeks against the WHO's 150 (light minutes apart; the week in
+     progress marked, never a fall).
+  8. **What 6b draws** (`geriatricProfile.ts` `shapeGeriatricView`,
+     `cardioProfile.ts` `shapeCardioView`, over `progressProfileBase.ts`;
+     reads by `loadGeriatricReads` / `loadCardioReads`, each its own call,
+     ok or unreadable). Status: a confirmed fall since the last review is
+     *Needs attention* (the neurological rule); a pre-exercise red flag from
+     the **latest review's** vitals is the pill's red flag; the main measure
+     is walking speed then TUG, chair stand, balance (geriatric) or the
+     six-minute walk then the sit-to-stand, mMRC, breathlessness
+     (cardiopulmonary). Both speak to the patient (`subject: "self"`); a
+     named carer is a header line ("Ramesh, your son, helps at home"), not a
+     voice. **Goals and milestones stay therapist-only.** The PDF export adds
+     "Fall risk and daily living" or "Safety limits and vitals" and the carer
+     line, under complete or refused (phase 6b adds the home safety check, and
+     height and weight and the highest heart rate when present). The catalogue's condition-type tag
+     (`treatment_categories.specialty`) takes both too. Every threshold is
+     **to be verified by a senior physiotherapist against its source.**
+  9. **Phase 6b draws the two pages** (`GeriatricProfileTop`,
+     `CardioProfileTop`, shared by the patient, the therapist and the admin;
+     `ProfileHeader`'s `carerLine` and `safetyRow`). Geriatric: the dial
+     (`FallRiskDial`) names the STEADI level AND the rule that decided it,
+     with "Tests in the safer range: n of 4" as its own line; four test cards
+     (`steadiCards.ts`: In the safer range / Close / Not yet / Not done yet /
+     Recorded, not judged - "Close" is a margin this module chose, to be
+     verified); daily living (Katz); the home safety check; the standing blood
+     pressure, whose positive result says "tell the patient's doctor" (whether
+     the doctor was told is NOT recorded: the registry has nowhere for it
+     without a schema change); the falls diary; the graph of the Up and Go,
+     chair stand (its risk line is the person's age-and-sex norm,
+     `riskOverrides`) and walking speed. Cardiopulmonary: the safety-limits
+     chip row in the header (the patient's own oxygen limit labelled default or
+     set by the doctor, the beta-blocker note, the precautions and their end
+     date), the six-minute-walk track, the oxygen bar with the patient's own
+     limit, the talk test, the vitals strip (rest and after), the mMRC grade,
+     the weekly active minutes against 150 (the diary dialog takes active
+     minutes), a gentle red "Stop and tell your physiotherapist" box that
+     names the patient's own limit, the precautions end date beside the plan's
+     steps, and the graph of the walk, breathlessness and resting heart rate.
+     The physiotherapist's controls (Record a test, the guided falls check,
+     the guided walk, the pre-session safety check, height or weight, highest
+     heart rate) are absent, not disabled, for anyone else; an admin with
+     People scope can record and set the status; the diary is confirmed by the
+     assigned therapist only. **Free measures added:** `height_cm`,
+     `weight_kg` (latest wins), `max_hr_bpm` (variant *from an exercise test*
+     or *estimated*, never 220 minus age) and `home_safety_check` (one 1 or 0
+     per item in `items`, the value how many are done, a re-check is a new
+     row; `checklist` on the registry draws ticks). The predicted walk shows a
+     percentage only when sex, age, height, weight AND the admin-chosen
+     formula exist; otherwise a line names exactly what is missing
+     (`predictionNeedsList`), and an unreadable read is "we couldn't check",
+     never "needs". A heart-rate range (40-60% of reserve, to be verified) is
+     offered only off a beta-blocker with a recorded maximum; everyone else is
+     talk-test paced and never shown a target. **The pre-exercise refusal is
+     enforced on the screen, not at a route** (outside a guided video
+     assessment - inside one, phase 7a enforces it at the route): the guided six-minute walk
+     cannot start while `preExerciseCheck` says stop (the clinician wording),
+     and the route still stores a flagged reading as a fact. The walk saves its
+     before and after vitals and the talk test as readings through the
+     existing route (`walkMeasurements.ts`); the heart rate straight after a
+     walk has no measure and is not stored. Every sign-off item stays "to be
+     verified by a senior physiotherapist". Tests: `phase6bProfile.test.ts`,
+     `steadiCards.test.ts`, `cardioPicture.test.ts`;
+     `e2e/geriatric-cardio-profile.spec.ts` (written, not run); QA
+     `THR-HP-005n`, `THR-HP-005o`, `PAT-HP-026`.
+  `src/lib/triageSuggestion.test.ts`, `intakeGeriatricCardio.test.ts`,
+  `geriatricRisk.test.ts`, `cardioSafety.test.ts`,
+  `geriatricCardioProfile.test.ts`, `sessionCompletion.test.ts`;
+  `e2e/geriatric-cardio-intake.spec.ts`; QA `THR-HP-005m`, `PAT-HP-025`,
+  `ADM-SET-020a`.
+- **The guided video assessment is live, therapist-led, and gated by the
+  server (Health Profile redesign, phase 7a: the server side; phase 7b: the
+  therapist's session cockpit and the patient's companion screen).** The
+  owner's decisions:
+  every measurement in a video session happens LIVE, guided by the
+  physiotherapist, and nothing relies on the patient measuring alone; the
+  video stays on Google Meet (the app embeds none); the therapist works from a
+  second-screen cockpit, one step at a time, with exactly three actions -
+  Stop test, Skip, Save and next; the patient's companion is display-only.
+  Ten rules:
+  1. **One ordered protocol per profile kind, checked at load.**
+     `src/lib/sessionProtocols.ts`: `ortho_knee` (the approved cockpit's
+     Safety, Pain, Everyday tasks, Knee bend, Straightening the knee, Sit to
+     stand for 30 seconds, Walking speed, Home exercises, Summary - the
+     orthopaedic default) and `ortho_general`,
+     `neuro`, `neuro_parkinsons`, `pediatrics`, `geriatric`,
+     `cardiopulmonary`. Each step has a title, a tab label, a script of at most
+     two short sentences, one patient line, a picture from a fixed set, a
+     set-up checklist, a tool, the measures it may record (a variant list where
+     it matters - the knee bend saves knee flexion, never a shoulder) or the
+     layer that records it instead (Pain Map, neurological or paediatric exam),
+     helper, exertion and skippable flags. The module throws at load on a
+     duplicate id, a measure the registry does not hold, one not used on the
+     kind or owned by another layer there, a licensed scale, an
+     **in-person-only (`videoUse: "no"`) measure in a video protocol**, a
+     helper measure on a step not marked as needing one (or a helper step with
+     no helper item to tick), an exertion measure on a step not marked
+     exertion, a first step that is not the red-flag check, a last that is not
+     the summary, a protocol without exactly one Home exercises step just
+     before the summary (phase 7d, version 2 - see "Home exercises" below), an
+     optional set-up item that is not that step's helper, a heart and lung
+     exertion step before the resting check, or
+     a clinic word ("triage", "case", "patient", "geriatric"...) in what the
+     patient sees, or **a tab label that is not the start of its step's
+     title** (one name per step: *Sit to stand* / *Sit to stand for 30
+     seconds*). **Version 3** (`SESSION_PROTOCOLS_VERSION`): the safety step's
+     script is built from its own count (`safetyScript`: *I'll ask five quick
+     safety questions. Just answer yes or no.*) and the questions are read
+     from the list; set-up that belongs to one test lives in that test's step
+     (the sturdy chair in the chair stand, the camera in the angle steps, the
+     heart and lung devices in the resting check); a run on version 2 is
+     `protocol_changed` and can be ended (`checkRunAbandon`). The six-minute walk is in person only, so the heart and lung
+     protocol uses the one-minute sit-to-stand (the handbook's video stand-in);
+     the chair stand and the 10-metre walk were opened to the orthopaedic
+     profile for the knee protocol. **Every step, script, red-flag question and
+     set-up item is marked "to be verified by a senior physiotherapist".**
+  2. **The gates are the server's, not the screen's.** The measurement route
+     takes `runId` and `stepId`; with them it re-derives the step from the
+     run's protocol and refuses (409 with a code, `assessmentRun.ts`
+     `checkRunSave`) unless: the run is this therapist's, this patient's, in
+     progress and on the protocol version it started on; every red-flag
+     question was answered before step 2 and none was answered yes (a flag
+     leaves only the summary open); the step's whole set-up was confirmed in
+     this run, with its helper where the step needs one (and the reading's
+     `helperPresent` agrees); the measure and variant are the step's; the
+     reading was taken over video; a vital sign says it was read off the
+     patient's own device; and, on the heart and lung protocol, **the
+     pre-exercise check is clear before any exertion** - worked out on the
+     server by `preExerciseCheck` from the resting heart rate, blood pressure
+     and oxygen **saved in this run's resting step** and the patient's own
+     oxygen limit, never from what the cockpit says ("not recorded" is
+     `cardio_check_not_recorded`, a red flag `cardio_red_flag`). The same gate
+     refuses that exertion step's set-up and its *go* on the patient's screen,
+     and it is checked **before** the step's set-up and helper: under a stop
+     the set-up can never be ticked, so a save sent anyway is told why
+     (`cardio_red_flag`), not "tick the set-up checklist".
+     This moves the 6b pre-exercise refusal, which was UI only, to the route
+     for any reading inside a run; a reading outside a run keeps today's
+     behaviour.
+  3. **Stop test throws the reading away.** It writes one `stopped` event and
+     nothing else; a stopped step is never a result.
+  4. **Three tables** (`schema.sql`, phase 7a): `assessment_runs` (one in
+     progress per patient by a partial unique index; ended once - the trigger
+     sets the end time - and never deleted), `assessment_run_events` (kinds
+     `setup_confirmed`, `safety_confirmed`, `saved`, `skipped`, `stopped`,
+     `step_opened`; append-only by trigger and written only into a run in
+     progress, because a save is allowed by these rows; `details` validated in
+     `assessmentRun.ts`, structured answers only; one link per measurement) and
+     `assessment_live_display` (one row per run). Runs and events are read by
+     the clinical-access therapist and an admin; **the patient reads only the
+     live display**. Nobody writes any of them from a browser session.
+  5. **The companion shows patient-safe text only, chosen by the server.**
+     `/api/therapist/assessment-runs/display` takes a step, a phase (`ready`,
+     `go`, `done`, `rest`, `paused`) and whether the clock starts - never text.
+     The words are the step's own title and patient line, the fixed phase
+     lines, the step counter and a clock label (`buildLiveDisplay`);
+     `validateLiveDisplay` re-checks the stored jsonb against that whitelist on
+     the way in and out, and the table's CHECK refuses any other key. No
+     result, score, number other than the clock and the counter, or note can
+     reach the patient's screen. The clock is a start time and a length; the
+     screen counts.
+  6. **Routes.** `/api/therapist/assessment-runs/start` (the protocol from the
+     server-derived profile kind; `protocolKey` only chooses among that kind's;
+     a linked session must be this therapist's video session; a second start
+     is 409 `run_in_progress` with the open run; its `runId` goes to any assigned physiotherapist, and the start screen offers "End the open assessment" for another's left open), `/event`, `/display`, `/end`
+     (completed, or abandoned with a fixed reason). All take the
+     assigned-therapist and started-session gate on the debug clock - except
+     **abandoning**, which only asks for the run's owner or a therapist now
+     assigned and skips the protocol-version and started-session checks
+     (`checkRunAbandon`), so a run left open across a protocol change or a
+     cancelled session can always be ended. A red-flag answer of yes **stands
+     until the run ends**: a second answer is 409 `red_flag_locked`. A reading
+     attached to a step after the fact (`saved` with a `measurementId`) passes
+     the same conditions as a save inside the run (`checkSavedRetry`). Every body
+     through `parseJsonBody`, rate limited (`assessmentRun`,
+     `assessmentDisplay`). **No admin door**: the admin measurement route
+     refuses a `runId` (`run_is_therapist_only`). Reads: `loadRun`,
+     `loadActiveRun`, `loadRunMeasurements`, `loadLiveDisplay` (the patient's
+     own client) in `assessmentRunServer.ts`, each ok or unreadable.
+  7. **The run leaves a draft, never a summary.** `assessmentSummaryDraft()`
+     writes two to four plain sentences from what was SAVED in the run, naming
+     a skipped or stopped step honestly and a red flag or early end; the end
+     route returns it in the patient's voice for the writing box, and it is
+     saved, if at all, through the care-status `set_summary` action as the
+     physiotherapist's own text.
+  8. **Vitals read on video are labelled.** `conditions.readFrom`
+     (`clinic_device` in person, `patient_device_on_video` over video; vitals
+     measures only, `VITALS_MEASURE_KEYS`) is required inside a run and drawn
+     as "Read off the patient's own device on video" by `readFromLabel()` on
+     the measures table and in the PDF.
+  9. **The cockpit has three actions, always the same, always on screen.**
+     `/therapist/dashboard/assessment/[patientId]` (guarded like the chart:
+     the assigned therapist, anyone else a 404; the started-session half is
+     the routes', on the debug clock) is the physiotherapist's second screen
+     next to Google Meet: steps across the top as 44px-plus buttons (a tick
+     once saved, a step the order keeps shut is disabled and says why), the
+     current step as **one** card - *Step n of N*, the title, *Say to the
+     patient* in large type, *Set up first* as real checkboxes that must **all**
+     be ticked, a red-bordered safety line where another adult has to stand
+     beside the patient, then the step's tool - and at the bottom, sticky on
+     every width, exactly **Stop test** (an emergency stop: the first tap stops
+     the clock and puts Rest on the patient's screen at once, then asks for an
+     optional reason; it throws this step's reading away and
+     writes a `stopped` event only), **Skip** (only where the step is
+     skippable, with an optional fixed reason from `SKIP_REASONS`) and one big
+     **Save and next**, disabled until the set-up (the helper named on its own),
+     the safety answers and a result are all in, with the line underneath
+     saying which is missing (`saveReadiness`, `cockpit.ts`). **Beside Meet
+     (640-800px) the card stays short:** the *Stop at once if* line sits under
+     the step bar at every width, the set-up folds to one line (*3/3 set up ✓ ·
+     Edit*) once ticked, the tool sits directly under the script (the result
+     before *How it was done*, unless ON/OFF is required), and the patient's
+     screen controls are a segmented control in the sticky bar. **A timer's
+     Start stays off, saying why, until the step's helper is ticked and the
+     resting check is clear** (`timerStartBlock`; the server is still the
+     gate on the save). **Keys:** N is Save and next when it is on, Esc is
+     Stop test - never while typing, with a dialog open, on a key repeat or
+     with a modifier (`cockpitShortcut`) - and the counter takes the focus
+     when it starts, so Space or Enter counts a stand; a one-line hint sits
+     under the bar. **"Before you start"** (`cockpitBriefing.ts`,
+     `loadBriefingReads`): the last session note's *Plan for the next session*
+     and *Anything to watch*, the intake's precautions (sternal, a high risk of
+     falling, cannot stand), the affected side and, on a Parkinson's run, the
+     usual medicine times with "ask ON or OFF" - in full on the Start panel,
+     one line in the cockpit's header that opens to the list; a failed read is
+     "couldn't check", and a one-sided affected side is where tests start.
+     Read only: it gates nothing. **The summary step shows today's readings
+     against the first and the last review** (`summaryRows`: the same measure,
+     variant, side and ON/OFF), with a *Target met* chip where a reading meets
+     an unreached milestone and **Mark reached**, which calls the existing
+     milestone route with that reading as the proof - the route checks it
+     again; nothing is marked by itself, and a milestone read that failed is
+     said. **The pain step is a quick score:** the area starts on the
+     latest exam's, else the worst intake area, else the protocol's joint
+     (`painStepStartArea`), the side where it has two, then the eleven 0-10
+     buttons; Save and next records it as a Pain Map reading and names it in
+     the `saved` event. *Add detail on the Pain Map* (the full exam dialog,
+     opened on that area) is optional. **Non-safety facts are asked once and carried:** ON or
+     OFF with the last dose, the side and active or passive start the next
+     step's recorder (`CarriedFacts`, `mergeCarried`), the medication shown as
+     *ON, last dose 08:30 · Change*; a safety fact never is - the helper item
+     is ticked on every step that has one, worded *Helper still beside them*
+     once a helper was ticked earlier in the run. The tool is the
+     existing recorder inline (`RecordTestDialog` with `embedded`: the same
+     timers, score sheet and angle tool, the test and its variants chosen by
+     the step, always over video, the vitals marked *read off the patient's own
+     device on video*), the Pain Map, neurological or paediatric exam dialog
+     for a layer step (its record named in the `saved` event), or the safety
+     questions. **A save is three calls, in order**: `setup_confirmed`, the
+     result (the measurement route with `runId` and `stepId`, or the layer's
+     route and `saved`), then on to the next step; **every refusal code is a
+     sentence with the single fix** (`cockpitFailure`, one row per
+     `RunRefusalCode`, so a new code fails the build until it is worded), a
+     503 is "we could not check, nothing was saved", never "not allowed", and
+     a 429 is a wait. The server is still the only gate: the screen mirrors it
+     (`stepAvailability`, `exertionBlock`, the resting-check banner) so nobody
+     is surprised, never replaces it. The patient's screen is told only a
+     phase and whether the clock starts, debounced to the last tap with one
+     request in flight (`latestWins.ts`); on a phone the results and the
+     preview fold away under the step. The end of a run puts the draft in the
+     existing *Where things stand* editor (`CareStatusControls summaryOnly`),
+     beside **Finish this session** (`loadFinishContext`: the run's own
+     session, this therapist's, never another): the session note opened with
+     Done's gates (`completeOnSave`), its **blank** fields started from the run
+     - *What did you treat today?* from today's results (`treatedLineFromRun`),
+     the home-exercise line, *Anything to watch* from lines the physiotherapist
+     added, *What we did today* from the draft - and never over their own text
+     (`fillEmptyOnly`), with a three-line checklist (note, summary, session
+     closed). A failed read says it could not check. **A yes to a safety
+     question, and a stop for symptoms or a near-fall, show one line of next
+     actions:** *End the assessment* and *Add to Anything to watch* (the line
+     waits on this page for the note; it is not stored until the note is).
+     **The heart and lung resting check is one row** - heart rate | blood
+     pressure top and bottom | oxygen (`compact` recorders) - under a
+     five-minute rest countdown that puts Rest on the patient's screen and
+     Get ready at the end (and ticks *rested 5 minutes*, which can be
+     unticked), with a preview of `preExerciseCheck` on the numbers as typed,
+     labelled *Preview only: the server checks on save* (`restingPreview`);
+     the server's check on the saved readings is still the only gate.
+     Entry: *Start guided assessment* on a video session's card (from the join
+     window, judged on the debug clock) and on the chart (assigned, with a
+     started session).
+  10. **The companion is display-only, dark and large, and counts against
+     server time.** `/patient/dashboard/session`: the step name small, **one**
+     big instruction, one of seven simple position pictures (`PATIENT_PICTURES`),
+     a giant clock when the step has one and one calming line; no button, link
+     or field while a check is live (the only thing that can be pressed is the
+     way back to the dashboard, on the waiting screen). Nothing but the
+     server's whitelisted text reaches it (rule 5), and a row that fails
+     `validateLiveDisplay` is not drawn. It follows the patient's own display
+     row on realtime and **falls back to polling `/api/patient/assessment-display`
+     every three seconds** whenever realtime is not reaching it; the clock is
+     the row's start time and length read against the loader's `serverNow`
+     (`clockShown`), never a client-trusted timer, and it never announces
+     itself per second to a screen reader. With no run it says *Your
+     physiotherapist will start the guided check soon*; *All done* shows for
+     fifteen minutes after a run ends, then it waits again. **A read that
+     failed is not "nothing to show":** when the screen has no live check to
+     draw and the last read failed (or the row failed the patient-safe
+     whitelist, which also drops the row on screen), it says *We couldn't load
+     your screen. Trying again…* (`UNREADABLE_TEXT`, `showsUnreadable()`),
+     never *will start soon*; a live check already on screen is kept through
+     one failed read, and *Reconnecting* still shows after three. Every patient screen
+     carries a bar to it while a check is live. The first-visit tour never opens
+     over either live screen (`tutorialMayAutoStart`). **Whether it is open is
+     a heartbeat, never a guess (E12):** the poll route records
+     `assessment_companion_seen.last_seen_at` for the patient's own live run
+     with the service role after its own checks (about once in ten seconds,
+     best effort, silent on a database without the table), the screen reads
+     every twenty seconds even while realtime is up, and the cockpit asks
+     `/api/therapist/assessment-runs/companion-seen` (the therapist's own
+     client; rate limited `assessmentCompanionSeen`) every fifteen seconds:
+     *Open on Priya's side* within 45 seconds of a heartbeat, *Not open on
+     Priya's side yet* otherwise, *Couldn't check Priya's side* on a failed
+     read (`companionSeenState`). The preview's *Sent* means only that the
+     server stored it. The Start panel's **Step 0, Share the patient screen**,
+     gives the short link and the words to read aloud (`shareScreenScript`).
+  `src/lib/sessionProtocols.test.ts`, `assessmentRun.test.ts`,
+  `assessmentSummaryDraft.test.ts`, `cockpit.test.ts`, `companionScreen.test.ts`,
+  `latestWins.test.ts`, `guidedAssessmentEntry.test.ts`;
+  `e2e/assessment-run.spec.ts` and `e2e/assessment-cockpit.spec.ts` (written,
+  not run); `scripts/append-only-sql-checks.sql`; QA `THR-HP-005q`,
+  `THR-HP-005r`, `PAT-HP-006`.
+- **Home exercises are taught live on video, watched, and only read by the
+  patient (Health Profile redesign, phase 7d: the server side, then the
+  screens: the cockpit's teach tool, the 36 pictures, the companion demo,
+  the patient's card and the chart section).** The
+  owner's decisions: everything happens in the session, led by the
+  physiotherapist; nothing relies on the patient reporting back. **Home
+  exercises is its own word**: `exercise_plans` is not a care plan -
+  `care_plans` / `care_plan_versions` are the programme-purchase
+  recommendation above and keep that name; a screen never calls one the
+  other. Eleven rules:
+  1. **The library is code, typed and checked at load.**
+     `src/lib/exerciseLibrary.ts`: starter exercises for all six profile
+     kinds (at least eight each - knee, back and shoulder basics,
+     neurological, Parkinson's big steps and wide turns, play-based
+     paediatric, Otago-style strength and balance, heart and lung walking and
+     breathing), each with a plain name, body area, demo picture key (a fixed
+     set, drawn in 7d-2), three to five one-sentence patient steps, a dose
+     kind and default dose, a safety line, contraindication flags, a *needs
+     helper* flag and easier / harder keys, optionally the milestone
+     templates it works towards. The module throws on a duplicate key, a
+     clinic word in anything the patient reads, a default dose its own
+     validator would refuse, a level or milestone that does not exist, or a
+     child's exercise without a parent beside them. **Every exercise is
+     marked "to be verified by a senior physiotherapist".** Code-only by
+     decision: the type carries `source` so a clinic-added (admin, DB-backed)
+     exercise can join the same lookups later; nothing reads one today.
+  2. **A plan is versions; the patient reads the active one.** One
+     `exercise_plans` row per version, at most one `active` per patient
+     (partial unique index); a new version turns the old one `replaced`
+     (history kept) in **one transaction** - `publish_exercise_plan()`
+     retires, inserts and fills the version under a per-patient lock, or
+     changes nothing (the `publish_care_plan_version` pattern). Items are
+     append-only and written only in the transaction that publishes their
+     plan, so nothing is slipped onto a version the patient already reads.
+  3. **Publishing is the server's judgement, not the screen's.**
+     `/api/therapist/exercise-plans/publish`: inside a guided run (the run's
+     patient, this therapist's run in progress) or, outside one, the assigned
+     therapist with a started or delivered session. The profile kind and what
+     the intake rules out are re-derived on the server
+     (`contraFlagsFromIntake`, "where available": sternal precautions after
+     open-heart surgery until the surgeon's date has passed - read by the same
+     `parseClinicDate` and the clinic's `clinicDateKey` as the Cardio profile,
+     so the two agree on every input including the last day, and a date that
+     cannot be read keeps the precautions on - a high risk of falling, cannot
+     stand); the key must be the library's and offered for the
+     kind, the dose inside its kind's bounds (`validateDose`); and **an
+     exercise that needs another adult beside the patient is published only
+     inside a run whose Home exercises step ticked that helper**
+     (`helper_needs_run`, `helper_not_confirmed`). The dose's optional note
+     is the physiotherapist's own words to the patient, at most two short
+     sentences, contact-scanned (surface `exercise_plan_note`). No admin
+     door.
+  4. **Teaching is a protocol step, and keeps the three actions.** Every
+     protocol (version 2) has a *Home exercises* step (tool
+     `teach_exercises`) just before the summary: exertion (so on the heart
+     and lung protocol the pre-exercise check stands in front of it),
+     skippable with a fixed reason, its set-up the whole body in view, a
+     clear space and **an optional helper item** - the only optional set-up
+     item anywhere, and required on the paediatric step, where a parent is
+     beside the child for every exercise. Stop test, Skip and Save and next
+     stay the only three actions; **Save and next is refused until every
+     exercise in the active plan is marked in this run**
+     (`exercises_not_marked`).
+  5. **One mark per exercise, from what was watched.**
+     `/api/therapist/assessment-runs/teach` records *performed correctly*,
+     *needs practice* (exactly one cue from `COACHING_CUES`) or *not
+     attempted* (exactly one reason from `NOT_ATTEMPTED_REASONS`) - keys
+     only, no free text - into `exercise_teaching_events`, append-only by
+     trigger and written only into **that therapist's run in progress** for
+     an exercise in the patient's **active** plan (the trigger checks all of
+     it again). A retry of the same mark is a success; a different plain
+     mark is 409 `already_marked` - what was watched is not rewritten; a
+     mistake is **corrected** as a new record (rule 11). The
+     gates: the red flags answered (none raised, for a demo or a mark of
+     something done), the step's set-up ticked and the pre-exercise check
+     clear for the patient's turn and a performed / needs-practice mark, and
+     the helper ticked for an exercise that needs one. Teaching happens only
+     inside a run; there is no other door.
+  6. **The demo is the library's, never the therapist's text.** The same
+     route with a phase (`demo`: watch how it is done; `go`: your turn) puts
+     one exercise on the companion: its name as the title, the library's
+     picture key and steps, *Exercise n of N*, and the fixed phase lines
+     (`buildExerciseDisplay`). `validateLiveDisplay` refuses any other key
+     inside `exercise`, steps that are not that exercise's, or a title that is
+     not its name, and the table's CHECK holds the key whitelist too. The
+     generic display route refuses `demo`. No clock: the physiotherapist
+     counts with the patient.
+  7. **The patient reads, and fills in nothing.** RLS gives the patient
+     their own **active** plan and its items, and their own teaching marks -
+     a deliberate choice: every mark is a fixed-list key, the patient was
+     there, and the plan can say *Practised with your physiotherapist on
+     <date>. Remember: <the cue>* (`exercisePlanView`, `practisedLine`),
+     which is coaching rather than a record to defend. The not-attempted
+     reason is the clinician's wording and the patient's plan does not show
+     it. **Column privileges** give a browser session only the original
+     columns (`EXERCISE_TEACHING_EVENT_SELECT`): never `kind`,
+     `corrects_event_id` or `correction_reason` - the patient's plan shows the
+     latest outcome and never why a mark was corrected. The rows themselves
+     stay readable to the patient over the API (the original and its
+     correction both), so the guarantee is the reason and the link, not that
+     a correction is invisible. The clinical-access therapist and an admin read every version and
+     mark. Nothing on the patient's side writes to any of the three tables.
+  8. **The run's draft says what was taught, honestly.** The summary draft
+     (rule 7 above) adds one sentence from this run's marks - *We practised
+     2 home exercises together: sit to stand went well, and heel raise needs
+     more practice. We will try heel-to-toe stand next time.* - and says so
+     when the step was skipped; the step is never counted as one of the
+     checks. A failed read of the marks gives no draft rather than one
+     missing them.
+  9. **Session notes keep their free-text "Home exercise prescribed".** The
+     structured plan does not supersede the field: old text is never
+     touched, and for a **new** note the dialog may prefill an **empty** field
+     from the active plan (`homeExerciseNotePrefill`, via
+     `homeExerciseInitialValue`: never over existing text) for the
+     physiotherapist to edit or clear - what is saved is their own text. The
+     plan is what the patient reads; the note stays the clinicians' working
+     copy and keeps no patient policy.
+  10. **The screens (7d-2) add no new authority.** The cockpit's teach tool
+  (`src/components/therapist/assessment/teach/`, pure half
+  `src/lib/teachTool.ts`) only calls the two routes: Show the demo, Your turn,
+  then ONE row of three marks (*Did it correctly*, *Needs practice* with one
+  cue, *Not attempted* with one reason), and Save and next stays locked until
+  every exercise is marked. **The picker opens on this patient's area**
+  (`suggestedArea`: the knee assessment's knee, else the worst intake area,
+  else what the kind works on first - balance, walking, breathing), suitable
+  exercises for it first with a *Suggested* badge, ruled-out ones last and
+  never suggested (`orderForPicking`); *Use this plan* is a secondary button
+  so Save and next stays the step's one primary. The set-up is recorded on the run from what was
+  ticked, never "all items" (the optional helper item counts only when
+  ticked). The 36 pictures (`ExercisePicture`) carry no text; the companion
+  draws the library's own steps. The patient's card and the chart section
+  say "could not read" and "not set up" apart from "nothing yet".
+  11. **A mistaken mark is corrected as a new record, never rewritten
+  (phase 7d-3, the owner's decision).** The teach route's
+  `{ runId, exerciseKey, correct: { outcome, cueKey?, reasonKey?, correctionReason } }`
+  writes an `exercise_teaching_events` row of `kind = 'correction'` whose
+  `corrects_event_id` is the **latest** row for that exercise in this run and
+  plan, with one reason from `CORRECTION_REASONS` (*I tapped the wrong
+  button*, *They tried again and did it right*, *Other: I will explain in the
+  summary*) - keys only. The original stays. Several fixes are allowed, as
+  **one chain**: a partial unique index on `corrects_event_id` lets each row
+  have one successor, so the only row a fix can reference is the tail (two
+  tabs crossing: the second is `changed_elsewhere`, never a fork); the
+  one-mark index is now partial (`where kind = 'mark'`). The trigger lets a
+  correction in only for a row of the **same run, plan, exercise, patient and
+  therapist**, inside that therapist's run in progress; UPDATE and DELETE stay
+  refused. Refusals: `correction_needs_mark` (no mark in this run yet),
+  `bad_correction_reason`; a retry, or a fix to what the latest already says,
+  is a success with nothing written. **Same gates as a mark**: a fix to
+  *performed* or *needs practice* is a "doing" save (set-up, pre-exercise
+  check, helper), so on a red-flag day only *not attempted* goes through; no
+  contraindication is overridden and nothing else changes. Everything that
+  reads marks uses the latest per exercise (`latestTeachingEvents`: the chain
+  over the clock): the patient's plan, the chart's headline, the summary
+  draft and Save and next; the chart lists every original with the fix and
+  its reason, and only the clinician's draft says a mark was corrected. The
+  teach tool's **Fix this mark** opens a small sheet: the reason, then the
+  right mark (a cue or reason where needed), then *Save the fix*.
+  `src/lib/exerciseLibrary.test.ts`, `exercisePlan.test.ts`,
+  `assessmentRun.test.ts`, `assessmentSummaryDraft.test.ts`,
+  `teachTool.test.ts`, `exerciseChart.test.ts`, `exercisePictureLabels.test.ts`,
+  `homeExercisesCopy.test.ts`; `e2e/exercise-teaching.spec.ts` (ET-008 the
+  correction),
+  `e2e/exercise-screens.spec.ts` (written, not run);
+  `scripts/append-only-sql-checks.sql`; QA `THR-HP-005s`, `PAT-HP-007`.
 - **Patient-uploaded reports live in Storage; the database holds only
   metadata.** `patient_medical_documents` has no bytea or base64 column,
   and it never should: a handful of MRI PDFs stored inline would dominate
@@ -568,7 +1832,9 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   delivered session the therapist writes what was treated, how the patient
   responded, the home exercise and the plan for next time
   (`session_notes`, fields in `src/lib/sessionNotes.ts`, written through
-  `SessionNoteDialog` from the session card itself). `session_notes` has
+  `SessionNoteDialog` from the session card itself). The free-text home
+  exercise field stays beside the structured Home exercises plan (rule 9 of
+  the Home exercises rule above): prefilled on a new note, never replaced. `session_notes` has
   **no patient select policy and must never get one** - these are working
   notes written in the register clinicians use with each other, and the
   patient's data export (`/api/patient/condition-profile/export`) and
@@ -586,7 +1852,10 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   work this therapist personally did rather than editing the patient's own
   history. Completion is never blocked on a note - the nudge is a
   `needsYou` feed item plus the "Notes to write" figure on the therapist's
-  Overview.
+  Overview. **A written note is never lost to a stray tap:** Escape, the
+  backdrop, the cross and Cancel ask before discarding anything that differs
+  from how the dialog opened, and a refusal is the `data-form-error` banner
+  with the first missing field revealed (`revealField`).
 - **What the patient reads about a session is the summary, never the note.**
   The same dialog (Done, or the card's note button) carries a second band,
   teal with an eye and labelled **Shared with the patient**: *What we did
@@ -623,3 +1892,53 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   last score. It used to average each calendar day, which folded a second
   exam that day into the first and erased the earlier value from the line.
   `src/lib/painTrendSeries.test.ts`, `e2e/pain-trend.spec.ts`.
+
+- **What a patient's Health Profile shows is the clinic's choice, per
+  condition kind and per patient, and the safety sections are never
+  hidden.** Every section of the profile is a widget in
+  `src/lib/profileWidgets.ts` (the status and Where things stand, home
+  exercises, key numbers, the graph and each of its lines, goal and steps,
+  the measures table, each kind's condition-picture cards, the diary,
+  freezing and active minutes, the answers, the who-writes-what guide,
+  reports and past recommendations). `resolveProfileWidgets()` is the rule:
+  the patient's own override beats the condition kind's setting, which beats
+  the registry default; a **locked** widget is always shown (the status with
+  its red flags and Needs attention, home exercises and their safety lines,
+  the geriatric fall-risk level and standing blood pressure, the heart and
+  lung safety box and the surgeon's precautions -- the tables' CHECK repeats
+  that list); an unknown key or another kind's key is ignored; an unreadable
+  layer is skipped, never read as "hide everything". **Hidden is a
+  patient-page decision**: the server leaves the section out of the
+  patient's page and their PDF (which prints one line naming what was left
+  out, `exportPlan`), the therapist's chart draws the hidden sections behind a
+  collapsed "N sections hidden for this patient - show" (hidden graph lines
+  stay on the clinician's graph and are named), and the admin's record draws
+  everything with the hidden ones named. A senior physiotherapist should
+  confirm the locked list. Tests: `src/lib/profileWidgets.test.ts`;
+  `e2e/health-profile-layout.spec.ts`.
+- **A patient withdraws a diary entry by saying it was saved by mistake,
+  and nothing is deleted (E1).** `POST /api/patient/diary/correct` writes a
+  `patient_diary_entries` row of kind `correction` pointing at their own,
+  unconfirmed entry (once; a confirmed one is for the physiotherapist to
+  talk through, 409). The loader (`loadDiaryEntries`,
+  `applyDiaryCorrections`) takes a corrected entry out of the live diary, so
+  no count, graph, falls tile, fall-risk level or status reads it -- a
+  withdrawn fall never flags -- and hands it to the screens to show struck
+  through, "Withdrawn by the patient". A corrections read that fails makes
+  the diary unreadable (a withdrawn fall counted as real would read as a new
+  fall). Logging a fall where the person was hurt or needed help shows a red
+  box -- call 108 or your doctor if you hit your head, can't put weight on a
+  leg or feel unwell; this diary isn't watched live -- and a fall is read
+  back with its clinic-zone time before it saves. The 108 wording wants a
+  senior physiotherapist's sign-off.
+- **The patient's own words on the profile (C1/D2/D3).** The status sentence
+  names the main measure ("Pain score: about the same as last time",
+  "improved by enough to count as real progress"); one review reads "First
+  check done"; joint lines say the movement ("Lifting your arm forward");
+  knee straightening reads "Now straightens fully (was 8° short)"; the fall
+  dial says how the level is worked out without naming STEADI; the graph
+  leads with one plain sentence and says which way is good once above it,
+  without the scale's name. Needs attention, a High fall risk and a flagged
+  heart and lung reading each carry a calm next step and a 44px Call button
+  with the clinic's number (Brand & Contact); an unset or unreadable number
+  is said as such (`CallClinicLine`). The clinician's words are unchanged.

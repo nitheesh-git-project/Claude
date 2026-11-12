@@ -362,6 +362,9 @@ test("PC-003: a code valid on programmes takes its share off the total, and Razo
 });
 
 test("PC-004: a session-only code is refused on a programme with a sentence, and the total stays at full price", async ({ page }) => {
+  // Recommend, approve, quote and order against a hosted project, like the
+  // three cases above: 30s is not enough from a container.
+  test.setTimeout(90_000);
   const versionId = await recommendAndApprove(4);
   const list = perSessionPaise * 4;
 

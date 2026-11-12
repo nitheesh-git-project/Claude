@@ -68,7 +68,7 @@ export default function MoneyAlertsStrip({
                 {alert.count}
               </span>
               <span className="text-xs font-semibold text-slate-800">{alert.label}</span>
-              <span className="min-w-0 flex-1 text-[11px] text-slate-500">{alert.hint}</span>
+              <span className="min-w-[10rem] flex-1 text-[11px] text-slate-500">{alert.hint}</span>
               <i aria-hidden className="fa-solid fa-arrow-right text-[10px] text-slate-300" />
             </AdminScreenLink>
           </li>

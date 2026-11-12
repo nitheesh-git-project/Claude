@@ -4,9 +4,9 @@
   "shards": {
     "patient": 2,
     "money": 2,
-    "therapist": 2,
+    "therapist": 3,
     "session": 1,
-    "admin": 7,
+    "admin": 6,
     "hospital": 1,
     "platform": 3,
     "integrity": 1
@@ -36,6 +36,7 @@
       "admin-degraded-schema.spec.ts": 33,
       "admin-detail-overlay.spec.ts": 53,
       "admin-exposure.spec.ts": 26,
+      "admin-health-profile-reviews.spec.ts": 30,
       "admin-impersonation.spec.ts": 25,
       "admin-login.spec.ts": 17,
       "admin-maintenance-sweep.spec.ts": 8,
@@ -58,6 +59,7 @@
       "booking-pay-button-live.spec.ts": 28,
       "booking-retry-after-cancel.spec.ts": 37,
       "booking-rules.spec.ts": 12,
+      "booking-wizard-clarity.spec.ts": 4,
       "catalog-cover-image.spec.ts": 18,
       "catalog-detail.spec.ts": 40,
       "public-hydration.spec.ts": 30,
@@ -84,6 +86,7 @@
       "gateway-payment-capture.spec.ts": 45,
       "gateway-webhook-recovery.spec.ts": 45,
       "health-profile-showcase.spec.ts": 26,
+      "treatment-goals.spec.ts": 30,
       "health-profile.spec.ts": 50,
       "home-visit-disabled.spec.ts": 33,
       "hospital-isolation.spec.ts": 9,
@@ -98,6 +101,14 @@
       "mobile-smoke.spec.ts": 40,
       "navigation-feedback.spec.ts": 19,
       "neuro-exam.spec.ts": 45,
+      "peds-exam.spec.ts": 30,
+      "geriatric-cardio-intake.spec.ts": 25,
+      "geriatric-cardio-profile.spec.ts": 30,
+      "angle-tool.spec.ts": 25,
+      "assessment-run.spec.ts": 25,
+      "assessment-cockpit.spec.ts": 40,
+      "exercise-teaching.spec.ts": 25,
+      "exercise-screens.spec.ts": 20,
       "numeric-input.spec.ts": 7,
       "pain-trend.spec.ts": 7,
       "patient-cancel-cutoff.spec.ts": 11,
@@ -135,7 +146,11 @@
       "therapist-roster.spec.ts": 25,
       "therapist-specialty.spec.ts": 17,
       "unscheduled-purchases.spec.ts": 18,
-      "waitlist-serve-area.spec.ts": 20
+      "waitlist-serve-area.spec.ts": 20,
+      "announcements-notebook.spec.ts": 190,
+      "razorpay-refund-webhook.spec.ts": 35,
+      "admin-find-and-money.spec.ts": 90,
+      "debug-test-accounts.spec.ts": 60
     }
   }
 }

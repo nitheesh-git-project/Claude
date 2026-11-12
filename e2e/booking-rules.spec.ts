@@ -15,7 +15,7 @@ import {
   E2E_MARKERS,
   deleteHomeVisitFixturePurchases,
   browserCookiesFor,
-  chooseAnyServiceOnStepOne,
+  chooseAnyServiceOnStepOne, settleNetwork
 } from "./helpers";
 
 test.describe("home-visit lead time (regression for the bulk scheduler bug)", () => {
@@ -370,14 +370,14 @@ test.describe("the cancellation notice a patient is shown before paying", () => 
     await page.context().clearCookies();
     await page.context().addCookies(cookies);
     await page.goto(`${BASE}/book`);
-    await page.waitForLoadState("networkidle");
+    await settleNetwork(page);
 
     // Step 1 opens with a bookable day and hour already chosen, and now
     // asks for the service first -- it used to be a dropdown on Step 2,
     // which meant a patient picked a slot before seeing what it cost.
     // Continue is only offered once all four are answered.
     await chooseFirstService(page);
-    await page.getByRole("button", { name: /Continue to Medical Details/i }).click();
+    await page.getByRole("button", { name: /Continue to your details/i }).click();
     await page.waitForTimeout(1200);
 
     await page.getByRole("checkbox").first().check();

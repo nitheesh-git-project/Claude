@@ -136,4 +136,49 @@ export const PEDS_INTAKE_QUESTIONS: IntakeQuestion[] = [
     inputType: "textarea",
     required: false,
   },
+  // Added with the paediatric set's schema_version 2 (Health Profile
+  // redesign, phase 5a), at the END so no existing key moves. Optional, so
+  // an existing record is exactly as complete under v2 and the "we've
+  // changed some of these questions" banner (intakeNeedsAnotherLook, which
+  // needs a required visible question unanswered) never fires for it. The
+  // date of birth is NOT asked here: the patient record already holds it
+  // (profiles.date_of_birth), and pedsAge.ts reads it from there. A select
+  // rather than free text, so the answer is always a week the corrected-age
+  // sum can use (pedsAge.ts parseWeeksAtBirth reads "32 weeks"; "Not sure"
+  // means chronological age, said so on the profile).
+  {
+    key: "peds_weeks_at_birth",
+    label: "How many weeks pregnant were you (or the mother) when your child was born?",
+    shortLabel: "Weeks at birth",
+    helpText:
+      "A baby born early is measured from their due date until about age two, so they are not counted as behind when they are not. 40 weeks is full term; “Not sure” is fine.",
+    inputType: "select",
+    options: [
+      "22 weeks",
+      "23 weeks",
+      "24 weeks",
+      "25 weeks",
+      "26 weeks",
+      "27 weeks",
+      "28 weeks",
+      "29 weeks",
+      "30 weeks",
+      "31 weeks",
+      "32 weeks",
+      "33 weeks",
+      "34 weeks",
+      "35 weeks",
+      "36 weeks",
+      "37 weeks",
+      "38 weeks",
+      "39 weeks",
+      "40 weeks",
+      "41 weeks",
+      "42 weeks",
+      "43 weeks",
+      "44 weeks",
+      "Not sure",
+    ],
+    required: false,
+  },
 ];

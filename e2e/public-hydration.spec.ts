@@ -16,7 +16,7 @@
 // So this browser is all three: en-GB, reduced motion, and a simulated
 // clock set before the page loads.
 import { test, expect, type Page } from "@playwright/test";
-import { BASE, waitForSplashToClear } from "./helpers";
+import { BASE, waitForSplashToClear, settleNetwork } from "./helpers";
 
 test.use({ locale: "en-GB", contextOptions: { reducedMotion: "reduce" } });
 
@@ -47,7 +47,7 @@ function collectHydrationErrors(page: Page): string[] {
 async function settle(page: Page, path: string) {
   await page.goto(`${BASE}${path}`, { waitUntil: "domcontentloaded" });
   await waitForSplashToClear(page);
-  await page.waitForLoadState("networkidle");
+  await settleNetwork(page);
 }
 
 test("HY-001: every public page hydrates cleanly for an en-GB, reduced-motion visitor on the debug clock", async ({
@@ -75,4 +75,18 @@ test("HY-002: /book hydrates cleanly for the same visitor", async ({ page }) => 
   const errors = collectHydrationErrors(page);
   await settle(page, "/book");
   expect(errors, errors[0]).toEqual([]);
+});
+
+// HY-003: scroll-reveal is an enhancement over content that is already there.
+// The server HTML of every public page carries nothing hidden by an inline
+// opacity:0, so the page reads with scripts slow, blocked or failing -- the
+// reveal arms itself only after mount, and only for blocks below the fold.
+test("HY-003: no public page ships hidden content in its server HTML", async ({ request }) => {
+  for (const path of PUBLIC_PAGES) {
+    const res = await request.get(`${BASE}${path}`);
+    expect(res.status(), path).toBeLessThan(500);
+    const html = await res.text();
+    const hidden = html.match(/style="[^"]*opacity:\s*0(?:;|")/g) ?? [];
+    expect(hidden, `${path} has inline opacity:0 in its server HTML`).toEqual([]);
+  }
 });

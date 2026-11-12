@@ -1,0 +1,505 @@
+import { describe, expect, it } from "vitest";
+import { preExerciseCheck, resolveOxygenStopLimit } from "./cardioSafety";
+import { protocolStep, sessionProtocol, SESSION_PROTOCOLS, SESSION_PROTOCOLS_VERSION } from "./sessionProtocols";
+import { exerciseByKey } from "./exerciseLibrary";
+import {
+  buildExerciseDisplay,
+  buildLiveDisplay,
+  checkRunAbandon,
+  checkRunOpen,
+  checkRunSave,
+  checkSavedRetry,
+  checkStepAction,
+  clockReading,
+  endedLiveDisplay,
+  parseLiveDisplayRow,
+  parseRunEventRow,
+  parseRunRow,
+  preExerciseVitalsFromRun,
+  runStateFromEvents,
+  validateDisplayRequest,
+  validateEndRequest,
+  validateLayerSavedDetails,
+  validateLiveDisplay,
+  validateRedFlagDetails,
+  validateSetupDetails,
+  validateSkipDetails,
+  type AssessmentRun,
+  type RunEvent,
+} from "./assessmentRun";
+
+const knee = sessionProtocol("ortho_knee")!;
+const cardio = sessionProtocol("cardiopulmonary")!;
+
+const RUN: AssessmentRun = {
+  id: "run-1",
+  patientId: "pat-1",
+  appointmentId: null,
+  therapistId: "ther-1",
+  protocolKey: "ortho_knee",
+  protocolVersion: SESSION_PROTOCOLS_VERSION,
+  profileKind: "ortho",
+  status: "in_progress",
+  startedAt: "2026-10-26T09:00:00.000Z",
+  endedAt: null,
+  endedReason: null,
+};
+
+let seq = 0;
+function ev(stepId: string, kind: RunEvent["kind"], details: Record<string, unknown> = {}, measurementId: string | null = null): RunEvent {
+  seq++;
+  return {
+    id: `e${String(seq).padStart(3, "0")}`,
+    runId: "run-1",
+    stepId,
+    kind,
+    measurementId,
+    details,
+    actor: "ther-1",
+    createdAt: new Date(Date.parse("2026-10-26T09:00:00.000Z") + seq * 1000).toISOString(),
+  };
+}
+
+const allClear = (p = knee) => Object.fromEntries(p.steps[0].redFlags!.map((q) => [q.id, false]));
+const redFlagsClear = (p = knee) => ev("safety", "safety_confirmed", validateRedFlagDetails(p.steps[0], { answers: allClear(p) }).ok ? { gate: "red_flags", answers: allClear(p), flagged: [] } : {});
+const setup = (p: typeof knee, stepId: string) => {
+  const r = validateSetupDetails(protocolStep(p, stepId)!, { items: protocolStep(p, stepId)!.setup.map((s) => s.id) });
+  if (!r.ok) throw new Error("setup");
+  return ev(stepId, "setup_confirmed", r.details);
+};
+
+const video = { setting: "video" as const, helperPresent: true };
+
+describe("rows", () => {
+  it("parses a run and an event, refusing a malformed one", () => {
+    const run = parseRunRow({
+      id: "r", patient_id: "p", appointment_id: null, therapist_id: "t", protocol_key: "ortho_knee", protocol_version: 2,
+      profile_kind: "ortho", status: "in_progress", started_at: "2026-10-26T09:00:00Z", ended_at: null, ended_reason: null,
+    });
+    expect(run?.status).toBe("in_progress");
+    expect(parseRunRow({ id: "r", status: "weird" })).toBeNull();
+    expect(parseRunEventRow({ id: "e", run_id: "r", step_id: "pain", kind: "stopped", measurement_id: null, details: null, actor: "t", created_at: "2026-10-26T09:00:00Z" })?.details).toEqual({});
+    expect(parseRunEventRow({ id: "e", run_id: "r", step_id: "pain", kind: "edited", actor: "t", created_at: "x" })).toBeNull();
+  });
+});
+
+describe("event details", () => {
+  it("set-up is all or nothing, and records the helper", () => {
+    const step = protocolStep(knee, "chair_stand")!;
+    const partial = validateSetupDetails(step, { items: ["arms_crossed"] });
+    expect(partial.ok).toBe(false);
+    if (!partial.ok) expect(partial.refusal.code).toBe("setup_incomplete");
+    expect(validateSetupDetails(step, { items: ["nonsense"] }).ok).toBe(false);
+    const full = validateSetupDetails(step, { items: step.setup.map((s) => s.id) });
+    expect(full.ok && full.details.helperPresent).toBe(true);
+  });
+
+  it("red flags need every question answered yes or no", () => {
+    const step = knee.steps[0];
+    const missing = validateRedFlagDetails(step, { answers: { chest_pain_or_breathless: false } });
+    expect(!missing.ok && missing.refusal.code).toBe("red_flags_unanswered");
+    const flagged = validateRedFlagDetails(step, { answers: { ...allClear(), knee_hot_swollen: true } });
+    expect(flagged.ok && flagged.details.flagged).toEqual(["knee_hot_swollen"]);
+    expect(validateRedFlagDetails(protocolStep(knee, "pain")!, { answers: {} }).ok).toBe(false);
+  });
+
+  it("skips only a skippable step, with a known reason", () => {
+    expect(validateSkipDetails(knee.steps[0], {}).ok).toBe(false);
+    expect(validateSkipDetails(protocolStep(knee, "walk")!, { reason: "no_helper" })).toEqual({ ok: true, details: { reason: "no_helper" } });
+    expect(validateSkipDetails(protocolStep(knee, "walk")!, { reason: "bored" }).ok).toBe(false);
+  });
+
+  it("a layer step's save names a record id", () => {
+    expect(validateLayerSavedDetails(protocolStep(knee, "pain")!, { recordId: "11111111-1111-4111-8111-111111111111" }).ok).toBe(true);
+    expect(validateLayerSavedDetails(protocolStep(knee, "pain")!, { recordId: "x" }).ok).toBe(false);
+    expect(validateLayerSavedDetails(protocolStep(knee, "function")!, { recordId: "11111111-1111-4111-8111-111111111111" }).ok).toBe(false);
+  });
+});
+
+describe("the run gate", () => {
+  it("refuses a run that is not open, not yours, or on old steps", () => {
+    expect(checkRunOpen(null, { therapistId: "ther-1", protocol: knee })?.status).toBe(404);
+    expect(checkRunOpen(RUN, { therapistId: "other", protocol: knee })?.code).toBe("run_not_yours");
+    expect(checkRunOpen({ ...RUN, status: "completed" }, { therapistId: "ther-1", protocol: knee })?.code).toBe("run_not_in_progress");
+    expect(checkRunOpen({ ...RUN, protocolVersion: 0 }, { therapistId: "ther-1", protocol: knee })?.code).toBe("protocol_changed");
+    expect(checkRunOpen(RUN, { therapistId: "ther-1", patientId: "pat-2", protocol: knee })?.code).toBe("run_patient_mismatch");
+    expect(checkRunOpen(RUN, { therapistId: "ther-1", patientId: "pat-1", protocol: knee })).toBeNull();
+  });
+
+  it("refuses everything after step 1 until the red flags are answered", () => {
+    const state = runStateFromEvents([setup(knee, "safety")]);
+    expect(checkStepAction({ protocol: knee, step: protocolStep(knee, "function")!, state, action: "setup" })?.code).toBe("red_flags_unanswered");
+    // Opening a tab is not refused: it only records where the therapist is.
+    expect(checkStepAction({ protocol: knee, step: protocolStep(knee, "function")!, state, action: "open" })).toBeNull();
+  });
+
+  it("a red flag present stops every test but leaves the summary open", () => {
+    const flagged = ev("safety", "safety_confirmed", { gate: "red_flags", answers: { ...allClear(), unwell_or_fever: true }, flagged: ["unwell_or_fever"] });
+    const state = runStateFromEvents([setup(knee, "safety"), flagged]);
+    expect(checkStepAction({ protocol: knee, step: protocolStep(knee, "knee_bend")!, state, action: "setup" })?.code).toBe("red_flag_present");
+    expect(checkStepAction({ protocol: knee, step: protocolStep(knee, "summary")!, state, action: "setup" })).toBeNull();
+    expect(checkStepAction({ protocol: knee, step: protocolStep(knee, "walk")!, state, action: "skip" })).toBeNull();
+  });
+
+  it("a yes stands until the run ends: a second answer is refused, and a later all-clear never clears it", () => {
+    const yes = () => ev("safety", "safety_confirmed", { gate: "red_flags", answers: { ...allClear(), unwell_or_fever: true }, flagged: ["unwell_or_fever"] });
+    const safety = protocolStep(knee, "safety")!;
+    const flaggedState = runStateFromEvents([setup(knee, "safety"), yes()]);
+    expect(checkStepAction({ protocol: knee, step: safety, state: flaggedState, action: "safety" })?.code).toBe("red_flag_locked");
+    // Before any yes, answering again is allowed (a no can become a yes).
+    const clearState = runStateFromEvents([setup(knee, "safety"), redFlagsClear()]);
+    expect(checkStepAction({ protocol: knee, step: safety, state: clearState, action: "safety" })).toBeNull();
+    expect(checkStepAction({ protocol: knee, step: safety, state: runStateFromEvents([]), action: "safety" })).toBeNull();
+    // A history with an all-clear written after the yes (before the route
+    // refused one) still reads as flagged, so every test stays shut.
+    const rewritten = runStateFromEvents([setup(knee, "safety"), yes(), redFlagsClear()]);
+    expect(rewritten.redFlags?.flagged).toEqual(["unwell_or_fever"]);
+    expect(checkStepAction({ protocol: knee, step: protocolStep(knee, "knee_bend")!, state: rewritten, action: "setup" })?.code).toBe("red_flag_present");
+    // ...whereas an all-clear followed by a yes is the yes.
+    expect(runStateFromEvents([redFlagsClear(), yes()]).redFlags?.flagged).toEqual(["unwell_or_fever"]);
+  });
+
+  it("a save needs the step's own set-up, and a helper where one is needed", () => {
+    const base = [setup(knee, "safety"), redFlagsClear()];
+    const measurement = { measureKey: "chair_stand_30s", variant: null, conditions: video };
+    const noSetup = checkRunSave({ protocol: knee, stepId: "chair_stand", state: runStateFromEvents(base), measurement });
+    expect(!noSetup.ok && noSetup.refusal.code).toBe("setup_not_confirmed");
+
+    const noHelperInReading = checkRunSave({
+      protocol: knee,
+      stepId: "chair_stand",
+      state: runStateFromEvents([...base, setup(knee, "chair_stand")]),
+      measurement: { ...measurement, conditions: { setting: "video" } },
+    });
+    expect(!noHelperInReading.ok && noHelperInReading.refusal.code).toBe("helper_not_confirmed");
+
+    // A set-up event that did not confirm the helper (an older client).
+    const noHelperEvent = runStateFromEvents([...base, ev("chair_stand", "setup_confirmed", { items: [], helperPresent: false })]);
+    const r = checkRunSave({ protocol: knee, stepId: "chair_stand", state: noHelperEvent, measurement });
+    expect(!r.ok && r.refusal.code).toBe("helper_not_confirmed");
+
+    const ok = checkRunSave({ protocol: knee, stepId: "chair_stand", state: runStateFromEvents([...base, setup(knee, "chair_stand")]), measurement });
+    expect(ok.ok).toBe(true);
+  });
+
+  it("refuses a measure the step does not record, an in-person reading, an unknown step and a layer step", () => {
+    const state = runStateFromEvents([setup(knee, "safety"), redFlagsClear(), setup(knee, "knee_bend")]);
+    const wrongVariant = checkRunSave({
+      protocol: knee,
+      stepId: "knee_bend",
+      state,
+      measurement: { measureKey: "joint_range", variant: "shoulder_flexion_active", conditions: { setting: "video" } },
+    });
+    expect(!wrongVariant.ok && wrongVariant.refusal.code).toBe("measure_not_in_step");
+    const inPerson = checkRunSave({
+      protocol: knee,
+      stepId: "knee_bend",
+      state,
+      measurement: { measureKey: "joint_range", variant: "knee_flexion_active", conditions: { setting: "in_person" } },
+    });
+    expect(!inPerson.ok && inPerson.refusal.code).toBe("not_video");
+    expect(checkRunSave({ protocol: knee, stepId: "nope", state, measurement: { measureKey: "lefs", variant: null, conditions: video } }).ok).toBe(false);
+    const layer = checkRunSave({ protocol: knee, stepId: "pain", state, measurement: { measureKey: "pain_nprs", variant: "now", conditions: video } });
+    expect(!layer.ok && layer.refusal.code).toBe("measure_not_in_step");
+  });
+});
+
+describe("the saved retry (the event route with a measurementId)", () => {
+  const state = () => runStateFromEvents([setup(knee, "safety"), redFlagsClear(), setup(knee, "chair_stand")]);
+  const reading = (over: Record<string, unknown> = {}) => ({
+    patientId: "pat-1",
+    recordedBy: "ther-1",
+    measureKey: "chair_stand_30s",
+    variant: null,
+    conditions: { setting: "video", helperPresent: true },
+    createdAt: "2026-10-26T09:10:00.000Z",
+    ...over,
+  });
+  const retry = (r: ReturnType<typeof reading>, st = state(), protocol = knee, stepId = "chair_stand") =>
+    checkSavedRetry({ protocol, stepId, state: st, run: RUN, therapistId: "ther-1", reading: r });
+  const code = (r: ReturnType<typeof checkSavedRetry>) => (r.ok ? null : r.refusal.code);
+
+  it("links a reading the measurement route would have saved", () => {
+    expect(retry(reading()).ok).toBe(true);
+  });
+
+  it("refuses a reading that is not this run's own", () => {
+    expect(code(retry(reading({ patientId: "pat-2" })))).toBe("measure_not_in_step");
+    expect(code(retry(reading({ recordedBy: "ther-2" })))).toBe("measure_not_in_step");
+    expect(code(retry(reading({ createdAt: "2026-10-26T08:59:00.000Z" })))).toBe("measure_not_in_step");
+    expect(code(retry(reading({ createdAt: "not a time" })))).toBe("measure_not_in_step");
+    expect(code(retry(reading({ measureKey: "lefs" })))).toBe("measure_not_in_step");
+  });
+
+  it("holds the reading to the conditions the measurement route applies", () => {
+    // Recorded in person, or with no conditions at all: not a video reading.
+    expect(code(retry(reading({ conditions: { setting: "in_person", helperPresent: true } })))).toBe("not_video");
+    expect(code(retry(reading({ conditions: null })))).toBe("not_video");
+    // A step that needs a helper needs one in the reading too.
+    expect(code(retry(reading({ conditions: { setting: "video" } })))).toBe("helper_not_confirmed");
+    // A vital sign says it was read off the patient's own device.
+    const cardioState = runStateFromEvents([setup(cardio, "safety"), redFlagsClear(cardio), setup(cardio, "resting_check")]);
+    const spo2 = reading({ measureKey: "resting_spo2", conditions: { setting: "video" } });
+    expect(code(retry(spo2, cardioState, cardio, "resting_check"))).toBe("read_from_required");
+    const spo2Ok = reading({ measureKey: "resting_spo2", conditions: { setting: "video", readFrom: "patient_device_on_video" } });
+    expect(retry(spo2Ok, cardioState, cardio, "resting_check").ok).toBe(true);
+  });
+
+  it("keeps the clinical order: no link without the step's set-up, none after a red flag", () => {
+    expect(code(retry(reading(), runStateFromEvents([setup(knee, "safety"), redFlagsClear()])))).toBe("setup_not_confirmed");
+    const flagged = ev("safety", "safety_confirmed", { gate: "red_flags", answers: { ...allClear(), unwell_or_fever: true }, flagged: ["unwell_or_fever"] });
+    expect(code(retry(reading(), runStateFromEvents([setup(knee, "safety"), flagged, setup(knee, "chair_stand")])))).toBe("red_flag_present");
+  });
+});
+
+describe("the heart and lung pre-exercise check", () => {
+  const limit = resolveOxygenStopLimit({});
+  const base = () => [setup(cardio, "safety"), redFlagsClear(cardio), setup(cardio, "resting_check")];
+  const vitalsRows = (hr: number, sys: number, dia: number, spo2: number) => [
+    { id: "m1", measureKey: "resting_heart_rate", variant: null, value: hr, items: null, measuredAt: "2026-10-26T09:01:00.000Z" },
+    { id: "m2", measureKey: "blood_pressure", variant: "rest", value: sys, items: { systolic: sys, diastolic: dia }, measuredAt: "2026-10-26T09:01:00.000Z" },
+    { id: "m3", measureKey: "resting_spo2", variant: null, value: spo2, items: null, measuredAt: "2026-10-26T09:01:00.000Z" },
+  ];
+  const savedVitals = () => [ev("resting_check", "saved", {}, "m1"), ev("resting_check", "saved", {}, "m2"), ev("resting_check", "saved", {}, "m3")];
+  const exertion = { measureKey: "one_minute_sit_to_stand", variant: null, conditions: video };
+
+  it("is not recorded when no resting vitals were saved in this run", () => {
+    const state = runStateFromEvents([...base(), setup(cardio, "sit_to_stand")]);
+    const check = preExerciseCheck(preExerciseVitalsFromRun(cardio, state, []), limit);
+    const r = checkRunSave({ protocol: cardio, stepId: "sit_to_stand", state, measurement: exertion, preExercise: check });
+    expect(!r.ok && r.refusal.code).toBe("cardio_check_not_recorded");
+  });
+
+  it("refuses exertion on a red flag, from this run's own readings", () => {
+    const state = runStateFromEvents([...base(), ...savedVitals(), setup(cardio, "sit_to_stand")]);
+    const high = preExerciseCheck(preExerciseVitalsFromRun(cardio, state, vitalsRows(130, 150, 90, 96)), limit);
+    expect(high.status).toBe("stop");
+    const r = checkRunSave({ protocol: cardio, stepId: "sit_to_stand", state, measurement: exertion, preExercise: high });
+    expect(!r.ok && r.refusal.code).toBe("cardio_red_flag");
+    // The set-up of an exertion step is refused too, so Save and next never unlocks.
+    expect(checkStepAction({ protocol: cardio, step: protocolStep(cardio, "sit_to_stand")!, state, action: "setup", preExercise: high })?.code).toBe("cardio_red_flag");
+    expect(checkStepAction({ protocol: cardio, step: protocolStep(cardio, "sit_to_stand")!, state, action: "go", preExercise: high })?.code).toBe("cardio_red_flag");
+  });
+
+  it("names the stop, not the checklist, on a save whose set-up the stop refused", () => {
+    // The reachable state: under a stop the set-up is refused, so it is never
+    // confirmed. A save sent anyway was told "Tick the set-up checklist".
+    const state = runStateFromEvents([...base(), ...savedVitals()]);
+    const high = preExerciseCheck(preExerciseVitalsFromRun(cardio, state, vitalsRows(130, 150, 90, 96)), limit);
+    expect(high.status).toBe("stop");
+    const r = checkRunSave({ protocol: cardio, stepId: "sit_to_stand", state, measurement: exertion, preExercise: high });
+    expect(!r.ok && r.refusal.code).toBe("cardio_red_flag");
+    // With a clear check the checklist is still asked for.
+    const clear = preExerciseCheck(preExerciseVitalsFromRun(cardio, state, vitalsRows(72, 120, 80, 97)), limit);
+    expect(clear.status).toBe("clear");
+    const ok = checkRunSave({ protocol: cardio, stepId: "sit_to_stand", state, measurement: exertion, preExercise: clear });
+    expect(!ok.ok && ok.refusal.code).toBe("setup_not_confirmed");
+  });
+
+  it("allows exertion once the check is clear", () => {
+    const state = runStateFromEvents([...base(), ...savedVitals(), setup(cardio, "sit_to_stand")]);
+    const clear = preExerciseCheck(preExerciseVitalsFromRun(cardio, state, vitalsRows(72, 130, 80, 96)), limit);
+    expect(clear.status).toBe("clear");
+    expect(checkRunSave({ protocol: cardio, stepId: "sit_to_stand", state, measurement: exertion, preExercise: clear }).ok).toBe(true);
+  });
+
+  it("ignores readings saved outside the resting step", () => {
+    const state = runStateFromEvents([...base(), ev("after_check", "saved", {}, "m1")]);
+    expect(preExerciseVitalsFromRun(cardio, state, vitalsRows(72, 130, 80, 96)).restingHeartRate).toBeNull();
+  });
+
+  it("a vital sign in a run says it was read off the patient's own device", () => {
+    const state = runStateFromEvents([...base()]);
+    const r = checkRunSave({ protocol: cardio, stepId: "resting_check", state, measurement: { measureKey: "resting_spo2", variant: null, conditions: { setting: "video", homeMeasured: true } } });
+    expect(!r.ok && r.refusal.code).toBe("read_from_required");
+    const ok = checkRunSave({
+      protocol: cardio,
+      stepId: "resting_check",
+      state,
+      measurement: { measureKey: "resting_spo2", variant: null, conditions: { setting: "video", homeMeasured: true, readFrom: "patient_device_on_video" } },
+    });
+    expect(ok.ok).toBe(true);
+  });
+});
+
+describe("stopped and skipped", () => {
+  it("a stop keeps no reading and does not undo an earlier save", () => {
+    const state = runStateFromEvents([ev("walk", "stopped", { reason: "near_fall" })]);
+    expect(state.outcomes.get("walk")).toBe("stopped");
+    expect(state.savedMeasurements.get("walk")).toBeUndefined();
+    const later = runStateFromEvents([ev("walk", "saved", {}, "m9"), ev("walk", "stopped", {})]);
+    expect(later.outcomes.get("walk")).toBe("saved");
+  });
+});
+
+describe("ending", () => {
+  it("needs a reason to abandon and none to complete", () => {
+    expect(validateEndRequest({ outcome: "completed" }).ok).toBe(true);
+    expect(validateEndRequest({ outcome: "abandoned" }).ok).toBe(false);
+    expect(validateEndRequest({ outcome: "abandoned", reason: "connection_lost" }).ok).toBe(true);
+    expect(validateEndRequest({ outcome: "completed", reason: "other" }).ok).toBe(false);
+    expect(validateEndRequest({ outcome: "paused" }).ok).toBe(false);
+  });
+
+  it("lets a run that can no longer be finished be abandoned by its owner or an assigned colleague", () => {
+    // Its own physiotherapist, assigned or not, and whatever version the
+    // steps are now (checkRunOpen would say protocol_changed here).
+    const stale = { ...RUN, protocolVersion: 0 };
+    expect(checkRunOpen(stale, { therapistId: "ther-1", protocol: knee })?.code).toBe("protocol_changed");
+    expect(checkRunAbandon(stale, { therapistId: "ther-1", assignedToPatient: false })).toBeNull();
+    // A colleague assigned to the patient now.
+    expect(checkRunAbandon(RUN, { therapistId: "ther-2", assignedToPatient: true })).toBeNull();
+    // Nobody else, and never a run that has ended or does not exist.
+    expect(checkRunAbandon(RUN, { therapistId: "ther-2", assignedToPatient: false })?.code).toBe("run_not_yours");
+    expect(checkRunAbandon({ ...RUN, status: "completed" }, { therapistId: "ther-1", assignedToPatient: true })?.code).toBe("run_not_in_progress");
+    expect(checkRunAbandon(null, { therapistId: "ther-1", assignedToPatient: true })?.status).toBe(404);
+  });
+});
+
+describe("the live display", () => {
+  it("is built from the protocol's own patient text, never from the request", () => {
+    const step = protocolStep(knee, "chair_stand")!;
+    const go = buildLiveDisplay({ protocol: knee, step, phase: "go", startClock: true });
+    expect(go.ok && go.write.clock).toEqual({ mode: "countdown", seconds: 30 });
+    expect(go.ok && go.write.display).toEqual({
+      progress: "Step 6 of 9",
+      title: step.title,
+      line: step.patientLine,
+      picture: "chair_stand",
+      clockLabel: "Time left",
+    });
+    const ready = buildLiveDisplay({ protocol: knee, step, phase: "ready", startClock: true });
+    expect(ready.ok && ready.write.clock).toEqual({ mode: "countdown", seconds: 3 });
+    expect(buildLiveDisplay({ protocol: knee, step: protocolStep(knee, "function")!, phase: "go", startClock: true }).ok).toBe(false);
+  });
+
+  it("the request carries a step, a phase and the clock only", () => {
+    expect(validateDisplayRequest(knee, { runId: "r", stepId: "walk", phase: "go", startClock: true }).ok).toBe(true);
+    const text = validateDisplayRequest(knee, { runId: "r", stepId: "walk", phase: "go", line: "You scored 9" });
+    expect(text.ok).toBe(false);
+    expect(validateDisplayRequest(knee, { stepId: "walk", phase: "sprint" }).ok).toBe(false);
+  });
+
+  it("refuses stored text that is not the protocol's, so no result can reach the patient", () => {
+    const step = protocolStep(knee, "chair_stand")!;
+    const built = buildLiveDisplay({ protocol: knee, step, phase: "done", startClock: false });
+    if (!built.ok) throw new Error("build");
+    expect(validateLiveDisplay(knee, "chair_stand", built.write.display).ok).toBe(true);
+    expect(validateLiveDisplay(knee, "chair_stand", { ...built.write.display, line: "You did 9 stands" }).ok).toBe(false);
+    expect(validateLiveDisplay(knee, "chair_stand", { ...built.write.display, result: 9 }).ok).toBe(false);
+    expect(validateLiveDisplay(knee, "chair_stand", { ...built.write.display, progress: "Step 9 of 8" }).ok).toBe(false);
+    expect(validateLiveDisplay(knee, "chair_stand", endedLiveDisplay(knee).display).ok).toBe(false);
+    expect(validateLiveDisplay(knee, "summary", endedLiveDisplay(knee).display).ok).toBe(true);
+  });
+
+  it("every protocol's every phase passes its own validator", () => {
+    for (const p of SESSION_PROTOCOLS) {
+      for (const s of p.steps) {
+        for (const phase of ["ready", "go", "done", "rest", "paused"] as const) {
+          const b = buildLiveDisplay({ protocol: p, step: s, phase, startClock: false });
+          if (!b.ok) throw new Error(`${p.key}.${s.id}`);
+          expect(validateLiveDisplay(p, s.id, b.write.display).ok).toBe(true);
+          const all = Object.values(b.write.display).join(" ");
+          // No digits other than the step counter and the protocol's own scale anchors.
+          expect(all.replace(/Step \d+ of \d+/, "").replace(s.patientLine, "").replace(s.title, "")).not.toMatch(/\d/);
+        }
+      }
+    }
+  });
+
+  it("parses a stored row for the companion, with its clock", () => {
+    const step = protocolStep(knee, "chair_stand")!;
+    const b = buildLiveDisplay({ protocol: knee, step, phase: "go", startClock: true });
+    if (!b.ok) throw new Error("build");
+    const view = parseLiveDisplayRow(
+      {
+        run_id: "run-1",
+        patient_id: "pat-1",
+        protocol_key: "ortho_knee",
+        current_step_id: "chair_stand",
+        phase: "go",
+        clock_started_at: "2026-10-26T09:00:00.000Z",
+        clock_seconds: 30,
+        display: b.write.display,
+        ended_at: null,
+        updated_at: "2026-10-26T09:00:00.000Z",
+      },
+      () => knee
+    );
+    expect(view?.clock).toEqual({ mode: "countdown", seconds: 30, startedAt: "2026-10-26T09:00:00.000Z" });
+    expect(clockReading(view!.clock!, Date.parse("2026-10-26T09:00:11.500Z"))).toBe(19);
+    expect(clockReading(view!.clock!, Date.parse("2026-10-26T09:01:00.000Z"))).toBe(0);
+    expect(parseLiveDisplayRow({ run_id: "run-1", protocol_key: "ortho_knee", current_step_id: "chair_stand", phase: "go", display: { line: "9 stands" }, updated_at: "x" }, () => knee)).toBeNull();
+  });
+});
+
+describe("the Home exercises step (phase 7d)", () => {
+  const teach = protocolStep(knee, "exercises")!;
+  const peds = sessionProtocol("pediatrics")!;
+  const sit = exerciseByKey("sit_to_stand")!;
+
+  it("sits just before the summary in every protocol, with an optional helper except for a child", () => {
+    for (const p of SESSION_PROTOCOLS) {
+      expect(p.steps[p.steps.length - 2].tool).toBe("teach_exercises");
+      expect(p.version).toBe(SESSION_PROTOCOLS_VERSION);
+    }
+    expect(teach.setup.find((i) => i.helper)?.optional).toBe(true);
+    expect(protocolStep(peds, "exercises")!.needsHelper).toBe(true);
+    expect(protocolStep(peds, "exercises")!.setup.find((i) => i.helper)?.optional).toBeUndefined();
+  });
+
+  it("lets the optional helper be left unticked, and says whether it was ticked", () => {
+    const without = validateSetupDetails(teach, { items: ["whole_body_in_view", "clear_space"] });
+    expect(without).toEqual({ ok: true, details: { items: ["whole_body_in_view", "clear_space"], helperPresent: false } });
+    const withHelper = validateSetupDetails(teach, { items: ["whole_body_in_view", "clear_space", "helper_beside"] });
+    expect(withHelper.ok && withHelper.details.helperPresent).toBe(true);
+    expect(validateSetupDetails(teach, { items: ["clear_space"] }).ok).toBe(false);
+    const pedsTeach = protocolStep(peds, "exercises")!;
+    expect(validateSetupDetails(pedsTeach, { items: ["whole_body_in_view", "clear_space"] }).ok).toBe(false);
+  });
+
+  it("is exertion: the heart and lung pre-exercise check stands in front of it", () => {
+    const step = protocolStep(cardio, "exercises")!;
+    const state = runStateFromEvents([redFlagsClear(cardio), ev("exercises", "setup_confirmed", { items: [], helperPresent: false })]);
+    expect(checkStepAction({ protocol: cardio, step, state, action: "go", preExercise: null })?.code).toBe("cardio_check_not_recorded");
+  });
+
+  it("shows a demo from the library only, and the validator refuses anything else", () => {
+    const built = buildExerciseDisplay({ protocol: knee, step: teach, exercise: sit, phase: "demo", index: 0, total: 3 });
+    expect(built.ok).toBe(true);
+    if (!built.ok) return;
+    expect(built.write.clock).toBeNull();
+    expect(built.write.phase).toBe("demo");
+    expect(built.write.display).toEqual({
+      progress: "Step 8 of 9",
+      title: "Sit to stand",
+      line: "Watch how it is done.",
+      sub: "Then you will try it while we watch.",
+      picture: "standing",
+      exercise: { key: "sit_to_stand", picture: "sit_to_stand", steps: [...sit.steps], counter: "Exercise 1 of 3" },
+    });
+    const d = built.write.display;
+    expect(validateLiveDisplay(knee, "exercises", d).ok).toBe(true);
+    for (const phase of ["go", "done"] as const) {
+      const b = buildExerciseDisplay({ protocol: knee, step: teach, exercise: sit, phase, index: 2, total: 3 });
+      expect(b.ok && validateLiveDisplay(knee, "exercises", b.write.display).ok).toBe(true);
+    }
+    const bad = (display: unknown) => validateLiveDisplay(knee, "exercises", display).ok;
+    expect(bad({ ...d, exercise: { ...d.exercise!, steps: ["Do 50 of them, you did great."] } })).toBe(false);
+    expect(bad({ ...d, exercise: { ...d.exercise!, picture: "walking" } })).toBe(false);
+    expect(bad({ ...d, exercise: { ...d.exercise!, note: "hi" } })).toBe(false);
+    expect(bad({ ...d, exercise: { ...d.exercise!, counter: "Exercise 4 of 3" } })).toBe(false);
+    expect(bad({ ...d, exercise: { ...d.exercise!, key: "heel_raise" } })).toBe(false);
+    expect(bad({ ...d, title: "Heel raise" })).toBe(false);
+    expect(bad({ ...d, clockLabel: "Time" })).toBe(false);
+    // Only the Home exercises step carries an exercise.
+    expect(validateLiveDisplay(knee, "chair_stand", { ...d, progress: "Step 6 of 9" }).ok).toBe(false);
+    expect(buildExerciseDisplay({ protocol: knee, step: protocolStep(knee, "walk")!, exercise: sit, phase: "demo", index: 0, total: 1 }).ok).toBe(false);
+    expect(buildExerciseDisplay({ protocol: knee, step: teach, exercise: sit, phase: "demo", index: 3, total: 3 }).ok).toBe(false);
+  });
+
+  it("keeps demo off the generic display route", () => {
+    expect(validateDisplayRequest(knee, { runId: "r", stepId: "exercises", phase: "demo" }).ok).toBe(false);
+    expect(validateDisplayRequest(knee, { runId: "r", stepId: "exercises", phase: "ready" }).ok).toBe(true);
+  });
+});

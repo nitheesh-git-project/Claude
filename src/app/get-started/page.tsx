@@ -5,7 +5,7 @@ import SectionNav, { type SectionNavItem } from "@/components/SectionNav";
 export const metadata: Metadata = {
   title: "Get Started | MoveRestore",
   description:
-    "Book a consultation, sign in to the patient or partner portal, or join the therapist network.",
+    "Book a video session, sign in to the patient or partner portal, or join the therapist network.",
 };
 
 const PATHS = [
@@ -13,7 +13,7 @@ const PATHS = [
     key: "book",
     eyebrow: "Most people start here",
     icon: "fa-calendar-plus",
-    title: "Book a consultation",
+    title: "Book a video session",
     lede: "You have pain or a recent surgery and want a specialist to assess it.",
     points: [
       "Slots shown in your own timezone",
@@ -21,24 +21,30 @@ const PATHS = [
       "Upload X-rays / MRI before the call",
     ],
     href: "/book",
-    cta: "Book Consultation Now",
+    cta: "Book a video session",
     variant: "primary" as const,
     accent: "teal",
     featured: true,
   },
   {
     key: "patient",
-    eyebrow: "Existing patients",
+    eyebrow: "Patients",
     icon: "fa-user",
     title: "Patient portal",
-    lede: "You've already had a session and want your plan, links or receipts.",
+    lede: "New here, book your first session. Signed up before, sign in for your plan, links and receipts.",
     points: [
       "Join your Google Meet session",
       "View your exercise plan",
       "Manage bookings and receipts",
     ],
     href: "/patient/login",
-    cta: "Patient Login / Sign Up",
+    // Two different people were handed one button reading "Login / Sign Up":
+    // someone new has nothing to log in to, and someone returning does not
+    // want a sign-up form. Booking creates the account at checkout, so "new
+    // here" goes to /book.
+    cta: "Signed up before? Sign in",
+    newHereHref: "/book",
+    newHereCta: "New here? Book your first session",
     variant: "dark" as const,
     accent: "blue",
     featured: false,
@@ -51,8 +57,8 @@ const PATHS = [
     lede: "You're a physiotherapist looking to join or log in to the network.",
     points: [
       "View assigned patient schedules",
-      "Submit post-session SOAP notes",
-      "Track commission in ₹ INR",
+      "Write up each session",
+      "See your earnings",
     ],
     href: "/therapist/login",
     cta: "Therapist Login / Apply",
@@ -69,7 +75,7 @@ const PATHS = [
     points: [
       "Refer a patient in a few fields",
       "Track which referrals converted",
-      "See your revenue share per session",
+      "See what each referral earns",
     ],
     href: "/hospital/login",
     // No "/ Sign Up" like the other two: partner accounts aren't self-serve,
@@ -158,14 +164,26 @@ export default function GetStartedPage() {
                       ))}
                     </ul>
                   </div>
-                  <MotionButton
-                    href={p.href}
-                    variant={p.variant}
-                    fullWidth
-                    className="mt-7 justify-center text-xs"
-                  >
-                    {p.cta} <i className="fa-solid fa-arrow-right text-[10px]" />
-                  </MotionButton>
+                  <div className="mt-7 space-y-3">
+                    {p.newHereHref && (
+                      <MotionButton
+                        href={p.newHereHref}
+                        variant="primary"
+                        fullWidth
+                        className="justify-center text-base"
+                      >
+                        {p.newHereCta} <i className="fa-solid fa-arrow-right text-xs" />
+                      </MotionButton>
+                    )}
+                    <MotionButton
+                      href={p.href}
+                      variant={p.variant}
+                      fullWidth
+                      className={`justify-center ${p.newHereHref ? "text-base" : "text-xs"}`}
+                    >
+                      {p.cta} <i className="fa-solid fa-arrow-right text-[10px]" />
+                    </MotionButton>
+                  </div>
                 </div>
               </StaggerItem>
             );

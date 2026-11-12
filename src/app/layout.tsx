@@ -7,6 +7,7 @@ import FarewellBanner from "@/components/FarewellBanner";
 import Footer from "@/components/Footer";
 import DebugNav from "@/components/DebugNav";
 import ScrollHint from "@/components/ScrollHint";
+import ScrollTopOnNavigate from "@/components/system/ScrollTopOnNavigate";
 import PublicBookBar from "@/components/PublicBookBar";
 import { SectionNavProvider } from "@/components/SectionNavContext";
 import { getLayoutSettings } from "@/lib/siteSettingsCache";
@@ -15,6 +16,11 @@ import { footerSocialLinks } from "@/lib/socialLinks";
 import { DEFAULT_ADMIN_SETTINGS, parseAdminSettings } from "@/lib/adminSettings";
 import { isDebugNavVisible } from "@/lib/debugNavVisible";
 import SplashScreen from "@/components/system/SplashScreen";
+import MotionProvider from "@/components/motion/MotionProvider";
+import { loadHomeVisitSupply } from "@/lib/homeVisitFlag";
+import { homeVisitBookable, resolveHomeVisitOffer } from "@/lib/homeVisitOffer";
+import { publicContactLinks } from "@/lib/contactLinks";
+import { readPublicTeam } from "@/lib/publicTeam";
 import RouteProgress from "@/components/system/RouteProgress";
 import NavigationLoader from "@/components/system/NavigationLoader";
 import DeviceThemeFollower from "@/components/system/DeviceThemeFollower";
@@ -70,7 +76,7 @@ const jakarta = localFont({
 export const metadata: Metadata = {
   title: "MoveRestore",
   description:
-    "Expert 1-on-1 virtual physical therapy for global patients. Evidence-based rehabilitation from licensed specialists, from the comfort of home.",
+    "One-to-one physiotherapy by video, or at your home. Licensed physiotherapists who watch how you move, then build your plan.",
 };
 
 export default async function RootLayout({
@@ -81,6 +87,19 @@ export default async function RootLayout({
   // On in every environment while the app is pre-launch - see
   // debugNavVisible.ts for why, and for the one kill switch.
   const showDebugNav = isDebugNavVisible();
+
+  // Read together: the settings and who is published on /team (the nav and
+  // footer drop "Our team" while the roster is empty).
+  //
+  // The home-visit supply (areas served, whether anything is priced) is read
+  // in the same breath rather than after the switch is known: it is used
+  // only when the switch is on, but waiting to find that out first put a
+  // second round trip in front of every page in the app.
+  const [layoutSettings, { hasTeam }, homeVisitSupply] = await Promise.all([
+    getLayoutSettings(),
+    readPublicTeam(),
+    loadHomeVisitSupply().catch(() => ({ areas: [], hasPrice: null })),
+  ]);
 
   // Brand & Contact Details (admin Site Content tab) -- the Navbar/Footer
   // used to hardcode these. Fetched here rather than in each component
@@ -105,7 +124,7 @@ export default async function RootLayout({
     devContact: devContactRow,
     pricing: pricingRow,
     followDeviceTheme,
-  } = await getLayoutSettings();
+  } = layoutSettings;
   // The developer credit under the footer's copyright. On unless an admin
   // switched it off -- and an unreadable row is "could not check", not "off".
   const devCreditEnabled = devContactFromRow(devContactRow).enabled;
@@ -117,7 +136,25 @@ export default async function RootLayout({
   // Whether the Navbar shows its Home Visit link. Defaults to hidden when
   // the column doesn't exist yet, which is also the right answer for a
   // database that has never configured the feature.
-  const homeVisitEnabled = homeVisitRow?.home_visit_enabled === true;
+  //
+  // The switch alone is not "bookable": with no area served or nothing priced
+  // the first step ("check my pincode") could only answer no, so the nav, the
+  // footer and the sticky bar offer home visits only when all three hold
+  // (homeVisitOffer.ts). The two extra reads happen only while the switch is
+  // on, and are public ones the layout can make.
+  const homeVisitSwitch = homeVisitRow?.home_visit_enabled === true;
+  const homeVisitEnabled = homeVisitBookable(
+    resolveHomeVisitOffer({
+      enabled: homeVisitSwitch,
+      ...(homeVisitSwitch ? homeVisitSupply : { areas: [], hasPrice: null }),
+    })
+  );
+  // WhatsApp / call links for the menu and the sticky bar -- only numbers an
+  // admin has actually filled in (the shipped placeholder is not a number).
+  const contactLinks = publicContactLinks({
+    whatsappNumber: brand.whatsappNumber,
+    contactPhone: brand.contactPhone,
+  });
 
   // How long the post-logout banner stays up.
   const farewellBannerSeconds =
@@ -175,6 +212,10 @@ export default async function RootLayout({
     // mismatch anywhere inside the page still warns.
     <html
       lang="en"
+      // Next 16 no longer turns off globals.css's `scroll-behavior: smooth`
+      // while it navigates; this asks it to, so a new page does not glide in
+      // from the old page's scroll position (ScrollTopOnNavigate).
+      data-scroll-behavior="smooth"
       suppressHydrationWarning
       className={`h-full antialiased ${inter.variable} ${jakarta.variable}`}
     >
@@ -214,6 +255,7 @@ export default async function RootLayout({
               survives the router.refresh() that control fires -- the tree
               underneath re-renders, this does not unmount. */}
           <ToastProvider>
+          <MotionProvider>
           <PricingProvider config={pricingConfig}>
           <DeviceThemeFollower followDevice={followDeviceTheme} />
           <RouteProgress />
@@ -249,6 +291,8 @@ export default async function RootLayout({
           siteName={brand.siteName}
           siteTagline={brand.siteTagline}
           homeVisitEnabled={homeVisitEnabled}
+          contact={contactLinks}
+          teamVisible={hasTeam}
         />
         <Suspense fallback={null}>
           <FarewellBanner autoDismissSeconds={farewellBannerSeconds} />
@@ -267,12 +311,15 @@ export default async function RootLayout({
             footerCopyrightText={brand.footerCopyrightText}
             socialLinks={socialLinks}
             homeVisitEnabled={homeVisitEnabled}
+            teamVisible={hasTeam}
             devCreditEnabled={devCreditEnabled}
           />
           <ScrollHint />
-          <PublicBookBar homeVisitEnabled={homeVisitEnabled} />
+          <ScrollTopOnNavigate />
+          <PublicBookBar homeVisitEnabled={homeVisitEnabled} contact={contactLinks} />
         </SectionNavProvider>
           </PricingProvider>
+          </MotionProvider>
           </ToastProvider>
         </PendingWorkProvider>
       </body>

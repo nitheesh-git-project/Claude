@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  describePayout,
   computeTherapistEarningRows,
   computeTherapistPendingOwed,
   type EarningsAppointment,
@@ -111,5 +112,14 @@ describe("the Earnings rows read the payout maths", () => {
     expect(computeTherapistEarningRows(upcoming, SHARE, new Map(), new Map())).toEqual([]);
     expect(computeTherapistPendingOwed("t1", SHARE, upcoming, NOW)).toBe(0);
     expect(computeTherapistEarningRows([session(1)], null, new Map(), new Map())).toEqual([]);
+  });
+});
+
+describe("describePayout", () => {
+  it("reads a payout's method and note as one line", () => {
+    expect(describePayout("bank_transfer", "UTR 4455")).toBe("Bank transfer · UTR 4455");
+    expect(describePayout("upi", null)).toBe("Upi");
+    expect(describePayout("", "Paid in cash at the clinic")).toBe("Paid in cash at the clinic");
+    expect(describePayout(null, "  ")).toBeNull();
   });
 });

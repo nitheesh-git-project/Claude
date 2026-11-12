@@ -8,7 +8,11 @@ import {
   cleanPageLocation,
   isTrackablePath,
   readConsent,
+  readConsentAskState,
+  noteConsentAsked,
+  shouldAskForConsent,
   ANALYTICS_REOPEN_EVENT,
+  ANALYTICS_SETTINGS_HASH,
   withdrawGoogle,
   track,
   writeConsent,
@@ -77,6 +81,17 @@ export default function Analytics() {
   const [celebrating, setCelebrating] = useState(false);
   const [thanks, setThanks] = useState<string | null>(null);
   const [splashGone, setSplashGone] = useState(false);
+  // Whether this visit asks at all (shouldAskForConsent): read once on the
+  // client, after hydration, so the server's render and the first client
+  // render agree.
+  const [askThisVisit, setAskThisVisit] = useState(false);
+  useEffect(() => {
+    // Storage exists only in the browser, so this is read after mounting.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setAskThisVisit(
+      shouldAskForConsent({ consent: readConsent(), ...readConsentAskState(), nowMs: Date.now() })
+    );
+  }, []);
 
   // The init snippet runs after hydration; wait for gtag to exist.
   useEffect(() => {
@@ -165,8 +180,19 @@ export default function Analytics() {
       setLeaving(false);
       setReopened(true);
     };
+    // A tap that landed before hydration left the hash instead of the event.
+    const fromHash = () => {
+      if (window.location.hash !== ANALYTICS_SETTINGS_HASH) return;
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+      open();
+    };
+    fromHash();
     window.addEventListener(ANALYTICS_REOPEN_EVENT, open);
-    return () => window.removeEventListener(ANALYTICS_REOPEN_EVENT, open);
+    window.addEventListener("hashchange", fromHash);
+    return () => {
+      window.removeEventListener(ANALYTICS_REOPEN_EVENT, open);
+      window.removeEventListener("hashchange", fromHash);
+    };
   }, []);
 
   // Withdrawn consent stops collection at once and clears Google's cookies.
@@ -175,9 +201,17 @@ export default function Analytics() {
     withdrawGoogle(consent !== "granted");
   }, [consent]);
 
+  // The card is in front of someone who has not answered: rest it in every
+  // other tab from now (noteConsentAsked).
+  const askingUndecided =
+    !!GA_MEASUREMENT_ID && stored === "none" && askThisVisit && trackable && splashGone;
+  useEffect(() => {
+    if (askingUndecided) noteConsentAsked(Date.now());
+  }, [askingUndecided]);
+
   if (!GA_MEASUREMENT_ID || consent === "pending") return null;
 
-  const cardOpen = (consent === null || reopened) && trackable && splashGone;
+  const cardOpen = ((consent === null && askThisVisit) || reopened) && trackable && splashGone;
 
   function choose(value: AnalyticsConsent) {
     writeConsent(value);

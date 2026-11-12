@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { debugNow } from "@/lib/debugNow";
 import { useJoinWindow } from "@/lib/joinWindowContext";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
-import { formatClinicTime } from "@/lib/formatDateTime";
+import { formatClinicDate, formatClinicDateShort, formatClinicTime } from "@/lib/formatDateTime";
 
 export default function JoinSessionButton({
   meetLink,
@@ -12,7 +12,18 @@ export default function JoinSessionButton({
   status,
   durationMinutes,
   alwaysActive = false,
+  size = "default",
+  heroDetail,
 }: {
+  /** `large`: the patient's session card - a 48px button with 16px text.
+   *  `hero`: the patient Home headline - one full-width 56px teal "Join your
+   *  video call" while the window is open, and before it "Your join button
+   *  appears here at 5:45 pm". The rule for when the link becomes available
+   *  is the server's and is not changed by either. */
+  size?: "default" | "large" | "hero";
+  /** Hero only: the line under the button, for example "with Dr Rao -
+   *  6:00 pm". Built by the caller from the session, in the clinic's zone. */
+  heroDetail?: string;
   meetLink: string | null | undefined;
   slotTime: string | null | undefined;
   status: string;
@@ -61,6 +72,9 @@ export default function JoinSessionButton({
     return ms !== null && debugNow() >= ms - beforeMs;
   }
 
+  // The clinic-zone date as of mount, so the hero can say "on 28 Oct" when the
+  // button opens on another day than today (read once, not during render).
+  const [todayLabel] = useState(() => formatClinicDate(debugNow()));
   const [isJoinable, setIsJoinable] = useState(() => computeJoinable(slotTimeMs));
   const [isPastCutoff, setIsPastCutoff] = useState(() => computeCompleted(slotTimeMs));
   const [hasOpened, setHasOpened] = useState(() => computeOpened(slotTimeMs));
@@ -135,6 +149,61 @@ export default function JoinSessionButton({
   const opensAt =
     slotTimeMs === null ? null : formatClinicTime(new Date(slotTimeMs - beforeMs));
 
+  if (size === "hero") {
+    const upcomingSession = (status === "requested" || status === "confirmed") && !isPastCutoff;
+    if (!upcomingSession || !opensAt) return null;
+    if (!meetLink && hasOpened) {
+      // The window is open and there is no link: something to act on, said
+      // in the same big type as the button it stands in for.
+      return (
+        <span
+          role="status"
+          className="block rounded-xl bg-amber-50 px-4 py-3 text-base font-semibold text-amber-900"
+        >
+          {status === "requested"
+            ? "No physiotherapist is confirmed for this session yet - please contact the clinic."
+            : "Your video link isn't ready yet - it will appear here. If it doesn't in a few minutes, contact the clinic."}
+        </span>
+      );
+    }
+    if (!meetLink || !isJoinable) {
+      return (
+        <span
+          data-testid="join-hero-waiting"
+          className="block rounded-xl bg-slate-50 px-4 py-3 text-base font-semibold text-slate-700"
+        >
+          <i className="fa-solid fa-video mr-2 text-teal-700" aria-hidden="true" />
+          {`Your join button appears here ${
+            slotTimeMs !== null && formatClinicDate(slotTimeMs - beforeMs) !== todayLabel
+              ? `on ${formatClinicDateShort(slotTimeMs - beforeMs)} at`
+              : "at"
+          } ${opensAt}`}
+        </span>
+      );
+    }
+    return (
+      <span className="block">
+        <button
+          type="button"
+          data-testid="join-hero"
+          onClick={() => window.open(meetLink, "_blank", "noopener,noreferrer")}
+          className="flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 text-lg font-bold text-white transition hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
+        >
+          <i className="fa-solid fa-video" aria-hidden="true" />
+          Join your video call
+        </button>
+        {heroDetail && (
+          <span className="mt-2 block text-center text-base font-semibold text-slate-700">{heroDetail}</span>
+        )}
+        <span className="mt-1 block text-center text-sm text-slate-600">
+          Opens straight into the call - sign in to Google if asked.
+        </span>
+      </span>
+    );
+  }
+
+  const large = size === "large";
+
   if (!meetLink) {
     // No link yet: say where it will appear and when, instead of an empty
     // space where people expect one. The link is created once a therapist is
@@ -150,20 +219,20 @@ export default function JoinSessionButton({
       return (
         <span
           role="status"
-          className="inline-flex items-center gap-1.5 rounded-lg bg-amber-50 px-2.5 py-1.5 text-[11px] text-amber-800"
+          className={`inline-flex items-center gap-1.5 rounded-lg bg-amber-50 px-2.5 py-1.5 text-amber-900 ${large ? "text-sm" : "text-[13px]"}`}
         >
-          <i className="fa-solid fa-video-slash text-[10px]" aria-hidden="true" />
+          <i className="fa-solid fa-video-slash text-[13px]" aria-hidden="true" />
           {status === "requested"
-            ? "No therapist is confirmed for this session yet - please contact the clinic."
+            ? "No physiotherapist is confirmed for this session yet - please contact the clinic."
             : "The Meet link isn't ready yet - it will appear here. If it doesn't in a few minutes, contact the clinic."}
         </span>
       );
     }
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-50 px-2.5 py-1.5 text-[11px] text-slate-600">
-        <i className="fa-solid fa-video text-[10px] text-teal-700" aria-hidden="true" />
+      <span className={`inline-flex items-center gap-1.5 rounded-lg bg-slate-50 px-2.5 py-1.5 text-slate-700 ${large ? "text-sm" : "text-[13px]"}`}>
+        <i className="fa-solid fa-video text-[13px] text-teal-700" aria-hidden="true" />
         {status === "requested"
-          ? `The Meet link will show here once a therapist is confirmed - you can join from ${opensAt}.`
+          ? `The Meet link will show here once a physiotherapist is confirmed - you can join from ${opensAt}.`
           : `The Meet link will show here - you can join from ${opensAt}.`}
       </span>
     );
@@ -208,11 +277,15 @@ export default function JoinSessionButton({
         type="button"
         disabled={disabled}
         onClick={() => window.open(meetLink, "_blank", "noopener,noreferrer")}
-        className="bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white text-[11px] font-semibold px-3 py-1.5 rounded-lg transition"
+        className={
+          large
+            ? "min-h-12 bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white text-base font-semibold px-5 py-2.5 rounded-lg transition"
+            : "bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white text-[13px] font-semibold px-3 py-1.5 rounded-lg transition"
+        }
       >
         {label}
       </button>
-      {caption && <span className="text-[10px] text-slate-500">{caption}</span>}
+      {caption && <span className={`text-slate-600 ${large ? "text-sm" : "text-[13px]"}`}>{caption}</span>}
     </span>
   );
 }

@@ -1,7 +1,7 @@
 /**
  * What the practice is for, in its own words.
  *
- * Kept as data rather than markup for the same reason `careAreas.ts` is: the
+ * Kept as data rather than markup for the same reason `treatmentGoals.ts` is: the
  * mission band and the "what we will not do" band are the two places on the
  * site where the wording will be argued over, and they should be editable
  * without touching a layout.
@@ -202,7 +202,7 @@ export const COMMITMENTS: MissionPrinciple[] = [
   {
     key: "no-lock-in",
     title: "No subscriptions, no auto-renewals",
-    body: "Cancel 24 hours ahead for a full refund. No subscriptions.",
+    body: "Cancel in time for a full refund. Nothing renews itself.",
     icon: "fa-lock-open",
   },
   {

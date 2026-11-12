@@ -17,6 +17,7 @@ import {
   markDashboardTourSeen,
   pageUntilVisible,
   profileIdFor,
+  pickTimeOnStepOne,
 } from "./helpers";
 import { probeLayout, type LayoutIssue } from "./layout/layoutProbe";
 import { LAYOUT_VIEWPORTS } from "./layout/viewports";
@@ -68,7 +69,8 @@ const STATES: State[] = [
     email: null,
     path: "/book",
     open: async (page) => {
-      await page.getByRole("button", { name: /Continue to Medical Details/ }).click();
+      await pickTimeOnStepOne(page);
+      await page.getByRole("button", { name: /Continue to your details/ }).click();
     },
   },
   {

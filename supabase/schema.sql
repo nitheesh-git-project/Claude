@@ -10225,6 +10225,52 @@ begin
     -- The neurological exam chart, append-only by trigger like the Pain Map,
     -- so CASCADE through the account delete below would raise on it.
     neuro_assessments,
+    -- The paediatric exam (phase 5a, end of this file), append-only by
+    -- trigger for the same reason.
+    peds_assessments,
+    -- The shared measurement layer (append-only by trigger, the same reason)
+    -- and the goals and milestones planned against it, named rather than
+    -- left to CASCADE (all three are at the end of this file). The record
+    -- of a milestone reopened by the clinic first: it references them.
+    care_milestone_events,
+    care_milestones,
+    care_goals,
+    outcome_measurements,
+    -- The phase and status-override history (phase 3a, end of this file),
+    -- append-only by trigger for the same reason.
+    care_status_events,
+    -- The patient diary (phase 4a, end of this file), append-only by
+    -- trigger like the measurements beside it.
+    patient_diary_entries,
+    -- What the clinic chose to show on one patient's Health Profile (end of
+    -- this file); the condition-kind settings are settings and stay.
+    patient_profile_widget_overrides,
+    -- Who closed or has seen which announcement, and everybody's private
+    -- notebook (both at the end of this file). The announcements themselves
+    -- are the admin's own writing, like the FAQs, and stay.
+    announcement_receipts,
+    notebook_pages,
+    -- The mirror of Razorpay's refunds (end of this file).
+    razorpay_refunds,
+    -- Test-account logins from the debug bar, and the record of deleted
+    -- accounts (both at the end of this file). The second is append-only by
+    -- trigger, so it is truncated here rather than left to CASCADE.
+    debug_test_accounts,
+    account_deletions,
+    -- The guided video assessment (phase 7a, end of this file): the events
+    -- are append-only by trigger and the runs refuse a delete, so they are
+    -- named here rather than left to CASCADE; the live display goes with them.
+    assessment_live_display,
+    -- The companion heartbeat (E12, end of this file) goes with its runs.
+    assessment_companion_seen,
+    assessment_run_events,
+    -- Home exercises (phase 7d, end of this file): the items and the
+    -- teaching events are append-only by trigger and a plan refuses a
+    -- delete, so they are named rather than left to CASCADE.
+    exercise_teaching_events,
+    exercise_plan_items,
+    exercise_plans,
+    assessment_runs,
     condition_change_requests,
     condition_access_grants,
     patient_condition_profiles,
@@ -17240,6 +17286,2373 @@ end $$;
 -- table has to accept its surface name. Widened by restating the whole
 -- list (the constraint has no `if not exists` form); every existing row
 -- satisfies the wider rule.
+--
+-- Wrapped, and this is the one edit to an already-applied statement, made
+-- on purpose: the list is widened again at the END of the file (the Health
+-- Profile surfaces), and on a re-apply this narrower re-add runs first. Once
+-- any row uses a newer surface -- and communication_flags rows are evidence
+-- that is never deleted -- the bare add failed with check_violation and took
+-- the whole apply with it. The block is its own subtransaction, so on that
+-- failure the drop is undone with it and the wider constraint already there
+-- stands; the end-of-file re-add then restates it. A CHECK widened later
+-- must not be narrowed by an earlier re-add on re-apply.
+do $$
+begin
+  alter table communication_flags drop constraint if exists communication_flags_surface_check;
+  alter table communication_flags add constraint communication_flags_surface_check check (surface in (
+    'session_suggestion_note',
+    'care_plan_rationale',
+    'care_plan_instructions',
+    'pain_assessment_answer',
+    'appointment_notes',
+    'condition_answer',
+    'neuro_assessment_note',
+    'session_summary'
+  ));
+exception when check_violation then null;
+end $$;
+
+-- ---------------------------------------------------------------------
+-- The shared measurement layer: outcome_measurements.
+--
+-- Health Profile redesign, phase 1. ONE append-only table for the
+-- standardised tests of every condition type -- walking speed, Timed Up and
+-- Go, LEFS, the six-minute walk and the rest -- in the shape
+-- src/lib/outcomeMeasures.ts validates (validateMeasurement). The owner's
+-- decision: one shared table, not one per condition, because every reader
+-- (the progress graph, the status pill, the milestone maths) asks the same
+-- question of all of them: what was this measure, for this patient, each
+-- time it was taken.
+--
+-- Two layers stay exactly as they are and are NOT copied here: the Pain
+-- Map (pain_assessments, orthopaedic-only) and the neurological exam
+-- (neuro_assessments, which owns the Berg item scores, the Modified
+-- Ashworth and MRC grades, and a neurological patient's 10-metre walk and
+-- TUG). The registry marks those measures with their own source, and the
+-- validator refuses to store them twice.
+--
+-- One row per measurement:
+--   - measure_key / variant / side say exactly which line of which graph it
+--     belongs on (knee flexion active, right). Two variants never share a
+--     line, which is how active and passive range stay apart.
+--   - value is in the measure's own unit; items holds the score-sheet
+--     answers (an array) or the named raw readings (an object) it was
+--     worked out from, so a total can be re-checked later.
+--   - conditions records what has to be the same for two numbers to be
+--     comparable: walking aid, footwear, ON/OFF and the last dose
+--     (required on a Parkinson's measurement), in person or video, tester.
+--   - measured_at is when the test was done; created_at when it was
+--     written. schema_version is OUTCOME_MEASURES_VERSION.
+--
+-- Same posture as neuro_assessments in every other respect: read by the
+-- patient (their own), by an active therapist with live or delivered care
+-- (the clinical-access rule), and by an admin; inserted by a therapist only
+-- against a session that has started or been delivered (the routes, still
+-- to be written, mirror this and write with the service role, so the policy
+-- is the browser-session half); recorded_by_role is therapist or admin --
+-- never the patient, whose diaries are a later phase. Append-only BY
+-- TRIGGER, not by revoke: a re-test is a new row, and a mistaken one is
+-- corrected by recording a truer one.
+--
+-- The one mutation the trigger permits is appointment_id -> NULL, which is
+-- what `on delete set null` does when a session row is deleted (only
+-- scripts/clean-e2e-residue.mjs --apply ever deletes one). Every other
+-- column, and every other change to that one, raises. Its foreign keys are
+-- cascade (patient), set null (appointment) and no action (author, a
+-- profile the residue script never deletes) -- none is `restrict`, so there
+-- is nothing for that script to learn. The data reset truncates it (newest
+-- debug_reset_all_data(), above).
+-- ---------------------------------------------------------------------
+create table if not exists outcome_measurements (
+  id uuid primary key default gen_random_uuid(),
+  patient_id uuid not null references profiles(id) on delete cascade,
+  appointment_id uuid references appointments(id) on delete set null,
+  measure_key text not null check (measure_key ~ '^[a-z][a-z0-9_]{1,63}$'),
+  variant text check (variant is null or variant ~ '^[a-z][a-z0-9_]{0,63}$'),
+  side text check (side is null or side in ('left', 'right')),
+  value numeric not null check (value between -1000 and 100000),
+  items jsonb check (items is null or jsonb_typeof(items) in ('array', 'object')),
+  conditions jsonb not null default '{}'::jsonb check (jsonb_typeof(conditions) = 'object'),
+  recorded_by uuid not null references profiles(id),
+  recorded_by_role text not null check (recorded_by_role in ('therapist', 'admin')),
+  measured_at timestamptz not null,
+  schema_version integer not null default 1 check (schema_version >= 1),
+  created_at timestamptz not null default now(),
+  -- A phone clock running a little fast is tolerated; a test recorded as
+  -- happening tomorrow is not.
+  constraint outcome_measurements_not_in_future check (measured_at <= created_at + interval '5 minutes')
+);
+
+-- The graph's read: one measure for one patient, newest first.
+create index if not exists outcome_measurements_patient_measure_idx
+  on outcome_measurements (patient_id, measure_key, measured_at desc);
+create index if not exists outcome_measurements_recorded_by_idx
+  on outcome_measurements (recorded_by);
+create index if not exists outcome_measurements_appointment_idx
+  on outcome_measurements (appointment_id) where appointment_id is not null;
+
+alter table outcome_measurements enable row level security;
+
+drop policy if exists "outcome_measurements_select_own" on outcome_measurements;
+create policy "outcome_measurements_select_own" on outcome_measurements
+  for select using ((select auth.uid()) = patient_id);
+
+drop policy if exists "outcome_measurements_select_assigned_therapist" on outcome_measurements;
+create policy "outcome_measurements_select_assigned_therapist" on outcome_measurements
+  for select using (
+    is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = outcome_measurements.patient_id
+          and a.therapist_id = (select auth.uid())
+          and a.status in ('requested', 'confirmed', 'completed')
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = outcome_measurements.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+          and pp.payment_status = 'paid'
+          and pp.status = 'active'
+          and (pp.expires_at is null or pp.expires_at > now())
+      )
+    )
+  );
+
+drop policy if exists "outcome_measurements_select_admin" on outcome_measurements;
+create policy "outcome_measurements_select_admin" on outcome_measurements
+  for select using (is_admin());
+
+-- A linked session, when given, must be this therapist's own session with
+-- this patient: a measurement cannot be filed against somebody else's.
+drop policy if exists "outcome_measurements_insert_assigned_therapist" on outcome_measurements;
+create policy "outcome_measurements_insert_assigned_therapist" on outcome_measurements
+  for insert with check (
+    (select auth.uid()) = recorded_by and recorded_by_role = 'therapist'
+    and is_active_therapist()
+    and exists (
+      select 1 from appointments a
+      where a.patient_id = outcome_measurements.patient_id
+        and a.therapist_id = (select auth.uid())
+        and (
+          a.status = 'completed'
+          or (a.status = 'confirmed' and a.slot_time <= now() + interval '15 minutes')
+        )
+    )
+    and (
+      outcome_measurements.appointment_id is null
+      or exists (
+        select 1 from appointments s
+        where s.id = outcome_measurements.appointment_id
+          and s.patient_id = outcome_measurements.patient_id
+          and s.therapist_id = (select auth.uid())
+      )
+    )
+  );
+
+revoke update, delete on outcome_measurements from anon, authenticated;
+
+create or replace function public.outcome_measurements_is_append_only()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  -- The single permitted change: a deleted session's id cleared by
+  -- `on delete set null`, with every other column untouched.
+  if tg_op = 'UPDATE'
+     and old.appointment_id is not null
+     and new.appointment_id is null
+     and (to_jsonb(new) - 'appointment_id') = (to_jsonb(old) - 'appointment_id') then
+    return new;
+  end if;
+  raise exception 'outcome_measurements is append-only: a re-test is a new row, never an edit';
+end;
+$$;
+
+revoke all on function public.outcome_measurements_is_append_only() from public, anon, authenticated;
+
+drop trigger if exists outcome_measurements_no_change on outcome_measurements;
+create trigger outcome_measurements_no_change
+  before update or delete on outcome_measurements
+  for each row execute function public.outcome_measurements_is_append_only();
+
+-- ---------------------------------------------------------------------
+-- The milestone layer: care_goals and care_milestones.
+--
+-- The patient's own goal ("Play badminton with my friends on weekends
+-- again"), then small steps towards it, each with a measurable criterion
+-- so "reached" is a fact, not an opinion (src/lib/milestones.ts). Starter
+-- wording comes from src/lib/milestoneTemplates.ts and is always edited by
+-- the physiotherapist; nothing reads a template after it is copied here.
+--
+-- Unlike outcome_measurements these are a PLAN, not evidence, so the
+-- assigned therapist may edit them -- with one exception that is evidence:
+-- `reached_at`. It is written once, never moved or cleared, and a reached
+-- milestone stays reached (trigger below; the CHECK ties the status to it).
+-- A regression is a new milestone, not an edit to an old one.
+--
+-- Who: the patient reads their own; the assigned therapist reads and
+-- writes under the same clinical-access rule the measurements use (live or
+-- delivered care, an active therapist); an admin reads. Admin edits, when a
+-- screen needs them, go through a service-role route with
+-- requireAdminScope like every other back-office write. A therapist may
+-- delete a milestone only while it is not reached.
+--
+-- Foreign keys: patient cascade, the goal cascade (through a composite key,
+-- so a milestone can never point at another patient's goal), the proving
+-- measurement set null, the author no action. None is `restrict`, so
+-- scripts/clean-e2e-residue.mjs has nothing to learn. The data reset
+-- truncates both (newest debug_reset_all_data(), above).
+-- ---------------------------------------------------------------------
+create table if not exists care_goals (
+  id uuid primary key default gen_random_uuid(),
+  patient_id uuid not null references profiles(id) on delete cascade,
+  -- outcomeMeasures.ts ProfileKind. Parkinson's is a neuro sub-profile;
+  -- geriatric and cardiopulmonary are not condition types yet.
+  profile_kind text not null check (profile_kind in (
+    'ortho', 'neuro', 'neuro_parkinsons', 'pediatrics', 'geriatric', 'cardiopulmonary'
+  )),
+  -- In the patient's own words.
+  goal_text text not null check (char_length(btrim(goal_text)) between 1 and 300),
+  target_date date,
+  status text not null default 'active' check (status in ('active', 'achieved', 'closed')),
+  authored_by uuid not null references profiles(id),
+  authored_by_role text not null check (authored_by_role in ('therapist', 'admin')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- One goal at the top of the profile at a time.
+create unique index if not exists care_goals_one_active_per_patient
+  on care_goals (patient_id) where status = 'active';
+-- The target of care_milestones' composite foreign key.
+create unique index if not exists care_goals_id_patient_key
+  on care_goals (id, patient_id);
+create index if not exists care_goals_authored_by_idx on care_goals (authored_by);
+
+create table if not exists care_milestones (
+  id uuid primary key default gen_random_uuid(),
+  goal_id uuid not null,
+  patient_id uuid not null references profiles(id) on delete cascade,
+  title text not null check (char_length(btrim(title)) between 1 and 120),
+  -- The measurable bar, in words the patient reads.
+  criterion text not null check (char_length(btrim(criterion)) between 1 and 200),
+  phase text check (phase is null or char_length(phase) <= 60),
+  linked_measure_key text check (linked_measure_key is null or linked_measure_key ~ '^[a-z][a-z0-9_]{1,63}$'),
+  linked_variant text check (linked_variant is null or linked_variant ~ '^[a-z][a-z0-9_]{0,63}$'),
+  linked_side text check (linked_side is null or linked_side in ('left', 'right')),
+  target_value numeric,
+  -- Where the patient started, for a "lower is better" progress bar.
+  baseline_value numeric,
+  status text not null default 'planned' check (status in ('planned', 'working', 'reached')),
+  reached_at timestamptz,
+  -- The measurement that proved it, when one did.
+  reached_measurement_id uuid references outcome_measurements(id) on delete set null,
+  target_date date,
+  sort_order integer not null default 0 check (sort_order between 0 and 1000),
+  template_key text check (template_key is null or char_length(template_key) <= 64),
+  authored_by uuid not null references profiles(id),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint care_milestones_goal_same_patient
+    foreign key (goal_id, patient_id) references care_goals (id, patient_id) on delete cascade,
+  -- Reached and reached_at are one fact, not two that can disagree.
+  constraint care_milestones_reached_has_time check ((status = 'reached') = (reached_at is not null)),
+  -- A number to reach needs a measure to reach it on, and the variant and
+  -- side only mean something with one.
+  constraint care_milestones_target_needs_measure check (
+    (target_value is null or linked_measure_key is not null)
+    and (linked_variant is null or linked_measure_key is not null)
+    and (linked_side is null or linked_measure_key is not null)
+  )
+);
+
+create index if not exists care_milestones_goal_idx on care_milestones (goal_id, sort_order);
+create index if not exists care_milestones_patient_idx on care_milestones (patient_id, goal_id);
+create index if not exists care_milestones_authored_by_idx on care_milestones (authored_by);
+create index if not exists care_milestones_reached_measurement_idx
+  on care_milestones (reached_measurement_id) where reached_measurement_id is not null;
+
+alter table care_goals enable row level security;
+alter table care_milestones enable row level security;
+
+drop policy if exists "care_goals_select_own" on care_goals;
+create policy "care_goals_select_own" on care_goals
+  for select using ((select auth.uid()) = patient_id);
+
+drop policy if exists "care_goals_select_admin" on care_goals;
+create policy "care_goals_select_admin" on care_goals
+  for select using (is_admin());
+
+-- Read and write under the clinical-access rule. Written out per command
+-- (rather than one `for all`) so the insert and update halves can each pin
+-- the author to the caller.
+drop policy if exists "care_goals_select_assigned_therapist" on care_goals;
+create policy "care_goals_select_assigned_therapist" on care_goals
+  for select using (
+    is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = care_goals.patient_id
+          and a.therapist_id = (select auth.uid())
+          and a.status in ('requested', 'confirmed', 'completed')
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = care_goals.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+          and pp.payment_status = 'paid'
+          and pp.status = 'active'
+          and (pp.expires_at is null or pp.expires_at > now())
+      )
+    )
+  );
+
+drop policy if exists "care_goals_insert_assigned_therapist" on care_goals;
+create policy "care_goals_insert_assigned_therapist" on care_goals
+  for insert with check (
+    (select auth.uid()) = authored_by and authored_by_role = 'therapist'
+    and is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = care_goals.patient_id
+          and a.therapist_id = (select auth.uid())
+          and a.status in ('requested', 'confirmed', 'completed')
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = care_goals.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+          and pp.payment_status = 'paid'
+          and pp.status = 'active'
+          and (pp.expires_at is null or pp.expires_at > now())
+      )
+    )
+  );
+
+drop policy if exists "care_goals_update_assigned_therapist" on care_goals;
+create policy "care_goals_update_assigned_therapist" on care_goals
+  for update using (
+    is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = care_goals.patient_id
+          and a.therapist_id = (select auth.uid())
+          and a.status in ('requested', 'confirmed', 'completed')
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = care_goals.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+          and pp.payment_status = 'paid'
+          and pp.status = 'active'
+          and (pp.expires_at is null or pp.expires_at > now())
+      )
+    )
+  );
+
+-- A goal is closed, never deleted: its milestones are the record of what
+-- was planned and reached.
+revoke delete on care_goals from anon, authenticated;
+
+drop policy if exists "care_milestones_select_own" on care_milestones;
+create policy "care_milestones_select_own" on care_milestones
+  for select using ((select auth.uid()) = patient_id);
+
+drop policy if exists "care_milestones_select_admin" on care_milestones;
+create policy "care_milestones_select_admin" on care_milestones
+  for select using (is_admin());
+
+drop policy if exists "care_milestones_select_assigned_therapist" on care_milestones;
+create policy "care_milestones_select_assigned_therapist" on care_milestones
+  for select using (
+    is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = care_milestones.patient_id
+          and a.therapist_id = (select auth.uid())
+          and a.status in ('requested', 'confirmed', 'completed')
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = care_milestones.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+          and pp.payment_status = 'paid'
+          and pp.status = 'active'
+          and (pp.expires_at is null or pp.expires_at > now())
+      )
+    )
+  );
+
+drop policy if exists "care_milestones_insert_assigned_therapist" on care_milestones;
+create policy "care_milestones_insert_assigned_therapist" on care_milestones
+  for insert with check (
+    (select auth.uid()) = authored_by
+    and is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = care_milestones.patient_id
+          and a.therapist_id = (select auth.uid())
+          and a.status in ('requested', 'confirmed', 'completed')
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = care_milestones.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+          and pp.payment_status = 'paid'
+          and pp.status = 'active'
+          and (pp.expires_at is null or pp.expires_at > now())
+      )
+    )
+  );
+
+drop policy if exists "care_milestones_update_assigned_therapist" on care_milestones;
+create policy "care_milestones_update_assigned_therapist" on care_milestones
+  for update using (
+    is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = care_milestones.patient_id
+          and a.therapist_id = (select auth.uid())
+          and a.status in ('requested', 'confirmed', 'completed')
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = care_milestones.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+          and pp.payment_status = 'paid'
+          and pp.status = 'active'
+          and (pp.expires_at is null or pp.expires_at > now())
+      )
+    )
+  );
+
+drop policy if exists "care_milestones_delete_assigned_therapist" on care_milestones;
+create policy "care_milestones_delete_assigned_therapist" on care_milestones
+  for delete using (
+    reached_at is null
+    and is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = care_milestones.patient_id
+          and a.therapist_id = (select auth.uid())
+          and a.status in ('requested', 'confirmed', 'completed')
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = care_milestones.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+          and pp.payment_status = 'paid'
+          and pp.status = 'active'
+          and (pp.expires_at is null or pp.expires_at > now())
+      )
+    )
+  );
+
+-- Bookkeeping and the one rule that is evidence, enforced by trigger for
+-- every caller including the service role: a goal or milestone never moves
+-- to another patient (or another goal), updated_at follows every edit, and
+-- a reached milestone's reached_at is never moved or cleared.
+create or replace function public.care_goals_guard()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if new.patient_id is distinct from old.patient_id then
+    raise exception 'care_goals: a goal never moves to another patient';
+  end if;
+  new.updated_at := now();
+  return new;
+end;
+$$;
+
+revoke all on function public.care_goals_guard() from public, anon, authenticated;
+
+drop trigger if exists care_goals_guard on care_goals;
+create trigger care_goals_guard
+  before update on care_goals
+  for each row execute function public.care_goals_guard();
+
+create or replace function public.care_milestones_guard()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if new.patient_id is distinct from old.patient_id or new.goal_id is distinct from old.goal_id then
+    raise exception 'care_milestones: a milestone never moves to another patient or goal';
+  end if;
+  if old.reached_at is not null
+     and (new.reached_at is distinct from old.reached_at or new.status is distinct from 'reached') then
+    raise exception 'care_milestones: a reached milestone stays reached; reached_at is recorded once';
+  end if;
+  new.updated_at := now();
+  return new;
+end;
+$$;
+
+revoke all on function public.care_milestones_guard() from public, anon, authenticated;
+
+drop trigger if exists care_milestones_guard on care_milestones;
+create trigger care_milestones_guard
+  before update on care_milestones
+  for each row execute function public.care_milestones_guard();
+
+-- ---------------------------------------------------------------------
+-- Health Profile redesign, phase 2a: the server side of the measurement
+-- and milestone layers above.
+--
+-- Five things, each re-runnable on its own:
+--   1. site_settings.enabled_licensed_measures -- the admin's switch for
+--      the licensed scales;
+--   2. three new contact-scanner surfaces;
+--   3. care_milestone_events -- the append-only record of an admin
+--      reopening a milestone that was marked reached by mistake;
+--   4. reopen_care_milestone() -- the one door through which a reached
+--      milestone stops being reached;
+--   5. the newest care_milestones_guard(), which knows that door;
+-- plus the realtime publication for the three phase 1 tables.
+-- ---------------------------------------------------------------------
+
+-- 1. Which licensed outcome measures the clinic has confirmed it holds a
+-- licence for (src/lib/outcomeMeasures.ts, `licence: "licensed"`). Empty by
+-- default: every licensed scale ships switched off, and the module throws
+-- at load if one is on by default. Read in its own call, never through
+-- SITE_SETTINGS_SELECT (the newest-column rule), and failing CLOSED -- an
+-- unreadable value enables nothing (src/lib/outcomeServer.ts).
+--
+-- jsonb rather than text[] on purpose: /api/admin/update-setting compares
+-- the previous value as its JSON text for its compare-and-swap, which is
+-- correct for a jsonb array and a malformed-literal error for a text[] one
+-- (the 22P02 that once took booking_languages down). The keys are checked
+-- against the registry by that route; the CHECK only pins the shape.
+alter table site_settings
+  add column if not exists enabled_licensed_measures jsonb not null default '[]'::jsonb;
+
+alter table site_settings drop constraint if exists site_settings_enabled_licensed_measures_is_array;
+alter table site_settings add constraint site_settings_enabled_licensed_measures_is_array
+  check (jsonb_typeof(enabled_licensed_measures) = 'array');
+
+-- 2. The new free text that reaches a patient goes through the contact
+-- scanner, so the evidence table has to accept its surface names: the
+-- free-text conditions on a measurement (walking aid, footwear, who
+-- measured), the patient's goal, and a milestone's title and criterion.
+-- Widened by restating the whole list, as the session_summary change above
+-- did; every existing row satisfies the wider rule.
+-- (The re-add that sat here is now the single widened one near the end of
+-- the file, "communication_flags surfaces": a re-add here ran before rows
+-- naming the later surfaces existed and failed on a re-apply after them.)
+
+-- 3. care_milestone_events: a milestone marked reached by mistake.
+--
+-- The phase 1 guard makes reached_at a fact written once, for every caller
+-- including the service role -- and that is right, because "reached" is the
+-- one thing on a milestone that is evidence. But a physiotherapist can tick
+-- the wrong row, and the only honest fix for a fact recorded in error is a
+-- second fact saying so, not an edit that makes the first one disappear.
+--
+-- Two designs were possible, and this is the safer of them:
+--
+--   * Loosen the guard for the service role (or behind a session GUC).
+--     Rejected: every route writes with the service role, so "the service
+--     role may clear reached_at" is "any route may", which is the silent
+--     move the guard exists to stop -- and a GUC can be set by any code
+--     holding the connection.
+--   * A narrow, recorded door (chosen). An append-only event row naming
+--     the milestone, the reached_at being withdrawn, who and why (a reason
+--     of at least 10 characters), written by reopen_care_milestone() below
+--     IN THE SAME TRANSACTION as the update. The guard lets reached_at go
+--     only when such a row exists for exactly that milestone, exactly that
+--     reached_at, and exactly this transaction (xact_id = txid_current()).
+--     A route cannot satisfy that with two PostgREST calls -- each is its
+--     own transaction -- and nothing but the function can insert the row
+--     (no insert grant or policy for anon or authenticated; the function
+--     is revoked from all three and run by the service role through
+--     /api/admin/care-milestones/reopen). So "reached once" still holds for
+--     everybody else, and a reopening is never silent: it leaves this row
+--     and an audit-log entry.
+--
+-- Read by an admin only: the reason is back-office text. The patient and
+-- the therapist see the milestone back at planned or working.
+--
+-- Append-only by trigger. Foreign keys: the milestone and the patient
+-- cascade, which the trigger turns into a refusal -- a milestone that was
+-- once reached and reopened cannot be deleted afterwards, which keeps the
+-- record of the correction with it (the same posture outcome_measurements
+-- takes on a patient delete). previous_measurement_id is a plain uuid, not a
+-- foreign key: a set-null would be an update this table refuses. None is
+-- `restrict`, so scripts/clean-e2e-residue.mjs has nothing to learn. The
+-- data reset truncates it (newest debug_reset_all_data(), above).
+create table if not exists care_milestone_events (
+  id uuid primary key default gen_random_uuid(),
+  milestone_id uuid not null references care_milestones(id) on delete cascade,
+  patient_id uuid not null references profiles(id) on delete cascade,
+  kind text not null check (kind in ('reopened')),
+  previous_status text not null check (previous_status = 'reached'),
+  previous_reached_at timestamptz not null,
+  previous_measurement_id uuid,
+  new_status text not null check (new_status in ('planned', 'working')),
+  reason text not null check (char_length(btrim(reason)) between 10 and 500),
+  actor_id uuid not null references profiles(id),
+  actor_role text not null check (actor_role = 'admin'),
+  -- The transaction that wrote this row: the guard's proof that the update
+  -- it is judging is the one this event was written for.
+  xact_id bigint not null default txid_current(),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists care_milestone_events_milestone_idx
+  on care_milestone_events (milestone_id, created_at desc);
+create index if not exists care_milestone_events_patient_idx
+  on care_milestone_events (patient_id);
+create index if not exists care_milestone_events_actor_idx
+  on care_milestone_events (actor_id);
+
+alter table care_milestone_events enable row level security;
+
+drop policy if exists "care_milestone_events_select_admin" on care_milestone_events;
+create policy "care_milestone_events_select_admin" on care_milestone_events
+  for select using (is_admin());
+
+revoke insert, update, delete on care_milestone_events from anon, authenticated;
+
+create or replace function public.care_milestone_events_is_append_only()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  raise exception 'care_milestone_events is append-only: it is the record of a milestone reopened by the clinic';
+end;
+$$;
+
+revoke all on function public.care_milestone_events_is_append_only() from public, anon, authenticated;
+
+drop trigger if exists care_milestone_events_no_change on care_milestone_events;
+create trigger care_milestone_events_no_change
+  before update or delete on care_milestone_events
+  for each row execute function public.care_milestone_events_is_append_only();
+
+-- 4. The door. Returns {ok: true, event_id, previous_reached_at,
+-- previous_measurement_id} or {ok: false, reason} with reason one of
+-- bad_status, bad_reason, not_admin, not_found, not_reached -- refusals as
+-- values, so the route can say which. The row is locked first, so two
+-- admins reopening at once write one event and the second reads
+-- not_reached.
+create or replace function public.reopen_care_milestone(
+  p_milestone_id uuid,
+  p_patient_id uuid,
+  p_actor_id uuid,
+  p_reason text,
+  p_reopen_to text
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_row care_milestones%rowtype;
+  v_event_id uuid;
+  v_reason text := btrim(coalesce(p_reason, ''));
+begin
+  if p_reopen_to is null or p_reopen_to not in ('planned', 'working') then
+    return jsonb_build_object('ok', false, 'reason', 'bad_status');
+  end if;
+  if char_length(v_reason) < 10 or char_length(v_reason) > 500 then
+    return jsonb_build_object('ok', false, 'reason', 'bad_reason');
+  end if;
+  if not exists (select 1 from profiles where id = p_actor_id and role = 'admin') then
+    return jsonb_build_object('ok', false, 'reason', 'not_admin');
+  end if;
+
+  select * into v_row
+  from care_milestones
+  where id = p_milestone_id and patient_id = p_patient_id
+  for update;
+  if not found then
+    return jsonb_build_object('ok', false, 'reason', 'not_found');
+  end if;
+  if v_row.reached_at is null then
+    return jsonb_build_object('ok', false, 'reason', 'not_reached');
+  end if;
+
+  insert into care_milestone_events (
+    milestone_id, patient_id, kind, previous_status, previous_reached_at,
+    previous_measurement_id, new_status, reason, actor_id, actor_role
+  ) values (
+    v_row.id, v_row.patient_id, 'reopened', 'reached', v_row.reached_at,
+    v_row.reached_measurement_id, p_reopen_to, v_reason, p_actor_id, 'admin'
+  )
+  returning id into v_event_id;
+
+  update care_milestones
+  set status = p_reopen_to, reached_at = null, reached_measurement_id = null
+  where id = v_row.id;
+
+  return jsonb_build_object(
+    'ok', true,
+    'event_id', v_event_id,
+    'previous_reached_at', v_row.reached_at,
+    'previous_measurement_id', v_row.reached_measurement_id
+  );
+end;
+$$;
+
+revoke all on function public.reopen_care_milestone(uuid, uuid, uuid, text, text) from public, anon, authenticated;
+
+-- 5. The guard, superseding the phase 1 declaration above (the last
+-- `create or replace` wins). Everything it refused, it still refuses,
+-- except one transition: reached -> planned/working with reached_at
+-- cleared, when the reopen event for exactly that reached_at was written
+-- in this same transaction (see 3).
+create or replace function public.care_milestones_guard()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if new.patient_id is distinct from old.patient_id or new.goal_id is distinct from old.goal_id then
+    raise exception 'care_milestones: a milestone never moves to another patient or goal';
+  end if;
+  if old.reached_at is not null
+     and (new.reached_at is distinct from old.reached_at or new.status is distinct from 'reached') then
+    if not (
+      new.reached_at is null
+      and new.status in ('planned', 'working')
+      and exists (
+        select 1 from care_milestone_events e
+        where e.milestone_id = old.id
+          and e.kind = 'reopened'
+          and e.previous_reached_at = old.reached_at
+          and e.xact_id = txid_current()
+      )
+    ) then
+      raise exception 'care_milestones: a reached milestone stays reached; reached_at is recorded once';
+    end if;
+  end if;
+  new.updated_at := now();
+  return new;
+end;
+$$;
+
+revoke all on function public.care_milestones_guard() from public, anon, authenticated;
+
+drop trigger if exists care_milestones_guard on care_milestones;
+create trigger care_milestones_guard
+  before update on care_milestones
+  for each row execute function public.care_milestones_guard();
+
+-- The Health Profile refreshes when a measurement, the goal or a milestone
+-- lands (the screens that subscribe arrive in phase 2b; published ahead of
+-- them, which check-realtime-coverage.mjs allows).
+do $$
+begin
+  alter publication supabase_realtime add table outcome_measurements;
+exception when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  alter publication supabase_realtime add table care_goals;
+exception when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  alter publication supabase_realtime add table care_milestones;
+exception when duplicate_object then null;
+end $$;
+
+-- ---------------------------------------------------------------------
+-- Health Profile redesign, phase 3a: the physiotherapist's phase and status
+-- judgements, and the six-minute walk's equation.
+--
+-- Four things, each re-runnable on its own:
+--   1. site_settings.six_minute_walk_equation -- the admin's choice of the
+--      predicted-distance equation;
+--   2. one new contact-scanner surface, for the reason on a status
+--      override;
+--   3. care_status_events -- the append-only history of the current phase
+--      and of overrides of the computed status pill;
+--   4. the realtime publication for it.
+--
+-- APPLY THIS TO STAGING'S DATABASE BEFORE THE BRANCH MERGES. The Health
+-- Profile's PDF export is "complete or refused": with a table it reads
+-- missing, it answers 503 rather than a shorter document.
+-- ---------------------------------------------------------------------
+
+-- 1. Which predicted-distance equation the six-minute walk's "% of
+-- predicted" uses (src/lib/clinicalCalculators.ts, SIX_MINUTE_WALK_EQUATIONS;
+-- src/lib/sixMinuteWalkEquation.ts). NULL is the default and means "not
+-- chosen yet": no percentage is shown, and nothing falls back to the US
+-- equation. Plain text, not jsonb: update-setting compares a scalar with
+-- .eq() / .is(null), which is correct for text. The keys are checked against
+-- the equation table by that route; the CHECK only pins the shape. Read in
+-- its own call (loadSixMinuteWalkEquation), never through
+-- SITE_SETTINGS_SELECT.
+alter table site_settings
+  add column if not exists six_minute_walk_equation text;
+
+alter table site_settings drop constraint if exists site_settings_six_minute_walk_equation_shape;
+alter table site_settings add constraint site_settings_six_minute_walk_equation_shape
+  check (six_minute_walk_equation is null or six_minute_walk_equation ~ '^[a-z][a-z0-9_]{1,63}$');
+
+-- 2. The reason on a status override reaches the patient beside the pill,
+-- so it goes through the contact scanner like the goal and milestone text.
+-- Widened by restating the whole list, as phase 2a did; every existing row
+-- satisfies the wider rule.
+-- (The re-add that sat here is now the single widened one near the end of
+-- the file, "communication_flags surfaces": a re-add here ran before rows
+-- naming the later surfaces existed and failed on a re-apply after them.)
+
+-- 3. care_status_events: the current phase and the status override, as
+-- history rather than a mutable cell.
+--
+-- The physiotherapist sets which of the profile kind's four phases the
+-- patient is in (src/lib/milestoneTemplates.ts, PHASES_BY_PROFILE_KIND) and
+-- may overrule the computed status pill (src/lib/profileStatus.ts) with a
+-- reason of at least 10 characters. Each change is a row; what is in force
+-- is shaped from the rows (src/lib/careStatus.ts: the latest phase wins,
+-- the latest override wins, an override_cleared row ends the override
+-- before it). So "who said Needs attention, when and why" always has an
+-- answer, and an override is never silently replaced.
+--
+-- Who: the patient reads their own (the reason is shown beside the pill,
+-- which is why it is scanned); the assigned therapist reads and inserts
+-- under the clinical-access rule, as care_goals does -- a judgement about
+-- the plan needs the assignment, not a started session; an admin reads,
+-- and writes through /api/admin/care-status/set (service role,
+-- requireAdminScope("people"), an audit row). The phase is checked against
+-- the profile kind's list by the routes; profile_kind is stored so a phase
+-- chosen under another kind (neuro -> the Parkinson's sub-profile) is
+-- passed over rather than shown.
+--
+-- Append-only by trigger, for every caller including the service role.
+-- Foreign keys: the patient cascade, which the trigger turns into a refusal
+-- (the outcome_measurements posture: a patient with clinical history is
+-- suspended, not deleted), and the author no action. None is `restrict`, so
+-- scripts/clean-e2e-residue.mjs has nothing to learn. The data reset
+-- truncates it (newest debug_reset_all_data(), above).
+create table if not exists care_status_events (
+  id uuid primary key default gen_random_uuid(),
+  patient_id uuid not null references profiles(id) on delete cascade,
+  kind text not null check (kind in ('phase', 'status_override', 'override_cleared')),
+  -- The phase name, or the override's status; null for a clear.
+  value text,
+  reason text check (reason is null or char_length(btrim(reason)) between 1 and 300),
+  -- outcomeMeasures.ts ProfileKind, as care_goals stores it.
+  profile_kind text not null check (profile_kind in (
+    'ortho', 'neuro', 'neuro_parkinsons', 'pediatrics', 'geriatric', 'cardiopulmonary'
+  )),
+  set_by uuid not null references profiles(id),
+  set_by_role text not null check (set_by_role in ('therapist', 'admin')),
+  created_at timestamptz not null default now(),
+  -- An override is one of the three judgements, with its reason; a phase is
+  -- a name; a clear carries no value.
+  constraint care_status_events_shape check (
+    (kind = 'phase' and value is not null and char_length(btrim(value)) between 1 and 60)
+    or (
+      kind = 'status_override'
+      and value in ('improving', 'steady', 'needs_attention')
+      and reason is not null
+      and char_length(btrim(reason)) >= 10
+    )
+    or (kind = 'override_cleared' and value is null)
+  )
+);
+
+create index if not exists care_status_events_patient_idx
+  on care_status_events (patient_id, created_at desc);
+create index if not exists care_status_events_set_by_idx
+  on care_status_events (set_by);
+
+alter table care_status_events enable row level security;
+
+drop policy if exists "care_status_events_select_own" on care_status_events;
+create policy "care_status_events_select_own" on care_status_events
+  for select using ((select auth.uid()) = patient_id);
+
+drop policy if exists "care_status_events_select_admin" on care_status_events;
+create policy "care_status_events_select_admin" on care_status_events
+  for select using (is_admin());
+
+drop policy if exists "care_status_events_select_assigned_therapist" on care_status_events;
+create policy "care_status_events_select_assigned_therapist" on care_status_events
+  for select using (
+    is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = care_status_events.patient_id
+          and a.therapist_id = (select auth.uid())
+          and a.status in ('requested', 'confirmed', 'completed')
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = care_status_events.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+          and pp.payment_status = 'paid'
+          and pp.status = 'active'
+          and (pp.expires_at is null or pp.expires_at > now())
+      )
+    )
+  );
+
+drop policy if exists "care_status_events_insert_assigned_therapist" on care_status_events;
+create policy "care_status_events_insert_assigned_therapist" on care_status_events
+  for insert with check (
+    (select auth.uid()) = set_by and set_by_role = 'therapist'
+    and is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = care_status_events.patient_id
+          and a.therapist_id = (select auth.uid())
+          and a.status in ('requested', 'confirmed', 'completed')
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = care_status_events.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+          and pp.payment_status = 'paid'
+          and pp.status = 'active'
+          and (pp.expires_at is null or pp.expires_at > now())
+      )
+    )
+  );
+
+revoke update, delete on care_status_events from anon, authenticated;
+
+create or replace function public.care_status_events_is_append_only()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  raise exception 'care_status_events is append-only: a phase or status change is history; record a new one instead';
+end;
+$$;
+
+revoke all on function public.care_status_events_is_append_only() from public, anon, authenticated;
+
+drop trigger if exists care_status_events_no_change on care_status_events;
+create trigger care_status_events_no_change
+  before update or delete on care_status_events
+  for each row execute function public.care_status_events_is_append_only();
+
+-- 4. The Health Profile refreshes when the phase or the override changes.
+do $$
+begin
+  alter publication supabase_realtime add table care_status_events;
+exception when duplicate_object then null;
+end $$;
+
+-- ---------------------------------------------------------------------
+-- Health Profile redesign, phase 4a: the Parkinson's sub-profile's server
+-- side -- the patient diary, and "Where things stand" as a written field.
+--
+-- Four things, each re-runnable on its own:
+--   1. two new contact-scanner surfaces: the free-text note on a diary
+--      entry, and the physiotherapist's written summary;
+--   2. care_status_events learns a fourth kind, 'summary' -- the written
+--      "Where things stand", kept as history like the phase;
+--   3. patient_diary_entries -- the append-only diary a patient (or the
+--      family member holding their phone) keeps between sessions;
+--   4. the realtime publication for it.
+--
+-- The neurological intake's condition group and Parkinson's follow-ups are
+-- code only (src/lib/intakeNeuro.ts; data stays a flat jsonb blob) and need
+-- nothing here: intake_question_templates is keyed (specialty,
+-- question_key) and seeds no rows, so the admin's question bank lists the
+-- new questions from the code defaults.
+--
+-- APPLY THIS TO STAGING'S DATABASE BEFORE THE BRANCH MERGES. The diary and
+-- summary routes answer 503 "this database has not been updated yet" on a
+-- database without it, rather than a 500.
+-- ---------------------------------------------------------------------
+
+-- 1. Restated in full, as phase 3a did; every existing row satisfies the
+-- wider rule.
+-- (The re-add that sat here is now the single widened one near the end of
+-- the file, "communication_flags surfaces": a re-add here ran before rows
+-- naming the later surfaces existed and failed on a re-apply after them.)
+
+-- 2. "Where things stand", written by the physiotherapist (or an admin on
+-- their behalf, with an audit row) and read by the patient. A new kind on
+-- the existing append-only history rather than a new table: it is the same
+-- shape of fact as a phase -- a judgement, who made it, when -- the same
+-- readers and writers, the same route (action set_summary on
+-- /api/{therapist,admin}/care-status/set) and the same trigger, which
+-- already refuses every update and delete. The text is held in `value`
+-- (up to 1,200 characters; `reason` stays the short note it is), the
+-- latest summary is the one in force (src/lib/careStatus.ts), and an
+-- earlier one is never rewritten. Both constraints are dropped and re-added
+-- under their own names so a second run is a no-op; every existing row
+-- satisfies the wider rules. `care_status_events_kind_check` is the name
+-- Postgres gave the inline column CHECK in phase 3a.
+alter table care_status_events drop constraint if exists care_status_events_kind_check;
+alter table care_status_events add constraint care_status_events_kind_check
+  check (kind in ('phase', 'status_override', 'override_cleared', 'summary'));
+
+alter table care_status_events drop constraint if exists care_status_events_shape;
+alter table care_status_events add constraint care_status_events_shape check (
+  (kind = 'phase' and value is not null and char_length(btrim(value)) between 1 and 60)
+  or (
+    kind = 'status_override'
+    and value in ('improving', 'steady', 'needs_attention')
+    and reason is not null
+    and char_length(btrim(reason)) >= 10
+  )
+  or (kind = 'override_cleared' and value is null)
+  or (kind = 'summary' and value is not null and char_length(btrim(value)) between 1 and 1200 and reason is null)
+);
+
+-- 3. patient_diary_entries: what a patient writes down between sessions.
+--
+-- Freezing episodes, falls and near-misses for the Parkinson's sub-profile
+-- today; active minutes for heart and lung rehabilitation once that is a
+-- condition type. ONE generic table with a `kind` and a `details` object in
+-- the shape src/lib/patientDiary.ts validates (validateDiaryDetails), the
+-- outcome_measurements pattern -- every reader asks the same question of
+-- every kind. The free text is its own `note` column, scanned
+-- (patient_diary_note), so `details` holds structured answers only.
+--
+-- It is the patient's own account and says so: `entered_by_role` is who
+-- typed it (the patient through /api/patient/diary/add; a therapist or an
+-- admin column-ready for a later door), and a physiotherapist may CONFIRM a
+-- patient's entry once (/api/therapist/diary/confirm) -- the one change the
+-- trigger permits, with the stamp's time set by the database. Confirming is
+-- not editing: a wrong entry stays, with a truer one beside it.
+--
+-- Who: the patient reads their own and may insert their own (the route is
+-- the real writer, with the service role; the policy is the browser-session
+-- half); the therapist reads under the clinical-access rule and confirms
+-- through the route under the same rule; an admin reads. Nobody updates or
+-- deletes from a browser session (revoked), and the trigger refuses every
+-- caller, the service role included.
+--
+-- A double tap is refused by a unique index over the entry's content, which
+-- the route answers as "already saved" rather than a second fall on the
+-- chart.
+--
+-- Foreign keys: the patient cascade, which the trigger turns into a refusal
+-- (the outcome_measurements posture: a patient with clinical history is
+-- suspended, not deleted -- /api/admin/delete-account names it "clinical"),
+-- and the author and the confirmer no action. None is `restrict`, so
+-- scripts/clean-e2e-residue.mjs has nothing to learn. The data reset
+-- truncates it (newest debug_reset_all_data(), above).
+create table if not exists patient_diary_entries (
+  id uuid primary key default gen_random_uuid(),
+  patient_id uuid not null references profiles(id) on delete cascade,
+  kind text not null check (kind in ('freezing', 'fall', 'near_miss', 'active_minutes')),
+  occurred_at timestamptz not null,
+  details jsonb not null default '{}'::jsonb check (jsonb_typeof(details) = 'object'),
+  note text check (note is null or char_length(btrim(note)) between 1 and 500),
+  entered_by uuid not null references profiles(id),
+  entered_by_role text not null check (entered_by_role in ('patient', 'therapist', 'admin')),
+  confirmed_by uuid references profiles(id),
+  confirmed_by_role text check (confirmed_by_role is null or confirmed_by_role in ('therapist', 'admin')),
+  confirmed_at timestamptz,
+  schema_version integer not null default 1 check (schema_version >= 1),
+  created_at timestamptz not null default now(),
+  constraint patient_diary_entries_not_in_future check (occurred_at <= created_at + interval '5 minutes'),
+  -- The three confirmation columns are set together or not at all, and
+  -- only on a patient's own entry.
+  constraint patient_diary_entries_confirmation_shape check (
+    (confirmed_at is null and confirmed_by is null and confirmed_by_role is null)
+    or (confirmed_at is not null and confirmed_by is not null and confirmed_by_role is not null and entered_by_role = 'patient')
+  )
+);
+
+create index if not exists patient_diary_entries_patient_idx
+  on patient_diary_entries (patient_id, occurred_at desc);
+create index if not exists patient_diary_entries_entered_by_idx
+  on patient_diary_entries (entered_by);
+create index if not exists patient_diary_entries_confirmed_by_idx
+  on patient_diary_entries (confirmed_by) where confirmed_by is not null;
+create unique index if not exists patient_diary_entries_no_double_tap
+  on patient_diary_entries (patient_id, kind, occurred_at, md5(details::text), md5(coalesce(note, '')));
+
+alter table patient_diary_entries enable row level security;
+
+drop policy if exists "patient_diary_entries_select_own" on patient_diary_entries;
+create policy "patient_diary_entries_select_own" on patient_diary_entries
+  for select using ((select auth.uid()) = patient_id);
+
+drop policy if exists "patient_diary_entries_select_admin" on patient_diary_entries;
+create policy "patient_diary_entries_select_admin" on patient_diary_entries
+  for select using (is_admin());
+
+drop policy if exists "patient_diary_entries_select_assigned_therapist" on patient_diary_entries;
+create policy "patient_diary_entries_select_assigned_therapist" on patient_diary_entries
+  for select using (
+    is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = patient_diary_entries.patient_id
+          and a.therapist_id = (select auth.uid())
+          and a.status in ('requested', 'confirmed', 'completed')
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = patient_diary_entries.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+          and pp.payment_status = 'paid'
+          and pp.status = 'active'
+          and (pp.expires_at is null or pp.expires_at > now())
+      )
+    )
+  );
+
+drop policy if exists "patient_diary_entries_insert_own_patient" on patient_diary_entries;
+create policy "patient_diary_entries_insert_own_patient" on patient_diary_entries
+  for insert with check (
+    (select auth.uid()) = patient_id
+    and entered_by = (select auth.uid())
+    and entered_by_role = 'patient'
+    and confirmed_at is null
+    and exists (
+      select 1 from profiles p
+      where p.id = (select auth.uid())
+        and p.role = 'patient'
+        and p.active = true
+    )
+  );
+
+revoke update, delete on patient_diary_entries from anon, authenticated;
+
+create or replace function public.patient_diary_entries_guard()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if tg_op = 'INSERT' then
+    -- Confirmed is something that happens to an entry after it is written,
+    -- by somebody else; an entry cannot arrive already confirmed.
+    if new.confirmed_at is not null or new.confirmed_by is not null or new.confirmed_by_role is not null then
+      raise exception 'a diary entry is confirmed after it is written, never on insert';
+    end if;
+    return new;
+  end if;
+  -- The single permitted change: the one-time confirmation stamp on a
+  -- patient's own entry, every other column untouched. The time is the
+  -- database's, not the caller's.
+  if tg_op = 'UPDATE'
+     and old.confirmed_at is null
+     and old.entered_by_role = 'patient'
+     and new.confirmed_by is not null
+     and new.confirmed_by_role in ('therapist', 'admin')
+     and (to_jsonb(new) - 'confirmed_at' - 'confirmed_by' - 'confirmed_by_role')
+       = (to_jsonb(old) - 'confirmed_at' - 'confirmed_by' - 'confirmed_by_role') then
+    new.confirmed_at := now();
+    return new;
+  end if;
+  raise exception 'patient_diary_entries is append-only: a diary entry is never edited; write a new one';
+end;
+$$;
+
+revoke all on function public.patient_diary_entries_guard() from public, anon, authenticated;
+
+drop trigger if exists patient_diary_entries_guard on patient_diary_entries;
+create trigger patient_diary_entries_guard
+  before insert or update or delete on patient_diary_entries
+  for each row execute function public.patient_diary_entries_guard();
+
+-- 4. The Health Profile refreshes when a diary entry lands or is confirmed.
+do $$
+begin
+  alter publication supabase_realtime add table patient_diary_entries;
+exception when duplicate_object then null;
+end $$;
+
+-- ---------------------------------------------------------------------
+-- Health Profile redesign, phase 5a: the paediatric examination.
+--
+-- Three things, each re-runnable on its own:
+--   1. a new contact-scanner surface for the exam's free text (the note and
+--      the orthoses and equipment note reach the family);
+--   2. peds_assessments -- the paediatric exam layer;
+--   3. the realtime publication for it.
+--
+-- The intake's new optional question (peds_weeks_at_birth, the paediatric
+-- set's schema_version 2) is code only (src/lib/intakePediatrics.ts; data
+-- stays a flat jsonb blob) and needs nothing here. The child's date of
+-- birth is the existing profiles.date_of_birth.
+--
+-- APPLY THIS TO STAGING'S DATABASE BEFORE THE BRANCH MERGES. Both submit
+-- routes answer 503 "this database has not been updated yet" on a database
+-- without the table, rather than a 500; the Done gate does not read it
+-- while the paediatric requirement is off (sessionCompletion.ts
+-- PEDS_EXAM_REQUIRED_FOR_DONE).
+-- ---------------------------------------------------------------------
+
+-- 1. Restated in full, as phases 3a and 4a did; every existing row
+-- satisfies the wider rule.
+-- (The re-add that sat here is now the single widened one near the end of
+-- the file, "communication_flags surfaces": a re-add here ran before rows
+-- naming the later surfaces existed and failed on a re-apply after them.)
+
+-- 2. peds_assessments: the paediatric examination.
+--
+-- The counterpart of the Pain Map (orthopaedic) and of neuro_assessments
+-- (neurological) for a patient recorded as paediatric, and a NEW table
+-- rather than a `specialty` column on either, per docs/rules/clinical.md:
+-- it records different things -- the six WHO motor milestones, each not
+-- yet / emerging / achieved with the date first seen and whether the
+-- physiotherapist saw it or the family reported it; the GMFCS level for a
+-- child with cerebral palsy; an orthoses and equipment note -- and sharing
+-- a table would make every reader branch on specialty.
+--
+-- One row per examination. `findings` holds it as jsonb in the shape
+-- src/lib/pedsExam.ts validates (validatePedsFindings; both submit routes
+-- refuse anything else): a milestone nobody assessed is absent, never a
+-- value, which keeps "not assessed" distinct from "not yet". Standing time
+-- and independent steps are NOT here: they are timed counts owned by
+-- outcome_measurements (three tries, the best kept), and the validator
+-- refuses them. `schema_version` is that module's PEDS_EXAM_VERSION.
+--
+-- The same posture as neuro_assessments in every other respect:
+--   - read by the patient (their own: the family reads it on the Health
+--     Profile and the PDF), by an active therapist with live or delivered
+--     care (the clinical-access rule), and by an admin;
+--   - inserted by a therapist only against a session that has started or
+--     been delivered -- the routes mirror this and write with the service
+--     role, so the policy is the browser-session half; an admin records one
+--     through /api/admin/peds-assessments/submit;
+--   - append-only BY TRIGGER, not by revoke: a re-examination is a new row
+--     and a mistaken one is corrected by recording a truer one, which is
+--     what lets the profile say what changed since last time.
+-- Its foreign keys point only at profiles (patient cascade, which the
+-- trigger turns into a refusal -- a patient with a clinical history is
+-- suspended, not deleted, and /api/admin/delete-account names the row
+-- "clinical"; author no action), and scripts/clean-e2e-residue.mjs never
+-- deletes profiles, so there is nothing for that script to learn. The data
+-- reset truncates it (newest debug_reset_all_data(), above).
+create table if not exists peds_assessments (
+  id uuid primary key default gen_random_uuid(),
+  patient_id uuid not null references profiles(id) on delete cascade,
+  submitted_by uuid not null references profiles(id),
+  submitted_by_role text not null check (submitted_by_role in ('therapist', 'admin')),
+  schema_version integer not null default 1 check (schema_version >= 1),
+  findings jsonb not null check (jsonb_typeof(findings) = 'object'),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists peds_assessments_patient_idx
+  on peds_assessments (patient_id, created_at desc);
+create index if not exists peds_assessments_submitted_by_idx
+  on peds_assessments (submitted_by);
+
+alter table peds_assessments enable row level security;
+
+drop policy if exists "peds_assessments_select_own" on peds_assessments;
+create policy "peds_assessments_select_own" on peds_assessments
+  for select using ((select auth.uid()) = patient_id);
+
+drop policy if exists "peds_assessments_select_assigned_therapist" on peds_assessments;
+create policy "peds_assessments_select_assigned_therapist" on peds_assessments
+  for select using (
+    is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = peds_assessments.patient_id
+          and a.therapist_id = (select auth.uid())
+          and a.status in ('requested', 'confirmed', 'completed')
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = peds_assessments.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+          and pp.payment_status = 'paid'
+          and pp.status = 'active'
+          and (pp.expires_at is null or pp.expires_at > now())
+      )
+    )
+  );
+
+drop policy if exists "peds_assessments_select_admin" on peds_assessments;
+create policy "peds_assessments_select_admin" on peds_assessments
+  for select using (is_admin());
+
+drop policy if exists "peds_assessments_insert_assigned_therapist" on peds_assessments;
+create policy "peds_assessments_insert_assigned_therapist" on peds_assessments
+  for insert with check (
+    (select auth.uid()) = submitted_by and submitted_by_role = 'therapist'
+    and is_active_therapist()
+    and exists (
+      select 1 from appointments a
+      where a.patient_id = peds_assessments.patient_id
+        and a.therapist_id = (select auth.uid())
+        and (
+          a.status = 'completed'
+          or (a.status = 'confirmed' and a.slot_time <= now() + interval '15 minutes')
+        )
+    )
+  );
+
+revoke update, delete on peds_assessments from anon, authenticated;
+
+drop trigger if exists peds_assessments_no_change on peds_assessments;
+create trigger peds_assessments_no_change
+  before update or delete on peds_assessments
+  for each row execute function communication_evidence_is_append_only();
+
+-- 3. The Health Profile refreshes when an examination lands.
+do $$
+begin
+  alter publication supabase_realtime add table peds_assessments;
+exception when duplicate_object then null;
+end $$;
+
+-- ---------------------------------------------------------------------
+-- Phase 5b: the paediatric exam joins the realtime publication, as
+-- neuro_assessments and pain_assessments did, so a parent's open Health
+-- Profile and the therapist's chart refresh when an examination is saved
+-- (the paediatric pages list peds_assessments in their realtime tables).
+-- Realtime still only delivers rows RLS lets the subscriber read.
+-- ---------------------------------------------------------------------
+do $$
+begin
+  alter publication supabase_realtime add table peds_assessments;
+exception when duplicate_object then null;
+end $$;
+
+-- ---------------------------------------------------------------------
+-- Phase 6a: two more condition types, `geriatric` ("Strength and balance
+-- care" to the patient) and `cardiopulmonary` ("Heart and lung
+-- rehabilitation"). See src/lib/conditionSpecialty.ts and
+-- docs/rules/clinical.md.
+--
+-- The four specialty CHECKs are widened to the five types -- extended, not
+-- weakened: each still lists every value it allows, and nothing else in
+-- them changes. Each is dropped and re-added under its OWN name so the
+-- block re-runs cleanly (the earlier `add constraint` statements sit in
+-- duplicate_object guards and are no-ops on a database that already has
+-- the constraint, so on every run this block is what leaves the wider
+-- list in place). treatment_categories' CHECK was an inline column check,
+-- so its name is Postgres's deterministic auto-name.
+--
+-- No data moves: nothing was ever stored as either new value, and the
+-- question keys are new (`geri_*`, `cardio_*`) in the same flat blob.
+-- `enabled_intake_specialties` keeps its default -- the three original
+-- types -- so neither new type is offered at triage until an admin
+-- switches it on (Settings -> Clinical Questions). No intake template rows
+-- are seeded: the question bank lists the new questions from the code.
+-- ---------------------------------------------------------------------
+alter table patient_condition_profiles
+  drop constraint if exists patient_condition_profiles_specialty_check;
+alter table patient_condition_profiles
+  add constraint patient_condition_profiles_specialty_check
+  check (specialty in ('ortho', 'neuro', 'pediatrics', 'geriatric', 'cardiopulmonary'));
+
+alter table condition_change_requests
+  drop constraint if exists condition_change_requests_proposed_specialty_check;
+alter table condition_change_requests
+  add constraint condition_change_requests_proposed_specialty_check
+  check (
+    proposed_specialty is null
+    or proposed_specialty in ('ortho', 'neuro', 'pediatrics', 'geriatric', 'cardiopulmonary')
+  );
+
+alter table intake_question_templates
+  drop constraint if exists intake_question_templates_specialty_check;
+alter table intake_question_templates
+  add constraint intake_question_templates_specialty_check
+  check (specialty in ('ortho', 'neuro', 'pediatrics', 'geriatric', 'cardiopulmonary'));
+
+alter table treatment_categories
+  drop constraint if exists treatment_categories_specialty_check;
+alter table treatment_categories
+  add constraint treatment_categories_specialty_check
+  check (specialty is null or specialty in ('ortho', 'neuro', 'pediatrics', 'geriatric', 'cardiopulmonary'));
+
+-- ---------------------------------------------------------------------
+-- Health Profile redesign, phase 7a: the guided video assessment.
+--
+-- Every measurement happens LIVE in a video session, guided by the
+-- physiotherapist (video stays on Google Meet; the app does not embed it).
+-- The therapist runs one step at a time from a protocol in
+-- src/lib/sessionProtocols.ts; the patient watches a display-only
+-- companion screen. Three tables, each re-runnable on its own:
+--   1. assessment_runs -- one run of a protocol, at most one in progress
+--      per patient;
+--   2. assessment_run_events -- what the therapist confirmed, saved,
+--      skipped, stopped or opened, step by step; APPEND-ONLY BY TRIGGER,
+--      because the measurement route refuses a save from these rows (the
+--      set-up confirmed, the helper, the red flags answered), so a rewrite
+--      would rewrite why a reading was allowed;
+--   3. assessment_live_display -- one row per run: what the patient's
+--      companion shows (the protocol's own patient-safe text, the phase and
+--      the clock), written only by /api/therapist/assessment-runs/display
+--      with the service role, read by the patient and the run's therapist,
+--      and on the realtime publication.
+--
+-- Who: runs and events are read by the clinical-access therapist (the
+-- rule care_status_events uses) and an admin -- the patient reads neither,
+-- only the live display. Nobody writes any of the three from a browser
+-- session (revoked; no insert policy): the four routes under
+-- /api/therapist/assessment-runs/ are the writers, with the service role,
+-- after the assigned-therapist and started-session gate. An admin has no
+-- run door.
+--
+-- Foreign keys: the patient cascade on all three, which the runs' and the
+-- events' triggers turn into a refusal (a patient with clinical history is
+-- suspended, not deleted -- /api/admin/delete-account names these
+-- "clinical"); the session `on delete set null`, which the runs' guard
+-- permits; the measurement `on delete set null` (an outcome measurement is
+-- never deleted, so this is the outcome_measurements precedent's allowance
+-- and nothing more); the therapist and the actor no action. None is
+-- `restrict`, so scripts/clean-e2e-residue.mjs has nothing to learn. The
+-- data reset truncates all three (newest debug_reset_all_data(), above).
+--
+-- APPLY THIS TO STAGING'S DATABASE BEFORE THE BRANCH MERGES. The routes
+-- answer 503 on a database without these tables, never a 500.
+-- ---------------------------------------------------------------------
+
+-- 1. assessment_runs
+create table if not exists assessment_runs (
+  id uuid primary key default gen_random_uuid(),
+  patient_id uuid not null references profiles(id) on delete cascade,
+  appointment_id uuid references appointments(id) on delete set null,
+  therapist_id uuid not null references profiles(id),
+  protocol_key text not null check (char_length(protocol_key) between 1 and 60),
+  protocol_version integer not null check (protocol_version >= 1),
+  profile_kind text not null check (profile_kind in (
+    'ortho', 'neuro', 'neuro_parkinsons', 'pediatrics', 'geriatric', 'cardiopulmonary'
+  )),
+  status text not null default 'in_progress' check (status in ('in_progress', 'completed', 'abandoned')),
+  started_at timestamptz not null default now(),
+  ended_at timestamptz,
+  ended_reason text check (ended_reason is null or ended_reason in (
+    'red_flag', 'patient_unwell', 'connection_lost', 'out_of_time', 'patient_declined', 'other'
+  )),
+  -- In progress has no end; completed has an end and no reason; abandoned
+  -- has both.
+  constraint assessment_runs_end_shape check (
+    (status = 'in_progress' and ended_at is null and ended_reason is null)
+    or (status = 'completed' and ended_at is not null and ended_reason is null)
+    or (status = 'abandoned' and ended_at is not null and ended_reason is not null)
+  )
+);
+
+-- At most one run in progress per patient: a second start is answered with
+-- the one already open (the start route's 409), never a second run.
+create unique index if not exists assessment_runs_one_in_progress
+  on assessment_runs (patient_id) where status = 'in_progress';
+create index if not exists assessment_runs_patient_idx
+  on assessment_runs (patient_id, started_at desc);
+create index if not exists assessment_runs_therapist_idx
+  on assessment_runs (therapist_id);
+create index if not exists assessment_runs_appointment_idx
+  on assessment_runs (appointment_id) where appointment_id is not null;
+
+alter table assessment_runs enable row level security;
+
+drop policy if exists "assessment_runs_select_admin" on assessment_runs;
+create policy "assessment_runs_select_admin" on assessment_runs
+  for select using (is_admin());
+
+drop policy if exists "assessment_runs_select_assigned_therapist" on assessment_runs;
+create policy "assessment_runs_select_assigned_therapist" on assessment_runs
+  for select using (
+    is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = assessment_runs.patient_id
+          and a.therapist_id = (select auth.uid())
+          and a.status in ('requested', 'confirmed', 'completed')
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = assessment_runs.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+          and pp.payment_status = 'paid'
+          and pp.status = 'active'
+          and (pp.expires_at is null or pp.expires_at > now())
+      )
+    )
+  );
+
+revoke insert, update, delete on assessment_runs from anon, authenticated;
+
+-- A run is evidence of how a session's readings were taken: it is ended,
+-- never deleted, and the one change is ending it -- in progress to
+-- completed or abandoned, once, with the end time set here rather than by
+-- the caller. A deleted session's id may be cleared by `on delete set null`
+-- with every other column untouched.
+create or replace function public.assessment_runs_guard()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if tg_op = 'DELETE' then
+    raise exception 'assessment_runs is evidence: a run is ended, never deleted';
+  end if;
+  if old.appointment_id is not null
+     and new.appointment_id is null
+     and (to_jsonb(new) - 'appointment_id') = (to_jsonb(old) - 'appointment_id') then
+    return new;
+  end if;
+  if old.status = 'in_progress'
+     and new.status in ('completed', 'abandoned')
+     and (to_jsonb(new) - 'status' - 'ended_at' - 'ended_reason')
+       = (to_jsonb(old) - 'status' - 'ended_at' - 'ended_reason') then
+    new.ended_at := now();
+    return new;
+  end if;
+  raise exception 'assessment_runs: the only change is ending a run that is in progress';
+end;
+$$;
+
+revoke all on function public.assessment_runs_guard() from public, anon, authenticated;
+
+drop trigger if exists assessment_runs_guard on assessment_runs;
+create trigger assessment_runs_guard
+  before update or delete on assessment_runs
+  for each row execute function public.assessment_runs_guard();
+
+-- 2. assessment_run_events
+create table if not exists assessment_run_events (
+  id uuid primary key default gen_random_uuid(),
+  run_id uuid not null references assessment_runs(id) on delete cascade,
+  step_id text not null check (char_length(step_id) between 1 and 60),
+  kind text not null check (kind in (
+    'setup_confirmed', 'safety_confirmed', 'saved', 'skipped', 'stopped', 'step_opened'
+  )),
+  -- The reading a 'saved' event stored; only a save carries one.
+  measurement_id uuid references outcome_measurements(id) on delete set null,
+  -- Shaped and validated in src/lib/assessmentRun.ts (set-up items, the
+  -- red-flag answers, the pre-exercise result, a skip or stop reason, a
+  -- layer record id). Structured answers only, never free text.
+  details jsonb not null default '{}'::jsonb check (jsonb_typeof(details) = 'object'),
+  actor uuid not null references profiles(id),
+  created_at timestamptz not null default now(),
+  constraint assessment_run_events_measurement_only_on_save check (kind = 'saved' or measurement_id is null)
+);
+
+create index if not exists assessment_run_events_run_idx
+  on assessment_run_events (run_id, created_at);
+create index if not exists assessment_run_events_actor_idx
+  on assessment_run_events (actor);
+-- One reading is linked to a run once: the measurement route's own 'saved'
+-- event and a retry from the cockpit cannot both land.
+create unique index if not exists assessment_run_events_one_link_per_measurement
+  on assessment_run_events (measurement_id) where measurement_id is not null;
+
+alter table assessment_run_events enable row level security;
+
+drop policy if exists "assessment_run_events_select_admin" on assessment_run_events;
+create policy "assessment_run_events_select_admin" on assessment_run_events
+  for select using (is_admin());
+
+drop policy if exists "assessment_run_events_select_assigned_therapist" on assessment_run_events;
+create policy "assessment_run_events_select_assigned_therapist" on assessment_run_events
+  for select using (
+    is_active_therapist()
+    and exists (
+      select 1 from assessment_runs r
+      where r.id = assessment_run_events.run_id
+        and (
+          exists (
+            select 1 from appointments a
+            where a.patient_id = r.patient_id
+              and a.therapist_id = (select auth.uid())
+              and a.status in ('requested', 'confirmed', 'completed')
+          )
+          or exists (
+            select 1 from patient_package_purchases pp
+            where pp.patient_id = r.patient_id
+              and pp.locked_therapist_id = (select auth.uid())
+              and pp.payment_status = 'paid'
+              and pp.status = 'active'
+              and (pp.expires_at is null or pp.expires_at > now())
+          )
+        )
+    )
+  );
+
+revoke insert, update, delete on assessment_run_events from anon, authenticated;
+
+-- Append-only for every caller, the service role included. An event is
+-- written only into a run that is still in progress (an ended run's history
+-- is closed), and the one permitted change is the measurement link cleared
+-- by `on delete set null`.
+create or replace function public.assessment_run_events_guard()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if tg_op = 'INSERT' then
+    if not exists (select 1 from assessment_runs r where r.id = new.run_id and r.status = 'in_progress') then
+      raise exception 'assessment_run_events: the run is not in progress';
+    end if;
+    return new;
+  end if;
+  if tg_op = 'UPDATE'
+     and old.measurement_id is not null
+     and new.measurement_id is null
+     and (to_jsonb(new) - 'measurement_id') = (to_jsonb(old) - 'measurement_id') then
+    return new;
+  end if;
+  raise exception 'assessment_run_events is append-only: what happened in a run is history; record a new event instead';
+end;
+$$;
+
+revoke all on function public.assessment_run_events_guard() from public, anon, authenticated;
+
+drop trigger if exists assessment_run_events_guard on assessment_run_events;
+create trigger assessment_run_events_guard
+  before insert or update or delete on assessment_run_events
+  for each row execute function public.assessment_run_events_guard();
+
+-- 3. assessment_live_display
+--
+-- The companion screen's one row. `display` holds ONLY the protocol's own
+-- patient-safe text keys (src/lib/assessmentRun.ts validateLiveDisplay:
+-- the step counter, title, line, second line, picture, clock label -- never
+-- a result); the CHECK below refuses any other key at the storage layer
+-- too. The clock is a start time and, for a countdown, its length: the
+-- screen works out the seconds itself, so the route is called on a step or
+-- phase change, not every second.
+create table if not exists assessment_live_display (
+  run_id uuid primary key references assessment_runs(id) on delete cascade,
+  patient_id uuid not null references profiles(id) on delete cascade,
+  therapist_id uuid not null references profiles(id),
+  -- Which protocol's text this is, so the patient's screen can re-check it
+  -- without reading the run (the patient has no policy on runs).
+  protocol_key text not null check (char_length(protocol_key) between 1 and 60),
+  current_step_id text not null check (char_length(current_step_id) between 1 and 60),
+  phase text not null check (phase in ('ready', 'go', 'done', 'rest', 'paused')),
+  clock_started_at timestamptz,
+  clock_seconds integer check (clock_seconds is null or clock_seconds between 1 and 600),
+  display jsonb not null default '{}'::jsonb check (
+    jsonb_typeof(display) = 'object'
+    and (display - array['progress', 'title', 'line', 'sub', 'picture', 'clockLabel']) = '{}'::jsonb
+  ),
+  ended_at timestamptz,
+  updated_at timestamptz not null default now(),
+  constraint assessment_live_display_clock_shape check (clock_seconds is null or clock_started_at is not null)
+);
+
+create index if not exists assessment_live_display_patient_idx
+  on assessment_live_display (patient_id, updated_at desc);
+create index if not exists assessment_live_display_therapist_idx
+  on assessment_live_display (therapist_id);
+
+alter table assessment_live_display enable row level security;
+
+drop policy if exists "assessment_live_display_select_own" on assessment_live_display;
+create policy "assessment_live_display_select_own" on assessment_live_display
+  for select using ((select auth.uid()) = patient_id);
+
+drop policy if exists "assessment_live_display_select_run_therapist" on assessment_live_display;
+create policy "assessment_live_display_select_run_therapist" on assessment_live_display
+  for select using (is_active_therapist() and (select auth.uid()) = therapist_id);
+
+drop policy if exists "assessment_live_display_select_admin" on assessment_live_display;
+create policy "assessment_live_display_select_admin" on assessment_live_display
+  for select using (is_admin());
+
+revoke insert, update, delete on assessment_live_display from anon, authenticated;
+
+-- The companion screen follows the therapist live (filtered to the
+-- patient's own row; RLS decides what the socket delivers).
+do $$
+begin
+  alter publication supabase_realtime add table assessment_live_display;
+exception when duplicate_object then null;
+end $$;
+
+-- ---------------------------------------------------------------------
+-- Health Profile redesign, phase 7d: HOME EXERCISES, taught live in the
+-- guided video session.
+--
+-- Everything happens LIVE and is led by the physiotherapist; nothing here
+-- relies on the patient reporting back. On the session cockpit's Home
+-- exercises step (src/lib/sessionProtocols.ts, just before the summary) the
+-- therapist picks exercises from the clinic's library (src/lib/
+-- exerciseLibrary.ts, code-only for now), sets each dose, shows the patient a
+-- demo on the companion screen (the library's picture and steps only),
+-- WATCHES them do it on camera and marks it. The patient then reads the plan
+-- on their dashboard, read-only.
+--
+-- Vocabulary: "Home exercises". This is NOT a care plan -- care_plans and
+-- care_plan_versions are the programme-purchase recommendation and keep
+-- their own word.
+--
+-- Three tables, each re-runnable on its own:
+--   1. exercise_plans -- one row per version, at most one ACTIVE per patient
+--      (partial unique index); a new version replaces the old one, which
+--      turns 'replaced' (the history is kept) and is never edited or
+--      deleted. Published in ONE transaction by publish_exercise_plan()
+--      below (the publish_care_plan_version pattern): retire the active
+--      version, insert the next, insert its items -- all or nothing.
+--   2. exercise_plan_items -- the exercises and doses of one version,
+--      APPEND-ONLY BY TRIGGER and written only in the transaction that
+--      publishes their plan: a changed plan is a new version, never a
+--      changed row. The dose is a fixed jsonb shape (exercisePlan.ts
+--      doseJson), its note the physiotherapist's own plain words, contact-
+--      scanned at the route (surface 'exercise_plan_note').
+--   3. exercise_teaching_events -- what the therapist SAW on camera, one per
+--      exercise per plan per run: performed correctly, needs practice (one
+--      coaching cue from a fixed list) or not attempted (one reason from a
+--      fixed list). APPEND-ONLY BY TRIGGER, and written only into a guided
+--      run still in progress, by that run's therapist, for an exercise in
+--      the patient's active plan.
+--
+-- Who: the patient reads their own ACTIVE plan and its items, and their own
+-- teaching events (all fixed-list keys, no free text: the plan says
+-- "practised with your physiotherapist on <date>" and the one cue to
+-- remember -- nothing the patient fills in). The clinical-access therapist
+-- (the rule assessment_runs uses) and an admin read all three, history
+-- included. Nobody writes any of them from a browser session (revoked; no
+-- insert policy): /api/therapist/exercise-plans/publish and
+-- /api/therapist/assessment-runs/teach are the writers, with the service
+-- role, after the assigned-therapist and started-session gate. An admin has
+-- no write door.
+--
+-- Foreign keys: the patient cascade on all three, which the guards turn
+-- into a refusal (clinical history: /api/admin/delete-account names these
+-- "clinical"); the session `on delete set null` and the milestone `on
+-- delete set null`, which the guards permit; a plan's run, its author and
+-- a mark's actor no action; and the run and the plan on an item and on a
+-- teaching mark `on delete cascade` (exercise_plan_items.plan_id,
+-- exercise_teaching_events.run_id and plan_id) -- a cascade the guards
+-- refuse like the patient's, and never reached, since a run and a plan are
+-- never deleted. (An earlier version of this note called those no action.)
+-- None is `restrict`, so
+-- scripts/clean-e2e-residue.mjs has nothing to learn. The data reset
+-- truncates all three (newest debug_reset_all_data(), above). Realtime:
+-- exercise_plans is on the publication so the patient's dashboard follows a
+-- new version live.
+--
+-- Also here: the live display grows the demo phase and one `exercise` key
+-- (the library's picture, steps and the "Exercise n of N" counter --
+-- assessmentRun.ts validateLiveDisplay is the whitelist, the CHECK the
+-- storage-layer copy), and the communication-flag surface for the note.
+--
+-- APPLY THIS TO STAGING'S DATABASE BEFORE THE BRANCH MERGES. The routes
+-- answer 503 on a database without these tables, never a 500.
+-- ---------------------------------------------------------------------
+
+-- 0. The note's scanner surface. Restated in full, as before; every
+-- existing row satisfies the wider rule.
+-- (The re-add that sat here is now the single widened one near the end of
+-- the file, "communication_flags surfaces": a re-add here ran before rows
+-- naming the later surfaces existed and failed on a re-apply after them.)
+
+-- 1. exercise_plans
+create table if not exists exercise_plans (
+  id uuid primary key default gen_random_uuid(),
+  patient_id uuid not null references profiles(id) on delete cascade,
+  version integer not null check (version >= 1),
+  authored_by uuid not null references profiles(id),
+  -- The guided run it was taught in, when it was (most are).
+  run_id uuid references assessment_runs(id),
+  appointment_id uuid references appointments(id) on delete set null,
+  -- The patient's profile kind when it was written (the library is offered
+  -- per kind; a later change of condition type does not rewrite history).
+  profile_kind text not null check (profile_kind in (
+    'ortho', 'neuro', 'neuro_parkinsons', 'pediatrics', 'geriatric', 'cardiopulmonary'
+  )),
+  status text not null default 'active' check (status in ('active', 'replaced')),
+  created_at timestamptz not null default now(),
+  replaced_at timestamptz,
+  constraint exercise_plans_replaced_shape check (
+    (status = 'active' and replaced_at is null) or (status = 'replaced' and replaced_at is not null)
+  ),
+  constraint exercise_plans_patient_version unique (patient_id, version)
+);
+
+-- One active plan per patient: the patient never reads two.
+create unique index if not exists exercise_plans_one_active
+  on exercise_plans (patient_id) where status = 'active';
+create index if not exists exercise_plans_patient_idx
+  on exercise_plans (patient_id, version desc);
+create index if not exists exercise_plans_authored_by_idx
+  on exercise_plans (authored_by);
+create index if not exists exercise_plans_run_idx
+  on exercise_plans (run_id) where run_id is not null;
+create index if not exists exercise_plans_appointment_idx
+  on exercise_plans (appointment_id) where appointment_id is not null;
+
+alter table exercise_plans enable row level security;
+
+drop policy if exists "exercise_plans_select_own_active" on exercise_plans;
+create policy "exercise_plans_select_own_active" on exercise_plans
+  for select using ((select auth.uid()) = patient_id and status = 'active');
+
+drop policy if exists "exercise_plans_select_admin" on exercise_plans;
+create policy "exercise_plans_select_admin" on exercise_plans
+  for select using (is_admin());
+
+drop policy if exists "exercise_plans_select_assigned_therapist" on exercise_plans;
+create policy "exercise_plans_select_assigned_therapist" on exercise_plans
+  for select using (
+    is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = exercise_plans.patient_id
+          and a.therapist_id = (select auth.uid())
+          and a.status in ('requested', 'confirmed', 'completed')
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = exercise_plans.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+          and pp.payment_status = 'paid'
+          and pp.status = 'active'
+          and (pp.expires_at is null or pp.expires_at > now())
+      )
+    )
+  );
+
+revoke insert, update, delete on exercise_plans from anon, authenticated;
+
+-- A version is history: it lands active, is replaced once (the time set
+-- here, not by the caller), and is never edited or deleted. A deleted
+-- session's id may be cleared by `on delete set null`.
+create or replace function public.exercise_plans_guard()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if tg_op = 'INSERT' then
+    if new.status <> 'active' or new.replaced_at is not null then
+      raise exception 'exercise_plans: a version is published active';
+    end if;
+    -- The database's own time: the items' guard reads it as "published in
+    -- this transaction".
+    new.created_at := now();
+    return new;
+  end if;
+  if tg_op = 'DELETE' then
+    raise exception 'exercise_plans is history: a version is replaced, never deleted';
+  end if;
+  if old.appointment_id is not null
+     and new.appointment_id is null
+     and (to_jsonb(new) - 'appointment_id') = (to_jsonb(old) - 'appointment_id') then
+    return new;
+  end if;
+  if old.status = 'active'
+     and new.status = 'replaced'
+     and (to_jsonb(new) - 'status' - 'replaced_at') = (to_jsonb(old) - 'status' - 'replaced_at') then
+    new.replaced_at := now();
+    return new;
+  end if;
+  raise exception 'exercise_plans: the only change is replacing the active version with a new one';
+end;
+$$;
+
+revoke all on function public.exercise_plans_guard() from public, anon, authenticated;
+
+drop trigger if exists exercise_plans_guard on exercise_plans;
+create trigger exercise_plans_guard
+  before insert or update or delete on exercise_plans
+  for each row execute function public.exercise_plans_guard();
+
+-- 2. exercise_plan_items
+create table if not exists exercise_plan_items (
+  id uuid primary key default gen_random_uuid(),
+  plan_id uuid not null references exercise_plans(id) on delete cascade,
+  -- A key of src/lib/exerciseLibrary.ts, validated at the route.
+  exercise_key text not null check (exercise_key ~ '^[a-z][a-z0-9_]{1,47}$'),
+  -- exercisePlan.ts doseJson: exactly these keys; the bounds per dose kind
+  -- are checked at the route, the outer bounds here.
+  dose jsonb not null check (
+    jsonb_typeof(dose) = 'object'
+    and (dose - array['sets', 'reps', 'holdSeconds', 'minutes', 'timesPerDay', 'daysPerWeek', 'note']) = '{}'::jsonb
+    and jsonb_typeof(dose -> 'sets') = 'number'
+    and jsonb_typeof(dose -> 'timesPerDay') = 'number'
+    and jsonb_typeof(dose -> 'daysPerWeek') = 'number'
+    and coalesce(jsonb_typeof(dose -> 'reps'), 'null') in ('null', 'number')
+    and coalesce(jsonb_typeof(dose -> 'holdSeconds'), 'null') in ('null', 'number')
+    and coalesce(jsonb_typeof(dose -> 'minutes'), 'null') in ('null', 'number')
+    and coalesce(jsonb_typeof(dose -> 'note'), 'null') in ('null', 'string')
+    and char_length(coalesce(dose ->> 'note', '')) <= 140
+  ),
+  -- The patient's own milestone this exercise works towards, optionally.
+  milestone_id uuid references care_milestones(id) on delete set null,
+  sort_order integer not null check (sort_order between 0 and 20),
+  created_at timestamptz not null default now(),
+  constraint exercise_plan_items_one_per_plan unique (plan_id, exercise_key),
+  constraint exercise_plan_items_order_unique unique (plan_id, sort_order)
+);
+
+create index if not exists exercise_plan_items_milestone_idx
+  on exercise_plan_items (milestone_id) where milestone_id is not null;
+
+alter table exercise_plan_items enable row level security;
+
+drop policy if exists "exercise_plan_items_select_own_active" on exercise_plan_items;
+create policy "exercise_plan_items_select_own_active" on exercise_plan_items
+  for select using (
+    exists (
+      select 1 from exercise_plans p
+      where p.id = exercise_plan_items.plan_id
+        and p.patient_id = (select auth.uid())
+        and p.status = 'active'
+    )
+  );
+
+drop policy if exists "exercise_plan_items_select_admin" on exercise_plan_items;
+create policy "exercise_plan_items_select_admin" on exercise_plan_items
+  for select using (is_admin());
+
+drop policy if exists "exercise_plan_items_select_assigned_therapist" on exercise_plan_items;
+create policy "exercise_plan_items_select_assigned_therapist" on exercise_plan_items
+  for select using (
+    is_active_therapist()
+    and exists (
+      select 1 from exercise_plans p
+      where p.id = exercise_plan_items.plan_id
+        and (
+          exists (
+            select 1 from appointments a
+            where a.patient_id = p.patient_id
+              and a.therapist_id = (select auth.uid())
+              and a.status in ('requested', 'confirmed', 'completed')
+          )
+          or exists (
+            select 1 from patient_package_purchases pp
+            where pp.patient_id = p.patient_id
+              and pp.locked_therapist_id = (select auth.uid())
+              and pp.payment_status = 'paid'
+              and pp.status = 'active'
+              and (pp.expires_at is null or pp.expires_at > now())
+          )
+        )
+    )
+  );
+
+revoke insert, update, delete on exercise_plan_items from anon, authenticated;
+
+-- Append-only for every caller, the service role included, and written
+-- only with its plan: an item lands only on an active plan created in this
+-- same transaction (`created_at = now()`, the transaction's own time), so an
+-- exercise cannot be slipped onto a version the patient already reads. A
+-- milestone named is the plan's own patient's. The one permitted change is
+-- the milestone link cleared by `on delete set null`.
+create or replace function public.exercise_plan_items_guard()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+declare
+  v_patient uuid;
+  v_status text;
+  v_created timestamptz;
+begin
+  if tg_op = 'INSERT' then
+    select patient_id, status, created_at into v_patient, v_status, v_created
+      from exercise_plans where id = new.plan_id;
+    if v_patient is null or v_status <> 'active' or v_created <> now() then
+      raise exception 'exercise_plan_items: items are written only with their plan, in the transaction that publishes it';
+    end if;
+    if new.milestone_id is not null
+       and not exists (select 1 from care_milestones m where m.id = new.milestone_id and m.patient_id = v_patient) then
+      raise exception 'exercise_plan_items: the milestone is not this patient''s';
+    end if;
+    return new;
+  end if;
+  if tg_op = 'UPDATE'
+     and old.milestone_id is not null
+     and new.milestone_id is null
+     and (to_jsonb(new) - 'milestone_id') = (to_jsonb(old) - 'milestone_id') then
+    return new;
+  end if;
+  raise exception 'exercise_plan_items is append-only: a changed plan is a new version';
+end;
+$$;
+
+revoke all on function public.exercise_plan_items_guard() from public, anon, authenticated;
+
+drop trigger if exists exercise_plan_items_guard on exercise_plan_items;
+create trigger exercise_plan_items_guard
+  before insert or update or delete on exercise_plan_items
+  for each row execute function public.exercise_plan_items_guard();
+
+-- 3. exercise_teaching_events
+create table if not exists exercise_teaching_events (
+  id uuid primary key default gen_random_uuid(),
+  run_id uuid not null references assessment_runs(id) on delete cascade,
+  plan_id uuid not null references exercise_plans(id) on delete cascade,
+  patient_id uuid not null references profiles(id) on delete cascade,
+  exercise_key text not null check (exercise_key ~ '^[a-z][a-z0-9_]{1,47}$'),
+  outcome text not null check (outcome in ('performed_correctly', 'needs_practice', 'not_attempted')),
+  -- The fixed lists of src/lib/exercisePlan.ts (COACHING_CUES,
+  -- NOT_ATTEMPTED_REASONS). No free text: nothing here to scan.
+  cue_key text check (cue_key is null or cue_key in (
+    'slow_down', 'smaller_range', 'stand_tall', 'breathe_out', 'keep_breathing', 'back_flat',
+    'knee_in_line', 'hold_support', 'feet_apart', 'full_hold', 'bigger_movement', 'relax_shoulders'
+  )),
+  reason_key text check (reason_key is null or reason_key in (
+    'too_painful', 'too_tired', 'not_safe', 'no_helper', 'no_space', 'no_equipment', 'patient_declined', 'out_of_time'
+  )),
+  -- The Home exercises step's set-up ticked another adult beside the patient.
+  helper_present boolean not null default false,
+  actor uuid not null references profiles(id),
+  created_at timestamptz not null default now(),
+  constraint exercise_teaching_events_outcome_shape check (
+    (outcome = 'performed_correctly' and cue_key is null and reason_key is null)
+    or (outcome = 'needs_practice' and cue_key is not null and reason_key is null)
+    or (outcome = 'not_attempted' and reason_key is not null and cue_key is null)
+  )
+);
+
+-- One mark per exercise per plan per run: the cockpit's retry and a double
+-- tap cannot both land, and a mark is not changed by a second one.
+create unique index if not exists exercise_teaching_events_one_per_exercise
+  on exercise_teaching_events (run_id, plan_id, exercise_key);
+create index if not exists exercise_teaching_events_plan_idx
+  on exercise_teaching_events (plan_id, created_at);
+create index if not exists exercise_teaching_events_patient_idx
+  on exercise_teaching_events (patient_id, created_at desc);
+create index if not exists exercise_teaching_events_actor_idx
+  on exercise_teaching_events (actor);
+
+alter table exercise_teaching_events enable row level security;
+
+drop policy if exists "exercise_teaching_events_select_own" on exercise_teaching_events;
+create policy "exercise_teaching_events_select_own" on exercise_teaching_events
+  for select using ((select auth.uid()) = patient_id);
+
+drop policy if exists "exercise_teaching_events_select_admin" on exercise_teaching_events;
+create policy "exercise_teaching_events_select_admin" on exercise_teaching_events
+  for select using (is_admin());
+
+drop policy if exists "exercise_teaching_events_select_assigned_therapist" on exercise_teaching_events;
+create policy "exercise_teaching_events_select_assigned_therapist" on exercise_teaching_events
+  for select using (
+    is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = exercise_teaching_events.patient_id
+          and a.therapist_id = (select auth.uid())
+          and a.status in ('requested', 'confirmed', 'completed')
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = exercise_teaching_events.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+          and pp.payment_status = 'paid'
+          and pp.status = 'active'
+          and (pp.expires_at is null or pp.expires_at > now())
+      )
+    )
+  );
+
+revoke insert, update, delete on exercise_teaching_events from anon, authenticated;
+
+-- Append-only for every caller, the service role included. A mark is
+-- written only into a guided run still in progress, by that run's own
+-- therapist, for this patient's ACTIVE plan and an exercise in it -- what
+-- was watched on camera, in the session it was watched in.
+create or replace function public.exercise_teaching_events_guard()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if tg_op = 'INSERT' then
+    if not exists (
+      select 1 from assessment_runs r
+      where r.id = new.run_id and r.status = 'in_progress'
+        and r.patient_id = new.patient_id and r.therapist_id = new.actor
+    ) then
+      raise exception 'exercise_teaching_events: written only into this therapist''s run in progress for this patient';
+    end if;
+    if not exists (
+      select 1 from exercise_plans p
+      join exercise_plan_items i on i.plan_id = p.id
+      where p.id = new.plan_id and p.patient_id = new.patient_id and p.status = 'active'
+        and i.exercise_key = new.exercise_key
+    ) then
+      raise exception 'exercise_teaching_events: the exercise is not in the patient''s active plan';
+    end if;
+    return new;
+  end if;
+  raise exception 'exercise_teaching_events is append-only: what was watched in a session is history';
+end;
+$$;
+
+revoke all on function public.exercise_teaching_events_guard() from public, anon, authenticated;
+
+drop trigger if exists exercise_teaching_events_guard on exercise_teaching_events;
+create trigger exercise_teaching_events_guard
+  before insert or update or delete on exercise_teaching_events
+  for each row execute function public.exercise_teaching_events_guard();
+
+-- 4. Publishing a version is one transaction.
+--
+-- Serialised per patient on an advisory lock, then: the next version
+-- number, the active version retired (its guard stamps replaced_at), the new
+-- version inserted active, its items inserted in order. Any failure -- an
+-- item the guard or a CHECK refuses -- rolls the whole publish back, so the
+-- patient keeps reading the version they had. A run named must be this
+-- therapist's, this patient's, and still in progress.
+create or replace function public.publish_exercise_plan(
+  p_patient_id uuid,
+  p_authored_by uuid,
+  p_run_id uuid,
+  p_appointment_id uuid,
+  p_profile_kind text,
+  p_items jsonb
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_version integer;
+  v_plan_id uuid;
+  v_count integer;
+begin
+  if p_items is null or jsonb_typeof(p_items) <> 'array' then
+    raise exception 'publish_exercise_plan: the items are a list';
+  end if;
+  v_count := jsonb_array_length(p_items);
+  if v_count < 1 or v_count > 12 then
+    raise exception 'publish_exercise_plan: a plan holds 1 to 12 exercises';
+  end if;
+  if p_run_id is not null and not exists (
+    select 1 from assessment_runs r
+    where r.id = p_run_id and r.patient_id = p_patient_id
+      and r.therapist_id = p_authored_by and r.status = 'in_progress'
+  ) then
+    raise exception 'publish_exercise_plan: the run is not this therapist''s run in progress for this patient';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtextextended('exercise_plan:' || p_patient_id::text, 0));
+
+  select coalesce(max(version), 0) + 1 into v_version
+    from exercise_plans where patient_id = p_patient_id;
+
+  update exercise_plans
+     set status = 'replaced'
+   where patient_id = p_patient_id
+     and status = 'active';
+
+  insert into exercise_plans (patient_id, version, authored_by, run_id, appointment_id, profile_kind)
+  values (p_patient_id, v_version, p_authored_by, p_run_id, p_appointment_id, p_profile_kind)
+  returning id into v_plan_id;
+
+  insert into exercise_plan_items (plan_id, exercise_key, dose, milestone_id, sort_order)
+  select v_plan_id,
+         e.value ->> 'exercise_key',
+         e.value -> 'dose',
+         nullif(e.value ->> 'milestone_id', '')::uuid,
+         (e.ordinality - 1)::integer
+    from jsonb_array_elements(p_items) with ordinality as e(value, ordinality);
+
+  return jsonb_build_object('id', v_plan_id, 'version', v_version);
+end;
+$$;
+
+revoke all on function public.publish_exercise_plan(uuid, uuid, uuid, uuid, text, jsonb) from public, anon, authenticated;
+
+-- 5. The live display: the demo phase and one `exercise` key, restated.
+-- Column CHECKs carry Postgres's own names (<table>_<column>_check); every
+-- existing row satisfies the wider rules.
+alter table assessment_live_display drop constraint if exists assessment_live_display_phase_check;
+alter table assessment_live_display add constraint assessment_live_display_phase_check
+  check (phase in ('ready', 'go', 'done', 'rest', 'paused', 'demo'));
+alter table assessment_live_display drop constraint if exists assessment_live_display_display_check;
+alter table assessment_live_display add constraint assessment_live_display_display_check check (
+  jsonb_typeof(display) = 'object'
+  and (display - array['progress', 'title', 'line', 'sub', 'picture', 'clockLabel', 'exercise']) = '{}'::jsonb
+  and (
+    not (display ? 'exercise')
+    or (
+      jsonb_typeof(display -> 'exercise') = 'object'
+      and ((display -> 'exercise') - array['key', 'picture', 'steps', 'counter']) = '{}'::jsonb
+      and jsonb_typeof(display -> 'exercise' -> 'steps') = 'array'
+    )
+  )
+);
+
+-- 6. The patient's dashboard follows a new version live (RLS decides what
+-- the socket delivers: their own active plan).
+do $$
+begin
+  alter publication supabase_realtime add table exercise_plans;
+exception when duplicate_object then null;
+end $$;
+
+-- ---------------------------------------------------------------------
+-- Home exercises: correcting a mistaken teaching mark (phase 7d-3).
+--
+-- The owner's decision: a physiotherapist MAY correct a mark they made by
+-- mistake -- as a NEW row that references the one it corrects, with a
+-- reason from a fixed list. The original is kept; what the patient and the
+-- chart headline read is the latest per exercise; nothing else changes (no
+-- override of contraindications, the same gates as a mark).
+--
+--   kind               'mark' (every existing row, by the default) or 'correction'.
+--   corrects_event_id  the row it corrects: a mark, or the latest correction.
+--                      `on delete no action`, like the actor (the run and the
+--                      plan are `on delete cascade`, refused by the guard): the
+--                      table is append-only, so nothing it points at is ever
+--                      deleted, and no fixture cleanup deletes a teaching
+--                      event (the patient cascade is refused by the guard) --
+--                      not `restrict`, so scripts/clean-e2e-residue.mjs has
+--                      nothing to learn.
+--   correction_reason  one of three fixed keys (exercisePlan.ts CORRECTION_REASONS):
+--                      wrong_button, tried_again_correctly, see_summary. Required
+--                      on a correction and absent on a mark (the shape CHECK).
+--                      No free text: "see_summary" points to the session summary.
+--
+-- Several corrections per exercise per run are allowed (a correction can be
+-- mistaken too), latest wins -- but they form ONE CHAIN: each correction
+-- references the then-latest row for its run, plan and exercise. The
+-- partial unique index on corrects_event_id makes that structural and
+-- race-safe: every row has at most one successor and there is one mark, so
+-- the only row a new correction can reference is the tail. A fork (two
+-- corrections of the same row, e.g. two tabs) is refused by the index, not
+-- resolved by a clock.
+--
+-- The one-mark index keeps its own name and becomes partial (`where kind =
+-- 'mark'`): the `create unique index if not exists` of the same name above
+-- is then a no-op on every re-run, rather than rebuilding a full index that
+-- a mark plus its correction would violate. It is dropped only while it is
+-- still the full one.
+--
+-- What the patient reads: RLS still gives them their own rows, but column
+-- privileges now give a browser session (anon, authenticated) only the
+-- original columns -- not kind, corrects_event_id or correction_reason. The
+-- patient's plan shows the latest outcome per exercise (newest row) and does
+-- not say that a mark was corrected or why. That hides the reason and the
+-- link, not the fact: the original and the correction are both the
+-- patient's own rows, so a browser session reading the table directly sees
+-- two outcomes for one exercise in one run and can infer that one replaced
+-- the other. (reason_key, the not-attempted reason, stays in the grant: the
+-- patient's own read selects it -- EXERCISE_TEACHING_EVENT_SELECT -- though
+-- the plan does not show it.) The therapist's cockpit and chart and
+-- the admin read with the service role after their own access checks
+-- (exercisePlanServer.ts), which column privileges do not touch.
+-- ---------------------------------------------------------------------
+alter table exercise_teaching_events add column if not exists kind text not null default 'mark';
+alter table exercise_teaching_events add column if not exists corrects_event_id uuid references exercise_teaching_events(id);
+alter table exercise_teaching_events add column if not exists correction_reason text;
+
+alter table exercise_teaching_events drop constraint if exists exercise_teaching_events_kind_check;
+alter table exercise_teaching_events add constraint exercise_teaching_events_kind_check
+  check (kind in ('mark', 'correction'));
+alter table exercise_teaching_events drop constraint if exists exercise_teaching_events_correction_reason_check;
+alter table exercise_teaching_events add constraint exercise_teaching_events_correction_reason_check
+  check (correction_reason is null or correction_reason in ('wrong_button', 'tried_again_correctly', 'see_summary'));
+alter table exercise_teaching_events drop constraint if exists exercise_teaching_events_correction_shape;
+alter table exercise_teaching_events add constraint exercise_teaching_events_correction_shape check (
+  (kind = 'mark' and corrects_event_id is null and correction_reason is null)
+  or (kind = 'correction' and corrects_event_id is not null and correction_reason is not null)
+);
+
+do $$
+begin
+  if exists (
+    select 1 from pg_index x join pg_class c on c.oid = x.indexrelid
+    where c.relname = 'exercise_teaching_events_one_per_exercise' and x.indpred is null
+  ) then
+    drop index exercise_teaching_events_one_per_exercise;
+  end if;
+end $$;
+create unique index if not exists exercise_teaching_events_one_per_exercise
+  on exercise_teaching_events (run_id, plan_id, exercise_key) where kind = 'mark';
+create unique index if not exists exercise_teaching_events_one_successor
+  on exercise_teaching_events (corrects_event_id) where corrects_event_id is not null;
+
+revoke select on exercise_teaching_events from anon, authenticated;
+grant select (id, run_id, plan_id, patient_id, exercise_key, outcome, cue_key, reason_key, helper_present, actor, created_at)
+  on exercise_teaching_events to authenticated;
+
+-- The guard, restated (this is the newest declaration): a mark as before;
+-- a correction only when it references a row of the SAME run, plan,
+-- exercise and patient, made by the same therapist -- and one that nothing
+-- corrects yet (the index above says it again under concurrency). Every
+-- UPDATE and DELETE is still refused.
+create or replace function public.exercise_teaching_events_guard()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if tg_op = 'INSERT' then
+    if not exists (
+      select 1 from assessment_runs r
+      where r.id = new.run_id and r.status = 'in_progress'
+        and r.patient_id = new.patient_id and r.therapist_id = new.actor
+    ) then
+      raise exception 'exercise_teaching_events: written only into this therapist''s run in progress for this patient';
+    end if;
+    if not exists (
+      select 1 from exercise_plans p
+      join exercise_plan_items i on i.plan_id = p.id
+      where p.id = new.plan_id and p.patient_id = new.patient_id and p.status = 'active'
+        and i.exercise_key = new.exercise_key
+    ) then
+      raise exception 'exercise_teaching_events: the exercise is not in the patient''s active plan';
+    end if;
+    if new.kind = 'correction' then
+      if not exists (
+        select 1 from exercise_teaching_events e
+        where e.id = new.corrects_event_id
+          and e.run_id = new.run_id and e.plan_id = new.plan_id
+          and e.exercise_key = new.exercise_key and e.patient_id = new.patient_id
+          and e.actor = new.actor
+      ) then
+        raise exception 'exercise_teaching_events: a correction references a mark of the same run, plan, exercise and therapist';
+      end if;
+      if exists (select 1 from exercise_teaching_events e where e.corrects_event_id = new.corrects_event_id) then
+        raise exception 'exercise_teaching_events: that mark is already corrected; correct the latest one';
+      end if;
+    end if;
+    return new;
+  end if;
+  raise exception 'exercise_teaching_events is append-only: what was watched in a session is history';
+end;
+$$;
+
+revoke all on function public.exercise_teaching_events_guard() from public, anon, authenticated;
+
+-- ---------------------------------------------------------------------
+-- communication_flags surfaces: the one widened list (Health Profile
+-- redesign, review fix).
+--
+-- Phases 2a, 3a, 4a, 5a and 7d each widened communication_flags_surface_check
+-- by dropping and re-adding it with a longer list. On a re-apply every one of
+-- those re-adds ran again in order, and the first that did not yet name a
+-- surface some row already used failed with check_violation -- and the rows
+-- cannot be removed to make room, because the table is evidence. So the five
+-- are one statement here, after everything that could narrow it, and the
+-- staging-era re-add above (session_summary) is wrapped so that, on a
+-- database already past it, it leaves the wider constraint in place. This one
+-- is deliberately NOT wrapped: a row naming a surface outside this list is a
+-- finding to reconcile, never a reason to skip the check.
+--
+-- A new surface is added HERE, to this list, never as another re-add further
+-- down -- and a CHECK widened later must not be narrowed by an earlier re-add
+-- on re-apply (docs/rules/data-schema.md).
+-- ---------------------------------------------------------------------
 alter table communication_flags drop constraint if exists communication_flags_surface_check;
 alter table communication_flags add constraint communication_flags_surface_check check (surface in (
   'session_suggestion_note',
@@ -17249,8 +19662,1196 @@ alter table communication_flags add constraint communication_flags_surface_check
   'appointment_notes',
   'condition_answer',
   'neuro_assessment_note',
-  'session_summary'
+  'session_summary',
+  'outcome_measurement_condition',
+  'care_goal_text',
+  'care_milestone_text',
+  'care_status_reason',
+  'patient_diary_note',
+  'care_status_summary',
+  'peds_assessment_note',
+  'exercise_plan_note'
 ));
+
+-- ---------------------------------------------------------------------
+-- Care goals and milestones: the update policies' WITH CHECK, and guards
+-- that freeze the author and stamp "reached" (Health Profile redesign,
+-- review fix).
+--
+-- 1. care_goals_update_assigned_therapist and
+--    care_milestones_update_assigned_therapist had a USING and no WITH
+--    CHECK, so a therapist's browser session that could see a row could
+--    rewrite it into anything the table accepts -- its author included. The
+--    WITH CHECK pins the new row the way the insert policies do: the caller
+--    is its author (on a goal, authored as a therapist), an active
+--    therapist, still under the clinical-access rule for that patient. With
+--    the author frozen (2, 3), a browser session edits only what it wrote.
+--    No route depends on these policies -- every write here is the service
+--    role after requireAssignedTherapist -- this is the half for a session
+--    that goes round the app.
+-- 2. care_goals_guard() (the newest declaration) also freezes authored_by
+--    and authored_by_role.
+-- 3. care_milestones_guard() (the newest declaration; it supersedes the 2a
+--    one with the reopen door, which it keeps unchanged) now also runs
+--    BEFORE INSERT, and:
+--      - refuses a milestone that ARRIVES reached: one is written planned or
+--        working, and "reached" is an observation made afterwards (the
+--        route's mark_reached), so the insert policy cannot be used to file
+--        one already reached at any time the caller likes;
+--      - stamps reached_at itself when a milestone becomes reached, ignoring
+--        the caller's value: the proving measurement's measured_at when
+--        there is one (what /api/therapist/care-milestones/save already
+--        wrote), the transaction's now() otherwise;
+--      - requires reached_measurement_id to be one of THIS patient's
+--        measurements, and keeps a reached milestone's proof as it was (the
+--        measurement's `on delete set null` and the reopen door still clear
+--        it);
+--      - freezes authored_by.
+-- Everything either guard refused before, it still refuses. Checked in
+-- scripts/append-only-sql-checks.sql.
+-- ---------------------------------------------------------------------
+drop policy if exists "care_goals_update_assigned_therapist" on care_goals;
+create policy "care_goals_update_assigned_therapist" on care_goals
+  for update using (
+    is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = care_goals.patient_id
+          and a.therapist_id = (select auth.uid())
+          and a.status in ('requested', 'confirmed', 'completed')
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = care_goals.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+          and pp.payment_status = 'paid'
+          and pp.status = 'active'
+          and (pp.expires_at is null or pp.expires_at > now())
+      )
+    )
+  )
+  with check (
+    (select auth.uid()) = authored_by and authored_by_role = 'therapist'
+    and is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = care_goals.patient_id
+          and a.therapist_id = (select auth.uid())
+          and a.status in ('requested', 'confirmed', 'completed')
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = care_goals.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+          and pp.payment_status = 'paid'
+          and pp.status = 'active'
+          and (pp.expires_at is null or pp.expires_at > now())
+      )
+    )
+  );
+
+drop policy if exists "care_milestones_update_assigned_therapist" on care_milestones;
+create policy "care_milestones_update_assigned_therapist" on care_milestones
+  for update using (
+    is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = care_milestones.patient_id
+          and a.therapist_id = (select auth.uid())
+          and a.status in ('requested', 'confirmed', 'completed')
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = care_milestones.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+          and pp.payment_status = 'paid'
+          and pp.status = 'active'
+          and (pp.expires_at is null or pp.expires_at > now())
+      )
+    )
+  )
+  with check (
+    (select auth.uid()) = authored_by
+    and is_active_therapist()
+    and (
+      exists (
+        select 1 from appointments a
+        where a.patient_id = care_milestones.patient_id
+          and a.therapist_id = (select auth.uid())
+          and a.status in ('requested', 'confirmed', 'completed')
+      )
+      or exists (
+        select 1 from patient_package_purchases pp
+        where pp.patient_id = care_milestones.patient_id
+          and pp.locked_therapist_id = (select auth.uid())
+          and pp.payment_status = 'paid'
+          and pp.status = 'active'
+          and (pp.expires_at is null or pp.expires_at > now())
+      )
+    )
+  );
+
+create or replace function public.care_goals_guard()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if new.patient_id is distinct from old.patient_id then
+    raise exception 'care_goals: a goal never moves to another patient';
+  end if;
+  if new.authored_by is distinct from old.authored_by or new.authored_by_role is distinct from old.authored_by_role then
+    raise exception 'care_goals: who wrote a goal is recorded once';
+  end if;
+  new.updated_at := now();
+  return new;
+end;
+$$;
+
+revoke all on function public.care_goals_guard() from public, anon, authenticated;
+
+create or replace function public.care_milestones_guard()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+declare
+  v_measure_patient uuid;
+  v_measured_at timestamptz;
+  v_becomes_reached boolean;
+begin
+  if tg_op = 'INSERT' then
+    if new.status = 'reached' or new.reached_at is not null then
+      raise exception 'care_milestones: a milestone is written planned or working; it is marked reached afterwards';
+    end if;
+    v_becomes_reached := false;
+  else
+    if new.patient_id is distinct from old.patient_id or new.goal_id is distinct from old.goal_id then
+      raise exception 'care_milestones: a milestone never moves to another patient or goal';
+    end if;
+    if new.authored_by is distinct from old.authored_by then
+      raise exception 'care_milestones: who planned a milestone is recorded once';
+    end if;
+    if old.reached_at is not null then
+      if new.reached_at is distinct from old.reached_at or new.status is distinct from 'reached' then
+        -- The one door: reached -> planned/working with reached_at cleared,
+        -- when the reopen event for exactly that reached_at was written in
+        -- this same transaction (reopen_care_milestone).
+        if not (
+          new.reached_at is null
+          and new.status in ('planned', 'working')
+          and exists (
+            select 1 from care_milestone_events e
+            where e.milestone_id = old.id
+              and e.kind = 'reopened'
+              and e.previous_reached_at = old.reached_at
+              and e.xact_id = txid_current()
+          )
+        ) then
+          raise exception 'care_milestones: a reached milestone stays reached; reached_at is recorded once';
+        end if;
+      elsif new.reached_measurement_id is not null
+            and new.reached_measurement_id is distinct from old.reached_measurement_id then
+        raise exception 'care_milestones: the measurement that proved a reached milestone is recorded once';
+      end if;
+    end if;
+    v_becomes_reached := new.status = 'reached' and old.status is distinct from 'reached';
+  end if;
+
+  if new.reached_measurement_id is not null
+     and (tg_op = 'INSERT' or v_becomes_reached or new.reached_measurement_id is distinct from old.reached_measurement_id) then
+    select m.patient_id, m.measured_at into v_measure_patient, v_measured_at
+    from outcome_measurements m
+    where m.id = new.reached_measurement_id;
+    if v_measure_patient is distinct from new.patient_id then
+      raise exception 'care_milestones: the proving measurement is one of this patient''s';
+    end if;
+  end if;
+
+  -- Reached is the server's time, never the caller's.
+  if v_becomes_reached then
+    new.reached_at := case when new.reached_measurement_id is not null then v_measured_at else now() end;
+  end if;
+
+  if tg_op = 'UPDATE' then
+    new.updated_at := now();
+  end if;
+  return new;
+end;
+$$;
+
+revoke all on function public.care_milestones_guard() from public, anon, authenticated;
+
+drop trigger if exists care_milestones_guard on care_milestones;
+create trigger care_milestones_guard
+  before insert or update on care_milestones
+  for each row execute function public.care_milestones_guard();
+
+-- ---------------------------------------------------------------------
+-- Health Profile layout (the owner's "admin decides what the profile
+-- shows"), the diary's "I saved this by mistake" correction, and the
+-- guided assessment's companion heartbeat.
+--
+-- 1. profile_widget_kind_settings: per condition kind (the six profile
+--    kinds), whether one section ("widget") of the Health Profile is shown.
+--    A row only exists where an admin chose; no row means the code's
+--    default (src/lib/profileWidgets.ts, the registry). Settings scope.
+-- 2. patient_profile_widget_overrides: the same choice for one patient,
+--    which beats the condition kind's. "Reset to condition default" deletes
+--    the row, so a row is always somebody's explicit choice. People scope.
+--
+-- Both are settings, not evidence: they are rewritten and deleted, and the
+-- history of who changed what is the admin log (profile_widgets.* rows).
+-- Their guard does three things: it stamps `set_at` with the database's
+-- time, never the caller's; it freezes the row's key (patient/kind and
+-- widget) so an "update" cannot quietly become a different choice; and it
+-- leaves `set_by`'s `on delete set null` alone. The `*_locked_shown` CHECK
+-- repeats the registry's `locked` list so no caller -- the service role
+-- included -- can hide a safety section (the status and its red flags, home
+-- exercises and their safety lines, the fall-risk level, standing blood
+-- pressure, the heart and lung safety box, the surgeon's precautions).
+-- Unlocking one later is a CHECK widened at the end of this file.
+--
+-- RLS: an admin reads; nobody writes from a browser session. The screens
+-- read them with the service role after their own auth check, because the
+-- page -- not the browser -- decides what renders. Foreign keys: the
+-- patient cascades and `set_by` is set null; neither is `restrict`, so
+-- scripts/clean-e2e-residue.mjs has nothing to learn. The data reset
+-- truncates the per-patient overrides (newest debug_reset_all_data()) and
+-- leaves the condition-kind settings alone, like every other setting.
+-- ---------------------------------------------------------------------
+create table if not exists profile_widget_kind_settings (
+  profile_kind text not null check (profile_kind in (
+    'ortho', 'neuro', 'neuro_parkinsons', 'pediatrics', 'geriatric', 'cardiopulmonary'
+  )),
+  widget_key text not null check (widget_key ~ '^[a-z0-9_.:]{1,80}$'),
+  visible boolean not null,
+  set_by uuid references profiles(id) on delete set null,
+  set_at timestamptz not null default now(),
+  primary key (profile_kind, widget_key),
+  constraint profile_widget_kind_settings_locked_shown check (
+    visible or widget_key not in ('status_header', 'home_exercises', 'fall_risk', 'orthostatic', 'cardio_safety', 'precautions')
+  )
+);
+
+create index if not exists profile_widget_kind_settings_set_by_idx
+  on profile_widget_kind_settings (set_by) where set_by is not null;
+
+alter table profile_widget_kind_settings enable row level security;
+
+drop policy if exists "profile_widget_kind_settings_select_admin" on profile_widget_kind_settings;
+create policy "profile_widget_kind_settings_select_admin" on profile_widget_kind_settings
+  for select using (is_admin());
+
+revoke insert, update, delete on profile_widget_kind_settings from anon, authenticated;
+
+create table if not exists patient_profile_widget_overrides (
+  patient_id uuid not null references profiles(id) on delete cascade,
+  widget_key text not null check (widget_key ~ '^[a-z0-9_.:]{1,80}$'),
+  visible boolean not null,
+  reason text check (reason is null or char_length(btrim(reason)) between 1 and 200),
+  set_by uuid references profiles(id) on delete set null,
+  set_at timestamptz not null default now(),
+  primary key (patient_id, widget_key),
+  constraint patient_profile_widget_overrides_locked_shown check (
+    visible or widget_key not in ('status_header', 'home_exercises', 'fall_risk', 'orthostatic', 'cardio_safety', 'precautions')
+  )
+);
+
+create index if not exists patient_profile_widget_overrides_set_by_idx
+  on patient_profile_widget_overrides (set_by) where set_by is not null;
+
+alter table patient_profile_widget_overrides enable row level security;
+
+drop policy if exists "patient_profile_widget_overrides_select_admin" on patient_profile_widget_overrides;
+create policy "patient_profile_widget_overrides_select_admin" on patient_profile_widget_overrides
+  for select using (is_admin());
+
+revoke insert, update, delete on patient_profile_widget_overrides from anon, authenticated;
+
+create or replace function public.profile_widget_choice_guard()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if tg_op = 'UPDATE' then
+    -- The key is the choice; changing it is a different choice, made by a
+    -- delete and an insert the admin log records as such.
+    if tg_table_name = 'patient_profile_widget_overrides' then
+      if (to_jsonb(new) ->> 'patient_id') is distinct from (to_jsonb(old) ->> 'patient_id') then
+        raise exception 'a Health Profile section choice belongs to one patient';
+      end if;
+    else
+      if (to_jsonb(new) ->> 'profile_kind') is distinct from (to_jsonb(old) ->> 'profile_kind') then
+        raise exception 'a Health Profile section choice belongs to one condition kind';
+      end if;
+    end if;
+    if new.widget_key is distinct from old.widget_key then
+      raise exception 'a Health Profile section choice belongs to one section';
+    end if;
+    -- The set-null of a deleted admin is not a new choice: keep its time.
+    if new.visible is not distinct from old.visible
+       and (to_jsonb(new) - 'set_by' - 'set_at') = (to_jsonb(old) - 'set_by' - 'set_at')
+       and new.set_by is null and old.set_by is not null then
+      new.set_at := old.set_at;
+      return new;
+    end if;
+  end if;
+  new.set_at := now();
+  return new;
+end;
+$$;
+
+revoke all on function public.profile_widget_choice_guard() from public, anon, authenticated;
+
+drop trigger if exists profile_widget_kind_settings_guard on profile_widget_kind_settings;
+create trigger profile_widget_kind_settings_guard
+  before insert or update on profile_widget_kind_settings
+  for each row execute function public.profile_widget_choice_guard();
+
+drop trigger if exists patient_profile_widget_overrides_guard on patient_profile_widget_overrides;
+create trigger patient_profile_widget_overrides_guard
+  before insert or update on patient_profile_widget_overrides
+  for each row execute function public.profile_widget_choice_guard();
+
+-- The Health Profile redraws when the clinic changes what it shows.
+do $$
+begin
+  alter publication supabase_realtime add table profile_widget_kind_settings;
+exception when duplicate_object then null;
+end $$;
+do $$
+begin
+  alter publication supabase_realtime add table patient_profile_widget_overrides;
+exception when duplicate_object then null;
+end $$;
+
+-- 3. patient_diary_entries: "I saved this by mistake" (E1).
+--
+-- A diary entry is never edited or deleted, so a mistake is undone the
+-- exercise_teaching_events way: a NEW row, `kind = 'correction'`, pointing
+-- at the original through `corrects_entry_id` (no action: nothing here is
+-- deleted, so clean-e2e-residue.mjs has nothing to learn). Every count and
+-- the status read past a corrected entry (src/lib/patientDiary.ts,
+-- applyDiaryCorrections); the clinician still sees it, marked corrected.
+--
+-- The guard admits a correction only for the same patient's own,
+-- unconfirmed, non-correction entry, written by that patient, with the one
+-- reason the screen offers -- a fall the physiotherapist has confirmed is
+-- theirs to talk through, not the patient's to withdraw. A partial unique
+-- index makes it one correction per entry (race-safe: the second is a
+-- 23505 the route answers as already done). A corrected entry can no longer
+-- be confirmed, and a correction is never confirmed itself.
+--
+-- The kind CHECK is the inline column one (Postgres names it
+-- patient_diary_entries_kind_check), widened here by drop and re-add under
+-- its own name -- the first and only re-add, so a re-run has no narrower
+-- copy to trip over.
+alter table patient_diary_entries
+  add column if not exists corrects_entry_id uuid references patient_diary_entries(id);
+
+alter table patient_diary_entries drop constraint if exists patient_diary_entries_kind_check;
+alter table patient_diary_entries add constraint patient_diary_entries_kind_check
+  check (kind in ('freezing', 'fall', 'near_miss', 'active_minutes', 'correction'));
+
+alter table patient_diary_entries drop constraint if exists patient_diary_entries_correction_shape;
+alter table patient_diary_entries add constraint patient_diary_entries_correction_shape check (
+  (kind = 'correction') = (corrects_entry_id is not null)
+  and (kind <> 'correction' or (details = '{"reason": "saved_by_mistake"}'::jsonb and note is null))
+);
+
+create unique index if not exists patient_diary_entries_one_correction
+  on patient_diary_entries (corrects_entry_id) where corrects_entry_id is not null;
+
+create or replace function public.patient_diary_entries_guard()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+declare
+  v_original patient_diary_entries%rowtype;
+begin
+  if tg_op = 'INSERT' then
+    -- Confirmed is something that happens to an entry after it is written,
+    -- by somebody else; an entry cannot arrive already confirmed.
+    if new.confirmed_at is not null or new.confirmed_by is not null or new.confirmed_by_role is not null then
+      raise exception 'a diary entry is confirmed after it is written, never on insert';
+    end if;
+    if new.kind = 'correction' then
+      -- Locked, so a confirmation racing this correction waits for it and
+      -- then finds the correction (below), or wins and this one is refused.
+      select * into v_original from patient_diary_entries where id = new.corrects_entry_id for update;
+      if not found
+         or v_original.patient_id <> new.patient_id
+         or v_original.kind = 'correction'
+         or v_original.entered_by_role <> 'patient'
+         or new.entered_by_role <> 'patient'
+         or new.entered_by <> v_original.entered_by then
+        raise exception 'a diary correction is the same patient''s own word on their own entry';
+      end if;
+      if v_original.confirmed_at is not null then
+        raise exception 'a confirmed diary entry is not withdrawn by the patient: talk it through with the physiotherapist';
+      end if;
+    end if;
+    return new;
+  end if;
+  -- The single permitted change: the one-time confirmation stamp on a
+  -- patient's own entry, every other column untouched. The time is the
+  -- database's, not the caller's. A correction is never confirmed, and an
+  -- entry the patient has corrected is no longer there to confirm.
+  if tg_op = 'UPDATE'
+     and old.confirmed_at is null
+     and old.entered_by_role = 'patient'
+     and old.kind <> 'correction'
+     and new.confirmed_by is not null
+     and new.confirmed_by_role in ('therapist', 'admin')
+     and (to_jsonb(new) - 'confirmed_at' - 'confirmed_by' - 'confirmed_by_role')
+       = (to_jsonb(old) - 'confirmed_at' - 'confirmed_by' - 'confirmed_by_role') then
+    if exists (select 1 from patient_diary_entries c where c.corrects_entry_id = old.id) then
+      raise exception 'this diary entry was corrected by the patient as saved by mistake, so it is not confirmed';
+    end if;
+    new.confirmed_at := now();
+    return new;
+  end if;
+  raise exception 'patient_diary_entries is append-only: a diary entry is never edited; write a new one';
+end;
+$$;
+
+revoke all on function public.patient_diary_entries_guard() from public, anon, authenticated;
+
+drop trigger if exists patient_diary_entries_guard on patient_diary_entries;
+create trigger patient_diary_entries_guard
+  before insert or update or delete on patient_diary_entries
+  for each row execute function public.patient_diary_entries_guard();
+
+-- 4. assessment_companion_seen (E12): when the patient's companion screen
+-- last fetched its display during a guided run, so the cockpit can say
+-- "the patient's screen is open" honestly rather than guess. One row per
+-- run, a heartbeat rather than evidence (mutable, no guard), written only
+-- by the service role from the patient's display route after its own
+-- check; the run's own therapist reads it (and an admin). The run cascades
+-- (runs refuse a delete, so in practice only the data reset removes it,
+-- which names it).
+create table if not exists assessment_companion_seen (
+  run_id uuid primary key references assessment_runs(id) on delete cascade,
+  patient_id uuid not null references profiles(id) on delete cascade,
+  last_seen_at timestamptz not null
+);
+
+create index if not exists assessment_companion_seen_patient_idx
+  on assessment_companion_seen (patient_id);
+
+alter table assessment_companion_seen enable row level security;
+
+drop policy if exists "assessment_companion_seen_select_run_therapist" on assessment_companion_seen;
+create policy "assessment_companion_seen_select_run_therapist" on assessment_companion_seen
+  for select using (
+    is_active_therapist()
+    and exists (
+      select 1 from assessment_runs r
+      where r.id = assessment_companion_seen.run_id
+        and r.therapist_id = (select auth.uid())
+    )
+  );
+
+drop policy if exists "assessment_companion_seen_select_admin" on assessment_companion_seen;
+create policy "assessment_companion_seen_select_admin" on assessment_companion_seen
+  for select using (is_admin());
+
+revoke insert, update, delete on assessment_companion_seen from anon, authenticated;
+
+-- ---------------------------------------------------------------------
+-- Announcements and the notebook.
+--
+--   1. announcements         -- a banner an admin puts on top of the
+--                               patient, therapist and hospital dashboards,
+--                               with a pop-up behind it (src/lib/announcements.ts).
+--   2. announcement_receipts -- per person: closed it, has seen its pop-up.
+--   3. notebook_pages        -- every account's private diary (src/lib/notebook.ts).
+--
+-- Written only by the service role from routes that have done their own
+-- check (requireAdminScope("settings") for an announcement; the signed-in
+-- owner for a receipt or a page), so no table carries an insert, update or
+-- delete policy and the three verbs are revoked from the browser roles.
+--
+-- None of the three is evidence: an announcement is edited and ended, a
+-- receipt is a convenience, a notebook page is rewritten every few seconds
+-- while its owner types. So there is no append-only guard, deliberately.
+-- Foreign keys cascade or set null -- none is `restrict` -- so
+-- scripts/clean-e2e-residue.mjs has nothing to learn. The data reset
+-- truncates the receipts and the pages (newest debug_reset_all_data(),
+-- above) and leaves the announcements, which are the admin's own writing.
+-- ---------------------------------------------------------------------
+create table if not exists announcements (
+  id uuid primary key default gen_random_uuid(),
+  title text not null check (char_length(btrim(title)) between 1 and 80),
+  -- The pop-up's formatted text: the editor's JSON, sanitised by the route.
+  body text check (body is null or char_length(body) <= 40000),
+  banner_image_url text check (banner_image_url is null or banner_image_url ~ '^https://'),
+  popup_image_url text check (popup_image_url is null or popup_image_url ~ '^https://'),
+  audiences text[] not null check (
+    cardinality(audiences) between 1 and 3
+    and audiences <@ array['patient', 'therapist', 'hospital']::text[]
+  ),
+  cta_label text check (cta_label is null or char_length(btrim(cta_label)) between 1 and 30),
+  -- Per dashboard: {"patient": {"kind": "screen", "key": "book"}, ...}.
+  cta_targets jsonb not null default '{}'::jsonb check (jsonb_typeof(cta_targets) = 'object'),
+  -- Null while it is a draft.
+  published_at timestamptz,
+  starts_at timestamptz,
+  ends_at timestamptz,
+  -- "Stays for N": kept so a draft published later still runs its full time.
+  duration_minutes integer check (duration_minutes is null or duration_minutes between 5 and 527040),
+  dismissible boolean not null default true,
+  auto_open boolean not null default false,
+  sort_order integer not null default 0,
+  created_by uuid references profiles(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  -- A published announcement knows when it starts and ends, and ends later.
+  constraint announcements_published_has_window check (
+    published_at is null
+    or (starts_at is not null and ends_at is not null and ends_at > starts_at)
+  )
+);
+
+create index if not exists announcements_window_idx
+  on announcements (ends_at, starts_at) where published_at is not null;
+create index if not exists announcements_created_by_idx
+  on announcements (created_by) where created_by is not null;
+
+alter table announcements enable row level security;
+
+drop policy if exists "announcements_select_admin" on announcements;
+create policy "announcements_select_admin" on announcements
+  for select using (is_admin());
+
+-- A signed-in person may read what is live for their own role. The
+-- dashboards read through the service role after working out the role
+-- themselves; this is the same rule said to the database, so a browser
+-- holding a session can never read a draft or another role's notice.
+drop policy if exists "announcements_select_live_audience" on announcements;
+create policy "announcements_select_live_audience" on announcements
+  for select using (
+    published_at is not null
+    and starts_at <= now()
+    and ends_at > now()
+    and exists (
+      select 1 from profiles p
+      where p.id = (select auth.uid())
+        and p.role = any (announcements.audiences)
+    )
+  );
+
+revoke insert, update, delete on announcements from anon, authenticated;
+
+create table if not exists announcement_receipts (
+  announcement_id uuid not null references announcements(id) on delete cascade,
+  user_id uuid not null references profiles(id) on delete cascade,
+  dismissed_at timestamptz,
+  popup_seen_at timestamptz,
+  primary key (announcement_id, user_id)
+);
+
+create index if not exists announcement_receipts_user_idx
+  on announcement_receipts (user_id);
+
+alter table announcement_receipts enable row level security;
+
+drop policy if exists "announcement_receipts_select_own" on announcement_receipts;
+create policy "announcement_receipts_select_own" on announcement_receipts
+  for select using (user_id = (select auth.uid()));
+
+drop policy if exists "announcement_receipts_select_admin" on announcement_receipts;
+create policy "announcement_receipts_select_admin" on announcement_receipts
+  for select using (is_admin());
+
+revoke insert, update, delete on announcement_receipts from anon, authenticated;
+
+-- The notebook. One policy, and it is the whole privacy promise: a page is
+-- read by its owner and by nobody else. There is deliberately NO admin
+-- policy here -- every other table in this file has one, and this one must
+-- not, because the notebook's own screen tells the person "Only you can
+-- read this".
+create table if not exists notebook_pages (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references profiles(id) on delete cascade,
+  body text check (body is null or char_length(body) <= 30000),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists notebook_pages_user_idx
+  on notebook_pages (user_id, created_at);
+
+alter table notebook_pages enable row level security;
+
+drop policy if exists "notebook_pages_select_own" on notebook_pages;
+create policy "notebook_pages_select_own" on notebook_pages
+  for select using (user_id = (select auth.uid()));
+
+revoke insert, update, delete on notebook_pages from anon, authenticated;
+
+-- ---------------------------------------------------------------------
+-- Abandoned checkouts are actually removed.
+--
+-- People -> Abandoned checkouts promised "removed after N days", and the
+-- accounts stayed: on the screen, and on People -> Patients, long past the
+-- date. purge_abandoned_booking_accounts deleted each account with one
+-- `delete from auth.users`, inside an exception handler that only raised a
+-- warning -- and `payment_failure_log.patient_id` references profiles with
+-- no ON DELETE action. An abandoned checkout is very often exactly an
+-- account whose payment failed, so the delete hit that foreign key, the
+-- handler swallowed it, and the account was kept on every run, silently.
+--
+-- Two other conditions also kept accounts nobody had paid anything for: any
+-- `payments` row at all (an order created, a payment failed), and any
+-- purchase row (the home-visit and programme wizards write an unpaid one
+-- before checkout). Money that never moved is not a reason to keep anyone.
+--
+-- So the rule is now one function both the list and the purge use:
+-- abandoned_checkout_kept_reason() says why an account must stay -- money
+-- was taken, something was bought, a session is paid, assigned or under
+-- way, or the payment tries ran out (the account opens instead) -- and null
+-- means it goes. The purge removes the account's failed-payment records
+-- first (the record of an account being deleted for never having paid), so
+-- the foreign key cannot keep it. The screen shows the reason for anyone
+-- kept, instead of a removal date that would never come.
+-- ---------------------------------------------------------------------
+create or replace function public.abandoned_checkout_kept_reason(p_id uuid, p_try_limit integer)
+returns text
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select case
+    when exists (
+      select 1 from public.payments pay
+      where pay.patient_id = p_id
+        and pay.status in ('authorized', 'captured', 'refunded', 'partially_refunded')
+    ) then 'A payment was taken'
+    when exists (select 1 from public.patient_package_purchases pp where pp.patient_id = p_id and pp.payment_status = 'paid')
+      or exists (select 1 from public.home_visit_package_purchases hp where hp.patient_id = p_id and hp.payment_status = 'paid')
+      then 'They bought a programme'
+    when exists (
+      select 1 from public.appointments a
+      where a.patient_id = p_id
+        and (a.payment_status = 'paid' or a.therapist_id is not null or a.status in ('confirmed', 'completed'))
+    ) then 'A session is paid, assigned or under way'
+    when (select count(*) from public.checkout_payment_tries t where t.patient_id = p_id) >= p_try_limit
+      then 'They used every payment try, so their dashboard opens instead'
+    else null
+  end;
+$$;
+
+revoke all on function public.abandoned_checkout_kept_reason(uuid, integer) from public, anon, authenticated;
+
+create or replace function public.abandoned_checkout_accounts(p_try_limit integer)
+returns table (
+  id uuid,
+  full_name text,
+  email text,
+  phone text,
+  created_at timestamptz,
+  tries integer,
+  next_slot timestamptz,
+  next_concern text,
+  kept_reason text
+)
+language sql
+stable
+security definer
+set search_path = public, auth
+as $$
+  select
+    p.id,
+    p.full_name,
+    p.email,
+    p.phone,
+    u.created_at,
+    (select count(*)::integer from public.checkout_payment_tries t where t.patient_id = p.id),
+    d.slot_time,
+    d.concern,
+    -- The caller may pass the limit; null reads the clinic's own setting.
+    public.abandoned_checkout_kept_reason(
+      p.id,
+      greatest(coalesce(p_try_limit, (select st.payment_tries_before_access from public.site_settings st limit 1), 3), 1)
+    )
+  from public.profiles p
+  join auth.users u on u.id = p.id
+  left join lateral (
+    select a.slot_time, a.concern
+    from public.appointments a
+    where a.patient_id = p.id and a.status = 'requested' and a.payment_status = 'unpaid'
+    order by a.created_at desc
+    limit 1
+  ) d on true
+  where p.role = 'patient'
+    and p.approved = false
+    and u.raw_user_meta_data->>'signup_source' = 'booking'
+  order by u.created_at desc;
+$$;
+
+revoke all on function public.abandoned_checkout_accounts(integer) from public, anon, authenticated;
+
+create or replace function public.purge_abandoned_booking_accounts(p_days integer, p_try_limit integer)
+returns integer
+language plpgsql
+security definer
+set search_path = public, auth
+as $$
+declare
+  v_id uuid;
+  v_deleted integer := 0;
+begin
+  if p_days is null or p_days < 1 or p_try_limit is null or p_try_limit < 1 then
+    raise exception 'purge_abandoned_booking_accounts: p_days and p_try_limit must be at least 1';
+  end if;
+
+  for v_id in
+    select p.id
+    from public.profiles p
+    join auth.users u on u.id = p.id
+    where p.role = 'patient'
+      and p.approved = false
+      and u.raw_user_meta_data->>'signup_source' = 'booking'
+      and u.created_at < now() - make_interval(days => p_days)
+      and public.abandoned_checkout_kept_reason(p.id, p_try_limit) is null
+    limit 200
+  loop
+    begin
+      -- The failed attempts reference the account with no ON DELETE action;
+      -- they go with it rather than keeping it.
+      delete from public.payment_failure_log where patient_id = v_id;
+      delete from auth.users where id = v_id;
+      v_deleted := v_deleted + 1;
+    exception when others then
+      raise warning 'purge_abandoned_booking_accounts: kept % (%)', v_id, sqlerrm;
+    end;
+  end loop;
+
+  return v_deleted;
+end;
+$$;
+
+revoke all on function public.purge_abandoned_booking_accounts(integer, integer) from public, anon, authenticated;
+
+-- ---------------------------------------------------------------------
+-- Every Razorpay refund, mirrored: razorpay_refunds.
+--
+-- The webhook used to act on `payment.captured` alone, so a refund made on
+-- the Razorpay website never reached the app at all -- the session went on
+-- reading Paid, the money figures went on counting it -- and a refund the
+-- app started was marked done the moment Razorpay accepted it, with nothing
+-- to say later that the bank had failed it.
+--
+-- Now `refund.created`, `refund.processed` and `refund.failed` are mirrored
+-- here, one row per Razorpay refund id, updated as its status moves
+-- (src/lib/razorpayRefundSync.ts). A mirror, not evidence: Razorpay is the
+-- record and this follows it, so there is no append-only guard. `source`
+-- says whether the app started it (a refund_attempts row carries its id) or
+-- somebody did on Razorpay; the subject is matched from the payment id.
+-- What the app does with each is in the module; Money -> Refunds lists them.
+--
+-- RLS: an admin reads; only the service role writes (the webhook). Foreign
+-- keys set null -- the mirror outlives a deleted booking -- so the e2e
+-- residue cleaner has nothing to learn. The data reset truncates it (newest
+-- debug_reset_all_data()).
+-- ---------------------------------------------------------------------
+create table if not exists razorpay_refunds (
+  razorpay_refund_id text primary key check (razorpay_refund_id ~ '^rfnd_[A-Za-z0-9]+$'),
+  razorpay_payment_id text not null,
+  amount_paise integer not null check (amount_paise > 0),
+  status text not null check (status in ('created', 'pending', 'processed', 'failed')),
+  source text not null check (source in ('app', 'razorpay')),
+  appointment_id uuid references appointments(id) on delete set null,
+  package_purchase_id uuid references patient_package_purchases(id) on delete set null,
+  home_visit_purchase_id uuid references home_visit_package_purchases(id) on delete set null,
+  patient_id uuid references profiles(id) on delete set null,
+  -- Whether the app recorded the refund on the booking itself, and if not, why.
+  applied text not null default 'pending' check (applied in ('pending', 'applied', 'already', 'needs_review', 'not_needed')),
+  applied_note text,
+  gateway_created_at timestamptz,
+  processed_at timestamptz,
+  failed_at timestamptz,
+  speed text,
+  reviewed_by uuid references profiles(id) on delete set null,
+  reviewed_at timestamptz,
+  first_seen_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists razorpay_refunds_payment_idx on razorpay_refunds (razorpay_payment_id);
+create index if not exists razorpay_refunds_appointment_idx on razorpay_refunds (appointment_id) where appointment_id is not null;
+create index if not exists razorpay_refunds_package_idx on razorpay_refunds (package_purchase_id) where package_purchase_id is not null;
+create index if not exists razorpay_refunds_home_visit_idx on razorpay_refunds (home_visit_purchase_id) where home_visit_purchase_id is not null;
+create index if not exists razorpay_refunds_patient_idx on razorpay_refunds (patient_id) where patient_id is not null;
+create index if not exists razorpay_refunds_reviewed_by_idx on razorpay_refunds (reviewed_by) where reviewed_by is not null;
+
+alter table razorpay_refunds enable row level security;
+
+drop policy if exists "razorpay_refunds_select_admin" on razorpay_refunds;
+create policy "razorpay_refunds_select_admin" on razorpay_refunds
+  for select using (is_admin());
+
+revoke insert, update, delete on razorpay_refunds from anon, authenticated;
+
+-- Money -> Refunds and its badge refresh live when a webhook writes a row.
+do $$
+begin
+  alter publication supabase_realtime add table razorpay_refunds;
+exception when duplicate_object then null;
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- Test accounts made from the debug bar, and removing them with their data
+-- ---------------------------------------------------------------------------
+--
+-- Testing a feature needs a patient, a therapist, a hospital and an admin of
+-- each desk, and making them by hand was the slowest part of every test. The
+-- debug bar's Test accounts panel (src/app/api/admin/debug-test-accounts)
+-- makes a set in one tap and lists their sign-ins so they can be copied into
+-- the login pages.
+--
+-- This table is the only thing that makes an account a *test* account. The
+-- purge below refuses any id that is not in it, so "Delete all" can never
+-- reach a real person -- whatever the account has done, and whatever points
+-- at it. The password is stored in plain text on purpose: these logins are
+-- throwaway, they exist to be copied, and the table is readable by the
+-- service role alone (RLS on, no policy) behind a Master Admin, and only
+-- where the debug bar is on (NEXT_PUBLIC_SHOW_DEBUG_NAV not "false").
+create table if not exists debug_test_accounts (
+  user_id uuid primary key,
+  batch_id uuid not null,
+  role text not null check (role in ('patient', 'therapist', 'hospital', 'admin')),
+  admin_scope text check (admin_scope is null or admin_scope in ('operations', 'finance', 'clinical')),
+  label text not null,
+  email text not null,
+  password text not null,
+  created_by uuid references profiles(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists debug_test_accounts_batch_idx on debug_test_accounts (batch_id);
+create index if not exists debug_test_accounts_created_by_idx on debug_test_accounts (created_by) where created_by is not null;
+
+alter table debug_test_accounts enable row level security;
+-- No policy: nobody but the service role reads a test login.
+revoke all on debug_test_accounts from anon, authenticated;
+
+-- Removes one test account and every row that hangs off it, payments
+-- included.
+--
+-- Thirty-five foreign keys into profiles refuse a delete, several money and
+-- evidence tables refuse one by trigger, and the chains run several tables
+-- deep -- so this walks the rows rather than the schema. Starting from the
+-- profile, it collects every row whose foreign key points at a row already
+-- collected, until nothing new turns up, turns off the append-only and money
+-- guards on those tables by name for this transaction only, and deletes the
+-- rows in passes so each goes after whatever points at it. Walking the schema
+-- instead -- one nested delete per foreign-key path -- was tried and runs to
+-- thousands of paths at depth eight.
+--
+-- Three guards keep it to test data:
+--   * the id must be in debug_test_accounts;
+--   * a foreign key that SETs NULL is nulled, never followed -- unless it
+--     is the row's owner column (patient_id, therapist_id, ...) pointing at
+--     the test account itself, as payments.patient_id does -- so a real row
+--     that merely names a test admin as its reviewer keeps everything else;
+--   * a profile reached through a foreign key is never deleted: its column
+--     is nulled when it can be, and the whole purge refuses when it cannot.
+-- The auth user is removed last, with triggers back on, so the auth
+-- schema's own rows cascade exactly as they do for any delete.
+create or replace function public.debug_purge_test_account(p_user_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  fk record;
+  added integer;
+  total integer := 0;
+  rounds integer := 0;
+  n integer;
+  removed jsonb := '{}'::jsonb;
+  v_test_ids uuid[];
+  v_rels oid[];
+  v_rel oid;
+  trg record;
+  pass integer := 0;
+  progress boolean;
+begin
+  if not exists (select 1 from debug_test_accounts where user_id = p_user_id) then
+    raise exception 'not a test account: only accounts the debug bar created can be removed this way';
+  end if;
+  select array_agg(user_id) into v_test_ids from debug_test_accounts;
+
+  create temp table if not exists _purge_rows (rel oid not null, rid tid not null, primary key (rel, rid)) on commit drop;
+  truncate _purge_rows;
+  create temp table if not exists _purge_triggers (rel oid not null, name text not null) on commit drop;
+  truncate _purge_triggers;
+
+  insert into _purge_rows (rel, rid)
+  select 'public.profiles'::regclass::oid, ctid from profiles where id = p_user_id;
+
+  -- 1. Collect every row that points at a collected row, until nothing new.
+  loop
+    rounds := rounds + 1;
+    added := 0;
+    for fk in
+      select con.conrelid as child, con.confrelid as parent,
+             ca.attname::text as child_col, pa.attname::text as parent_col
+      from pg_constraint con
+      join pg_class cr on cr.oid = con.conrelid
+      join pg_namespace cn on cn.oid = cr.relnamespace
+      join pg_attribute ca on ca.attrelid = con.conrelid and ca.attnum = con.conkey[1]
+      join pg_attribute pa on pa.attrelid = con.confrelid and pa.attnum = con.confkey[1]
+      where con.contype = 'f'
+        and cn.nspname = 'public'
+        and array_length(con.conkey, 1) = 1
+        and (
+          con.confdeltype in ('a', 'r', 'c')
+          -- A row the test account *owns* goes with it even where the key
+          -- would only SET NULL: payments.patient_id is one, and a test
+          -- patient's payments left behind with no owner would sit on the
+          -- money screens for ever. Other SET NULL keys (reviewed_by,
+          -- created_by ...) are a mention, not ownership, and are nulled below.
+          or (con.confdeltype in ('n', 'd')
+              and con.confrelid = 'public.profiles'::regclass
+              and ca.attname in ('patient_id', 'therapist_id', 'hospital_id', 'user_id', 'owner_id', 'profile_id'))
+        )
+        and con.confrelid in (select distinct r.rel from _purge_rows r)
+        -- A profile is never collected through a foreign key (see above).
+        and con.conrelid <> 'public.profiles'::regclass
+    loop
+      execute format(
+        'insert into _purge_rows (rel, rid)
+           select %1$s::oid, c.ctid from %2$s c
+            where c.%3$I in (select p.%4$I from %5$s p
+                              where p.ctid in (select rid from _purge_rows where rel = %6$s::oid))
+           on conflict do nothing',
+        fk.child, fk.child::regclass, fk.child_col, fk.parent_col, fk.parent::regclass, fk.parent);
+      get diagnostics n = row_count;
+      added := added + n;
+    end loop;
+    exit when added = 0 or rounds > 50;
+  end loop;
+
+  -- 2. Profiles that point at a collected row: real people a test account
+  -- touched (a referral, a pay-later grant). Their column is nulled; a NOT
+  -- NULL one refuses the purge.
+  for fk in
+    select con.confrelid as parent, ca.attname::text as child_col,
+           pa.attname::text as parent_col, ca.attnotnull as not_null
+    from pg_constraint con
+    join pg_attribute ca on ca.attrelid = con.conrelid and ca.attnum = con.conkey[1]
+    join pg_attribute pa on pa.attrelid = con.confrelid and pa.attnum = con.confkey[1]
+    where con.contype = 'f'
+      and con.conrelid = 'public.profiles'::regclass
+      and array_length(con.conkey, 1) = 1
+      and con.confrelid in (select distinct r.rel from _purge_rows r)
+  loop
+    execute format(
+      'select count(*) from profiles c
+        where c.%1$I in (select p.%2$I from %3$s p where p.ctid in (select rid from _purge_rows where rel = %4$s::oid))
+          and not (c.id = any($1))',
+      fk.child_col, fk.parent_col, fk.parent::regclass, fk.parent)
+      into n using v_test_ids;
+    if n > 0 and fk.not_null then
+      raise exception 'a real account depends on this test account (profiles.%), so it was left as it is', fk.child_col;
+    end if;
+    if n > 0 then
+      execute format(
+        'update profiles c set %1$I = null
+          where c.%1$I in (select p.%2$I from %3$s p where p.ctid in (select rid from _purge_rows where rel = %4$s::oid))
+            and not (c.id = any($1))',
+        fk.child_col, fk.parent_col, fk.parent::regclass, fk.parent)
+        using v_test_ids;
+    end if;
+  end loop;
+
+  -- 3. Guards off, by name, on the tables being emptied -- for this
+  -- transaction only (ALTER TABLE is transactional, and a failure anywhere
+  -- rolls it back with everything else). Only the triggers that are on now,
+  -- so they are put back exactly as found. Foreign keys are not triggers of
+  -- this kind and stay enforced throughout. This is the clean-up script's
+  -- own approach; `session_replication_role` was tried first and is refused
+  -- to this role on a stock Supabase stack.
+  insert into _purge_triggers (rel, name)
+  select t.tgrelid, t.tgname
+  from pg_trigger t
+  where not t.tgisinternal
+    and t.tgenabled <> 'D'
+    and t.tgrelid in (select distinct r.rel from _purge_rows r);
+  for trg in select * from _purge_triggers loop
+    execute format('alter table %s disable trigger %I', trg.rel::regclass, trg.name);
+  end loop;
+
+  -- 4. Delete in passes. A table still referenced by another collected
+  -- table's rows waits for a later pass; a cascade removes rows ahead of
+  -- their turn, which leaves their table's delete with nothing to do.
+  loop
+    pass := pass + 1;
+    progress := false;
+    select array_agg(distinct r.rel) into v_rels from _purge_rows r;
+    exit when v_rels is null;
+    foreach v_rel in array v_rels loop
+      begin
+        execute format('delete from %s where ctid in (select rid from _purge_rows where rel = %s::oid)',
+          v_rel::regclass, v_rel);
+        get diagnostics n = row_count;
+        delete from _purge_rows where rel = v_rel;
+        total := total + n;
+        removed := removed || jsonb_build_object(
+          replace(v_rel::regclass::text, 'public.', ''),
+          coalesce((removed ->> replace(v_rel::regclass::text, 'public.', ''))::int, 0) + n);
+        progress := true;
+      exception when foreign_key_violation then
+        null;
+      end;
+    end loop;
+    if not progress or pass > 40 then
+      raise exception 'could not remove every row of this test account: a foreign key still holds one';
+    end if;
+  end loop;
+
+  for trg in select * from _purge_triggers loop
+    execute format('alter table %s enable trigger %I', trg.rel::regclass, trg.name);
+  end loop;
+
+  delete from auth.users where id = p_user_id;
+  delete from debug_test_accounts where user_id = p_user_id;
+
+  return jsonb_build_object('status', 'deleted', 'rows', total, 'tables', removed);
+end;
+$$;
+
+revoke all on function public.debug_purge_test_account(uuid) from public;
+revoke all on function public.debug_purge_test_account(uuid) from anon;
+revoke all on function public.debug_purge_test_account(uuid) from authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Deleting a person whose account has money behind it
+-- ---------------------------------------------------------------------------
+--
+-- A hard delete is refused for any account with payments, refunds, payouts
+-- or settlements, because the books are built on those rows. What the admin
+-- wants in that case is the person gone, not the books: so the login is
+-- removed (the route bans the auth user and moves it to a placeholder
+-- address, which frees the real one to sign up again) and the profile stays
+-- as the name every money row still points at, marked deleted.
+--
+-- This table is that mark and the reason the admin gave, with the details
+-- the profile no longer carries (its email and phone are cleared so a new
+-- account on the same address is never confused with this one). It is
+-- evidence of who removed whom and why, so it is append-only by trigger.
+create table if not exists account_deletions (
+  user_id uuid primary key references profiles(id) on delete cascade,
+  role text not null,
+  full_name text,
+  email text,
+  phone text,
+  reason text not null check (reason in ('duplicate', 'user_request', 'fraud', 'left_clinic', 'test_account', 'other')),
+  note text check (note is null or char_length(note) <= 1000),
+  records jsonb not null default '{}'::jsonb,
+  deleted_by uuid references profiles(id) on delete set null,
+  deleted_at timestamptz not null default now(),
+  constraint account_deletions_other_needs_note check (reason <> 'other' or char_length(coalesce(trim(note), '')) >= 3)
+);
+
+alter table profiles add column if not exists deleted_at timestamptz;
+
+create index if not exists account_deletions_deleted_by_idx on account_deletions (deleted_by) where deleted_by is not null;
+create index if not exists account_deletions_deleted_at_idx on account_deletions (deleted_at desc);
+
+alter table account_deletions enable row level security;
+
+drop policy if exists "account_deletions_select_admin" on account_deletions;
+create policy "account_deletions_select_admin" on account_deletions
+  for select using (is_admin());
+
+revoke insert, update, delete on account_deletions from anon, authenticated;
+
+create or replace function public.account_deletions_is_append_only()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  -- The record is never edited, and never removed while the profile it
+  -- explains still stands. When the profile itself goes (a cascade from its
+  -- auth user -- the data reset, a test fixture's cleanup), the profile row is
+  -- already gone by the time this fires, and the record goes with it.
+  if tg_op = 'DELETE' and not exists (select 1 from profiles where id = old.user_id) then
+    return old;
+  end if;
+  raise exception 'account_deletions is append-only: the record of who removed an account, and why, is never edited or deleted';
+end;
+$$;
+
+revoke all on function public.account_deletions_is_append_only() from public;
+revoke all on function public.account_deletions_is_append_only() from anon;
+revoke all on function public.account_deletions_is_append_only() from authenticated;
+
+drop trigger if exists trg_account_deletions_append_only on account_deletions;
+create trigger trg_account_deletions_append_only
+  before update or delete on account_deletions
+  for each row execute function public.account_deletions_is_append_only();
+
+-- Writes the mark and clears the profile in one transaction, so a deleted
+-- account is never half-marked. The login itself is removed by the route,
+-- through GoTrue, after this succeeds.
+create or replace function public.admin_mark_account_deleted(
+  p_user_id uuid,
+  p_reason text,
+  p_note text,
+  p_records jsonb,
+  p_actor uuid,
+  p_placeholder_email text
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_profile record;
+begin
+  select id, role, full_name, email, phone, deleted_at into v_profile
+  from profiles where id = p_user_id for update;
+  if not found then
+    return jsonb_build_object('status', 'not_found');
+  end if;
+  if v_profile.deleted_at is not null then
+    return jsonb_build_object('status', 'already');
+  end if;
+
+  insert into account_deletions (user_id, role, full_name, email, phone, reason, note, records, deleted_by)
+  values (p_user_id, v_profile.role, v_profile.full_name, v_profile.email, v_profile.phone,
+          p_reason, nullif(trim(coalesce(p_note, '')), ''), coalesce(p_records, '{}'::jsonb), p_actor);
+
+  update profiles
+     set deleted_at = now(),
+         active = false,
+         email = p_placeholder_email,
+         phone = null
+   where id = p_user_id;
+
+  delete from auth.sessions where user_id = p_user_id;
+
+  return jsonb_build_object('status', 'deleted');
+end;
+$$;
+
+revoke all on function public.admin_mark_account_deleted(uuid, text, text, jsonb, uuid, text) from public;
+revoke all on function public.admin_mark_account_deleted(uuid, text, text, jsonb, uuid, text) from anon;
+revoke all on function public.admin_mark_account_deleted(uuid, text, text, jsonb, uuid, text) from authenticated;
 
 -- ---------------------------------------------------------------------
 -- service_role's EXECUTE, written out rather than inherited.

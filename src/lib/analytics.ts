@@ -17,6 +17,11 @@ export const ANALYTICS_CONSENT_KEY = "mr_analytics_consent";
 /** Dispatched by the footer link to ask for the consent card again. */
 export const ANALYTICS_REOPEN_EVENT = "mr-analytics-reopen";
 
+/** The footer link's href. A tap before the page has hydrated has no click
+ *  handler to run, so the link also lands on this hash, and the consent card
+ *  opens for it on mount or on hashchange. */
+export const ANALYTICS_SETTINGS_HASH = "#analytics-settings";
+
 export type AnalyticsConsent = "granted" | "denied";
 
 /** Route trees nothing is ever recorded on. `/hospital` is the referral
@@ -146,6 +151,62 @@ export function readConsent(): AnalyticsConsent | null {
     return v === "granted" || v === "denied" ? v : null;
   } catch {
     return null;
+  }
+}
+
+/**
+ * When the consent card was last shown to someone who has not answered.
+ * Ignoring the card is not a "no", but asking again in every new tab is
+ * nagging: it rests for CONSENT_REST_MS in every tab, then asks once more.
+ * The tab it was shown in keeps it (sessionStorage), so a person who is
+ * still reading it does not lose it on their next page.
+ */
+export const ANALYTICS_ASKED_AT_KEY = "mr_analytics_asked_at";
+export const ANALYTICS_ASKED_TAB_KEY = "mr_analytics_asked_tab";
+export const CONSENT_REST_MS = 7 * 24 * 60 * 60 * 1000;
+
+export function shouldAskForConsent(input: {
+  consent: AnalyticsConsent | null;
+  askedAtMs: number | null;
+  askedInThisTab: boolean;
+  nowMs: number;
+}): boolean {
+  if (input.consent) return false;
+  if (input.askedInThisTab) return true;
+  if (input.askedAtMs === null || !Number.isFinite(input.askedAtMs)) return true;
+  // A clock moved backwards reads as "just asked": rest rather than nag.
+  return input.nowMs - input.askedAtMs >= CONSENT_REST_MS;
+}
+
+export function readConsentAskState(): { askedAtMs: number | null; askedInThisTab: boolean } {
+  let askedAtMs: number | null = null;
+  let askedInThisTab = false;
+  try {
+    const raw = window.localStorage.getItem(ANALYTICS_ASKED_AT_KEY);
+    askedAtMs = raw ? Number(raw) : null;
+  } catch {
+    askedAtMs = null;
+  }
+  try {
+    askedInThisTab = window.sessionStorage.getItem(ANALYTICS_ASKED_TAB_KEY) === "1";
+  } catch {
+    askedInThisTab = false;
+  }
+  return { askedAtMs, askedInThisTab };
+}
+
+/** The card is on screen in this tab: start the rest for every other tab. */
+export function noteConsentAsked(nowMs: number): void {
+  try {
+    if (window.sessionStorage.getItem(ANALYTICS_ASKED_TAB_KEY) === "1") return;
+    window.sessionStorage.setItem(ANALYTICS_ASKED_TAB_KEY, "1");
+  } catch {
+    // No session storage: the rest below still applies to new tabs.
+  }
+  try {
+    window.localStorage.setItem(ANALYTICS_ASKED_AT_KEY, String(nowMs));
+  } catch {
+    // Private window: nothing to remember it in, so it may ask again.
   }
 }
 

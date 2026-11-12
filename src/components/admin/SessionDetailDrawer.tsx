@@ -1,6 +1,7 @@
 "use client";
 
 import ActivityTimeline from "@/components/admin/ActivityTimeline";
+import CopyText from "@/components/system/CopyText";
 import AdminSessionSummary from "@/components/admin/AdminSessionSummary";
 import { useEffect, useId, useOptimistic, useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
@@ -21,7 +22,9 @@ import ProgrammeIdChip from "@/components/dashboard/ProgrammeIdChip";
 import { adminScreenHref } from "@/lib/adminNav";
 import JoinSessionButton from "@/components/JoinSessionButton";
 import { formatSlotRange } from "@/lib/formatSlotRange";
-import { BASE_DURATION_MINUTES, CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
+import { BASE_DURATION_MINUTES } from "@/lib/pricing";
+import { useCancellationWindows } from "@/lib/cancellationWindowContext";
+import { cancelDialogMessage, describeCancelOutcome } from "@/lib/cancelOutcome";
 import { sessionListPricePaise } from "@/lib/sessionListPrice";
 import PartialRefundForm from "@/components/admin/PartialRefundForm";
 import GoodwillDiscountForm from "@/components/admin/GoodwillDiscountForm";
@@ -55,6 +58,8 @@ export type SessionDetailAppointment = {
   status: string;
   payment_status: string;
   payment_terms?: string | null;
+  /** Razorpay's id for this session's own payment, when the row carries it. */
+  razorpay_payment_id?: string | null;
   pay_later_outcome?: string | null;
   amount_paid_paise: number | null;
   /** A pay-later booking's frozen price. Migration-dependent and optional;
@@ -195,6 +200,8 @@ export default function SessionDetailDrawer({
   const router = useRouter();
   const { confirm, dialog: confirmDialog } = useConfirm();
   const { prompt, dialog: promptDialog } = usePrompt();
+  // The windows the clinic has actually set (Settings), for the cancel dialog.
+  const cancellationWindows = useCancellationWindows();
 
   // The same price the row that opened this drawer printed -- see
   // sessionListPrice.ts. It used to skip the service's own price and fall
@@ -329,17 +336,22 @@ export default function SessionDetailDrawer({
   }
 
   async function handleCancel() {
-    const hoursUntilSlot = a.slot_time
-      ? (new Date(a.slot_time).getTime() - Date.now()) / (1000 * 60 * 60)
-      : null;
-    const isLate = hoursUntilSlot !== null && hoursUntilSlot < CANCELLATION_FULL_REFUND_HOURS;
-    const reason = await prompt(
-      a.payment_status === "paid" && isLate
-        ? `Cancel this session? It's within ${CANCELLATION_FULL_REFUND_HOURS} hours of the slot, so the patient won't be refunded. Add a reason (optional):`
-        : a.payment_status === "paid"
-        ? "Cancel this session and refund the payment? Add a reason (optional):"
-        : "Cancel this session? Add a reason (optional):"
-    );
+    // The outcome is worked out the way cancelAppointmentAndRefund works it
+    // out -- the same window (home-visit or online), the same direct / programme
+    // / cash branches -- so the dialog names what will happen to the money
+    // instead of a fixed number of hours. The route stays the rule.
+    const viaProgramme = !!a.package_purchase_id || !!homeVisit?.home_visit_purchase_id;
+    const outcome = describeCancelOutcome({
+      slotTime: a.slot_time,
+      nowMs: Date.now(),
+      windowHours: homeVisit ? cancellationWindows.homeVisitHours : cancellationWindows.onlineHours,
+      paidDirect: a.payment_status === "paid" && !viaProgramme,
+      viaProgramme,
+      cashCollected: !!homeVisit?.cash_collected_at && homeVisit.payment_method === "cash",
+      cashCollectedPaise: homeVisit?.cash_collected_amount_paise ?? null,
+      refundablePaise: refundPosition.refundablePaise,
+    });
+    const reason = await prompt(cancelDialogMessage(outcome));
     if (reason === null) return;
     await submitCancel(reason, false);
   }
@@ -653,6 +665,11 @@ export default function SessionDetailDrawer({
                   </span>
                 )}
               </p>
+              {canSeeMoney && a.razorpay_payment_id && (
+                <p className="mt-1 text-slate-600">
+                  <CopyText value={a.razorpay_payment_id} label="Copy payment ID" />
+                </p>
+              )}
             </div>
 
             {a.notes && (
@@ -674,7 +691,7 @@ export default function SessionDetailDrawer({
                   {describeCancellationRefund(refundPosition, {
                     noRefundDue: a.therapist_payout_paid_at
                       ? "No refund (this session's payout was already settled - cancelled as an admin correction, not a late cancellation)"
-                      : a.refund_reason?.trim() || `No refund (cancelled within ${CANCELLATION_FULL_REFUND_HOURS} hours of the slot)`,
+                      : a.refund_reason?.trim() || `No refund (cancelled within ${homeVisit ? cancellationWindows.homeVisitHours : cancellationWindows.onlineHours} hours of the slot)`,
                     viaProgramme: !!a.package_purchase_id,
                   })}
                 </p>

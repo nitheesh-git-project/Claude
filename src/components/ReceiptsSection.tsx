@@ -4,6 +4,7 @@ import ListPager from "@/components/dashboard/ListPager";
 import { usePagedList } from "@/lib/usePagedList";
 import { useState } from "react";
 import Modal from "@/components/admin/Modal";
+import CopyText from "@/components/system/CopyText";
 import type { PatientReceipt, BookingReceiptStage } from "@/lib/receipts";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
@@ -245,9 +246,9 @@ export default function ReceiptsSection({
                 </span>
               </div>
               {selected.transactionId && (
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-500">Transaction ID</span>
-                  <span className="font-mono text-slate-600">{selected.transactionId}</span>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="shrink-0 text-slate-500">Payment ID</span>
+                  <CopyText value={selected.transactionId} label="Copy payment ID" className="justify-end text-right text-slate-600" />
                 </div>
               )}
               {selected.refund && (

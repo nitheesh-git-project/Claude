@@ -40,7 +40,7 @@ export function buildPatientNavItems({
   return [
     // Overview is first on every dashboard: the same "what needs me right
     // now" screen for patient, therapist, hospital and admin.
-    { id: "overview", label: "Overview", short: "Home", icon: "fa-gauge-high", href: "/patient/dashboard" },
+    { id: "overview", label: "Home", short: "Home", icon: "fa-gauge-high", href: "/patient/dashboard" },
     { id: "book", label: "Book a Session", short: "Book", icon: "fa-plus", href: "/patient/dashboard/book" },
     // One entry for every session -- video or home visit, list or calendar.
     // These were three entries over the same rows, which made "what's
@@ -52,8 +52,8 @@ export function buildPatientNavItems({
       ? [
           {
             id: "suggested",
-            label: "Suggested Sessions",
-            short: "Suggested",
+            label: "Recommendations",
+            short: "Recommended",
             badge: suggestionsWaiting > 0 ? suggestionsWaiting : undefined,
             icon: "fa-lightbulb",
             href: "/patient/dashboard/suggested",
@@ -79,8 +79,8 @@ export function buildPatientNavItems({
       ? [
           {
             id: "packages",
-            label: "Your Programmes",
-            short: "Programmes",
+            label: "My programme",
+            short: "My programme",
             icon: "fa-box-open",
             href: "/patient/dashboard/packages",
           },
@@ -102,10 +102,12 @@ export function buildPatientNavItems({
       : []),
     {
       id: "health-profile",
-      label: "Health Profile",
-      // "Progress" on the tab bar and rail: what a patient opens it for is
-      // whether they are getting better.
-      short: "Progress",
+      // "My progress" in the sidebar AND on the tab bar and rail: what a
+      // patient opens it for is whether they are getting better, and one
+      // name for the screen means a patient never wonders whether "Health
+      // Profile" and "Progress" are two places.
+      label: "My progress",
+      short: "My progress",
       icon: "fa-notes-medical",
       href: "/patient/dashboard/health-profile",
     },

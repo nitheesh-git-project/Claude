@@ -103,6 +103,18 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
       // Approvals used to sit on the patients directory, which made one
       // screen do three jobs -- a queue is not a person.
       { key: "approvals", label: "Approvals" },
+      // The other half of "waiting on a person": a patient's Health Profile
+      // answers waiting to go live, and a therapist asking to edit one. It
+      // sits beside Approvals because it is the same kind of work, and is its
+      // own screen because the people differ (a patient's record, not an
+      // account) and so does the row (who asked, who for, how long).
+      {
+        key: "health-reviews",
+        label: "Health Profile reviews",
+        blurb:
+          "Patient answers waiting to go live on a Health Profile, and therapists asking to edit one.",
+        example: "Approve the answers Dr Meera filled in for Asha, or decline them with a reason.",
+      },
       // What the detectors noticed. Under Today rather than in a section of
       // its own because a signal is a piece of work waiting on somebody,
       // and that is what this section is for.
@@ -227,6 +239,14 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
         blurb: "Every payment and refund, one row each.",
         example: "Find what a patient paid on Tuesday, and whether any of it went back.",
       },
+      // Every refund Razorpay reports, including ones made on the Razorpay
+      // website, with where it is and what the app did about it.
+      {
+        key: "refunds",
+        label: "Refunds",
+        blurb: "Every refund, including ones made on the Razorpay website: where it is, who it was for, and what still needs you.",
+        example: "Check a refund you made on Razorpay reached the patient's session, or see one the bank failed.",
+      },
       {
         key: "payouts",
         label: "Payouts",
@@ -332,6 +352,15 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
         blurb: "Every change an admin has made, newest first \u2014 who, when, and what it changed from.",
         example: "Find who refunded a session last Tuesday, and what reason they gave.",
       },
+      // Who opened whose dashboard, and why: the reason an admin types before
+      // "Sign in as", with what they changed while inside. It was saved all
+      // along, but only as single lines in All Activity.
+      {
+        key: "signed-in-as",
+        label: "Signed in as",
+        blurb: "Every time an admin opened somebody's dashboard as them, with the reason they gave and what they changed.",
+        example: "See why somebody opened a patient's dashboard last week, and whether they changed anything.",
+      },
       {
         key: "retention",
         label: "Archive & Clear",
@@ -408,8 +437,29 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
         key: "clinical",
         label: "Clinical Questions",
         group: "How the clinic runs",
-        blurb: "The questions a patient answers about their condition, and the ones a therapist fills in after an exam.",
-        example: "Reword the question that asks how long the pain has lasted.",
+        blurb:
+          "The questions a patient answers about their condition, the ones a therapist fills in after an exam, which paid-for assessment scales your therapists may use, and the six-minute walk's predicted-distance formula.",
+        example: "Reword the question that asks how long the pain has lasted, or switch on a scale once the clinic holds its licence.",
+      },
+      // What a patient's own Health Profile shows, per condition type. One
+      // patient's own choice lives on their record (People), not here.
+      {
+        key: "profile-layout",
+        label: "Health Profile layout",
+        group: "How the clinic runs",
+        blurb: "Which sections a patient sees on their own Health Profile, for each condition type.",
+        example: "Hide the measures table from every orthopaedic patient's page, while their physiotherapist still sees it.",
+      },
+      // What the clinic says to everybody at once: a banner on top of the
+      // patient, therapist and hospital dashboards, with a pop-up behind it.
+      // Under "How the clinic runs" rather than "Your website" because none
+      // of it is public -- it is shown only to people who are signed in.
+      {
+        key: "announcements",
+        label: "Announcements",
+        group: "How the clinic runs",
+        blurb: "Banners on top of the patient, therapist and hospital dashboards, and the pop-up each one opens.",
+        example: "Wish everybody a happy Diwali for three days, or tell every therapist the payout day has moved.",
       },
       {
         key: "access",
@@ -460,7 +510,7 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
       // the clinic's leads, and a scoped admin has no business reading them.
       {
         key: "reachouts",
-        label: "Dev Reachouts",
+        label: "Developer messages",
         group: "Technical",
         blurb: "Messages left through the developer credit in the footer, and the switch that shows it.",
         example: "Read a note somebody left on the Say hello page, then mark it contacted.",
@@ -604,6 +654,12 @@ export type InboxItem = {
   count: number;
   section: AdminSectionKey;
   tab: string;
+  /** The section whose `manage` level it takes to WORK this row, when that is
+   *  not the section the row opens. Approvals live on Today (the screen every
+   *  desk opens) but approving is `people`, so a Finance desk -- which holds
+   *  People at `view` -- would otherwise be told two accounts are waiting on
+   *  it that nothing it can click would ever clear. Defaults to `section`. */
+  workSection?: AdminSectionKey;
   /** Filter preset the target screen applies on arrival, so the row opens
    *  the rows it counted rather than the unfiltered list. */
   view?: string;

@@ -26,7 +26,7 @@ import {
   cookieHeaderFor,
   QA_EMAILS,
   adminClient,
-  profileIdFor,
+  profileIdFor, settleNetwork
 } from "./helpers";
 
 // The admin dashboard renders 34 screens and ~82 queries in one pass.
@@ -39,7 +39,7 @@ async function openRoster(page: Page) {
       timeout: 30_000,
     })
     .catch(() => {});
-  await page.waitForLoadState("networkidle");
+  await settleNetwork(page);
   await expect(page.getByRole("heading", { name: "Therapist roster" })).toBeVisible({
     timeout: 60_000,
   });

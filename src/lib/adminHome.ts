@@ -236,18 +236,20 @@ function recommendationsCell(scope: AdminScope, counts: AdminHomeCounts): AdminH
 function careRecordsCell(scope: AdminScope, counts: AdminHomeCounts): AdminHomeCell {
   const waiting = counts.conditionRequestsPending + counts.conditionAccessPending;
   return {
-    label: "Care records",
+    label: "Health Profile reviews",
     value: String(waiting),
     note:
       waiting === 0
-        ? "No health profile work waiting"
+        ? "No Health Profile work waiting"
         : `${counts.conditionRequestsPending} submission${
             counts.conditionRequestsPending === 1 ? "" : "s"
           }, ${counts.conditionAccessPending} access request${
             counts.conditionAccessPending === 1 ? "" : "s"
           }`,
     accent: queueAccent(waiting),
-    href: link(scope, "people", "patients"),
+    // The screen that lists exactly these rows, with Approve and Decline on
+    // each -- not the patients directory they used to land on.
+    href: link(scope, "people", "patients") ? adminScreenHref("today", "health-reviews") : undefined,
   };
 }
 
@@ -372,10 +374,10 @@ function headlineFor(scope: AdminScope, counts: AdminHomeCounts): string {
     }
     const records = counts.conditionRequestsPending + counts.conditionAccessPending;
     if (records > 0) {
-      return `No recommendations are waiting. ${records} health ${plural(
+      return `No recommendations are waiting. ${records} Health Profile ${plural(
         records,
-        "record needs",
-        "records need"
+        "review needs",
+        "reviews need"
       )} a decision. ${sessionsSentence}`;
     }
     return `Nothing clinical is waiting on you. ${sessionsSentence}`;
@@ -397,8 +399,8 @@ const GREETINGS: Record<AdminScope, string> = {
 const NEEDS_YOU_NOTES: Record<AdminScope, string> = {
   full: "Across approvals, scheduling and money",
   operations: "Across scheduling, approvals and the catalog",
-  finance: "Across payouts, cash and approvals",
-  clinical: "Across recommendations, records and sessions",
+  finance: "Across payouts, cash and refunds",
+  clinical: "Across recommendations, Health Profiles and sessions",
 };
 
 function cellsFor(scope: AdminScope, counts: AdminHomeCounts): AdminHomeCell[] {
@@ -636,7 +638,8 @@ export function buildAdminHome(scope: AdminScope, counts: AdminHomeCounts): Admi
 export function visibleQueueTotal(groups: InboxGroup[], workable: AdminSectionKey[]): number {
   return groups.reduce(
     (sum, g) =>
-      sum + g.items.reduce((s, i) => s + (workable.includes(i.section) ? i.count : 0), 0),
+      sum +
+      g.items.reduce((s, i) => s + (workable.includes(i.workSection ?? i.section) ? i.count : 0), 0),
     0
   );
 }
@@ -644,8 +647,11 @@ export function visibleQueueTotal(groups: InboxGroup[], workable: AdminSectionKe
 // Which queues a scope reads first. Ordering only -- nothing is removed
 // here, because what a scope may work is the routes' decision and a UI that
 // hid a reachable queue would be a second, disagreeing permission model.
-// A finance admin may well approve a signup; they should just not have to
-// scroll past the clinical queue to find the payout requests.
+// Finance holds People at `view` (adminScope.ts), so it cannot approve a
+// signup or a profile change -- approve-account and approve-profile-change
+// are requireAdminScope("people"), and Approvals counts as workable only for
+// a desk with people:manage (InboxItem.workSection). What Finance reads
+// first is its own queue: the payout requests, ahead of the clinical one.
 const QUEUE_ORDER: Record<AdminScope, AdminQueueDomain[]> = {
   // Page order already reads correctly for a full admin, so nothing moves.
   full: [],

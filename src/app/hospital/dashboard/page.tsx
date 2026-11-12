@@ -31,8 +31,8 @@ export default async function HospitalDashboardPage() {
           actions={[
             { label: "Refer a patient", hint: "Video consultation or home visit", icon: "fa-user-plus", href: "/hospital/dashboard/refer", primary: true },
             { label: "Your referrals", hint: "Status of everyone you've sent", icon: "fa-list-check", href: "/hospital/dashboard/referrals" },
-            { label: "Revenue and payouts", hint: "Sessions delivered and your share", icon: "fa-chart-line", href: "/hospital/dashboard/revenue" },
-            { label: "Account security", hint: "Password and sign-in", icon: "fa-lock", href: "/hospital/dashboard/profile" },
+            { label: "Earnings", hint: "Sessions delivered and your share", icon: "fa-chart-line", href: "/hospital/dashboard/revenue" },
+            { label: "Edit Profile", hint: "Organisation details, logo and sign-in", icon: "fa-user-pen", href: "/hospital/dashboard/profile" },
           ]}
         />
     </HospitalDashboardShell>

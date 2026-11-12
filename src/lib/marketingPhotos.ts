@@ -13,6 +13,12 @@ import careMobility from "../../public/photos/care-mobility.jpg";
 import careNeck from "../../public/photos/care-neck.jpg";
 import carePosture from "../../public/photos/care-posture.jpg";
 import careSports from "../../public/photos/care-sports.jpg";
+import goalBalance from "../../public/photos/goal-balance.jpg";
+import goalDesk from "../../public/photos/goal-desk.jpg";
+import goalHeart from "../../public/photos/goal-heart.jpg";
+import goalNeuro from "../../public/photos/goal-neuro.jpg";
+import goalOrtho from "../../public/photos/goal-ortho.jpg";
+import goalPaeds from "../../public/photos/goal-paeds.jpg";
 import heroConditions from "../../public/photos/hero-conditions.jpg";
 import heroFaq from "../../public/photos/hero-faq.jpg";
 import heroHomeVisit from "../../public/photos/hero-home-visit.jpg";
@@ -64,6 +70,14 @@ export const MARKETING_PHOTOS = {
   "care-posture": carePosture,
   "care-sports": careSports,
   "care-mobility": careMobility,
+  // "What treatment works towards" (TreatmentGoals): one per kind of care,
+  // and the one band whose photographs show the care rather than a screen.
+  "goal-ortho": goalOrtho,
+  "goal-desk": goalDesk,
+  "goal-neuro": goalNeuro,
+  "goal-paeds": goalPaeds,
+  "goal-balance": goalBalance,
+  "goal-heart": goalHeart,
   // The closing band's own set: one per page, never a photograph that page
   // already shows above. See ClosingCta.
   "cta-book": ctaBook,

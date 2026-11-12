@@ -146,7 +146,7 @@ const PATIENT: TutorialChapter[] = [
     id: "patient-booking",
     title: "Booking a session",
     icon: "fa-calendar-plus",
-    sections: ["book", "sessions", "card:session-status"],
+    sections: ["book", "sessions", "session", "card:session-status"],
     steps: [
       {
         id: "book",
@@ -160,8 +160,8 @@ const PATIENT: TutorialChapter[] = [
         title: "What happens after you pay",
         body: "Watch Priya's session move through each stage. Yours will show the same labels on Home and under Sessions.",
         points: [
-          `"Waiting for a therapist" - paid, and the clinic is choosing the right therapist for you.`,
-          `"Confirmed with ${F.therapistShort}" - your therapist and time are set.`,
+          `"Waiting for a physiotherapist" - paid, and the clinic is choosing the right physiotherapist for you.`,
+          `"Confirmed with ${F.therapistShort}" - your physiotherapist and time are set.`,
           `"Tap to Join" - lights up shortly before a video session starts.`,
           `"Completed" - afterwards you can rate the session.`,
         ],
@@ -176,21 +176,21 @@ const PATIENT: TutorialChapter[] = [
   },
   {
     id: "patient-suggested",
-    title: "Suggested times",
+    title: "Recommendations",
     icon: "fa-lightbulb",
     sections: ["suggested"],
     steps: [
       {
         id: "suggested",
         scene: "patient-suggested",
-        title: "Your therapist can suggest your next session",
-        body: `After a session, your therapist may suggest a time for the next one. Tap "Accept this time" to book it in one go, or Decline and pick your own. An accepted time shows "Accepted - clinic confirming" until the clinic confirms your therapist.`,
+        title: "Your physiotherapist can suggest your next session",
+        body: `After a session, your physiotherapist may suggest a time for the next one. Tap "Accept this time" to book it in one go, or Decline and pick your own. An accepted time shows "Accepted - clinic confirming" until the clinic confirms your physiotherapist.`,
       },
     ],
   },
   {
     id: "patient-programmes",
-    title: "Programmes",
+    title: "My programme",
     icon: "fa-layer-group",
     sections: ["packages", "card:care-plan"],
     steps: [
@@ -198,11 +198,11 @@ const PATIENT: TutorialChapter[] = [
         id: "programme",
         scene: "patient-programme",
         title: "A programme is a course of sessions",
-        body: `When your therapist recommends one, the clinic checks it first and then it appears as "Your therapist recommended a programme". Accept it to pay once for every session.`,
+        body: `When your physiotherapist recommends one, the clinic checks it first and then it appears as "Your physiotherapist recommended a programme". Accept it to pay once for every session.`,
         points: [
           `Accept & pay opens a Review & pay page first: the full total, a box for a promo code if you have one, then Pay.`,
           `Then you'll see "6 sessions still to book" - pick each time whenever it suits you.`,
-          `Each one you book shows "Booked - confirming your therapist" until the clinic confirms who runs it - then it's Confirmed.`,
+          `Each one you book shows "Booked - confirming your physiotherapist" until the clinic confirms who runs it - then it's Confirmed.`,
         ],
       },
     ],
@@ -227,27 +227,27 @@ const PATIENT: TutorialChapter[] = [
   },
   {
     id: "patient-health-profile",
-    title: "Health profile",
+    title: "My progress",
     icon: "fa-file-medical",
     sections: ["health-profile", "card:health-profile"],
     steps: [
       {
         id: "hp-locked",
         scene: "patient-hp-locked",
-        title: "Your therapist starts your health profile with you",
-        body: "At your first session, your therapist asks about your condition and fills in your health profile together with you. Until then it's read-only.",
+        title: "Your physiotherapist starts your health profile with you",
+        body: "At your first session, your physiotherapist asks about your condition and fills in your health profile together with you. Until then it's read-only.",
         points: [
           "You don't need to fill anything in before your first session.",
-          "You can upload scans and reports right now - your therapist will see them.",
+          "You can upload scans and reports right now - your physiotherapist will see them.",
         ],
       },
       {
         id: "hp-ready",
         scene: "patient-hp-ready",
         title: `"Your health profile is ready"`,
-        body: "Once your therapist has filled it in, you'll get this update on Home and the profile opens to you.",
+        body: "Once your physiotherapist has filled it in, you'll get this update on Home and the profile opens to you.",
         points: [
-          "Your answers about your condition, in your therapist's words and yours.",
+          "Your answers about your condition, in your physiotherapist's words and yours.",
           "The Pain Map - where it hurts and how much, from each exam.",
           `"Are you getting better?" - one point per exam, so you can see your progress.`,
         ],
@@ -256,9 +256,9 @@ const PATIENT: TutorialChapter[] = [
         id: "hp-update",
         scene: "patient-hp-update",
         title: "Something changed? Update it",
-        body: `Edit your answers and send them. They show as "Waiting for the clinic to approve" - your therapist keeps seeing the previous answers until the clinic approves the new ones.`,
+        body: `Edit your answers and send them. They show as "Waiting for the clinic to approve" - your physiotherapist keeps seeing the previous answers until the clinic approves the new ones.`,
         points: [
-          `Approved - "Health profile approved", and your therapist sees the new answers.`,
+          `Approved - "Health profile approved", and your physiotherapist sees the new answers.`,
           `If something needs fixing it "came back with a note" - open it, fix it and resend.`,
         ],
       },
@@ -274,7 +274,7 @@ const PATIENT: TutorialChapter[] = [
         id: "profile",
         scene: "patient-profile",
         title: "Your details and addresses",
-        body: "Keep your phone number and email up to date so your therapist can reach you. Save addresses for home visits, and change your password here.",
+        body: "Keep your phone number and email up to date so your physiotherapist can reach you. Save addresses for home visits, and change your password here.",
       },
     ],
   },
@@ -353,7 +353,7 @@ const THERAPIST: TutorialChapter[] = [
     id: "therapist-sessions",
     title: "Sessions",
     icon: "fa-calendar-check",
-    sections: ["sessions", "card:session-status"],
+    sections: ["sessions", "assessment", "card:session-status"],
     steps: [
       {
         id: "session",
@@ -694,6 +694,14 @@ const ROLE_BASE: Record<TutorialRole, string> = {
   therapist: "/therapist/dashboard",
   hospital: "/hospital/dashboard",
 };
+
+/** Screens a first-visit tour must never open over: the guided assessment's
+ *  two live screens (the physiotherapist's cockpit and the patient's display).
+ *  The tour is still there from any (i); it just does not arrive by itself on
+ *  top of a test in progress. */
+export function tutorialMayAutoStart(pathname: string): boolean {
+  return !(pathname === "/patient/dashboard/session" || pathname.startsWith("/therapist/dashboard/assessment/"));
+}
 
 /** Which role's dashboard a path belongs to, or null for any other page. */
 export function tutorialRoleForPath(pathname: string): TutorialRole | null {

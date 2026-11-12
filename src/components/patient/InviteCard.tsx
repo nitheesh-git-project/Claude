@@ -118,14 +118,14 @@ export default function InviteCard({
         <button
           type="button"
           onClick={copy}
-          className="rounded-lg bg-teal-700 px-4 py-2 text-xs font-semibold text-white hover:bg-teal-800"
+          className="rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800"
         >
           {copied ? "Copied" : "Copy code"}
         </button>
       </div>
 
       {invited > 0 && (
-        <p className="mt-3 text-xs text-slate-600">
+        <p className="mt-3 text-sm text-slate-600">
           {invited} {invited === 1 ? "person has" : "people have"} used your code
           {qualified > 0 ? `, and ${qualified} of them ${qualified === 1 ? "has" : "have"} had a session` : ""}.
           {rewardWaitingPaise > 0 && (
@@ -139,7 +139,7 @@ export default function InviteCard({
 
       {canClaim && !claimedSomeoneElses && (
         <div className="mt-5 border-t border-slate-100 pt-4">
-          <label htmlFor="invite-entry" className="block text-[11px] font-semibold text-slate-700">
+          <label htmlFor="invite-entry" className="block text-[13px] font-semibold text-slate-700">
             Got a code from a friend?
           </label>
           <div className="mt-2 flex gap-2">
@@ -153,24 +153,24 @@ export default function InviteCard({
               autoComplete="off"
               autoCapitalize="characters"
               placeholder="ABCD-2345"
-              className="flex-1 rounded-xl border border-slate-300 p-2.5 text-xs uppercase"
+              className="flex-1 rounded-xl border border-slate-300 p-2.5 text-sm uppercase"
             />
             <button
               type="button"
               onClick={claim}
               disabled={claiming}
-              className="rounded-xl bg-slate-800 px-4 py-2.5 text-xs font-semibold text-white disabled:opacity-60"
+              className="rounded-xl bg-slate-800 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
             >
               {claiming ? "Checking…" : "Use it"}
             </button>
           </div>
-          <p className="mt-2 text-[11px] text-slate-500">
+          <p className="mt-2 text-[13px] text-slate-500">
             A code can only be used before your first session.
           </p>
         </div>
       )}
 
-      {message && <p className="mt-3 text-xs font-semibold text-slate-700">{message}</p>}
+      {message && <p className="mt-3 text-sm font-semibold text-slate-700">{message}</p>}
     </SurfaceCard>
   );
 }

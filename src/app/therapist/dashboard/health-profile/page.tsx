@@ -61,7 +61,7 @@ export default async function TherapistHealthProfilesPage() {
   // profiles has no RLS policy letting a therapist read a *patient's* row
   // directly (only their own, or admin) -- same reason the main therapist
   // dashboard's appointment-patient lookup already goes through the admin
-  // client (see src/app/therapist/dashboard/page.tsx). The therapist is
+  // client (see src/app/therapist/dashboard/(home)/page.tsx). The therapist is
   // already established here (an authenticated session, reading only the
   // patient ids their own appointments/packages name), so this is scoped,
   // not a broad admin-client exposure.

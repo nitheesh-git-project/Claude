@@ -112,7 +112,12 @@ test("FS-002: Done before the start says so inline, with No Show still beside it
   await expect(card.getByText("This session hasn't started yet.")).toBeVisible();
   const noShow = card.getByRole("button", { name: /no.?show/i });
   const [d, n] = [await done.boundingBox(), await noShow.boundingBox()];
-  expect(Math.abs(d!.y - n!.y)).toBeLessThan(4);
+  // On one row: the two boxes share a band of the line. Done is two lines
+  // tall now (its label and "Note and exam, then it closes") and No Show sits
+  // at the top of its own column (MarkNoShowButton), so neither the tops nor
+  // the centres line up -- "beside" is that they overlap vertically.
+  expect(n!.y, "No Show starts above Done's bottom edge").toBeLessThan(d!.y + d!.height);
+  expect(n!.y + n!.height, "No Show ends below Done's top edge").toBeGreaterThan(d!.y);
   expect(n!.x - (d!.x + d!.width)).toBeLessThan(24);
   await card.screenshot({ path: "test-results/finish-session-not-yet.png" });
 });
@@ -233,6 +238,9 @@ test("FS-005: an orthopaedic patient's Done still needs this session's Pain Map"
 // the status. Seeded straight as completed with no settlement, so it can be
 // deleted afterwards.
 test("FS-006: a completed session sits under Past even while its slot is ahead", async ({ browser }) => {
+  // Two dashboards, each paged through Upcoming and Past on the shared QA
+  // accounts: against a hosted project 30s is not enough (testing.md).
+  test.setTimeout(120_000);
   const concern = `${MARKER} done early`;
   await db.from("appointments").delete().eq("concern", concern);
   const slot = new Date(Date.now() + 50 * HOUR);

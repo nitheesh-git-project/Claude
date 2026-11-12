@@ -12,6 +12,8 @@ import { useLeavingPage } from "@/lib/useLeavingPage";
 import SessionTimeoutDialog from "@/components/SessionTimeoutDialog";
 import { LOGIN_HREF_BY_BASE_PATH, TABS_BY_BASE_PATH } from "@/lib/dashboardNavItems";
 import { isMoreActive, isNavItemActive, splitTabs } from "@/lib/dashboardTabs";
+import AnnouncementBar from "@/components/dashboard/extras/AnnouncementBar";
+import NotebookLauncher from "@/components/dashboard/extras/NotebookLauncher";
 
 // `href` marks a real page navigation (e.g. "Edit Profile") rather than a
 // same-page anchor -- it always renders as a plain link to that page. An
@@ -232,7 +234,7 @@ export default function DashboardShell({
     if (!count) return null;
     return (
       <span
-        className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-orange-700 px-1.5 text-[11px] font-bold leading-none text-white ${className}`}
+        className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-orange-700 px-1.5 text-[12px] font-bold leading-none text-white ${className}`}
       >
         <span className="sr-only">, </span>
         {count > 99 ? "99+" : count}
@@ -273,11 +275,11 @@ export default function DashboardShell({
                     e.preventDefault();
                     scrollToSection(child.id);
                   }}
-                  className={`flex min-h-9 items-center gap-2.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                  className={`flex min-h-9 items-center gap-2.5 rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
                     childActive ? "bg-slate-100 text-teal-800" : "text-slate-500 hover:text-slate-900"
                   }`}
                 >
-                  <i aria-hidden="true" className={`fa-solid ${child.icon} w-3.5 text-center text-[11px]`}></i>
+                  <i aria-hidden="true" className={`fa-solid ${child.icon} w-3.5 text-center text-[13px]`}></i>
                   <span>{child.label}</span>
                 </a>
               );
@@ -299,14 +301,14 @@ export default function DashboardShell({
         {...navProps(item)}
         aria-label={short !== item.label ? item.label : undefined}
         title={item.label}
-        className={`relative mx-1.5 flex min-h-[60px] flex-col items-center justify-center gap-1 rounded-xl px-0.5 py-2 text-center text-[11px] leading-tight tracking-tight transition ${
+        className={`relative mx-1.5 flex min-h-[60px] flex-col items-center justify-center gap-1 rounded-xl px-0.5 py-2 text-center text-[12px] leading-tight tracking-tight transition ${
           active
             ? "bg-teal-50 font-bold text-teal-800"
-            : "font-semibold text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+            : "font-semibold text-slate-600 hover:bg-slate-100 hover:text-slate-900"
         }`}
       >
         <i aria-hidden="true" className={`fa-solid ${item.icon} text-base`}></i>
-        <span className="max-w-full">{short}</span>
+        <span className="max-w-full break-words">{short}</span>
         {badge(item.badge, "absolute left-1/2 top-1 ml-2 ring-2 ring-white")}
       </a>
     );
@@ -323,12 +325,12 @@ export default function DashboardShell({
           key={item.id}
           {...navProps(item)}
           aria-label={short !== item.label ? item.label : undefined}
-          className="flex min-w-0 flex-col items-center justify-start gap-0.5 text-[11px] font-bold text-slate-900"
+          className="flex min-w-0 flex-col items-center justify-start gap-0.5 text-[12px] font-bold text-slate-900"
         >
           <span className="-mt-6 flex h-14 w-14 items-center justify-center rounded-full border-4 border-white bg-teal-700 text-white shadow-lg shadow-teal-900/25">
             <i aria-hidden="true" className={`fa-solid ${item.icon} text-lg`}></i>
           </span>
-          <span className="max-w-full truncate">{short}</span>
+          <span className="max-w-full text-center leading-tight">{short}</span>
         </a>
       );
     }
@@ -337,12 +339,12 @@ export default function DashboardShell({
         key={item.id}
         {...navProps(item)}
         aria-label={short !== item.label ? item.label : undefined}
-        className={`relative flex min-w-0 flex-col items-center justify-center gap-1 text-[11px] ${
-          active ? "font-bold text-teal-700" : "font-semibold text-slate-500"
+        className={`relative flex min-w-0 flex-col items-center justify-center gap-1 text-[12px] leading-tight ${
+          active ? "font-bold text-teal-700" : "font-semibold text-slate-600"
         }`}
       >
         <i aria-hidden="true" className={`fa-solid ${item.icon} text-lg`}></i>
-        <span className="max-w-full truncate px-0.5">{short}</span>
+        <span className="max-w-full break-words px-0.5 text-center">{short}</span>
         {badge(item.badge, "absolute left-1/2 top-1 ml-1.5 ring-2 ring-white")}
       </a>
     );
@@ -355,7 +357,7 @@ export default function DashboardShell({
   function renderHomeLink(variant: "sidebar" | "rail" | "sheet", onNavigate?: () => void) {
     const className =
       variant === "rail"
-        ? "mx-2 flex min-h-[60px] flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-center text-[11px] font-semibold leading-tight text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+        ? "mx-2 flex min-h-[60px] flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-center text-[12px] font-semibold leading-tight text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
         : "flex min-h-11 items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-slate-900";
     return (
       // A plain anchor on purpose: this leaves the dashboard chrome for the
@@ -410,8 +412,8 @@ export default function DashboardShell({
         <AvatarThumbnail url={userAvatarUrl} name={userName} size={size} />
         <div className="min-w-0">
           <p className="truncate text-sm font-bold text-slate-900">{userName}</p>
-          <p className="truncate text-xs text-slate-500">{userEmail}</p>
-          {userCode && <p className="truncate font-mono text-[11px] font-semibold text-slate-500">{userCode}</p>}
+          <p className="truncate text-sm text-slate-600">{userEmail}</p>
+          {userCode && <p className="truncate font-mono text-[13px] font-semibold text-slate-600">{userCode}</p>}
         </div>
       </div>
     );
@@ -438,7 +440,7 @@ export default function DashboardShell({
       {/* Phone top bar: who this is and the way to everything else. The
           screen's own title is the page's h1, just below it. */}
       <header
-        className={`sticky z-30 flex h-14 items-center justify-between border-b border-slate-200 bg-white/95 pl-4 pr-2 backdrop-blur lg:hidden ${
+        className={`sticky z-30 flex h-14 items-center justify-between border-b border-slate-200 bg-white pl-4 pr-2 lg:hidden ${
           offsetTop ? "top-[41px]" : "top-0"
         }`}
       >
@@ -508,7 +510,7 @@ export default function DashboardShell({
           aria-haspopup="dialog"
           aria-expanded={sheetOpen}
           aria-current={moreActive ? "page" : undefined}
-          className={`relative flex min-h-12 min-w-0 flex-col items-center justify-center gap-1 text-[11px] ${
+          className={`relative flex min-h-12 min-w-0 flex-col items-center justify-center gap-1 text-[12px] ${
             moreActive ? "font-bold text-teal-700" : "font-semibold text-slate-500"
           }`}
         >
@@ -549,7 +551,7 @@ export default function DashboardShell({
                       <a
                         key={item.id}
                         {...navProps(item, () => setSheetOpen(false))}
-                        className={`relative flex min-h-[84px] flex-col items-center justify-center gap-2 rounded-2xl px-1.5 py-3 text-center text-xs font-bold ${
+                        className={`relative flex min-h-[84px] flex-col items-center justify-center gap-2 rounded-2xl px-1.5 py-3 text-center text-sm font-bold ${
                           active ? "bg-teal-50 text-teal-800 ring-1 ring-teal-200" : "bg-slate-50 text-slate-800"
                         }`}
                       >
@@ -570,8 +572,15 @@ export default function DashboardShell({
         </div>
       )}
 
-      <div className="pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-0 lg:pl-[88px] 2xl:pl-64">
+      {/* The notebook floats in the corner, so the page ends a little lower
+          and its last row can always be scrolled clear of the button. */}
+      <div className="pb-[calc(10.5rem+env(safe-area-inset-bottom))] lg:pb-28 lg:pl-[88px] 2xl:pl-64">
         <div className="px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+          {/* Whatever the clinic is announcing to this role, above the page
+              itself: the banner on the dashboard's home, one line everywhere
+              else so it never pushes a task down the screen. Renders nothing
+              when nothing is live. */}
+          <AnnouncementBar variant={onBasePage ? "full" : "slim"} />
           <div className="mb-6 flex flex-wrap items-center justify-between gap-3 sm:mb-8">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
@@ -580,7 +589,7 @@ export default function DashboardShell({
                     renders nothing where there is no tutorial. */}
                 <TutorialInfoButton label={headerTitle} />
               </div>
-              {headerSubtitle && <div className="mt-1 text-xs text-slate-500">{headerSubtitle}</div>}
+              {headerSubtitle && <div className="mt-1 text-sm text-slate-600">{headerSubtitle}</div>}
             </div>
             {/* Always rendered: every dashboard gets the same control in the
                 same place. */}
@@ -593,6 +602,9 @@ export default function DashboardShell({
           {children}
         </div>
       </div>
+
+      {/* The person's private notebook, on every screen of the dashboard. */}
+      <NotebookLauncher />
     </div>
   );
 }

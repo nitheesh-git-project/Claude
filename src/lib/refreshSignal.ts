@@ -1,6 +1,7 @@
 "use client";
 
 import { isCoveredByRefresh } from "@/lib/refreshCoverage";
+import { trail } from "@/lib/realtimeTrail";
 
 /**
  * When this browser last deliberately re-fetched the page.
@@ -43,6 +44,7 @@ const listeners = new Set<() => void>();
 /** Called by `useRouter().refresh()` -- every deliberate refresh in the app. */
 export function markLocalRefresh(): void {
   lastRefreshStartedAtMs = Date.now();
+  trail("refresh-start");
   // Whatever was waiting to be read has now been asked for, wherever the
   // refresh came from -- the Refresh button, or any control that mutates and
   // refreshes. The badge that counts waiting changes listens here rather
@@ -67,6 +69,7 @@ export function onLocalRefresh(listener: () => void): () => void {
  */
 export function markLocalRefreshSettled(): void {
   lastRefreshSettledAtMs = Date.now();
+  trail("refresh-settled");
 }
 
 export function lastLocalRefreshAtMs(): number {

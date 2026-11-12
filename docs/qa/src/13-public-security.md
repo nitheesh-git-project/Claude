@@ -45,15 +45,27 @@ The site's own index lives in **one array**, which the header nav, the footer's 
 
 #### `PUB-HOME-001` - The home page · P1
 **Steps.** Open `/`. Scroll to the bottom.
-**Expected Result.** Hero → trust bar → care-area showcase → walkthrough → programmes → testimonials → mission band → connector grid. The **mission band gives the mission and vision in full** (they are two sentences; paraphrasing would make the home page a weaker version of the same claim) while the **four promises appear as titles only**, each linking to the mission page's promises anchor. The connector grid shows the other seven pages **plus booking** - the index of the site always ends on the one action the site exists for.
+**Expected Result.** Hero (headline "Physiotherapy for you or your parent", tappable condition chips that open booking with that condition chosen, and - only when a WhatsApp number is set - "Not sure which to book? WhatsApp us") → trust bar → two ways to start → **programmes directly after it** → walkthrough → the **recovery story** (one kind of care at a time, picked from a row of buttons and never rotating on its own) → **what treatment works towards** (one kind of care at a time, swept from the first visit to the goal) → **real** testimonials (hidden entirely while only the five seeded illustrations exist) → mission band → connector grid (compact icon-and-label rows on a phone). **Home visit (Option two)** is shown as bookable only when the switch is on, at least one area is active and a visit is priced; switched on but not ready it reads "Home visits are coming to <cities>" with no button; switched off it is absent. On a phone the hero shows a short photo crop above the figures. The **mission band gives the mission and vision in full** (they are two sentences; paraphrasing would make the home page a weaker version of the same claim) while the **four promises appear as titles only**, each linking to the mission page's promises anchor. The connector grid shows the other seven pages **plus booking** - the index of the site always ends on the one action the site exists for.
 
-#### `PUB-COND-001` - Care areas show one photograph at a time · P1
-**Steps.** On `/` and `/conditions`, use the care-area showcase: swipe, the arrow buttons, and the picker.
-**Expected Result.** **One panel at a time** - photograph left, the answer right, the other five one tap away. All three controls go through one selection path so they cannot disagree about what is showing. The picker is a real tablist with **roving focus and arrow keys**. **It never advances by itself** - the home page already carries the auto-rotating walkthrough, and two moving things is worse than either alone. Its accessible name is **"Areas of practice"**, distinct from the walkthrough's **"How the process works"**.
+#### `PUB-COND-001` - What treatment works towards · P1
+**Steps.** On `/` and `/conditions`, scroll to "From your first visit to your goal". Watch it, pick each of the six kinds of care, tap **Play all six**, then repeat with reduced motion on. Check 360, 390, 820, 1024 and 1440px wide.
+**Expected Result.** On arrival a divider sweeps across the card: the grey first visit (rose figure, e.g. **7/10**, three things that are hard today) becomes the goal in colour (teal figure, **3/10**, three goals and the goal in quotes). Picking a kind of care replays the sweep for it, and nothing moves on to another by itself. **Play all six** walks through all six, starting from Orthopaedic. Under the card: "Sample patient …" and "Typical goals; results vary with every person." Each kind of care has **its own photograph**, and on a phone the crop stays on the person. Nothing is cut off or scrolls sideways at any width. Under reduced motion the goal side shows at once. The tablist is **"Goals by kind of care"**, distinct from the recovery story's "Kinds of care" and the walkthrough's "How the process works". The old "Find what hurts" / "Where we can help" band is gone from both pages.
+
+#### `PUB-HOME-002` - Hero figures and programme cards line up · P1
+**Steps.** Open `/` at 360, 390, 820, 1024, 1280 and 1440px wide.
+**Expected Result.** The hero's figures sit in **one strip**, every value on the same line, and no label is cut off or wrapped. From 1024px they close the text column, and the photograph beside it keeps its landscape shape **with the laptop in frame**. On a phone the photo's short crop still shows the screen. The header shows the **full name "MoveRestore Physiotherapy" with the tagline under it at every width**, never the short name or an ellipsis; from 1024 to 1279px "Our team" is under More. On a phone narrower than 420px the sticky booking bar shows only the WhatsApp button and a full-width booking button. The home page's programme cards show a two-line summary and end on **one line with the length on the left and the price on the right**, level across every card in the row. The bullet points are in "View full details".
+
+#### `PUB-HOME-003` - Your recovery, tracked · P1
+**Steps.** On `/`, scroll to "Watch sore turn into better". Watch it play, pick each kind of care, then tap **See the full health profile** and scroll to the end. Repeat with reduced motion on.
+**Expected Result.** On arrival the figure's sore area glows rose, then cools to teal. The figure counts from the first visit to the latest (e.g. 7/10 to 3/10), the bar refills, four review dots light and the tools (Pain Map, Knee bend dial, ...) appear. Every story carries "Sample patient - figures are made up". It **never moves on to another kind of care by itself**. The sheet lists every enabled kind of care, each with its story, what it watches and its tools, and ends on **Unlock your own** (Book a video session; See the real screens, which goes to `/how-it-works#health-profile`). Escape closes it. Under reduced motion everything shows its end state with nothing moving.
 
 #### `PUB-NAV-001` - The section rail and the scroll arrow · P1
 **Steps.** On each public page, use the section rail's entries and then the bottom-right scroll arrow repeatedly.
-**Expected Result.** Every rail entry corresponds to a section that **actually rendered** (several bands are conditional on admin-controlled catalog data), and the entries are in **DOM order**. The arrow walks the list **top to bottom** - if it ever sends you backwards, an entry is out of order.
+**Expected Result.** Every rail entry corresponds to a section that **actually rendered** (several bands are conditional on admin-controlled catalog data), and the entries are in **DOM order**. The arrow walks the list **top to bottom** - if it ever sends you backwards, an entry is out of order. It **hops** while there is more below; at the foot of the page it turns to point **up** ("Back to top") and takes you to the very top.
+
+#### `PUB-NAV-002` - A tab opens the next page at its top · P1
+**Steps.** On any public page, scroll to the footer. Tap a tab in the top bar (Conditions, FAQ, ...). Repeat on a phone from the menu.
+**Expected Result.** The new page opens **at its very top** (the header fully in view), at once - it does not glide down through the old page or stop a header's height short. A link to a section on the same page (`#...`) still scrolls to that section.
 
 #### `PUB-CAT-001` - A catalog card opens a dialog; booking is its own button · P1
 **Steps.** On `/` and `/conditions`, tap a programme (treatment category) card's **body**. Then tap its **Book …** link.
@@ -79,8 +91,12 @@ The site's own index lives in **one array**, which the header nav, the footer's 
 * There is **no admin switch** for any of this. "Show programme prices publicly" no longer exists on Settings; if you find it, that is a defect.
 
 #### `PUB-COPY-001` - The site promises the session summary, never the therapist's notes · P1
-**Steps.** Read `/how-it-works`, `/mission`, the home page's Why choose us band and the health-profile showcase.
+**Steps.** Read `/how-it-works`, `/mission`, the home page's Why choose us band and the health-profile showcase (every tab).
 **Expected Result.** Patients are promised **a short summary after each session and your exercise plan** (How it works: *Your exercise plan, and a short summary after each session.*). Nothing offers the reader "each session's notes", "every session's notes" or "a written record, updated every session" - the therapist's notes are clinician-only. Saying the physiotherapist's own notes shape the next session is fine.
+
+#### `PUB-HP-001` - The health-profile showcase shows real components with sample data · P1
+**Steps.** On `/how-it-works` and on the home page (desktop, then a phone width under 768px), open every tab of the health-profile showcase; watch the home band untouched for 12 seconds, press the pause button, then pick a tab. Repeat with reduced motion on. Toggle Strength and balance and Heart and lung in Settings -> Clinical Questions and reload.
+**Expected Result.** Only enabled condition types have a tab (Orthopaedic always; the others vanish when unticked). Every tab shows *Sample patient - figures are made up*, the headline change, the progress graph with its green goal band, and the milestone cards with **Reached**, **Working on** and **Planned**. On a phone the home band is compact (pitch, tabs, headline change, graph, milestone cards; no "What this profile watches" list or Parkinson's example buttons), while `/how-it-works` and desktop keep them and the condition picture; the page below does not shift as it rotates. It rotates only while on screen, pauses on the button, stops for good once a tab is picked, and does not move at all under reduced motion (no pause button). Tabs and buttons are 44px targets and the arrow keys, Home and End move between tabs. Nothing promises an outcome; wording says what the profile shows.
 
 #### `PUB-TEAM-001` - Team · P2
 **Expected Result.** Only approved, active, team-visible therapists appear. Tapping one opens a popup with their profile and a **Book with …** action carrying `?therapist=` into the wizard.
@@ -95,23 +111,23 @@ Covered by `PAT-HV-001` and `ADM-SET-013`.
 #### `PUB-DEV-001` - The developer credit and its Say hello flow · P1
 **Steps.**
 1. On any public page, scroll to the footer. Under the copyright read the second line, then tap **Contact me**.
-2. On `/developer` read the heading and tap **Say hey!**.
+2. On `/developer` read the heading and tap **Tap to say hey**.
 3. On `/developer/lets-talk`, tap **Let's talk ↗** with the form empty. Then fill **Full name**, **Email** and **Message**, leave **Contact number** blank, and tap it again.
 4. Repeat with a contact number of `abc`, and with a number that is too short for the country shown.
 5. Resize to 375px wide and repeat step 3.
-6. Open Settings → Dev Reachouts (`ADM-SET-038`) and switch the credit off. Reload the footer on a public page and open `/developer` and `/developer/lets-talk` by address.
+6. Open Settings → Developer messages (`ADM-SET-038`) and switch the credit off. Reload the footer on a public page and open `/developer` and `/developer/lets-talk` by address.
 
 **Expected Result.**
 * Step 1: the line reads *Researched, designed and hand-built to make care easier for patients and therapists — by **Nitheesh M** · Contact me*, in muted text that is still readable on the dark footer, with a link tall enough to tap. It is **not** in the navbar, the Explore grid or any page's "where next" band. Dashboards show no footer, so it appears on public pages only.
 * Step 3: the empty form is stopped by the browser's own validation on the first required field and nothing is sent. The valid one replaces the form with a check and **Thanks, <first name>.** / **Nitheesh will be reaching you shortly.** The button reads **Sending…** and is disabled only while that request is in flight.
-* Step 4: a number that cannot be dialled is refused with a sentence that does not blame the visitor; leaving the field blank is always fine. The **Prefer email?** line shows only when an address has been set on Dev Reachouts - on a fresh database it is absent and the form still works.
+* Step 4: a number that cannot be dialled is refused with a sentence that does not blame the visitor; leaving the field blank is always fine. The **Prefer email?** line shows only when an address has been set on Developer messages - on a fresh database it is absent and the form still works.
 * Step 5: the split card stacks, with no sideways scroll, and every control is reachable.
 * Step 6: the credit line is gone and both pages are **404**.
 **Negative:** dropping the connection and submitting shows `Could not reach us just now. Please check your connection and try again.` and keeps what was typed.
 
 #### `PUB-DEV-002` - The Say hello door resists scripts and floods · P1
 **Steps.** In DevTools → Console on `/developer/lets-talk`, post to `/api/developer/reachout` (a) with a body that is not JSON, (b) with a valid body that also carries `website: "http://spam.example"`, and (c) six valid bodies in a row from one address.
-**Expected Result.** (a) is a **400**, not a 500. (b) answers `{ "success": true }` exactly as a real submission does but **writes nothing** - no row appears on Dev Reachouts. (c) The sixth is refused with **429** and `Retry-After`, in words with no number in them and no blame; the form tells the visitor roughly when to try again. With the credit switched off, every call answers **404**. The table cannot be written from a browser with the publishable key at all - there is no insert policy.
+**Expected Result.** (a) is a **400**, not a 500. (b) answers `{ "success": true }` exactly as a real submission does but **writes nothing** - no row appears on Developer messages. (c) The sixth is refused with **429** and `Retry-After`, in words with no number in them and no blame; the form tells the visitor roughly when to try again. With the credit switched off, every call answers **404**. The table cannot be written from a browser with the publishable key at all - there is no insert policy.
 
 ---
 

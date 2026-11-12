@@ -1,6 +1,7 @@
 import Section from "@/components/marketing/Section";
 import ExploreGrid from "@/components/marketing/ExploreGrid";
 import { exploreConnectors, type MarketingPageKey } from "@/lib/marketingNav";
+import { readPublicTeam } from "@/lib/publicTeam";
 
 /**
  * "Where to go next", at the foot of all six inner pages.
@@ -12,13 +13,16 @@ import { exploreConnectors, type MarketingPageKey } from "@/lib/marketingNav";
  * feedback was about - and should be able to act without hunting for the
  * one thing the site is for.
  */
-export default function ExploreSection({
+export default async function ExploreSection({
   current,
   homeVisitEnabled,
 }: {
   current: MarketingPageKey;
   homeVisitEnabled: boolean;
 }) {
+  // The team tile is dropped while nobody is published: a tile for a page
+  // that says "our roster is being updated" is a dead end with a photograph.
+  const { hasTeam } = await readPublicTeam();
   return (
     <Section
       id="explore"
@@ -27,7 +31,7 @@ export default function ExploreSection({
       title="Where to go next"
       lede="Every other page - and a session, when you're ready."
     >
-      <ExploreGrid connectors={exploreConnectors(current, homeVisitEnabled)} />
+      <ExploreGrid connectors={exploreConnectors(current, homeVisitEnabled, hasTeam)} />
     </Section>
   );
 }

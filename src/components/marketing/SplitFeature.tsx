@@ -22,6 +22,7 @@ export default function SplitFeature({
   cta,
   reverse = false,
   badge,
+  note,
 }: {
   eyebrow?: string;
   title: string;
@@ -34,6 +35,9 @@ export default function SplitFeature({
   reverse?: boolean;
   /** One word floated on the photo, e.g. the delivery mode. */
   badge?: string;
+  /** One line under the bullets -- "We visit: ..." or "Home visits are coming
+   *  to ..." -- with a pin. Facts the page reads from the service areas. */
+  note?: string;
 }) {
   const img = photo(photoId);
 
@@ -64,14 +68,14 @@ export default function SplitFeature({
         <h3 className="font-display mt-3 text-2xl font-bold tracking-[-0.02em] text-slate-900 sm:text-3xl">
           {title}
         </h3>
-        <p className="mt-4 text-[15px] leading-relaxed text-slate-600 sm:text-base">
+        <p className="mt-4 text-base leading-relaxed text-slate-600">
           {body}
         </p>
 
         {bullets && bullets.length > 0 && (
           <ul className="mt-6 space-y-2.5">
             {bullets.map((bullet) => (
-              <li key={bullet} className="flex items-start gap-3 text-sm text-slate-600">
+              <li key={bullet} className="flex items-start gap-3 text-base text-slate-600">
                 <i
                   className="fa-solid fa-circle-check mt-0.5 text-teal-600"
                   aria-hidden="true"
@@ -82,10 +86,17 @@ export default function SplitFeature({
           </ul>
         )}
 
+        {note && (
+          <p className="mt-5 flex items-start gap-2.5 text-base font-semibold text-slate-800">
+            <i aria-hidden="true" className="fa-solid fa-location-dot mt-1 text-teal-600" />
+            {note}
+          </p>
+        )}
+
         {cta && (
           <Link
             href={cta.href}
-            className="group mt-7 inline-flex items-center gap-2 rounded-xl bg-teal-700 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
+            className="group mt-7 inline-flex items-center gap-2 rounded-xl bg-teal-700 px-5 min-h-11 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
           >
             {cta.label}
             <i

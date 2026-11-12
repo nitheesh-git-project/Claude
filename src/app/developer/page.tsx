@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 };
 
 // Rendered per request, and for the reason /book-home-visit is: the page's
-// existence is a switch (Settings -> Dev Reachouts). Under ISR the 404 would
+// existence is a switch (Settings -> Developer messages). Under ISR the 404 would
 // be decided when the page was generated, so a switch changed any way other
 // than the admin's own save would leave the door open until the window lapsed.
 //
@@ -39,7 +39,7 @@ export default async function DeveloperPage() {
               href="/developer/lets-talk"
               className="mt-8 inline-flex items-center rounded-full border-2 border-slate-800 px-7 py-3 text-sm font-bold text-slate-900 transition hover:bg-slate-900 hover:text-white"
             >
-              Say hey!
+              Tap to say hey
             </Link>
           </div>
         </div>

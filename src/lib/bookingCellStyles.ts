@@ -51,14 +51,14 @@ export const BOOKING_OPTION_GRID =
 
 // Cell height/typography for the time + language grids. Comfortably above
 // the 44px minimum touch target at every breakpoint.
-export const BOOKING_OPTION_CELL = "min-h-12 px-3 py-3 text-xs sm:text-sm";
+export const BOOKING_OPTION_CELL = "min-h-12 px-3 py-3 text-sm sm:text-base";
 
 // Calendar days are a fixed 7-column grid, so they get their own sizing
 // while sharing the same state colours above. A 390px phone leaves roughly
 // 38px of width per column once the card and grid gaps are accounted for --
 // there is no layout that yields a 44px-wide cell in a 7-column month grid
 // at that width -- so the extra height buys back touch area instead.
-export const BOOKING_DAY_CELL = "h-12 sm:h-12 w-full text-xs sm:text-sm";
+export const BOOKING_DAY_CELL = "h-12 sm:h-12 w-full text-sm sm:text-base";
 
 // Compact variants of the two sizes above, for the admin back office. The
 // patient's picker is sized for one decision on a phone, with 48px cells and

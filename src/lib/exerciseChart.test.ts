@@ -1,0 +1,86 @@
+import { describe, expect, it } from "vitest";
+import { exerciseByKey } from "@/lib/exerciseLibrary";
+import type { ExercisePlan, TeachingEvent } from "@/lib/exercisePlan";
+import { chartMarkText, chartReadFrom, exerciseChartView } from "@/lib/exerciseChart";
+
+const dose = (k: string) => ({ ...exerciseByKey(k)!.defaultDose });
+const plan = (id: string, version: number, status: "active" | "replaced", keys: string[]): ExercisePlan => ({
+  id, patientId: "p", version, authoredBy: "t1", runId: null, appointmentId: null, profileKind: "ortho", status,
+  createdAt: `2026-10-${10 + version}T10:00:00Z`, replacedAt: status === "replaced" ? "2026-10-20T10:00:00Z" : null,
+  items: keys.map((k, i) => ({ id: `${id}-${i}`, planId: id, exerciseKey: k, dose: dose(k), milestoneId: null, sortOrder: i })),
+});
+const ev = (o: Partial<TeachingEvent>): TeachingEvent => ({
+  id: "e", kind: "mark", correctsEventId: null, correctionReason: null, runId: "r", planId: "a", patientId: "p", exerciseKey: "bridge", outcome: "performed_correctly", cueKey: null, reasonKey: null,
+  helperPresent: false, actor: "t1", createdAt: "2026-10-12T10:00:00Z", ...o,
+});
+
+describe("exerciseChartView", () => {
+  it("lists versions newest first with each exercise, its dose and its marks", () => {
+    const view = exerciseChartView(
+      [plan("a", 1, "replaced", ["bridge"]), plan("b", 2, "active", ["bridge", "heel_slide"])],
+      [
+        ev({ id: "1", planId: "a", outcome: "needs_practice", cueKey: "back_flat", createdAt: "2026-10-11T10:00:00Z" }),
+        ev({ id: "2", planId: "a", exerciseKey: "bridge", outcome: "performed_correctly", createdAt: "2026-10-12T10:00:00Z" }),
+        ev({ id: "3", planId: "b", exerciseKey: "heel_slide", outcome: "not_attempted", reasonKey: "no_space" }),
+      ],
+      new Map([["t1", "Dr Rao"]])
+    );
+    expect(view.map((v) => v.version)).toEqual([2, 1]);
+    expect(view[0].status).toBe("active");
+    expect(view[0].items[0].marks).toEqual([]);
+    expect(view[0].items[0].latest).toBeNull();
+    expect(view[0].items[1].latest).toMatchObject({ text: "Not attempted: Not enough space", by: "Dr Rao" });
+    // Both marks stay in the history; the latest is the headline.
+    expect(view[1].items[0].marks.map((m) => m.text)).toEqual(["Needs practice: Keep your back flat.", "Did it correctly"]);
+    expect(view[1].items[0].latest?.text).toBe("Did it correctly");
+    expect(view[0].authoredBy).toBe("Dr Rao");
+  });
+  it("drops an exercise that left the library and names an unknown author plainly", () => {
+    const p = plan("a", 1, "active", ["bridge"]);
+    p.items.push({ ...p.items[0], id: "x", exerciseKey: "gone_exercise", sortOrder: 1 });
+    const view = exerciseChartView([p], [], new Map());
+    expect(view[0].items).toHaveLength(1);
+    expect(view[0].authoredBy).toBe("A physiotherapist");
+  });
+  it("words a mark in the clinician's terms", () => {
+    expect(chartMarkText({ outcome: "performed_correctly", cueKey: null, reasonKey: null })).toBe("Did it correctly");
+  });
+});
+
+describe("exerciseChartView: corrections (phase 7d-3)", () => {
+  it("keeps the original, lists the fix with its reason, and heads with the latest", () => {
+    const view = exerciseChartView(
+      [plan("a", 1, "active", ["bridge"])],
+      [
+        ev({ id: "m", outcome: "performed_correctly", createdAt: "2026-10-12T10:00:00Z" }),
+        ev({ id: "f", kind: "correction", correctsEventId: "m", correctionReason: "wrong_button", outcome: "not_attempted", reasonKey: "too_tired", createdAt: "2026-10-12T10:00:00Z" }),
+      ],
+      new Map([["t1", "Dr Rao"]])
+    );
+    const item = view[0].items[0];
+    expect(item.marks.map((m) => [m.text, m.correction])).toEqual([
+      ["Did it correctly", null],
+      ["Not attempted: Too tired or breathless today", "Corrected: the wrong button was tapped"],
+    ]);
+    // Same instant: the chain, not the clock, decides the headline.
+    expect(item.latest).toMatchObject({ text: "Not attempted: Too tired or breathless today", correction: "Corrected: the wrong button was tapped" });
+  });
+});
+
+describe("chartReadFrom", () => {
+  const ok = { status: "ok" as const };
+  it("says not set up if either load says so, even when the other failed", () => {
+    expect(chartReadFrom({ status: "not_migrated" }, { status: "unreadable" }, new Map()).status).toBe("not_migrated");
+    expect(chartReadFrom(ok, { status: "not_migrated" }, new Map()).status).toBe("not_migrated");
+  });
+  it("says could not read when a load failed, never an empty chart", () => {
+    expect(chartReadFrom({ status: "unreadable" }, ok, new Map()).status).toBe("unreadable");
+    expect(chartReadFrom({ ...ok, plans: [] }, { status: "unreadable" }, new Map()).status).toBe("unreadable");
+  });
+  it("shapes the versions when both loads are fine, and no plans is an empty list", () => {
+    const r = chartReadFrom({ ...ok, plans: [plan("a", 1, "active", ["bridge"])] }, { ...ok, events: [] }, new Map());
+    expect(r.status === "ok" && r.versions).toHaveLength(1);
+    const none = chartReadFrom({ ...ok, plans: [] }, { ...ok, events: [] }, new Map());
+    expect(none).toEqual({ status: "ok", versions: [] });
+  });
+});

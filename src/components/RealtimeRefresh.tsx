@@ -5,6 +5,8 @@ import { useRouter } from "@/lib/useRouter";
 import { createClient } from "@/lib/supabase/client";
 import { isEventCoveredByLocalRefresh } from "@/lib/refreshSignal";
 import { useLiveUpdates } from "@/lib/liveUpdates";
+import { trail } from "@/lib/realtimeTrail";
+import { joinRealtimeChannel } from "@/lib/realtimeJoin";
 
 // Keeps an already-open dashboard in sync with other users' actions (a
 // therapist requesting a payout, a hospital submitting a referral, a new
@@ -97,7 +99,6 @@ export default function RealtimeRefresh({
     if (list.length === 0) return;
 
     const supabase = createClient();
-    const channel = supabase.channel(`realtime-refresh:${tablesKey}`);
 
     // Fires unless this browser's own refreshing has already read the write
     // behind the change. Most events on the admin dashboard are its own work
@@ -114,7 +115,11 @@ export default function RealtimeRefresh({
     const fire = () => {
       const newestEventAt = lastEventAtRef.current;
       lastEventAtRef.current = null;
-      if (newestEventAt !== null && isEventCoveredByLocalRefresh(newestEventAt)) return;
+      if (newestEventAt !== null && isEventCoveredByLocalRefresh(newestEventAt)) {
+        trail("event-covered", tablesKey.slice(0, 40));
+        return;
+      }
+      trail(mode === "notify" ? "event-counted" : "event-refresh", tablesKey.slice(0, 40));
       // Only a refresh that actually happens starts a cooldown. Counting a
       // skipped one would hold the next genuine change off for up to
       // cooldownMs -- 30 seconds on the catalog channel -- for a rebuild
@@ -127,8 +132,9 @@ export default function RealtimeRefresh({
       router.refresh();
     };
 
-    const handleChange = () => {
+    const handleChange = (payload: { table?: string }) => {
       lastEventAtRef.current = Date.now();
+      trail("event", payload.table);
 
       // Already waiting to fire at the end of the current cooldown -- this
       // event is part of the burst that trailing refresh will cover.
@@ -140,49 +146,78 @@ export default function RealtimeRefresh({
         return;
       }
 
+      trail("event-deferred", `${cooldownMs - sinceLast}ms`);
       trailingRef.current = setTimeout(() => {
         trailingRef.current = null;
         fire();
       }, cooldownMs - sinceLast);
     };
 
-    for (const table of list) {
-      channel.on("postgres_changes", { event: "*", schema: "public", table }, handleChange);
-    }
-
     let hadProblem = false;
-    let disposed = false;
-    channel.subscribe((status) => {
-      // Removing the channel on unmount reports CLOSED; that is this screen
-      // leaving, not a fault.
-      if (disposed) return;
-      if (status === "SUBSCRIBED") {
-        // A join from the banner's Refresh starts with hadProblem false, so
-        // the banner is cleared here on any successful join, not only on a
-        // recovery this channel saw itself.
-        setDegraded(false);
-        setReconnecting(false);
-        if (hadProblem) {
-          // Back after a gap: whatever changed while the socket was down was
-          // never delivered, so catch up once.
-          hadProblem = false;
-          setDegraded(false);
-          fire();
+
+    // Joined through joinRealtimeChannel, never `supabase.channel().subscribe()`
+    // directly: the join has to carry this person's token, or the server
+    // filters every change out as `anon` while the channel still says
+    // SUBSCRIBED (src/lib/realtimeJoin.ts has the three orders it can take).
+    const leave = joinRealtimeChannel(
+      supabase,
+      `realtime-refresh:${tablesKey}`,
+      (channel) => {
+        for (const table of list) {
+          channel.on("postgres_changes", { event: "*", schema: "public", table }, handleChange);
         }
-        return;
+        // The server's own word on the change stream. A join can succeed --
+        // the channel reports SUBSCRIBED -- while the Postgres side of it is
+        // still being set up, or was refused; that arrives as a "system"
+        // message, which nothing else here hears. For the realtime trail only.
+        channel.on("system", {}, (payload: { extension?: string; status?: string; message?: unknown }) => {
+          trail("channel-system", `${payload.extension ?? "?"} ${payload.status ?? "?"}: ${String(payload.message ?? "").slice(0, 160)}`);
+        });
+        // The role the join is about to carry, which is the one RLS will see
+        // for as long as this channel lives. Read here, before the join, and
+        // not from the client afterwards: the client's own copy of the token
+        // can say "authenticated" while the server was told nothing.
+        let role = "none";
+        try {
+          const token = supabase.realtime.accessTokenValue;
+          if (token) role = String(JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))).role);
+        } catch {
+          role = "unreadable";
+        }
+        trail("channel-join", `as ${role}: ${tablesKey.slice(0, 40)}`);
+      },
+      (status) => {
+        // Removing the channel on unmount reports CLOSED; that is this screen
+        // leaving, not a fault -- and joinRealtimeChannel reports nothing after
+        // the cleanup below has run.
+        trail(`channel-${status}`, tablesKey.slice(0, 40));
+        if (status === "SUBSCRIBED") {
+          // A join from the banner's Refresh starts with hadProblem false, so
+          // the banner is cleared here on any successful join, not only on a
+          // recovery this channel saw itself.
+          setDegraded(false);
+          setReconnecting(false);
+          if (hadProblem) {
+            // Back after a gap: whatever changed while the socket was down was
+            // never delivered, so catch up once.
+            hadProblem = false;
+            setDegraded(false);
+            fire();
+          }
+          return;
+        }
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+          hadProblem = true;
+          setDegraded(true);
+          setReconnecting(false);
+        }
       }
-      if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
-        hadProblem = true;
-        setDegraded(true);
-        setReconnecting(false);
-      }
-    });
+    );
 
     return () => {
       if (trailingRef.current) clearTimeout(trailingRef.current);
       trailingRef.current = null;
-      disposed = true;
-      supabase.removeChannel(channel);
+      leave();
     };
   }, [tablesKey, cooldownMs, router, mode, noteUpdate, connectAttempt]);
 

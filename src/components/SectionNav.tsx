@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { motion } from "motion/react";
 import { useRegisterSectionIds } from "@/components/SectionNavContext";
 import { scrollToSection } from "@/lib/scrollToSection";
+import { activeSectionId } from "@/lib/sectionNavActive";
 
 export type SectionNavItem = { id: string; label: string; icon: string };
 
@@ -50,26 +51,25 @@ export default function SectionNav({ items }: { items: SectionNavItem[] }) {
     let frame = 0;
     function update() {
       frame = 0;
-      // Untouched at the top of the page: the visitor has landed, not
-      // arrived at a section, so the rail shows bare icons and no pill.
-      // Deep links (/page#section) scroll before this runs, so they still
-      // light the section they land on.
-      if (window.scrollY <= 0) {
-        setActiveId(null);
-        return;
-      }
-      // Whichever section crosses the vertical centre of the viewport,
-      // rather than "any part visible" -- so the active pill matches what
-      // the visitor is actually reading, not whatever section happens to
-      // poke into the bottom of the screen first. Last match wins, which
-      // resolves a section nested inside another to the inner one.
-      const centre = window.innerHeight * 0.5;
-      let found: string | null = null;
-      for (const el of elements) {
-        const rect = el.getBoundingClientRect();
-        if (rect.top <= centre && rect.bottom >= centre) found = el.id;
-      }
-      setActiveId(found);
+      // Nothing at the very top (the visitor has landed, not arrived; deep
+      // links scroll before this runs, so they still light their section),
+      // the section crossing the viewport's centre otherwise -- what is
+      // being read, not whatever pokes into the bottom first -- and the last
+      // one on screen when scrolled to the end over a tall footer. The rules
+      // and their reasons: src/lib/sectionNavActive.ts.
+      setActiveId(
+        activeSectionId(
+          elements.map((el) => {
+            const rect = el.getBoundingClientRect();
+            return { id: el.id, top: rect.top, bottom: rect.bottom };
+          }),
+          {
+            scrollY: window.scrollY,
+            innerHeight: window.innerHeight,
+            scrollHeight: document.documentElement.scrollHeight,
+          }
+        )
+      );
     }
 
     function schedule() {

@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { QA_EMAILS, BASE, browserCookiesFor, chooseAnyServiceOnStepOne } from "./helpers";
+import { QA_EMAILS, BASE, browserCookiesFor, chooseAnyServiceOnStepOne, settleNetwork } from "./helpers";
 
 /**
  * The payment step's primary button is never dead while a price loads.
@@ -41,7 +41,7 @@ test.describe("the pay button on Step 3", () => {
     await page.context().clearCookies();
     await page.context().addCookies(cookies);
     await page.goto(`${BASE}/book`);
-    await page.waitForLoadState("networkidle");
+    await settleNetwork(page);
 
     // Step 1 asks for the service first -- from its picker dialog when there
     // is a choice, stated as chosen when there is only one. Continue is not
@@ -49,7 +49,7 @@ test.describe("the pay button on Step 3", () => {
     // case below is about the button on Step 3, not about what was picked.
     await chooseAnyServiceOnStepOne(page);
 
-    await page.getByRole("button", { name: /Continue to Medical Details/i }).click();
+    await page.getByRole("button", { name: /Continue to your details/i }).click();
     await page.waitForTimeout(1200);
 
     await page.getByRole("checkbox").first().check();

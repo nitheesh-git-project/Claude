@@ -135,8 +135,10 @@ admin runner's tests 32. Now:
 - **Caches**: Chromium (keyed on the installed Playwright version), the
   production build's `.next/cache` in `verify`, and `next dev`'s Turbopack
   cache (`.next/dev/cache`, per runner, saved by shard 1 after a pass when
-  under 2 GB). Turbopack checks every entry against the files on disk, so
-  an old entry costs time, never correctness. Docker images are not cached:
+  under 2 GB), restored **only for the exact same source tree**. A cache
+  restored by prefix from an older tree once made `next dev` answer 404 for
+  routes that exist, on both attempts of the same job, so a changed tree
+  compiles cold: slower, but it cannot serve a stale route table. Docker images are not cached:
   restoring a multi-gigabyte tarball and `docker load`-ing it costs about
   more than the parallel pull once 19 jobs restore at once (measured: the
   stack was ready ~3 minutes later, and a cached `node_modules` restored
@@ -347,7 +349,7 @@ unsplit runner), uploaded whether it passed or failed:
 | Artifact | Contents | Retention |
 | --- | --- | --- |
 | `summary-<label>` | `summary.json` (what the gate reads) and `summary.md`; uploaded with `overwrite: true`, so after **Re-run failed jobs** the gate reads the new attempt's summary rather than the failed one | 14 days |
-| `reports-<label>` | Playwright JSON and JUnit; logs for `next dev`, Playwright, provisioning and each integrity script; `egress-denied.log` | 7 days |
+| `reports-<label>` | Playwright JSON and JUnit; logs for `next dev`, Playwright, provisioning and each integrity script; on a red runner the local stack's own Realtime and Postgres logs (`stack-realtime.log`, `stack-db.log`); `egress-denied.log` | 7 days |
 | `traces-<label>` (on failure) | Playwright traces, screenshots and the HTML report (not sanitised; see below) | 7 days |
 | `failure-bundle-<label>` (on failure) | `failure-bundle.md`; see `docs/ci/INVESTIGATE.md` | 14 days |
 
@@ -403,7 +405,7 @@ export CRON_SECRET="local-$(openssl rand -hex 16)"          # for admin-maintena
 GITHUB_ENV=.gate.env scripts/ci/provision-local-stack.sh
 set -a; . ./.gate.env; set +a
 node scripts/ci/run-runner.mjs hospital           # or any runner (all its shards' files)
-node scripts/ci/run-runner.mjs admin --shard 2/7  # one shard, exactly as CI ran it
+node scripts/ci/run-runner.mjs admin --shard 2/6  # one shard, exactly as CI ran it
 npx playwright test e2e/hospital-isolation.spec.ts   # one spec, same stack
 supabase stop --no-backup                         # throw the stack away
 ```

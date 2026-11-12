@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useStepScroll } from "@/lib/useStepScroll";
 import { formatClinicDateTime } from "@/lib/formatDateTime";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -24,7 +25,15 @@ import PhoneNumberField from "@/components/PhoneNumberField";
 import WrongAccountForBooking, {
   type NonPatientRole,
 } from "@/components/booking/WrongAccountForBooking";
-import ConfirmPasswordField from "@/components/auth/ConfirmPasswordField";
+import AddToCalendarLink from "@/components/booking/AddToCalendarLink";
+import WhoIsThisFor, {
+  EMPTY_WHO_IS_THIS_FOR,
+  type WhoIsThisForState,
+} from "@/components/booking/WhoIsThisFor";
+import { validateBookingFor, splitBookingNotes } from "@/lib/bookingFor";
+import { initialLanguage } from "@/lib/bookingStepOne";
+import { DEFAULT_BOOKING_CONFIRMATION_HOURS, requestedTimeNotice, hoursPhrase } from "@/lib/clinicPromises";
+import { formatSessionWhen } from "@/lib/sessionWhenLabel";
 import BookingStepOne from "@/components/booking/BookingStepOne";
 import {
   BOOKING_LEAD_TIME_HOURS,
@@ -109,7 +118,16 @@ export default function BookingWizard({
   paymentTriesBeforeAccess = DEFAULT_ADMIN_SETTINGS.paymentTriesBeforeAccess,
   defaultServiceId,
   inviteDelivery = NO_INVITE_DELIVERY,
+  confirmationHours = DEFAULT_BOOKING_CONFIRMATION_HOURS,
+  joinWindowMinutes = DEFAULT_ADMIN_SETTINGS.joinWindowMinutes,
 }: {
+  /** Hours the clinic says it takes to confirm a requested time (see
+   *  src/lib/clinicPromises.ts). Quoted on Step 1, Step 3 and the
+   *  confirmation, so it is one number from one place. */
+  confirmationHours?: number;
+  /** `site_settings.join_window_minutes`: how long before the session the
+   *  Join button opens on the patient's Home. Quoted on the confirmation. */
+  joinWindowMinutes?: number;
   /** Whether a video session here gets a calendar invite (Google configured
    *  and Meet links on), read server-side by readInviteDelivery. The
    *  confirmation promises one only when it is true; absent, it promises
@@ -148,6 +166,11 @@ export default function BookingWizard({
   const leadTimeMs = leadTimeMsFromHours(bookingLeadTimeHours);
   const searchParams = useSearchParams();
   const [step, setStep] = useState(1);
+  // Step 1's Continue is asking the server whether the time clashes.
+  const [slotChecking, setSlotChecking] = useState(false);
+  // Each step starts at its top, not where the last one's button was.
+  const wizardRootRef = useRef<HTMLDivElement>(null);
+  useStepScroll(step, wizardRootRef);
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [signedInRole, setSignedInRole] = useState<NonPatientRole | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -296,20 +319,20 @@ export default function BookingWizard({
   const [bookDate, setBookDate] = useState(
     () => earliestBookableDateKey(nowMs, leadTimeMsFromHours(bookingLeadTimeHours)) ?? ""
   );
-  const [bookHour, setBookHour] = useState<number | "">(
-    () =>
-      bookableHoursForDate(
-        earliestBookableDateKey(nowMs, leadTimeMsFromHours(bookingLeadTimeHours)) ?? "",
-        nowMs,
-        leadTimeMsFromHours(bookingLeadTimeHours)
-      )[0] ?? ""
-  );
-  const [language, setLanguage] = useState(() => bookingLanguages[0] ?? "");
+  // The date opens preselected (a starting point on a calendar the patient
+  // can see); the hour does not. A lit Continue before a time has been chosen
+  // let patients move on without ever reading it, so the hour waits to be
+  // tapped. Likewise the language, unless there is only one to choose.
+  const [bookHour, setBookHour] = useState<number | "">("");
+  const [language, setLanguage] = useState(() => initialLanguage(bookingLanguages));
 
   // Tracks which of the three are still our automatic pick. Each flips
   // false the moment the patient chooses for themselves, so the "we picked
   // this for you" animation plays once and never re-fires on their input.
-  const [autoPicked, setAutoPicked] = useState({ date: true, hour: true, language: true });
+  const [autoPicked, setAutoPicked] = useState(() => ({
+    date: true,
+    language: bookingLanguages.length === 1,
+  }));
 
   const slotDateTime =
     bookDate && bookHour !== "" ? `${bookDate}T${String(bookHour).padStart(2, "0")}:00` : "";
@@ -333,7 +356,10 @@ export default function BookingWizard({
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  // Who the session is for, and the family member's details when it is not
+  // the patient. Sent as a small object the server validates and writes into
+  // the booking's notes (src/lib/bookingFor.ts).
+  const [whoFor, setWhoFor] = useState<WhoIsThisForState>(EMPTY_WHO_IS_THIS_FOR);
   const [referralCode, setReferralCode] = useState("");
   const [referralCheck, setReferralCheck] = useState<ReferralCodeCheck>({
     status: "idle",
@@ -530,19 +556,21 @@ export default function BookingWizard({
   function handleDateChange(nextDate: string) {
     setBookDate(nextDate);
     setError(null);
-    // The previously-picked hour may not clear the lead time on the new
-    // date, so re-preselect that day's earliest eligible slot instead of
-    // carrying a now-invalid one forward. (The old date input cleared the
-    // hour outright; preselecting keeps Step 1 complete after every change,
-    // which is the point of the rework.)
-    setBookHour(bookableHoursForDate(nextDate, nowMs, leadTimeMs)[0] ?? "");
-    setAutoPicked((prev) => ({ ...prev, date: false, hour: true }));
+    // The previously-picked hour is kept only if the new date still offers
+    // it; otherwise it is cleared and the patient picks again. Never
+    // replaced by the day's earliest slot - a time the patient did not choose
+    // is not one they read.
+    setBookHour((current) =>
+      current !== "" && bookableHoursForDate(nextDate, nowMs, leadTimeMs).includes(current)
+        ? current
+        : ""
+    );
+    setAutoPicked((prev) => ({ ...prev, date: false }));
   }
 
   function handleHourChange(nextHour: number) {
     setBookHour(nextHour);
     setError(null);
-    setAutoPicked((prev) => ({ ...prev, hour: false }));
   }
 
   function handleLanguageChange(nextLanguage: string) {
@@ -567,7 +595,7 @@ export default function BookingWizard({
       return;
     }
     if (!bookDate || bookHour === "") {
-      setError("Please select a preferred date and time.");
+      setError("Please pick a date and a time.");
       return;
     }
     // Unchanged rule, now sourced from the same constant the picker filters
@@ -581,10 +609,49 @@ export default function BookingWizard({
       return;
     }
     if (!language) {
-      setError("Please select a preferred language.");
+      setError("Please pick a language for your session.");
       return;
     }
-    setStep(2);
+    // A signed-in patient is told now, on the step where the time is chosen,
+    // if it clashes with a session they already have -- not on the last step
+    // after filling in every detail. Create checks again; so does the
+    // database.
+    void (async () => {
+      if (isLoggedIn) {
+        const clash = await checkOwnSlot();
+        if (clash) {
+          setError(clash);
+          return;
+        }
+      }
+      setStep(2);
+    })();
+  }
+
+  /** The clash message when this time overlaps one of the signed-in
+   *  patient's own sessions; null when it does not, or when the check could
+   *  not be made (create checks again before anything is booked). */
+  async function checkOwnSlot(): Promise<string | null> {
+    if (!slotDateTime) return null;
+    setSlotChecking(true);
+    try {
+      const res = await fetch("/api/appointments/check-slot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          slotTime: new Date(slotDateTime).toISOString(),
+          categoryId,
+          replacesAppointmentId: replacedDraftRef.current,
+        }),
+      });
+      if (!res.ok) return null;
+      const data = (await res.json().catch(() => ({}))) as { conflict?: boolean; error?: string };
+      return data.conflict ? data.error ?? "You already have a session scheduled around this time." : null;
+    } catch {
+      return null;
+    } finally {
+      setSlotChecking(false);
+    }
   }
 
   /** A failed rule, said once and shown where it is: the message at the top
@@ -732,10 +799,6 @@ export default function BookingWizard({
         failField("Please choose a password of at least 6 characters.", "bw-password");
         return;
       }
-      if (password !== confirmPassword) {
-        failField("Passwords do not match. Please re-enter them.", "bw-confirm-password");
-        return;
-      }
       if (referralCheck.status === "invalid") {
         failField(
           "That referral code isn't recognized. Please double-check it or clear the field to continue without one.",
@@ -748,10 +811,33 @@ export default function BookingWizard({
       setError("Please select what you'd like help with.");
       return;
     }
+    if (whoFor.who === "family") {
+      const checked = validateBookingFor(whoFor);
+      if (!checked.ok) {
+        failField(checked.error, "bw-for-name");
+        return;
+      }
+    }
     if (!consent) {
       failField("Please agree to the telehealth consent terms to continue.", "bw-consent");
       return;
     }
+    if (isLoggedIn) {
+      void (async () => {
+        const clash = await checkOwnSlot();
+        if (clash) {
+          setStep(1);
+          setError(clash);
+          return;
+        }
+        enterStep3();
+      })();
+      return;
+    }
+    enterStep3();
+  }
+
+  function enterStep3() {
     setStep(3);
     // The figures on the payment screen come from the server, not from the
     // category price this component happens to hold -- see refreshQuote.
@@ -826,6 +912,18 @@ export default function BookingWizard({
           slotTime: new Date(slotDateTime).toISOString(),
           timezone,
           notes,
+          // Who it is for travels as a small object, never as the finished
+          // line: the server validates it and writes the line itself.
+          bookingFor:
+            whoFor.who === "family"
+              ? {
+                  who: "family",
+                  name: whoFor.name,
+                  age: whoFor.age,
+                  relationship: whoFor.relationship,
+                  someoneWithThem: whoFor.someoneWithThem,
+                }
+              : { who: "me" },
           preferredTherapistId: preferredTherapistId || null,
           preferredLanguage: language || null,
           // Ask for the new booking's quote in the same response, so the
@@ -1083,7 +1181,23 @@ export default function BookingWizard({
         if (booking.categoryId && categories.some((c) => c.id === booking.categoryId)) {
           setCategoryId(booking.categoryId);
         }
-        if (booking.notes) setNotes(booking.notes);
+        if (booking.notes) {
+          // The "booked for a family member" line was written by this wizard;
+          // put the answer back in its control and the patient's own words
+          // back in the notes box, so a second save does not stack a second
+          // line on top of the first.
+          const split = splitBookingNotes(booking.notes);
+          setNotes(split.notes);
+          if (split.bookingFor) {
+            setWhoFor({
+              who: "family",
+              name: split.bookingFor.name,
+              age: String(split.bookingFor.age),
+              relationship: split.bookingFor.relationship,
+              someoneWithThem: split.bookingFor.someoneWithThem,
+            });
+          }
+        }
         if (booking.preferredLanguage && bookingLanguages.includes(booking.preferredLanguage)) {
           setLanguage(booking.preferredLanguage);
           setAutoPicked((prev) => ({ ...prev, language: false }));
@@ -1106,7 +1220,7 @@ export default function BookingWizard({
         if (parts) {
           setBookDate(parts.dateKey);
           setBookHour(parts.hour);
-          setAutoPicked((prev) => ({ ...prev, date: false, hour: false }));
+          setAutoPicked((prev) => ({ ...prev, date: false }));
         }
         const code = typeof data.promoCode === "string" ? data.promoCode : null;
         setResumedSlotIso(booking.slotTime);
@@ -1238,7 +1352,7 @@ export default function BookingWizard({
       },
       name: fullName,
       email,
-      description: selectedCategory?.title ?? "Virtual Physical Therapy Session",
+      description: selectedCategory?.title ?? "Video physiotherapy session",
       onSuccess: () => {
         void trackPurchase(id, quote?.totalPaise ?? 0, "video");
         setLoading(false);
@@ -1261,16 +1375,14 @@ export default function BookingWizard({
 
   const header = (
     <div className="bg-slate-900 text-white p-6">
-      <span className="text-[10px] font-bold uppercase tracking-wider text-teal-400 block mb-1">
+      <span data-step-heading className="text-[13px] font-bold uppercase tracking-wider text-teal-300 block mb-1 outline-none">
         {done ? "Booking" : `Step ${step} of 3`}
       </span>
-      <h1 className="text-xl font-bold">Book Virtual Physical Therapy Session</h1>
-      <p className="text-xs text-slate-300 mt-1">
+      <h1 className="text-xl font-bold">Book a video physiotherapy session</h1>
+      <p className="text-sm text-slate-200 mt-1">
         {selectedCategory
-          ? `${listMoney(selectedCategory.price_paise)} • ${
-              selectedCategory.duration_minutes
-            }-Min HD Video Call & Custom Rehab Plan`
-          : "HD Video Call & Custom Rehab Plan - pricing shown once you pick a concern"}
+          ? `${listMoney(selectedCategory.price_paise)} • ${selectedCategory.duration_minutes}-minute video call with a physiotherapist`
+          : "A video call with a physiotherapist - the price is shown once you choose what you need help with"}
       </p>
     </div>
   );
@@ -1279,7 +1391,7 @@ export default function BookingWizard({
     return (
       <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200">
         {header}
-        <div className="p-8 text-center text-sm text-slate-500">Loading...</div>
+        <div className="p-8 text-center text-base text-slate-600">Loading...</div>
       </div>
     );
   }
@@ -1307,18 +1419,18 @@ export default function BookingWizard({
         {header}
         <div className="p-8 text-center" data-testid="resume-blocked">
           <i className="fa-solid fa-circle-info text-teal-600 text-4xl mb-4"></i>
-          <p className="text-sm leading-relaxed text-slate-700">{resumeBlocked.message}</p>
+          <p className="text-base leading-relaxed text-slate-700">{resumeBlocked.message}</p>
           <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
             <Link
               href={resumeBlocked.signIn ? "/patient/login" : "/patient/dashboard/sessions"}
-              className="inline-block rounded-xl bg-teal-700 px-6 py-3 text-sm font-bold text-white transition hover:bg-teal-800"
+              className="inline-block rounded-xl bg-teal-700 px-6 py-3 text-base font-bold text-white transition hover:bg-teal-800"
             >
               {resumeBlocked.signIn ? "Sign in" : "Your sessions"}
             </Link>
             {!resumeBlocked.signIn && (
               <Link
                 href="/book"
-                className="inline-block rounded-xl bg-slate-100 px-6 py-3 text-sm font-bold text-slate-800 transition hover:bg-slate-200"
+                className="inline-block rounded-xl bg-slate-100 px-6 py-3 text-base font-bold text-slate-800 transition hover:bg-slate-200"
               >
                 Book a new session
               </Link>
@@ -1347,14 +1459,14 @@ export default function BookingWizard({
         <div className="p-8 text-center">
           <i className="fa-solid fa-user-doctor text-teal-600 text-4xl mb-4"></i>
           <h2 className="text-xl font-bold text-slate-900">
-            Programmes come from your therapist now
+            Programmes come from your physiotherapist now
           </h2>
-          <p className="mt-2 text-sm leading-relaxed text-slate-500">
+          <p className="mt-2 text-base leading-relaxed text-slate-600">
             {PROGRAMME_NEEDS_RECOMMENDATION}
           </p>
           <Link
             href="/book"
-            className="mt-6 inline-block rounded-xl bg-teal-700 px-6 py-3 text-sm font-bold text-white transition hover:bg-teal-800"
+            className="mt-6 inline-block rounded-xl bg-teal-700 px-6 py-3 text-base font-bold text-white transition hover:bg-teal-800"
           >
             Book a first session
           </Link>
@@ -1364,33 +1476,66 @@ export default function BookingWizard({
   }
 
   if (done) {
+    // The time being restated is the one the patient chose, in the clinic's
+    // zone and in a sentence a person says aloud. It is still a request until
+    // the clinic confirms it, and the screen says so.
+    const bookedStartIso = resumedSlotIso ?? (slotDateTime ? new Date(slotDateTime).toISOString() : null);
+    const bookedMinutes = selectedCategory?.duration_minutes ?? 60;
+    const bookedWhen = bookedStartIso ? formatSessionWhen(bookedStartIso, bookedMinutes) : null;
     return (
       <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200">
         {header}
-        <div className="p-8 text-center">
-          <i className="fa-solid fa-circle-check text-teal-600 text-4xl mb-4"></i>
+        <div className="p-6 sm:p-8 text-center">
+          <i className="fa-solid fa-circle-check text-teal-600 text-4xl mb-4" aria-hidden="true"></i>
           {/* A session to be settled afterwards is not a completed payment,
               and a screen reading "Payment Confirmed" would be telling
               somebody they did something they did not do. It says what is
               true -- booked, nothing taken -- and when the money appears,
               which is after the session rather than now. */}
-          <h2 className="text-xl font-bold text-slate-900">
+          <h2 className="text-2xl font-bold text-slate-900">
             {paidLater ? "Booking Confirmed" : "Payment Confirmed"}
           </h2>
-          <p className="text-sm text-slate-500 mt-2 leading-relaxed">
+          {bookedWhen && (
+            <p data-testid="booked-when" className="mt-3 text-lg font-bold text-teal-800">
+              {bookedWhen}
+            </p>
+          )}
+          <p className="text-base text-slate-700 mt-2 leading-relaxed">
             {paidLater ? (
               <>
-                Your session is booked and there&apos;s nothing to pay now. It&apos;s added to
-                what you owe once the session has happened, and you can settle whenever suits
-                you. {patientInviteLine("online_booked", inviteDelivery)}
+                Your request is in and there&apos;s nothing to pay now. The session is added to
+                what you owe once it has happened, and you can settle whenever suits you.
               </>
             ) : (
-              <>
-                Your session is booked and paid.{" "}
-                {patientInviteLine("online_booked", inviteDelivery)}
-              </>
+              <>Your payment has gone through and your request is in.</>
             )}
           </p>
+
+          <div className="mt-6 text-left">
+            <p className="text-base font-bold text-slate-900">What happens next</p>
+            <ol data-testid="booking-next-steps" className="mt-3 space-y-3">
+              {[
+                `The clinic confirms your time. We confirm within ${hoursPhrase(confirmationHours)}, or offer you another time or a full refund.`,
+                `Your video link appears on your Home page ${joinWindowMinutes} minutes before.`,
+                "Tap \u201cJoin your video call\u201d.",
+              ].map((text, i) => (
+                <li key={text} className="flex items-start gap-3 text-base leading-snug text-slate-800">
+                  <span
+                    aria-hidden="true"
+                    className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-teal-700 text-sm font-bold text-white"
+                  >
+                    {i + 1}
+                  </span>
+                  <span>{text}</span>
+                </li>
+              ))}
+            </ol>
+            {inviteDelivery.online && (
+              <p className="mt-3 text-sm leading-relaxed text-slate-600">
+                {patientInviteLine("online_booked", inviteDelivery)}
+              </p>
+            )}
+          </div>
 
           {/* The price was frozen at this moment and any discount was
               applied at it, so this is the one place either can be queried.
@@ -1398,28 +1543,39 @@ export default function BookingWizard({
               screen asking them to settle it. */}
           {paidLater && owedLater && (
             <div className="mt-5 mx-auto max-w-xs rounded-2xl bg-teal-50 border border-teal-100 p-4 text-left">
-              <p className="text-xs text-slate-600">After your session you&apos;ll owe</p>
+              <p className="text-sm text-slate-700">After your session you&apos;ll owe</p>
               <p className="text-2xl font-bold text-teal-800 mt-0.5">
                 {formatInr(owedLater.amountDuePaise)}
               </p>
               {owedLater.discountPaise > 0 && (
-                <p className="text-[11px] text-teal-700 mt-1">
+                <p className="text-[13px] text-teal-800 mt-1">
                   {owedLater.discountLabel ?? "Discount"} - this price is held for this
                   session whatever changes later.
                 </p>
               )}
-              <p className="text-[11px] text-slate-500 mt-2">
+              <p className="text-[13px] text-slate-600 mt-2">
                 Nothing is owed until the session has happened. You can see it on your
                 dashboard afterwards.
               </p>
             </div>
           )}
-          <Link
-            href="/patient/dashboard"
-            className="mt-6 inline-block bg-teal-700 hover:bg-teal-800 text-white font-bold py-3 px-6 rounded-xl text-sm transition"
-          >
-            Go to Dashboard
-          </Link>
+          <div className="mt-6 flex flex-col items-stretch gap-3 sm:flex-row sm:justify-center">
+            {bookedStartIso && (
+              <AddToCalendarLink
+                uid={`${appointmentId ?? bookedStartIso}@moverestore`}
+                startIso={bookedStartIso}
+                durationMinutes={bookedMinutes}
+                title="Physiotherapy video session (time requested)"
+                description={`Your clinic confirms this time within ${hoursPhrase(confirmationHours)}. Your video link appears on your Home page ${joinWindowMinutes} minutes before; tap Join your video call.`}
+              />
+            )}
+            <Link
+              href="/patient/dashboard"
+              className="inline-flex min-h-12 items-center justify-center bg-teal-700 hover:bg-teal-800 text-white font-bold py-3 px-6 rounded-xl text-base transition"
+            >
+              Go to Dashboard
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -1429,7 +1585,7 @@ export default function BookingWizard({
     // overflow-clip, not overflow-hidden: it still rounds the corners, but
     // it is not a scroll container, so the phone's pinned action row below
     // can stick to the bottom of the screen rather than to this card.
-    <div className="relative bg-white rounded-3xl shadow-xl overflow-clip border border-slate-200">
+    <div ref={wizardRootRef} className="relative bg-white rounded-3xl shadow-xl overflow-clip border border-slate-200">
       {loading && payStage && step === 3 && (
         <CheckoutProgress stage={payStage} includeAccount={payIncludesAccount} />
       )}
@@ -1437,14 +1593,14 @@ export default function BookingWizard({
       {/* p-5 on phones rather than a flat p-8: Step 1's calendar is a
           7-column grid whose cells are squeezed directly by this padding.
           Restores p-8 from sm: up, where there's room to spare. */}
-      <div className="p-5 sm:p-8 space-y-5 text-sm">
+      <div className="p-5 sm:p-8 space-y-5 text-base">
       {error && (
-        <div data-form-error role="alert" className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg p-3">
+        <div data-form-error role="alert" className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-3">
           {error}
         </div>
       )}
       {resumeNotice && step === 1 && (
-        <div role="status" className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-lg p-3">
+        <div role="status" className="text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-lg p-3">
           {resumeNotice}
         </div>
       )}
@@ -1477,55 +1633,78 @@ export default function BookingWizard({
           onLanguageChange={handleLanguageChange}
           languages={bookingLanguages}
           autoPicked={autoPicked}
+          confirmationHours={confirmationHours}
           serviceChosen={Boolean(categoryId)}
           onContinue={goToStep2}
+          continuePending={slotChecking}
         />
       )}
 
       {step === 2 && (
         <>
           {isLoggedIn ? (
-            <div className="bg-teal-50 border border-teal-100 rounded-xl p-3 text-xs text-teal-800">
+            <div className="bg-teal-50 border border-teal-100 rounded-xl p-3 text-base text-teal-900">
               Booking as <strong>{fullName}</strong> ({email})
             </div>
           ) : (
-            // Locked while the account is being made in the background --
-            // editing an email that is already being signed up would make a
-            // second account. A disabled fieldset disables every control in
-            // it, including the phone and confirm-password components.
-            <fieldset disabled={signupPending} className="m-0 min-w-0 space-y-5 border-0 p-0">
-              <label className="block">
-                <span className="block font-semibold mb-1.5 text-slate-900">
-                  Full Name
-                </span>
-                <input
-                  id="bw-fullname"
-                  type="text"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="Jane Doe"
-                  className="w-full p-3 rounded-xl border border-slate-300"
-                />
-              </label>
-              <div className="grid sm:grid-cols-2 gap-3">
+            <>
+              {/* At the top, where a returning patient looks first: below a
+                  long form it was a 11px sentence nobody reached. A real
+                  button at the 44px tap size. */}
+              <Link
+                href="/patient/login"
+                data-testid="bw-sign-in"
+                className="flex min-h-11 w-full items-center justify-center rounded-xl border border-teal-600 bg-white px-4 py-2.5 text-base font-bold text-teal-800 transition hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
+              >
+                I already have an account &ndash; sign in
+              </Link>
+              {/* Locked while the account is being made in the background --
+                  editing an email that is already being signed up would make
+                  a second account. A disabled fieldset disables every control
+                  in it, including the phone component.
+
+                  Name, phone, email, password: the order a person says them.
+                  There is no retype box -- the password field has a show
+                  button, which is what actually prevents a mistyped
+                  password, and a second box only doubles the typing on a
+                  phone keyboard. */}
+              <fieldset disabled={signupPending} className="m-0 min-w-0 space-y-5 border-0 p-0">
                 <label className="block">
-                  <span className="block font-semibold mb-1.5 text-slate-900">
-                    Email
-                  </span>
+                  <span className="block font-semibold mb-1.5 text-slate-900">Your name</span>
+                  <input
+                    id="bw-fullname"
+                    type="text"
+                    value={fullName}
+                    autoComplete="name"
+                    onChange={(e) => setFullName(e.target.value)}
+                    placeholder="Priya Sharma"
+                    className="w-full min-h-12 p-3 text-base rounded-xl border border-slate-300"
+                  />
+                </label>
+                <div id="bw-phone">
+                  <PhoneNumberField
+                    value={phone}
+                    onChange={setPhone}
+                    labelClassName="block font-semibold mb-1.5 text-slate-900"
+                  />
+                </div>
+                <label className="block">
+                  <span className="block font-semibold mb-1.5 text-slate-900">Email</span>
                   <input
                     id="bw-email"
                     type="email"
                     value={email}
+                    autoComplete="email"
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="jane@example.com"
-                    className="w-full p-3 rounded-xl border border-slate-300"
+                    placeholder="priya@example.com"
+                    className="w-full min-h-12 p-3 text-base rounded-xl border border-slate-300"
                   />
                 </label>
                 <label className="block">
                   <span className="block font-semibold mb-1.5 text-slate-900">
-                    Create Password{" "}
-                    <span className="font-normal text-slate-500 text-xs">
-                      (for portal access)
+                    Create a password{" "}
+                    <span className="font-normal text-slate-600 text-sm">
+                      (at least 6 characters)
                     </span>
                   </span>
                   <PasswordInput
@@ -1533,77 +1712,59 @@ export default function BookingWizard({
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     minLength={6}
-                    className="w-full p-3 rounded-xl border border-slate-300"
+                    autoComplete="new-password"
+                    className="w-full min-h-12 p-3 text-base rounded-xl border border-slate-300"
                   />
                 </label>
-              </div>
-              <div id="bw-phone">
-                <PhoneNumberField
-                  value={phone}
-                  onChange={setPhone}
-                  labelClassName="block font-semibold mb-1.5 text-slate-900"
-                />
-              </div>
-              <div id="bw-confirm-password">
-                <ConfirmPasswordField
-                  password={password}
-                  value={confirmPassword}
-                  onChange={setConfirmPassword}
-                  labelClassName="block font-semibold mb-1.5 text-slate-900"
-                  errorClassName="text-xs"
-                />
-              </div>
-              <label className="block">
-                <span className="block font-semibold mb-1.5 text-slate-900">
-                  Referral Code{" "}
-                  <span className="font-normal text-slate-500 text-xs">
-                    (optional)
+                <label className="block">
+                  <span className="block font-semibold mb-1.5 text-slate-900">
+                    Referral code{" "}
+                    <span className="font-normal text-slate-600 text-sm">
+                      (optional)
+                    </span>
                   </span>
-                </span>
-                <input
-                  id="bw-referral"
-                  type="text"
-                  value={referralCode}
-                  onChange={(e) => {
-                    setReferralCode(e.target.value);
-                    setReferralCheck({ status: "idle" });
-                  }}
-                  onBlur={async (e) => {
-                    if (!e.target.value.trim()) {
+                  <input
+                    id="bw-referral"
+                    type="text"
+                    value={referralCode}
+                    onChange={(e) => {
+                      setReferralCode(e.target.value);
                       setReferralCheck({ status: "idle" });
-                      return;
-                    }
-                    setReferralCheck({ status: "checking" });
-                    setReferralCheck(await checkReferralCode(e.target.value));
-                  }}
-                  placeholder="e.g. from your hospital/clinic"
-                  className="w-full p-3 rounded-xl border border-slate-300"
-                />
-                {referralCheck.status === "checking" && (
-                  <p className="text-slate-500 text-xs mt-1">Checking code...</p>
-                )}
-                {referralCheck.status === "valid" && (
-                  <p className="text-teal-700 font-semibold text-xs mt-1">
-                    <i className="fa-solid fa-circle-check mr-1"></i>
-                    Valid - referred by {referralCheck.hospitalName ?? "your partner hospital"}
-                  </p>
-                )}
-                {referralCheck.status === "invalid" && (
-                  <p className="text-red-600 font-semibold text-xs mt-1">
-                    <i className="fa-solid fa-circle-exclamation mr-1"></i>
-                    Code not recognized - double-check it or leave blank
-                  </p>
-                )}
-              </label>
-              <p className="text-[11px] text-slate-500">
-                Already have an account?{" "}
-                <Link href="/patient/login" className="text-teal-700 font-semibold">
-                  Sign in first
-                </Link>{" "}
-                so this booking links to it.
-              </p>
-            </fieldset>
+                    }}
+                    onBlur={async (e) => {
+                      if (!e.target.value.trim()) {
+                        setReferralCheck({ status: "idle" });
+                        return;
+                      }
+                      setReferralCheck({ status: "checking" });
+                      setReferralCheck(await checkReferralCode(e.target.value));
+                    }}
+                    placeholder="e.g. from your hospital/clinic"
+                    className="w-full min-h-12 p-3 text-base rounded-xl border border-slate-300"
+                  />
+                  {referralCheck.status === "checking" && (
+                    <p className="text-slate-600 text-sm mt-1">Checking code...</p>
+                  )}
+                  {referralCheck.status === "valid" && (
+                    <p className="text-teal-800 font-semibold text-sm mt-1">
+                      <i className="fa-solid fa-circle-check mr-1"></i>
+                      Valid - referred by {referralCheck.hospitalName ?? "your partner hospital"}
+                    </p>
+                  )}
+                  {referralCheck.status === "invalid" && (
+                    <p className="text-red-700 font-semibold text-sm mt-1">
+                      <i className="fa-solid fa-circle-exclamation mr-1"></i>
+                      Code not recognized - double-check it or leave blank
+                    </p>
+                  )}
+                </label>
+              </fieldset>
+            </>
           )}
+
+          {/* Asked of everyone, signed in or not: it is about the session,
+              not the account. */}
+          <WhoIsThisFor value={whoFor} onChange={setWhoFor} />
 
           {/* The service was chosen on Step 1, where the price and the
               session length could be read before a slot was picked. Here it
@@ -1612,6 +1773,7 @@ export default function BookingWizard({
               Repeating the picker would be a second place to change the same
               thing, and the wizard's own header already carries the price. */}
           {selectedOption && (
+            <div className="mt-4">
             <ChosenServiceSummary
               option={selectedOption}
               compact
@@ -1619,12 +1781,13 @@ export default function BookingWizard({
                 <button
                   type="button"
                   onClick={() => setStep(1)}
-                  className="rounded-lg border border-teal-200 bg-white px-3 py-1.5 text-xs font-bold text-teal-800 transition hover:border-teal-400 hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+                  className="rounded-lg border border-teal-200 bg-white px-3 py-1.5 text-sm font-bold text-teal-800 transition hover:border-teal-400 hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
                 >
                   Change
                 </button>
               }
             />
+            </div>
           )}
 
           {/* The request carried over from a specialist's profile. Stated as
@@ -1643,7 +1806,7 @@ export default function BookingWizard({
                     Requested: {requestedTherapist.full_name}
                   </p>
                   {requestedTherapist.credentials && (
-                    <p className="text-xs font-semibold text-teal-700">
+                    <p className="text-sm font-semibold text-teal-700">
                       {requestedTherapist.credentials}
                     </p>
                   )}
@@ -1654,7 +1817,7 @@ export default function BookingWizard({
                   <span className="mt-1 block">
                     <SpecialtyChip specialization={requestedTherapist.specialization} />
                   </span>
-                  <p className="mt-1.5 text-[11px] leading-relaxed text-teal-800">
+                  <p className="mt-1.5 text-[13px] leading-relaxed text-teal-800">
                     We&apos;ll book you with them if they&apos;re free at your chosen time.
                     If not, another specialist takes the session and you&apos;ll see who
                     before it starts.
@@ -1666,7 +1829,7 @@ export default function BookingWizard({
                     setRequestedTherapist(null);
                     setPreferredTherapistId("");
                   }}
-                  className="shrink-0 rounded-lg px-2 py-1 text-[11px] font-semibold text-teal-700 transition hover:bg-teal-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+                  className="shrink-0 rounded-lg px-2 py-1 text-[13px] font-semibold text-teal-700 transition hover:bg-teal-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
                 >
                   Remove
                 </button>
@@ -1677,17 +1840,17 @@ export default function BookingWizard({
           {!requestedTherapist && previousTherapists.length > 0 && (
             <label className="block">
               <span className="block font-semibold mb-1.5 text-slate-900">
-                Continue with the same therapist?{" "}
-                <span className="font-normal text-slate-500 text-xs">
+                Continue with the same physiotherapist?{" "}
+                <span className="font-normal text-slate-600 text-sm">
                   (optional)
                 </span>
               </span>
               <select
                 value={preferredTherapistId}
                 onChange={(e) => setPreferredTherapistId(e.target.value)}
-                className="w-full p-3 rounded-xl border border-slate-300 bg-white"
+                className="w-full min-h-12 p-3 text-base rounded-xl border border-slate-300 bg-white"
               >
-                <option value="">No preference - any available specialist</option>
+                <option value="">No preference (anyone available)</option>
                 {previousTherapists.map((t) => (
                   <option key={t.id} value={t.id}>
                     {specialtyLabel(t.specialization)
@@ -1696,7 +1859,7 @@ export default function BookingWizard({
                   </option>
                 ))}
               </select>
-              <p className="text-[11px] text-slate-500 mt-1">
+              <p className="text-[13px] text-slate-600 mt-1">
                 We&apos;ll try to book you with them, subject to availability
                 for your requested time.
               </p>
@@ -1706,7 +1869,7 @@ export default function BookingWizard({
           <label className="block">
             <span className="block font-semibold mb-1.5 text-slate-900">
               Anything else we should know?{" "}
-              <span className="font-normal text-slate-500 text-xs">
+              <span className="font-normal text-slate-600 text-sm">
                 (optional)
               </span>
             </span>
@@ -1715,7 +1878,7 @@ export default function BookingWizard({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Briefly describe your pain, injury, or goals"
-              className="w-full p-3 rounded-xl border border-slate-300"
+              className="w-full p-3 text-base rounded-xl border border-slate-300"
             />
           </label>
 
@@ -1725,7 +1888,7 @@ export default function BookingWizard({
               type="checkbox"
               checked={consent}
               onChange={(e) => setConsent(e.target.checked)}
-              className="mt-1 w-4 h-4 accent-teal-600"
+              className="mt-1 w-5 h-5 accent-teal-700"
             />
             {/* The terms are a button inside the label: activating an
                 interactive child of a label does not toggle its checkbox, so
@@ -1735,7 +1898,7 @@ export default function BookingWizard({
                 booking a neurological or paediatric session. */}
             <label
               htmlFor="bw-consent"
-              className="text-xs text-slate-700 leading-relaxed font-medium"
+              className="text-base text-slate-700 leading-relaxed font-medium"
             >
               {consentCheckboxText(selectedCategory?.title).before}
               <button
@@ -1760,13 +1923,13 @@ export default function BookingWizard({
           <div className="sticky bottom-0 z-10 -mx-5 flex gap-3 border-t border-slate-100 bg-white/95 px-5 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0 sm:pt-1 sm:backdrop-blur-none">
             <button
               onClick={() => setStep(1)}
-              className="w-1/3 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold py-3.5 rounded-xl transition"
+              className="w-1/3 min-h-12 bg-slate-200 hover:bg-slate-300 text-slate-800 text-base font-bold py-3.5 rounded-xl transition"
             >
               Back
             </button>
             <button
               onClick={goToStep3}
-              className="w-2/3 bg-teal-700 hover:bg-teal-800 text-white font-bold py-3.5 rounded-xl transition shadow-lg"
+              className="w-2/3 min-h-12 bg-teal-700 hover:bg-teal-800 text-white text-base font-bold py-3.5 rounded-xl transition shadow-lg"
             >
               Review Booking →
             </button>
@@ -1777,35 +1940,55 @@ export default function BookingWizard({
       {step === 3 && (
         <>
           <div className="bg-teal-50 p-5 rounded-2xl border border-teal-100 space-y-3">
-            <div className="flex justify-between text-xs">
-              <span className="text-slate-500">Name</span>
-              <span className="font-bold text-slate-900">{fullName}</span>
+            <div className="flex justify-between gap-3 text-sm">
+              <span className="shrink-0 text-slate-600">Name</span>
+              <span className="font-bold text-slate-900 text-right text-base min-w-0 [overflow-wrap:anywhere]">{fullName}</span>
             </div>
-            <div className="flex justify-between text-xs">
-              <span className="text-slate-500">Email</span>
-              <span className="font-bold text-slate-900">{email}</span>
-            </div>
-            <div className="flex justify-between text-xs">
-              <span className="text-slate-500">
-                Preferred Time
+            {/* Its own line under the label on a phone: an email is the one
+                value here long enough to run out of the box beside its label. */}
+            <div className="flex flex-col gap-0.5 text-sm sm:flex-row sm:justify-between sm:gap-3">
+              <span className="shrink-0 text-slate-600">Email</span>
+              <span className="min-w-0 text-base font-bold text-slate-900 [overflow-wrap:anywhere] sm:text-right">
+                {email.includes("@") ? (
+                  <>
+                    {email.slice(0, email.indexOf("@"))}
+                    <wbr />
+                    {email.slice(email.indexOf("@"))}
+                  </>
+                ) : (
+                  email
+                )}
               </span>
-              <span className="font-bold text-slate-900">
+            </div>
+            <div className="flex justify-between gap-3 text-sm">
+              <span className="shrink-0 text-slate-600">
+                Time you asked for
+              </span>
+              <span className="font-bold text-slate-900 text-right text-base min-w-0 [overflow-wrap:anywhere]">
                 {resumedSlotIso
                   ? formatClinicDateTime(resumedSlotIso)
                   : slotDateTime && formatClinicDateTime(slotDateTime)}
               </span>
             </div>
-            <div className="flex justify-between text-xs">
-              <span className="text-slate-500">Language</span>
-              <span className="font-bold text-slate-900">{language || "-"}</span>
+            <div className="flex justify-between gap-3 text-sm">
+              <span className="shrink-0 text-slate-600">Session for</span>
+              <span className="font-bold text-slate-900 text-right text-base min-w-0 [overflow-wrap:anywhere]" data-testid="summary-for">
+                {whoFor.who === "family"
+                  ? `${whoFor.name.trim()} (${whoFor.relationship.trim()})`
+                  : "You"}
+              </span>
             </div>
-            <div className="flex justify-between text-xs">
-              <span className="text-slate-500">Concern</span>
-              <span className="font-bold text-slate-900">{selectedCategory?.title}</span>
+            <div className="flex justify-between gap-3 text-sm">
+              <span className="shrink-0 text-slate-600">Language</span>
+              <span className="font-bold text-slate-900 text-right text-base min-w-0 [overflow-wrap:anywhere]">{language || "-"}</span>
             </div>
-            <div className="flex justify-between text-xs pt-3 border-t border-teal-100">
-              <span className="text-slate-500">Session Fee</span>
-              <span className={`font-bold text-slate-900 ${quote && quote.discountPaise > 0 ? "line-through opacity-60" : ""}`}>
+            <div className="flex justify-between gap-3 text-sm">
+              <span className="shrink-0 text-slate-600">Concern</span>
+              <span className="font-bold text-slate-900 text-right text-base min-w-0 [overflow-wrap:anywhere]">{selectedCategory?.title}</span>
+            </div>
+            <div className="flex justify-between gap-3 text-sm pt-3 border-t border-teal-100">
+              <span className="shrink-0 text-slate-600">Session Fee</span>
+              <span className={`font-bold text-base text-slate-900 ${quote && quote.discountPaise > 0 ? "line-through opacity-60" : ""}`}>
                 {quote
                   ? quoteMoney(quote.listPricePaise)
                   : selectedCategory
@@ -1814,26 +1997,26 @@ export default function BookingWizard({
               </span>
             </div>
             {quote && quote.discountPaise > 0 && (
-              <div className="flex justify-between text-xs">
-                <span className="text-teal-700">{quote.discountLabel ?? "Discount"}</span>
-                <span className="font-bold text-teal-700">
+              <div className="flex justify-between gap-3 text-sm">
+                <span className="text-teal-800">{quote.discountLabel ?? "Discount"}</span>
+                <span className="font-bold text-base text-teal-800">
                   −{quoteMoneyShort(quote.discountPaise)}
                 </span>
               </div>
             )}
             {quote && quote.travelFeePaise > 0 && (
-              <div className="flex justify-between text-xs">
+              <div className="flex justify-between gap-3 text-sm">
                 {/* Never discounted: a pass-through paid to the therapist in
                     full, so it is added after the discount and shown as its
                     own line rather than folded into a price. */}
-                <span className="text-slate-500">Travel</span>
-                <span className="font-bold text-slate-900">
+                <span className="text-slate-600">Travel</span>
+                <span className="font-bold text-slate-900 text-right text-base min-w-0 [overflow-wrap:anywhere]">
                   {quoteMoneyShort(quote.travelFeePaise)}
                 </span>
               </div>
             )}
             {quote && (
-              <div className="flex justify-between text-sm pt-3 border-t border-teal-100">
+              <div className="flex justify-between gap-3 text-sm pt-3 border-t border-teal-100">
                 <span className="font-semibold text-slate-700">Total</span>
                 <span className="font-extrabold text-slate-900">
                   {quote.settlement === "free" ? "Free" : quoteMoney(quote.totalPaise)}
@@ -1844,7 +2027,7 @@ export default function BookingWizard({
                 the exact rupee figure their card will show -- their bank
                 converts it, and may round or add its own fee. */}
             {quote && quotePricing && quote.settlement !== "free" && (
-              <p className="pt-1 text-[11px] leading-snug text-slate-500" data-testid="charged-in-inr">
+              <p className="pt-1 text-[13px] leading-snug text-slate-600" data-testid="charged-in-inr">
                 Charged as {formatInr(quote.totalPaise)} INR. Your bank converts it, so the amount on
                 your statement may differ slightly.
               </p>
@@ -1854,7 +2037,7 @@ export default function BookingWizard({
                 so this line is here to explain why the figure above may move,
                 not to stop anybody acting on it. */}
             {quoting && (
-              <p className="pt-2 text-[11px] text-slate-500" role="status">
+              <p className="pt-2 text-[13px] text-slate-600" role="status">
                 Checking the latest price for you...
               </p>
             )}
@@ -1875,7 +2058,14 @@ export default function BookingWizard({
               />
             </div>
           )}
-          <p className="text-xs text-slate-500">
+          <p
+            data-testid="step3-request-notice"
+            className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-relaxed text-slate-700"
+          >
+            <i className="fa-solid fa-circle-info mr-2 text-teal-700" aria-hidden="true"></i>
+            {requestedTimeNotice(confirmationHours)}
+          </p>
+          <p className="text-sm text-slate-600">
             <i className="fa-solid fa-lock text-teal-600 mr-1"></i>
             {quote?.settlement === "free"
               ? "Nothing to pay - your discount covers this session in full. Your slot is held once you confirm."
@@ -1911,7 +2101,7 @@ export default function BookingWizard({
               between an expression and the text after it, which is how this
               rendered as "within 24hours of the slot" on the one screen where
               a number and a unit have to read as a number and a unit. */}
-          <p className="text-xs text-slate-500">
+          <p className="text-sm text-slate-600">
             <i className="fa-solid fa-circle-info text-teal-600 mr-1"></i>
             {quote?.settlement === "free"
               ? `Cancel any time before your slot. There is nothing to pay for this session and nothing to refund.`
@@ -1942,7 +2132,7 @@ export default function BookingWizard({
                 setStep(2);
               }}
               disabled={loading}
-              className="w-1/3 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold py-3.5 rounded-xl transition disabled:opacity-60"
+              className="w-1/3 min-h-12 bg-slate-200 hover:bg-slate-300 text-slate-800 text-base font-bold py-3.5 rounded-xl transition disabled:opacity-60"
             >
               Back
             </button>
@@ -1955,7 +2145,7 @@ export default function BookingWizard({
               // `submitFromPaymentStep`. Disabling here made the primary
               // control of the payment screen dead for a round trip.
               disabled={loading}
-              className="w-2/3 bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white font-bold py-3.5 rounded-xl transition shadow-lg"
+              className="w-2/3 min-h-12 bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white text-base font-bold py-3.5 rounded-xl transition shadow-lg"
             >
               {loading
                 ? "Please wait..."
@@ -1990,7 +2180,7 @@ export default function BookingWizard({
             <button
               onClick={() => void submitFromPaymentStep("pay_now")}
               disabled={loading}
-              className="w-full text-center text-xs font-semibold text-teal-700 underline underline-offset-2 disabled:opacity-60"
+              className="w-full text-center text-sm font-semibold text-teal-700 underline underline-offset-2 disabled:opacity-60"
             >
               Or pay {quoteMoneyShort(quote.totalPaise)} now instead
             </button>
@@ -2002,7 +2192,7 @@ export default function BookingWizard({
               hatch to the dashboard still waits until retrying here has
               plainly stopped working. */}
           {appointmentId && failedAttempts > 0 && !escapeOpen && (
-            <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-center text-xs text-slate-600">
+            <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-center text-sm text-slate-600">
               {accountUnlocked
                 ? "Nothing was lost - your booking is saved and still held as unpaid. You can try again above, or pay later from your dashboard."
                 : "Nothing was lost - your slot is still held for you. Try again whenever you're ready."}
@@ -2011,7 +2201,7 @@ export default function BookingWizard({
           {escapeOpen && (
             <div
               role="status"
-              className="text-xs text-center bg-amber-50 border border-amber-200 rounded-xl p-3 text-amber-800 space-y-2"
+              className="text-sm text-center bg-amber-50 border border-amber-200 rounded-xl p-3 text-amber-800 space-y-2"
             >
               {justUnlocked ? (
                 <>

@@ -8,6 +8,7 @@ import {
   parseMultiSelect,
   serializeMultiSelect,
   toggleMultiSelectOption,
+  visibleQuestions,
   type IntakeQuestion,
 } from "@/lib/conditionIntake";
 import {
@@ -53,28 +54,25 @@ export default function ConditionTriageDialog({
   const [picked, setPicked] = useState<ConditionSpecialty | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Only questions whose condition is met. `showWhen` exists for triage
-  // alone -- a patient-facing set that hides questions cannot honestly say
-  // "N of 7".
-  const visibleQuestions = useMemo(
-    () =>
-      TRIAGE_QUESTIONS.filter(
-        (q) => !q.showWhen || answers[q.showWhen.key] === q.showWhen.equals
-      ),
-    [answers]
-  );
+  // Only questions whose condition is met, decided by the same
+  // visibleQuestions() the intake wizard, the counters and the PDF use.
+  const shownQuestions = useMemo(() => visibleQuestions(TRIAGE_QUESTIONS, answers), [answers]);
 
-  const missing = findMissingRequiredKeys(visibleQuestions, answers);
+  const missing = findMissingRequiredKeys(shownQuestions, answers);
   const ready = missing.length === 0;
-  const suggestion = ready ? suggestSpecialtyFromTriage(answers) : null;
-  const effectivePick = picked ?? suggestion?.suggested ?? null;
-
   // A specialty switched off in Settings is not offered -- except the one
   // this profile already has, so turning pediatrics off cannot strand an
   // existing paediatric patient whose record needs re-triaging.
   const offered = CONDITION_SPECIALTIES.filter(
     (s) => enabledSpecialties.includes(s.key) || s.key === currentSpecialty
   );
+  // The suggestion is chosen from what is offered, so it never pre-selects
+  // a card this dialog is not showing (a switched-off type is named in the
+  // reason instead).
+  const suggestion = ready
+    ? suggestSpecialtyFromTriage(answers, { offered: offered.map((s) => s.key) })
+    : null;
+  const effectivePick = picked ?? suggestion?.suggested ?? null;
 
   function handleContinue() {
     if (!ready) {
@@ -89,7 +87,7 @@ export default function ConditionTriageDialog({
     // development_concern would otherwise be saved as an empty string and
     // read later as "asked, answered blank".
     const triageData = Object.fromEntries(
-      visibleQuestions.map((q) => [q.key, answers[q.key] ?? ""]).filter(([, v]) => v)
+      shownQuestions.map((q) => [q.key, answers[q.key] ?? ""]).filter(([, v]) => v)
     );
     onConfirm(effectivePick, triageData);
   }
@@ -131,7 +129,7 @@ export default function ConditionTriageDialog({
           </div>
 
           <div className="flex-1 space-y-5 overflow-y-auto px-6 py-5">
-            {visibleQuestions.map((question) => (
+            {shownQuestions.map((question) => (
               <TriageQuestion
                 key={question.key}
                 question={question}

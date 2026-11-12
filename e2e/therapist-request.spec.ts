@@ -9,6 +9,7 @@ import { test, expect } from "@playwright/test";
 import {
   adminClient,
   BASE,
+  chooseAnyServiceOnStepOne,
   QA_EMAILS,
   profileIdFor,
   skipWithoutBrowserEgress,
@@ -60,6 +61,8 @@ test.describe("Requesting a specialist from their profile", () => {
     await page.goto(`${BASE}/book?therapist=${therapistId}`);
     // The request is shown on the details step, beside the other optional
     // preferences, not on the calendar step.
+    // Step 1 offers Continue once a service and a time are chosen.
+    await chooseAnyServiceOnStepOne(page);
     await page.getByRole("button", { name: /Continue/i }).first().click();
     await expect(page.getByText(`Requested: ${therapistName}`)).toBeVisible();
 
@@ -74,6 +77,8 @@ test.describe("Requesting a specialist from their profile", () => {
     await admin.from("profiles").update({ visible_on_team: false }).eq("id", therapistId);
     try {
       await page.goto(`${BASE}/book?therapist=${therapistId}`);
+      // Step 1 offers Continue once a service and a time are chosen.
+      await chooseAnyServiceOnStepOne(page);
       await page.getByRole("button", { name: /Continue/i }).first().click();
       // No request, no error, no dead end -- an ordinary booking.
       await expect(page.getByText("Requested:")).toHaveCount(0);
@@ -85,6 +90,8 @@ test.describe("Requesting a specialist from their profile", () => {
 
   test("TR-004: an unknown therapist id is dropped silently", async ({ page }) => {
     await page.goto(`${BASE}/book?therapist=00000000-0000-4000-8000-000000000000`);
+    // Step 1 offers Continue once a service and a time are chosen.
+    await chooseAnyServiceOnStepOne(page);
     await page.getByRole("button", { name: /Continue/i }).first().click();
     await expect(page.getByText("Requested:")).toHaveCount(0);
   });

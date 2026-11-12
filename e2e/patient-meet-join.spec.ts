@@ -177,3 +177,78 @@ test("MJ-001: the link opens only inside the join window -- shut before, live du
     await expect(page.locator(`a[href="${s.link}"]`)).toHaveCount(0);
   }
 });
+
+test("MJ-002: Home puts one full-width Join your video call button on the session in its window", async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+  await page.addInitScript(() => {
+    const opened: string[] = [];
+    (window as unknown as { __opened: string[] }).__opened = opened;
+    window.open = ((url?: string | URL) => {
+      opened.push(String(url));
+      return null;
+    }) as typeof window.open;
+  });
+  await page.context().addCookies(await browserCookiesFor(patient.email));
+  await page.goto(`${BASE}/patient/dashboard`, { waitUntil: "domcontentloaded" });
+  await waitForSplashToClear(page);
+
+  // The session that started a minute ago is the one featured: a session
+  // stays on the headline from its start until its window closes, which a
+  // "next session" that only looks forward never did.
+  const hero = page.getByTestId("join-hero");
+  await expect(hero).toBeVisible({ timeout: 60_000 });
+  await expect(hero).toHaveText("Join your video call");
+  const box = await hero.boundingBox();
+  expect(box!.height).toBeGreaterThanOrEqual(55);
+  // Full width of its card, not a chip.
+  const card = await hero.locator("xpath=ancestor::*[contains(@class,'ov-head')][1]").boundingBox();
+  expect(box!.width).toBeGreaterThan(card!.width * 0.7);
+  // The physiotherapist and the time sit beneath it, in the clinic's zone.
+  await expect(hero.locator("xpath=following-sibling::span[1]")).toContainText("with ");
+  // The session card's own Join is the large size: 48px tall, 16px text.
+  await expect(page.getByTestId("join-hero-waiting")).toHaveCount(0);
+
+  await hero.click();
+  await expect
+    .poll(() => page.evaluate(() => (window as unknown as { __opened: string[] }).__opened))
+    .toEqual([sessions.live!.link]);
+});
+
+test("MJ-003: before the window Home says when the join button will appear", async ({ page }) => {
+  test.setTimeout(90_000);
+  const waiting = await createFixtureAccount("meet join waiting");
+  try {
+    const therapistId = await profileIdFor(db, QA_EMAILS.therapistA);
+    // Its own slot, half an hour after beforeAll's "early" one for the same
+    // therapist: at the same offset the two landed on the same minute
+    // whenever the first cases ran inside one, and
+    // appointments_one_therapist_per_slot refused this insert.
+    const slot = new Date(Date.now() + (windowBefore + 150) * MIN);
+    slot.setSeconds(0, 0);
+    const { error } = await db.from("appointments").insert({
+      patient_id: waiting.id,
+      therapist_id: therapistId,
+      slot_time: slot.toISOString(),
+      status: "confirmed",
+      payment_status: "paid",
+      visit_mode: "online",
+      duration_minutes: 30,
+      meet_link: `https://meet.google.com/e2e-waiting-${STAMP}`,
+      concern: "E2E meet-join waiting",
+    });
+    if (error) throw new Error(error.message);
+    await page.context().addCookies(await browserCookiesFor(waiting.email));
+    await page.goto(`${BASE}/patient/dashboard`, { waitUntil: "domcontentloaded" });
+    await waitForSplashToClear(page);
+
+    const opensAt = formatClinicTime(new Date(slot.getTime() - windowBefore * MIN));
+    const note = page.getByTestId("join-hero-waiting");
+    await expect(note).toContainText("Your join button appears here", { timeout: 60_000 });
+    await expect(note).toContainText(opensAt);
+    await expect(page.getByTestId("join-hero")).toHaveCount(0);
+  } finally {
+    await deleteFixtureAccount(waiting.id);
+  }
+});

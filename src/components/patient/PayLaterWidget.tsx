@@ -169,7 +169,7 @@ export default function PayLaterWidget({
     <div className="mb-6 rounded-2xl border border-teal-200 bg-teal-50 p-5">
       {owedPaise > 0 && (
         <>
-          <p className="text-xs font-semibold uppercase tracking-wide text-teal-800">
+          <p className="text-sm font-semibold uppercase tracking-wide text-teal-800">
             You owe so far
           </p>
           <p className="mt-1 text-3xl font-bold text-teal-900">{formatInr(owedPaise)}</p>
@@ -177,7 +177,7 @@ export default function PayLaterWidget({
               expression that renders "" collapses the space beside it, and
               this line read "For 1 sessionyou've already had." on screen.
               Same failure the booking wizard's cancellation notice had. */}
-          <p className="mt-1 text-xs text-slate-600">
+          <p className="mt-1 text-sm text-slate-600">
             {`For ${sessions.length} session${sessions.length === 1 ? "" : "s"} you've already had. Settle whenever suits you.`}
           </p>
         </>
@@ -187,7 +187,7 @@ export default function PayLaterWidget({
         // Received and not yet covering a whole session. Said out loud,
         // because a total that quietly went down by less than was paid reads
         // as an error.
-        <p className="mt-2 text-xs font-semibold text-teal-800">
+        <p className="mt-2 text-sm font-semibold text-teal-800">
           {formatInr(unallocatedPaise)} of your last payment is held against your next
           session.
         </p>
@@ -196,7 +196,7 @@ export default function PayLaterWidget({
       {sessions.length > 0 && (
         <ul className="mt-3 space-y-1 border-t border-teal-200 pt-3">
           {sessions.map((s) => (
-            <li key={s.id} className="flex items-baseline justify-between gap-3 text-xs">
+            <li key={s.id} className="flex items-baseline justify-between gap-3 text-sm">
               <span className="text-slate-700">
                 {s.concern ?? "Session"}
                 {s.slot_time ? ` - ${formatSlotTime(s.slot_time, s.timezone)}` : ""}
@@ -214,7 +214,7 @@ export default function PayLaterWidget({
       {pendingDeclaration ? (
         // State 2. Informational, never a to-do: there is nothing for them to
         // do, and the figure above has deliberately not moved.
-        <p className="mt-4 rounded-xl bg-white p-3 text-xs text-slate-700">
+        <p className="mt-4 rounded-xl bg-white p-3 text-sm text-slate-700">
           <span className="font-semibold text-slate-900">We&apos;re checking your payment.</span>{" "}
           You told us about {formatInr(pendingDeclaration.amount_paise)}
           {pendingDeclaration.declared_at
@@ -226,7 +226,7 @@ export default function PayLaterWidget({
         <div className="mt-4">
           {lastRejection && (
             // State 3. The reason is the actionable half.
-            <p className="mb-3 rounded-xl bg-amber-50 p-3 text-xs text-amber-800">
+            <p className="mb-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-800">
               <span className="font-semibold">
                 We couldn&apos;t find the {formatInr(lastRejection.amount_paise)} you told us
                 about.
@@ -240,7 +240,7 @@ export default function PayLaterWidget({
               <button
                 onClick={() => startTransition(payNow)}
                 disabled={isPending || owedPaise <= 0}
-                className="inline-flex items-center gap-2 rounded-xl bg-teal-700 px-4 py-2 text-xs font-bold text-white transition hover:bg-teal-800 disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-xl bg-teal-700 px-4 py-2 text-sm font-bold text-white transition hover:bg-teal-800 disabled:opacity-60"
               >
                 {isPending && <Spinner />}
                 Pay {formatInr(owedPaise)} now
@@ -248,21 +248,21 @@ export default function PayLaterWidget({
               <button
                 onClick={() => setDeclaring(true)}
                 disabled={owedPaise <= 0}
-                className="rounded-xl border border-teal-300 bg-white px-4 py-2 text-xs font-semibold text-teal-800 transition hover:bg-teal-100 disabled:opacity-60"
+                className="rounded-xl border border-teal-300 bg-white px-4 py-2 text-sm font-semibold text-teal-800 transition hover:bg-teal-100 disabled:opacity-60"
               >
                 I&apos;ve already paid
               </button>
             </div>
           ) : (
             <div className="rounded-xl bg-white p-4">
-              <p className="text-xs font-semibold text-slate-900">Tell us about your payment</p>
-              <p className="mt-0.5 text-[11px] text-slate-500">
+              <p className="text-sm font-semibold text-slate-900">Tell us about your payment</p>
+              <p className="mt-0.5 text-[13px] text-slate-500">
                 We&apos;ll check and confirm it. Nothing changes above until we have.
               </p>
 
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 <div>
-                  <label htmlFor={amountId} className="block text-[11px] font-semibold text-slate-700">
+                  <label htmlFor={amountId} className="block text-[13px] font-semibold text-slate-700">
                     How much (₹)
                   </label>
                   <input
@@ -272,18 +272,18 @@ export default function PayLaterWidget({
                     max={Math.round(owedPaise / 100)}
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 p-2 text-xs"
+                    className="mt-1 w-full rounded-lg border border-slate-300 p-2 text-sm"
                   />
                 </div>
                 <div>
-                  <label htmlFor={methodId} className="block text-[11px] font-semibold text-slate-700">
+                  <label htmlFor={methodId} className="block text-[13px] font-semibold text-slate-700">
                     How you paid
                   </label>
                   <select
                     id={methodId}
                     value={method}
                     onChange={(e) => setMethod(e.target.value as SettlementMethod)}
-                    className="mt-1 w-full rounded-lg border border-slate-300 p-2 text-xs"
+                    className="mt-1 w-full rounded-lg border border-slate-300 p-2 text-sm"
                   >
                     {DECLARABLE_METHODS.map((m) => (
                       <option key={m} value={m}>
@@ -295,7 +295,7 @@ export default function PayLaterWidget({
               </div>
 
               <div className="mt-3">
-                <label htmlFor={referenceId} className="block text-[11px] font-semibold text-slate-700">
+                <label htmlFor={referenceId} className="block text-[13px] font-semibold text-slate-700">
                   Reference, if you have one
                 </label>
                 <input
@@ -303,12 +303,12 @@ export default function PayLaterWidget({
                   value={reference}
                   onChange={(e) => setReference(e.target.value)}
                   placeholder="UTR or transaction number"
-                  className="mt-1 w-full rounded-lg border border-slate-300 p-2 text-xs"
+                  className="mt-1 w-full rounded-lg border border-slate-300 p-2 text-sm"
                 />
               </div>
 
               <div className="mt-3">
-                <label htmlFor={noteId} className="block text-[11px] font-semibold text-slate-700">
+                <label htmlFor={noteId} className="block text-[13px] font-semibold text-slate-700">
                   Anything else we should know
                 </label>
                 <textarea
@@ -317,7 +317,7 @@ export default function PayLaterWidget({
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
                   placeholder="Sent from HDFC around 2pm"
-                  className="mt-1 w-full rounded-lg border border-slate-300 p-2 text-xs"
+                  className="mt-1 w-full rounded-lg border border-slate-300 p-2 text-sm"
                 />
               </div>
 
@@ -325,14 +325,14 @@ export default function PayLaterWidget({
                 <button
                   onClick={() => startTransition(declare)}
                   disabled={isPending}
-                  className="inline-flex items-center gap-2 rounded-xl bg-teal-700 px-4 py-2 text-xs font-bold text-white transition hover:bg-teal-800 disabled:opacity-60"
+                  className="inline-flex items-center gap-2 rounded-xl bg-teal-700 px-4 py-2 text-sm font-bold text-white transition hover:bg-teal-800 disabled:opacity-60"
                 >
                   {isPending && <Spinner />}
                   Tell the clinic
                 </button>
                 <button
                   onClick={() => setDeclaring(false)}
-                  className="rounded-xl border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                  className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                 >
                   Cancel
                 </button>
@@ -342,7 +342,7 @@ export default function PayLaterWidget({
         </div>
       )}
 
-      {error && <p className="mt-2 text-[11px] text-red-600">{error}</p>}
+      {error && <p className="mt-2 text-[13px] text-red-600">{error}</p>}
     </div>
   );
 }

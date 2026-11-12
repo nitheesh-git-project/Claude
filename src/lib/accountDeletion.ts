@@ -105,10 +105,16 @@ function plural(count: number, one: string, many: string) {
  * trying. And it names the alternative, because suspending is what they
  * wanted -- a login that stops working, with the history intact.
  */
-export function describeAccountBlockers(
-  refs: AccountReferences,
-  name: string
-): { message: string; total: number } | null {
+/** "3 sessions, 2 money records and 12 back-office actions", or null when
+ *  nothing is on file. What the delete confirmation lists before it keeps
+ *  the records. */
+export function describeRecordsOnFile(refs: AccountReferences): string | null {
+  const parts = recordParts(refs);
+  if (parts.length === 0) return null;
+  return parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+}
+
+function recordParts(refs: AccountReferences): string[] {
   const parts: string[] = [];
   if (refs.sessions > 0) parts.push(plural(refs.sessions, "session", "sessions"));
   if (refs.money > 0) parts.push(plural(refs.money, "money record", "money records"));
@@ -122,7 +128,14 @@ export function describeAccountBlockers(
   if (refs.referrals > 0) parts.push(plural(refs.referrals, "referral", "referrals"));
   if (refs.files > 0) parts.push(plural(refs.files, "uploaded file", "uploaded files"));
   if (refs.other > 0) parts.push(plural(refs.other, "other record", "other records"));
+  return parts;
+}
 
+export function describeAccountBlockers(
+  refs: AccountReferences,
+  name: string
+): { message: string; total: number } | null {
+  const parts = recordParts(refs);
   if (parts.length === 0) return null;
 
   const list =

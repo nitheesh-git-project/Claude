@@ -17,9 +17,13 @@ import { REAL_BENEFITS, WHY_CHOOSE_US, type WhyItem } from "@/lib/whyChooseUs";
 export function WhyChooseUsGrid({
   compact = false,
   languages,
+  teamInitials = [],
 }: {
   compact?: boolean;
   languages: string[];
+  /** Initials of therapists actually published on /team. Empty draws no
+   *  avatars -- the tile used to show four invented people. */
+  teamInitials?: string[];
 }) {
   // Three rows of three columns: wide + narrow, narrow + wide, narrow + wide.
   const wide = new Set(["physios", "progress", "language"]);
@@ -36,7 +40,7 @@ export function WhyChooseUsGrid({
               className={`relative flex h-36 items-center justify-center overflow-hidden ${TILE_BG[index % TILE_BG.length]}`}
             >
               <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-white/40 blur-2xl" />
-              <Vignette item={item} languages={languages} />
+              <Vignette item={item} languages={languages} teamInitials={teamInitials} />
             </div>
             <div className="flex flex-1 flex-col p-5 sm:p-6">
               <div className="flex items-center gap-2.5">
@@ -71,23 +75,33 @@ const TILE_BG = [
 const chip =
   "flex items-center gap-1.5 rounded-full border border-white bg-white/90 px-3 py-1 text-[11px] font-semibold text-slate-700 shadow-sm";
 
-function Vignette({ item, languages }: { item: WhyItem; languages: string[] }) {
+function Vignette({
+  item,
+  languages,
+  teamInitials,
+}: {
+  item: WhyItem;
+  languages: string[];
+  teamInitials: string[];
+}) {
   switch (item.key) {
     case "physios":
       return (
         <div className="flex items-center gap-5">
+          {teamInitials.length > 0 && (
           <div className="flex -space-x-3">
-            {["AK", "PS", "RM", "NJ"].map((initials, i) => (
+            {teamInitials.map((initials, i) => (
               <span
                 key={initials}
                 className={`flex h-12 w-12 items-center justify-center rounded-full border-2 border-white text-xs font-bold text-white shadow ${
-                  ["bg-teal-600", "bg-sky-600", "bg-emerald-600", "bg-violet-500"][i]
+                  ["bg-teal-600", "bg-sky-600", "bg-emerald-600", "bg-violet-500"][i % 4]
                 }`}
               >
                 {initials}
               </span>
             ))}
           </div>
+          )}
           <div className="space-y-1.5">
             <span className={chip}>
               <i className="fa-solid fa-circle-check text-emerald-600" /> Credentials checked

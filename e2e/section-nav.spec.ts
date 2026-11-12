@@ -7,7 +7,7 @@
 // than a hardcoded section list, because several sections are conditional on
 // admin-controlled catalog data and simply do not render on an empty project.
 import { test, expect, type Page } from "@playwright/test";
-import { BASE } from "./helpers";
+import { BASE, waitForSplashToClear } from "./helpers";
 
 const FRONT_PAGES = [
   "/",
@@ -73,14 +73,25 @@ test.describe("Section rail and scroll arrow on the public pages", () => {
     }
   });
 
-  test("SN-003: the arrow disappears at the bottom and the rail follows a manual scroll", async ({
+  test("SN-003: at the bottom the arrow turns into Back to top, and the rail follows a manual scroll", async ({
     page,
   }) => {
     await page.goto(`${BASE}/`);
+    // The opening splash holds the page still; a scroll sent under it never
+    // moves, and the rail rightly lights nothing at the top.
+    await waitForSplashToClear(page);
     await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
     await settle(page);
     await expect(arrow(page)).toHaveCount(0);
     await expect(activePill(page)).toHaveCount(1);
+    const backToTop = page.getByRole("button", { name: "Back to top" });
+    await expect(backToTop).toBeVisible();
+    await backToTop.click();
+    await expect.poll(() => scrollY(page), { timeout: 10_000 }).toBe(0);
+    await expect(page.getByRole("button", { name: "Back to top" })).toHaveCount(0);
+    await expect(arrow(page)).toBeVisible();
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    await settle(page);
 
     // Back to the very top clears the active pill again -- the state has to
     // be reachable in both directions, not only on first paint.
@@ -130,6 +141,21 @@ test.describe("Section rail and scroll arrow on the public pages", () => {
     await settle(page);
     expect(await scrollY(page)).toBeGreaterThan(before);
     await expect(activePill(page)).toHaveCount(1);
+  });
+
+  test("SN-008: a tab tapped from far down a page opens the next page at its very top", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(`${BASE}/`);
+    await waitForSplashToClear(page);
+    for (const target of ["/conditions", "/faq"]) {
+      await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+      await settle(page);
+      await page.locator(`nav a[href="${target}"]`).filter({ visible: true }).first().click();
+      await page.waitForURL((u) => u.pathname === target);
+      // Exactly 0: Next alone stopped a header's height short (106px) and
+      // glided there from the old position.
+      await expect.poll(() => scrollY(page), { timeout: 10_000 }).toBe(0);
+    }
   });
 
   test("SN-007: the arrow is absent outside the public pages", async ({ page }) => {

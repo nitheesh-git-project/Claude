@@ -391,15 +391,15 @@ export default function ProgrammeCheckout({
         {homeVisitWithdrawn && state === "awaiting_patient" && (
           <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
             {homeVisitsOffered
-              ? "Visits at home are paused at the moment, so this cannot be booked just now. Your therapist will be in touch about what to do instead."
-              : "Home visits are only available in India, so this cannot be booked from where you are. Your therapist can suggest video sessions instead."}
+              ? "Visits at home are paused at the moment, so this cannot be booked just now. Your physiotherapist will be in touch about what to do instead."
+              : "Home visits are only available in India, so this cannot be booked from where you are. Your physiotherapist can suggest video sessions instead."}
           </p>
         )}
 
         {state !== "awaiting_patient" && (
           <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
             {state === "lapsed"
-              ? "This recommendation has expired. Your therapist can send an updated one after your next session."
+              ? "This recommendation has expired. Your physiotherapist can send an updated one after your next session."
               : "This recommendation is no longer open."}
           </p>
         )}
@@ -414,7 +414,7 @@ export default function ProgrammeCheckout({
               Where should we come?
             </h3>
             <p className="mt-0.5 text-xs text-slate-500">
-              Your therapist travels to you for every visit. Travel for your area is shown in the
+              Your physiotherapist travels to you for every visit. Travel for your area is shown in the
               total before you pay.
             </p>
             {savedAddresses.length > 0 && (

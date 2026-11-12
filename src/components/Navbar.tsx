@@ -11,25 +11,38 @@ import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
 import { useAccountDestination } from "@/lib/useAccountDestination";
 import { isAuthCtaHiddenRoute, isAuthCtaSignedOutRoute, isNavHiddenRoute } from "@/lib/dashboardShellRoutes";
-import { BOOK_CONNECTOR, MARKETING_PAGES, type MarketingPageKey } from "@/lib/marketingNav";
+import { BOOK_CONNECTOR, visibleMarketingPages, type MarketingPageKey } from "@/lib/marketingNav";
 import BrandMark from "@/components/BrandMark";
+import { WhatsAppGlyph } from "@/components/visuals/BrandGlyphs";
+import type { PublicContactLinks } from "@/lib/contactLinks";
 
 
 // The pages a laptop header keeps in its row -- what a first-time visitor
 // reads before booking. Mission and Hospitals (the latter written for a
 // different audience) go under More until 2xl.
 const PRIMARY_KEYS = new Set<MarketingPageKey>(["conditions", "how-it-works", "home-visit", "team", "faq"]);
+// Below xl (1024-1279px) the bar keeps the brand's full name, so one primary
+// link steps into More to make room; it is back in the bar from xl.
+const LAPTOP_MORE_KEYS = new Set<MarketingPageKey>(["team"]);
 
 export default function Navbar({
   offsetTop = false,
   siteName,
   siteTagline,
   homeVisitEnabled: homeVisitSwitch = false,
+  contact = { whatsapp: null, call: null },
+  teamVisible = true,
 }: {
   offsetTop?: boolean;
   siteName: string;
   siteTagline: string;
+  /** Whether home visits are *bookable* (switch on, an area served, a price
+   *  set -- homeVisitOffer.ts), not merely switched on. */
   homeVisitEnabled?: boolean;
+  /** Only the links the clinic has filled in; an unset number is absent. */
+  contact?: PublicContactLinks;
+  /** Someone is published on /team; with nobody, the nav does not list it. */
+  teamVisible?: boolean;
 }) {
   // Off outside India unless an admin allows it (Countries & currency).
   const { homeVisitsOffered } = usePricing();
@@ -40,13 +53,12 @@ export default function Navbar({
   // Visit is dropped rather than listed when the clinic has switched it off:
   // the page itself 404s while the feature is off, so a link to it is a dead
   // end.
-  const links = MARKETING_PAGES.filter(
-    (page) => homeVisitEnabled || !page.requiresHomeVisit
-  );
+  const links = visibleMarketingPages(homeVisitEnabled, teamVisible);
   // The header row leaves Home to the logo. Every other page shows at 2xl;
   // on a laptop the secondary ones fold into More.
   const navLinks = links.filter((page) => page.key !== "home");
   const moreLinks = navLinks.filter((page) => !PRIMARY_KEYS.has(page.key));
+  const laptopMoreLinks = navLinks.filter((page) => LAPTOP_MORE_KEYS.has(page.key));
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -123,28 +135,48 @@ export default function Navbar({
   const showSignedOut = isAuthCtaSignedOutRoute(pathname) || signedIn !== true;
 
   return (
+    // Solid, not frosted: a translucent blurred bar showed the page sliding
+    // under it as a smeared "glass" strip on phones.
     <nav
-      className={`bg-white/85 backdrop-blur-md border-b sticky z-40 transition-shadow ${
+      className={`bg-white border-b sticky z-40 transition-shadow ${
         offsetTop ? "top-[41px]" : "top-0"
       } ${scrolled ? "shadow-md border-slate-200" : "shadow-none border-transparent"}`}
     >
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 2xl:max-w-[1440px]">
-        <div className="flex justify-between gap-6 h-16 items-center">
+        <div className="flex justify-between gap-3 h-16 items-center xl:gap-6">
           {/* Shrinks rather than shoving the menu button off a 360px phone:
-              the name and tagline never wrap, so they truncate instead. */}
-          <Link href="/" className="flex min-w-0 items-center space-x-3 group">
+              the name scales with the screen instead of being shortened. The
+              link keeps the
+              full name as its accessible name either way. */}
+          <Link
+            href="/"
+            aria-label={siteName}
+            className="flex min-w-0 shrink-0 items-center gap-2.5 group sm:gap-3"
+          >
             <motion.div
               whileHover={{ rotate: -6, scale: 1.05 }}
               transition={{ type: "spring", stiffness: 400, damping: 15 }}
               className="flex shrink-0"
             >
-              <BrandMark size={44} variant="flat" />
+              <BrandMark size={40} variant="flat" />
             </motion.div>
+            {/* The full name and the tagline at every width, never the short
+                name and never an ellipsis: the brand is the one thing in the
+                bar that must read whole. On a phone it scales with the screen
+                (15px at 360, 18px from 430); from 1024 to 1279px, where five
+                links and two buttons share the bar, it is 16px and the bar's
+                gaps tighten instead. */}
             <div className="min-w-0">
-              <span className="font-display text-lg font-bold text-slate-800 tracking-tight block leading-tight truncate">
+              <span
+                aria-hidden="true"
+                className="font-display block whitespace-nowrap text-[clamp(15px,4.2vw,18px)] font-bold leading-tight tracking-tight text-slate-800 lg:text-base xl:text-lg"
+              >
                 {siteName}
               </span>
-              <span className="text-[10px] font-semibold text-teal-700 uppercase tracking-wider sm:tracking-widest block truncate">
+              <span
+                aria-hidden="true"
+                className="block whitespace-nowrap text-[9px] font-semibold uppercase tracking-wider text-teal-700 sm:text-[10px] sm:tracking-widest"
+              >
                 {siteTagline}
               </span>
             </div>
@@ -156,7 +188,7 @@ export default function Navbar({
               2xl has room for every page. Home is the logo on both. Below
               lg everything is in the menu, with the phone's own Book bar
               (PublicBookBar) at the foot of the screen. */}
-          <div className="hidden lg:flex items-center gap-5 whitespace-nowrap text-sm font-medium text-slate-600 2xl:gap-6">
+          <div className="hidden lg:flex items-center gap-4 whitespace-nowrap text-sm font-medium text-slate-600 xl:gap-5 2xl:gap-6">
             {navLinks.map((link) => {
               const active = pathname === link.href;
               const secondary = !PRIMARY_KEYS.has(link.key);
@@ -165,7 +197,9 @@ export default function Navbar({
                   key={link.href}
                   href={link.href}
                   aria-current={active ? "page" : undefined}
-                  className={`relative py-1 transition-colors ${secondary ? "hidden 2xl:inline" : ""} ${
+                  className={`relative py-1 transition-colors ${
+                    secondary ? "hidden 2xl:inline" : LAPTOP_MORE_KEYS.has(link.key) ? "hidden xl:inline" : ""
+                  } ${
                     active ? "text-teal-700" : "hover:text-teal-700"
                   }`}
                 >
@@ -196,13 +230,15 @@ export default function Navbar({
                 {moreOpen && (
                   <div className="absolute right-0 top-full z-50 pt-2">
                     <div className="w-48 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg">
-                      {moreLinks.map((link) => (
+                      {[...laptopMoreLinks, ...moreLinks].map((link) => (
                         <Link
                           key={link.href}
                           href={link.href}
                           onClick={() => setMoreOpen(false)}
                           aria-current={pathname === link.href ? "page" : undefined}
                           className={`flex min-h-10 items-center rounded-lg px-3 text-sm ${
+                            LAPTOP_MORE_KEYS.has(link.key) ? "xl:hidden" : ""
+                          } ${
                             pathname === link.href
                               ? "bg-teal-50 font-semibold text-teal-800"
                               : "text-slate-700 hover:bg-slate-50"
@@ -222,18 +258,9 @@ export default function Navbar({
             <div className="hidden lg:flex items-center gap-2 whitespace-nowrap">
               <Link
                 href="/patient/login"
-                className="text-sm font-semibold text-slate-700 hover:text-teal-700 px-3 py-2 transition"
+                className="text-sm font-semibold text-slate-700 hover:text-teal-700 px-2 py-2 transition xl:px-3"
               >
                 Sign In
-              </Link>
-              {/* Account creation on its own only where there is room for
-                  three controls; on a laptop the booking flow creates the
-                  account anyway, and Get Started is one tap away in it. */}
-              <Link
-                href="/get-started"
-                className="hidden 2xl:flex items-center gap-1.5 rounded-xl border border-teal-700 px-4 py-2 text-sm font-semibold text-teal-700 transition hover:bg-teal-50"
-              >
-                Get Started
               </Link>
               <motion.div
                 whileHover={{ scale: 1.04 }}
@@ -284,34 +311,40 @@ export default function Navbar({
               transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
               className="lg:hidden overflow-hidden"
             >
-              <div className="pb-4 flex flex-col space-y-1 text-sm font-medium text-slate-600">
+              {/* Every row is a 44px target (the phone menu is thumb-driven)
+                  and the one primary button is the mode-named Book, not the
+                  /get-started hub: that hub is a switchboard for clinicians
+                  and partners, now reached from the footer. */}
+              <div className="pb-4 flex flex-col space-y-1 text-base font-medium text-slate-700">
+                {authCtaHidden ? null : (
+                  <Link
+                    href={BOOK_CONNECTOR.href}
+                    onClick={() => setOpen(false)}
+                    className="mb-2 flex min-h-12 items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 text-center font-semibold text-white shadow-sm hover:bg-teal-800"
+                  >
+                    {BOOK_CONNECTOR.label}
+                    <i aria-hidden="true" className="fa-solid fa-arrow-right text-xs"></i>
+                  </Link>
+                )}
                 {links.map((link) => (
                   <Link
                     key={link.href}
                     href={link.href}
                     onClick={() => setOpen(false)}
-                    className="py-2 hover:text-teal-700 transition"
+                    aria-current={pathname === link.href ? "page" : undefined}
+                    className="flex min-h-11 items-center hover:text-teal-700 transition"
                   >
                     {link.label}
                   </Link>
                 ))}
                 {authCtaHidden ? null : showSignedOut ? (
-                  <>
-                    <Link
-                      href="/patient/login"
-                      onClick={() => setOpen(false)}
-                      className="py-2 font-semibold text-slate-700"
-                    >
-                      Sign In
-                    </Link>
-                    <Link
-                      href="/get-started"
-                      onClick={() => setOpen(false)}
-                      className="mt-2 bg-teal-700 text-white text-center font-semibold px-4 py-2.5 rounded-xl"
-                    >
-                      Get Started
-                    </Link>
-                  </>
+                  <Link
+                    href="/patient/login"
+                    onClick={() => setOpen(false)}
+                    className="flex min-h-11 items-center font-semibold text-slate-800"
+                  >
+                    Sign In
+                  </Link>
                 ) : destination ? (
                   <Link
                     href={destination.href}
@@ -320,11 +353,36 @@ export default function Navbar({
                       setNavigating(true);
                     }}
                     aria-disabled={navigating}
-                    className="mt-2 bg-teal-700 text-white text-center font-semibold px-4 py-2.5 rounded-xl aria-disabled:opacity-60 aria-disabled:pointer-events-none"
+                    className="mt-1 flex min-h-11 items-center justify-center rounded-xl border border-teal-700 px-4 text-center font-semibold text-teal-800 aria-disabled:opacity-60 aria-disabled:pointer-events-none"
                   >
                     {navigating ? "Loading..." : destination.label}
                   </Link>
                 ) : null}
+                {/* Questions before booking go to a person, not a form. Only
+                    the numbers the clinic has actually filled in. */}
+                {(contact.whatsapp || contact.call) && (
+                  <div className="mt-2 flex gap-2 border-t border-slate-100 pt-3">
+                    {contact.whatsapp && (
+                      <a
+                        href={contact.whatsapp}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label="Chat on WhatsApp (opens in a new tab)"
+                        className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-sm font-semibold text-emerald-900"
+                      >
+                        <WhatsAppGlyph /> WhatsApp us
+                      </a>
+                    )}
+                    {contact.call && (
+                      <a
+                        href={contact.call}
+                        className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800"
+                      >
+                        <i aria-hidden="true" className="fa-solid fa-phone text-teal-700" /> Call us
+                      </a>
+                    )}
+                  </div>
+                )}
               </div>
             </motion.div>
           )}

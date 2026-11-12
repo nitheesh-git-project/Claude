@@ -273,7 +273,7 @@ test("PRG-002: completing a session moves the ID from -0/5 to -1/5", async ({ pa
 
   // ...and every session drawn from it says which programme it is part of.
   await page.goto(`${BASE}/admin/dashboard?section=sessions&tab=all&view=${encodeURIComponent(`programme:${fixture.programmeCode}`)}`);
-  const programmeFilter = page.getByRole("textbox", { name: "Filter by programme ID" }).filter({ visible: true });
+  const programmeFilter = page.getByRole("searchbox", { name: /Search sessions by patient, therapist, session ID or programme ID/ }).filter({ visible: true });
   await expect(programmeFilter).toHaveValue(fixture.programmeCode, { timeout: 60_000 });
   const sessionRow = page.locator("tr", { hasText: fixture.sessionCode }).filter({ visible: true }).first();
   await expect(sessionRow).toBeVisible();

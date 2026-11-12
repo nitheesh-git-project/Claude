@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import RefundChip from "@/components/admin/RefundChip";
 import { describeRefund } from "@/lib/refundState";
 import { formatClinicDate } from "@/lib/formatDateTime";
@@ -26,6 +26,10 @@ import { awaitsPatientPayment, needsTherapist, type ProgrammePick } from "@/lib/
 import { programmeQueryMatches, type ProgrammeTag } from "@/lib/programmeId";
 import ProgrammeIdChip from "@/components/dashboard/ProgrammeIdChip";
 import TapToAssignChip from "@/components/admin/TapToAssignChip";
+
+// useSyncExternalStore with nothing to subscribe to: false while hydrating,
+// true after -- the "has this mounted" flag without a setState in an effect.
+const noSubscribe = () => () => {};
 
 // The one list of sessions.
 //
@@ -91,7 +95,9 @@ function SortHeader({
 const FILTER_STORAGE_KEY = "admin.allSessions.filters";
 
 type SavedFilters = {
-  sessionCode: string;
+  search?: string;
+  /** Superseded by `search`; read so an older saved filter still restores. */
+  sessionCode?: string;
   programme?: string;
   mode: "all" | "online" | "home_visit";
   status: string;
@@ -114,6 +120,7 @@ export default function AdminAllSessionsTab({
   canManageSessions,
   programmePicks = {},
   programmeTags = {},
+  patientOptions,
 }: {
   appointments: SessionDetailAppointment[];
   // Keyed by appointment id on the way in. Only home-visit rows appear here,
@@ -143,6 +150,10 @@ export default function AdminAllSessionsTab({
   // shows it under the session ID and the Programme filter searches it --
   // new IDs, the old SP/HS codes, and a pasted PED_PKG001-2/6 all match.
   programmeTags?: Record<string, ProgrammeTag>;
+  // Who the "Any patient" filter lists. `people` is every profile (it has to
+  // be: it names therapists and patients on the rows), so offering it to the
+  // patient filter listed therapists, hospitals and admins as patients.
+  patientOptions?: Person[];
 }) {
   const peopleMap = useMemo(
     () => new Map(people.map((p) => [p.id, p.full_name ?? "Unknown"])),
@@ -159,41 +170,32 @@ export default function AdminAllSessionsTab({
   // the server-rendered HTML and the first client render still match.
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
-  const [sessionCodeFilter, setSessionCodeFilter] = useState("");
-  const [programmeFilter, setProgrammeFilter] = useState("");
+  // One type-to-search box for what used to be two (Session ID, Programme ID)
+  // plus a hunt through a dropdown of names: a patient, a therapist, a session
+  // ID or a programme ID are all things an admin has in hand, and they can
+  // tell which they typed.
+  const [searchText, setSearchText] = useState("");
   const [modeFilter, setModeFilter] = useState<"all" | "online" | "home_visit">("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [paymentFilter, setPaymentFilter] = useState("all");
   const [therapistFilter, setTherapistFilter] = useState("all");
   const [patientFilter, setPatientFilter] = useState("all");
-  // Restored from the browser's own store on the first client render. Not in
+  // Declared with the filters because the ?view=session:<code> preset below
+  // (global search) opens the drawer as it applies.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Restored from the browser's own store just after hydration (below). Not in
   // a useState initialiser, which also runs on the server where there is no
   // window; not in an effect, which would set state after paint and flash the
   // unfiltered list first. `filtersRestored` gates the save below so the
   // restore itself can't immediately overwrite what it just read.
   const [filtersRestored, setFiltersRestored] = useState(false);
-  if (!filtersRestored && typeof window !== "undefined") {
-    let restored: Partial<SavedFilters> = {};
-    try {
-      const saved = window.localStorage.getItem(FILTER_STORAGE_KEY);
-      if (saved) restored = JSON.parse(saved) as Partial<SavedFilters>;
-    } catch {
-      // A corrupt or unavailable store is not worth a broken screen.
-    }
-    // A date range is deliberately not restored: "last week" saved on Friday
-    // is the wrong week on Monday, and a stale range that hides today's
-    // sessions looks like missing data.
-    if (typeof restored.sessionCode === "string") setSessionCodeFilter(restored.sessionCode);
-    if (typeof restored.programme === "string") setProgrammeFilter(restored.programme);
-    if (restored.mode === "all" || restored.mode === "online" || restored.mode === "home_visit") {
-      setModeFilter(restored.mode);
-    }
-    if (typeof restored.status === "string") setStatusFilter(restored.status);
-    if (typeof restored.payment === "string") setPaymentFilter(restored.payment);
-    if (typeof restored.therapist === "string") setTherapistFilter(restored.therapist);
-    if (typeof restored.patient === "string") setPatientFilter(restored.patient);
-    setFiltersRestored(true);
-  }
+  // Restored on the first render *after* hydration, never during it: the
+  // server rendered no saved filters, so a hydration pass that applied them
+  // mismatched, and React only showed them by discarding the server HTML and
+  // re-rendering the whole tree. `mounted` is false while hydrating and true
+  // on the very next render, so the restore (after the preset, below) lands
+  // one render later, cleanly.
+  const mounted = useSyncExternalStore(noSubscribe, () => true, () => false);
 
   // A filter preset this screen was linked with (?view=, built by
   // adminScreenHref) -- the Today screen's "Unassigned sessions" figure and
@@ -218,8 +220,7 @@ export default function AdminAllSessionsTab({
     if (viewParam) {
       setFromDate("");
       setToDate("");
-      setSessionCodeFilter("");
-      setProgrammeFilter("");
+      setSearchText("");
       setModeFilter("all");
       setStatusFilter("all");
       setPaymentFilter("all");
@@ -227,7 +228,15 @@ export default function AdminAllSessionsTab({
       setPatientFilter("all");
       // Programmes -> a programme's drawer links here with its ID, so the
       // list opens on exactly that programme's sessions.
-      if (viewParam.startsWith("programme:")) setProgrammeFilter(viewParam.slice("programme:".length));
+      if (viewParam.startsWith("session:")) {
+        // Global search: the list narrows to this session's code and its
+        // drawer opens, so the result is the session and not a table it is
+        // somewhere in.
+        const code = viewParam.slice("session:".length);
+        setSearchText(code);
+        const match = appointments.find((a) => a.session_code === code);
+        if (match) setSelectedId(match.id);
+      } else if (viewParam.startsWith("programme:")) setSearchText(viewParam.slice("programme:".length));
       else if (viewParam === "unassigned") setStatusFilter("unassigned");
       else if (viewParam === "awaiting_payment") setStatusFilter("awaiting_payment");
       else if (viewParam === "cancelled") setStatusFilter("cancelled");
@@ -250,14 +259,44 @@ export default function AdminAllSessionsTab({
     }
   }
 
+  // Runs after the ?view= preset above has had its say, and never over it:
+  // a deep link (global search, a Today figure) names exactly what to show,
+  // so remembered filters stand aside for it -- restoring them one render
+  // later would quietly widen the list the link promised.
+  if (mounted && !filtersRestored) {
+    if (!viewParam) {
+      let restored: Partial<SavedFilters> = {};
+      try {
+        const saved = window.localStorage.getItem(FILTER_STORAGE_KEY);
+        if (saved) restored = JSON.parse(saved) as Partial<SavedFilters>;
+      } catch {
+        // A corrupt or unavailable store is not worth a broken screen.
+      }
+      // A date range is deliberately not restored: "last week" saved on Friday
+      // is the wrong week on Monday, and a stale range that hides today's
+      // sessions looks like missing data.
+      // `sessionCode` and `programme` are the two boxes this replaced; a browser
+      // that saved either keeps its search.
+      const savedSearch = restored.search ?? restored.sessionCode ?? restored.programme;
+      if (typeof savedSearch === "string") setSearchText(savedSearch);
+      if (restored.mode === "all" || restored.mode === "online" || restored.mode === "home_visit") {
+        setModeFilter(restored.mode);
+      }
+      if (typeof restored.status === "string") setStatusFilter(restored.status);
+      if (typeof restored.payment === "string") setPaymentFilter(restored.payment);
+      if (typeof restored.therapist === "string") setTherapistFilter(restored.therapist);
+      if (typeof restored.patient === "string") setPatientFilter(restored.patient);
+    }
+    setFiltersRestored(true);
+  }
+
   useEffect(() => {
     if (!filtersRestored) return;
     try {
       window.localStorage.setItem(
         FILTER_STORAGE_KEY,
         JSON.stringify({
-          sessionCode: sessionCodeFilter,
-          programme: programmeFilter,
+          search: searchText,
           mode: modeFilter,
           status: statusFilter,
           payment: paymentFilter,
@@ -270,8 +309,7 @@ export default function AdminAllSessionsTab({
     }
   }, [
     filtersRestored,
-    sessionCodeFilter,
-    programmeFilter,
+    searchText,
     modeFilter,
     statusFilter,
     paymentFilter,
@@ -280,10 +318,9 @@ export default function AdminAllSessionsTab({
   ]);
   const [sortKey, setSortKey] = useState<SortKey>("date");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const rows = useMemo(() => {
-    const trimmedCodeFilter = sessionCodeFilter.trim().toLowerCase();
+    const query = searchText.trim().toLowerCase();
     const filtered = appointments
       .filter((a) => {
         if (!fromDate && !toDate) return true;
@@ -293,15 +330,21 @@ export default function AdminAllSessionsTab({
         if (toDate && key > toDate) return false;
         return true;
       })
-      .filter(
-        (a) => !trimmedCodeFilter || (a.session_code ?? "").toLowerCase().includes(trimmedCodeFilter)
-      )
       .filter((a) => {
-        if (!programmeFilter.trim()) return true;
+        if (!query) return true;
+        // Whichever of the four things the admin typed: the patient's or the
+        // therapist's name, the session's ID, or the programme's ID (the new
+        // PED_PKG001 with or without progress, or an old SP/HS code).
         const tag = programmeTags[a.id];
-        // "programme" alone: every session drawn from one, against singles.
-        if (programmeFilter.trim().toLowerCase() === "any") return !!tag;
-        return !!tag && programmeQueryMatches(programmeFilter, [tag.code, ...tag.otherCodes]);
+        const haystack = [
+          peopleMap.get(a.patient_id) ?? "",
+          a.therapist_id ? peopleMap.get(a.therapist_id) ?? "" : "",
+          a.session_code ?? "",
+        ]
+          .join(" ")
+          .toLowerCase();
+        if (haystack.includes(query)) return true;
+        return !!tag && programmeQueryMatches(searchText, [tag.code, ...tag.otherCodes]);
       })
       .filter((a) => {
         if (modeFilter === "all") return true;
@@ -404,8 +447,7 @@ export default function AdminAllSessionsTab({
     categoryMap,
     fromDate,
     toDate,
-    sessionCodeFilter,
-    programmeFilter,
+    searchText,
     programmeTags,
     modeFilter,
     statusFilter,
@@ -451,8 +493,7 @@ export default function AdminAllSessionsTab({
   function clearFilters() {
     setFromDate("");
     setToDate("");
-    setSessionCodeFilter("");
-    setProgrammeFilter("");
+    setSearchText("");
     setModeFilter("all");
     setStatusFilter("all");
     setPaymentFilter("all");
@@ -463,8 +504,7 @@ export default function AdminAllSessionsTab({
   const filtersActive =
     !!fromDate ||
     !!toDate ||
-    !!sessionCodeFilter ||
-    !!programmeFilter ||
+    !!searchText ||
     modeFilter !== "all" ||
     statusFilter !== "all" ||
     paymentFilter !== "all" ||
@@ -610,21 +650,13 @@ export default function AdminAllSessionsTab({
       <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
         <div className="flex flex-wrap items-center gap-2">
           <input
-            aria-label="Filter by session ID"
-            type="text"
-            value={sessionCodeFilter}
-            onChange={(e) => setSessionCodeFilter(e.target.value)}
-            placeholder="Session ID"
-            className="p-2 rounded-lg border border-slate-300 text-xs font-mono w-32"
-          />
-          <input
-            aria-label="Filter by programme ID"
-            type="text"
-            value={programmeFilter}
-            onChange={(e) => setProgrammeFilter(e.target.value)}
-            placeholder="Programme ID"
-            title="A programme ID such as PED_PKG001 (an old SP or HS code works too). Type any to see every programme session."
-            className="p-2 rounded-lg border border-slate-300 text-xs font-mono w-36"
+            aria-label="Search sessions by patient, therapist, session ID or programme ID"
+            type="search"
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            placeholder="Search patient, therapist, session ID or programme ID"
+            title="A name, a session ID such as SS0004, or a programme ID such as PED_PKG001 (an old SP or HS code works too)."
+            className="p-2 rounded-lg border border-slate-300 text-xs w-full sm:w-80"
           />
           <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
             From
@@ -703,7 +735,7 @@ export default function AdminAllSessionsTab({
             className={selectCls()}
           >
             <option value="all">Any patient</option>
-            {people
+            {(patientOptions ?? people)
               .filter((p) => p.full_name)
               .map((p) => (
                 <option key={p.id} value={p.id}>
@@ -729,7 +761,78 @@ export default function AdminAllSessionsTab({
         </p>
       </div>
 
-      <div className="overflow-x-auto">
+      {/* Below sm the thirteen-column table is a sideways scroll in which
+          the patient and the status are never on screen together, so each
+          session is a card. Same rows, same drawer on tap. */}
+      <ul className="space-y-2 sm:hidden" data-testid="sessions-cards">
+        {visibleRows.length === 0 ? (
+          <li className="py-6 text-center text-xs text-slate-500">No sessions match these filters.</li>
+        ) : (
+          visibleRows.map(({ a, patientName, therapistName, price, isVisit, categoryTitle }) => (
+            <li key={a.id}>
+              <button
+                type="button"
+                onClick={() => setSelectedId(a.id)}
+                className="w-full rounded-xl border border-slate-200 bg-white p-3.5 text-left text-xs transition hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-teal-600"
+              >
+                <span className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-mono text-slate-500">{a.session_code ?? "-"}</span>
+                  <span
+                    className={`capitalize font-semibold px-2 py-1 rounded-full ${
+                      STATUS_STYLES[a.status] ?? "text-slate-600 bg-slate-100"
+                    }`}
+                  >
+                    {a.no_show ? "No-show" : a.status}
+                  </span>
+                </span>
+                <span className="mt-1.5 block font-bold text-slate-900">{patientName}</span>
+                <span className="block text-slate-600">
+                  {therapistName}
+                  {needsTherapist(a, homeVisitMap.has(a.id)) && (
+                    <span className="ml-1.5 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                      Tap to assign
+                    </span>
+                  )}
+                  {awaitsPatientPayment(a, homeVisitMap.has(a.id)) && (
+                    <span className="ml-1.5 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
+                      Awaiting payment
+                    </span>
+                  )}
+                </span>
+                <span className="mt-1 block text-slate-500">
+                  {a.slot_time
+                    ? `${new Date(a.slot_time).toLocaleDateString("en-IN", {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                        timeZone: "Asia/Kolkata",
+                      })}, ${formatSlotRange(a.slot_time, a.duration_minutes ?? BASE_DURATION_MINUTES)}`
+                    : "No time set"}
+                  {" · "}
+                  {isVisit ? "Home visit" : "Online"} · {categoryTitle}
+                </span>
+                <span className="mt-1 flex flex-wrap items-center gap-2">
+                  <span className="font-semibold tabular-nums text-slate-700">
+                    ₹{formatRupees(price)}
+                    {a.payment_status !== "paid" && <span className="font-normal text-slate-500"> (est.)</span>}
+                  </span>
+                  <span
+                    className={`capitalize font-semibold px-2 py-0.5 rounded-full ${
+                      a.payment_status === "paid" ? "text-green-700 bg-green-50" : "text-slate-600 bg-slate-100"
+                    }`}
+                  >
+                    {a.payment_status}
+                  </span>
+                  {canSeeMoney && <RefundChip row={a} className="flex w-fit text-[10px]" />}
+                  {programmeTags[a.id] && <ProgrammeIdChip tag={programmeTags[a.id]} size="xs" />}
+                </span>
+              </button>
+            </li>
+          ))
+        )}
+      </ul>
+
+      <div className="hidden overflow-x-auto sm:block">
         <table className="w-full text-xs border-collapse">
           <thead>
             <tr className="text-left text-slate-500 border-b border-slate-200">

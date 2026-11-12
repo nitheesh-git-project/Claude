@@ -13,7 +13,7 @@
 // the data are untouched, and every one of these assertions is about what a
 // person sees.
 import { test, expect, type Page } from "@playwright/test";
-import { BASE, browserCookiesFor, QA_EMAILS, adminClient, profileIdFor } from "./helpers";
+import { BASE, browserCookiesFor, QA_EMAILS, adminClient, profileIdFor, settleNetwork } from "./helpers";
 
 // A direct load now renders the dashboard as well as the detail, so these
 // walks pay a full ~49-query render plus the detail's own.
@@ -23,7 +23,9 @@ async function expectDashboardChrome(page: Page) {
   // The three things the reduced frame could not have: the header's own
   // Refresh control, the global search, and the section badges.
   await expect(page.getByRole("button", { name: /Refresh this screen/ })).toHaveCount(1);
-  await expect(page.getByPlaceholder(/Search name, phone, email/)).toHaveCount(1);
+  // By its name, not its placeholder: the placeholder now says what the
+  // search finds (people, payments, sessions, screens) and will change again.
+  await expect(page.getByLabel("Search the admin dashboard")).toHaveCount(1);
   // And the one thing it did have.
   await expect(page.getByText("Back to the dashboard")).toHaveCount(0);
 }
@@ -39,7 +41,7 @@ test.describe("admin person detail", () => {
 
     await context.addCookies(await browserCookiesFor(QA_EMAILS.admin));
     await page.goto(`${BASE}/admin/dashboard/therapists/${id}`);
-    await page.waitForLoadState("networkidle");
+    await settleNetwork(page);
 
     await expect(page.locator("[aria-label='Close']")).toHaveCount(1);
     await expectDashboardChrome(page);
@@ -56,7 +58,7 @@ test.describe("admin person detail", () => {
 
     await context.addCookies(await browserCookiesFor(QA_EMAILS.admin));
     await page.goto(`${BASE}/admin/dashboard/therapists/${id}`);
-    await page.waitForLoadState("networkidle");
+    await settleNetwork(page);
 
     // Nothing may be fetched from the app to close an overlay over a
     // dashboard that is already rendered: router.push would re-run its ~49
@@ -113,7 +115,7 @@ test.describe("admin person detail", () => {
     try {
       await context.addCookies(await browserCookiesFor(QA_EMAILS.admin));
       await page.goto(`${BASE}/admin/dashboard?section=people&tab=therapists`);
-      await page.waitForLoadState("networkidle");
+      await settleNetwork(page);
       await page.locator("p:visible").filter({ hasText: "QA Therapist A" }).first().click();
 
       const reassign = page
@@ -145,7 +147,7 @@ test.describe("admin person detail", () => {
 
     await context.addCookies(await browserCookiesFor(QA_EMAILS.admin));
     await page.goto(`${BASE}/admin/dashboard/patients/${id}`);
-    await page.waitForLoadState("networkidle");
+    await settleNetwork(page);
 
     await expect(page.locator("[aria-label='Close']")).toHaveCount(1);
     await expectDashboardChrome(page);

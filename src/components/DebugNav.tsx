@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation";
 import { useRouter } from "@/lib/useRouter";
 import { debugNow, getDebugNowOffsetMs, setDebugNowOffsetMs } from "@/lib/debugNow";
 import DebugResetButton from "@/components/DebugResetButton";
+import DebugTestAccountsButton from "@/components/debug/DebugTestAccountsPanel";
+import DebugTestCardOverlay from "@/components/debug/DebugTestCardOverlay";
 import { MARKETING_PAGES } from "@/lib/marketingNav";
 import { isDeveloperRoute } from "@/lib/dashboardShellRoutes";
 import { COUNTRIES, HOME_COUNTRY } from "@/lib/countryPricing";
@@ -105,8 +107,15 @@ export default function DebugNav() {
   if (isDeveloperRoute(pathname)) return null;
 
   return (
-    <div className="bg-slate-950 text-white border-b border-slate-800 sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 py-2 flex flex-wrap items-center gap-2">
+    // Exactly 41px tall at every width, on one row. Everything pinned under
+    // it -- the public nav, every dashboard's top bar, rail and sidebar --
+    // is offset by `top-[41px]`, so the bar must never grow. It used to wrap
+    // to two or three rows on a phone: the frosted nav then sat half under
+    // it and showed as a blurred "glass" strip while scrolling, and the
+    // dashboards' top bars hid behind it. On a narrow screen the row scrolls
+    // sideways instead of wrapping.
+    <div className="bg-slate-950 text-white border-b border-slate-800 sticky top-0 z-50 h-[41px]">
+      <div className="max-w-7xl mx-auto h-10 px-4 flex flex-nowrap items-center gap-2 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:shrink-0">
         <span className="bg-amber-500 text-slate-950 text-[10px] font-bold uppercase px-2 py-1 rounded">
           Debug
         </span>
@@ -121,7 +130,7 @@ export default function DebugNav() {
           aria-label="Jump to page"
           value={pathname}
           onChange={(e) => router.push(e.target.value)}
-          className="bg-slate-800 text-teal-300 text-xs font-mono py-1.5 px-2 rounded-lg border border-slate-700 focus:outline-none focus:border-teal-500"
+          className="h-7 bg-slate-800 text-teal-300 text-xs font-mono py-0 px-2 rounded-lg border border-slate-700 focus:outline-none focus:border-teal-500"
         >
           {routes.map((r) => (
             <option key={r.value} value={r.value}>
@@ -138,12 +147,12 @@ export default function DebugNav() {
           aria-label="Simulate the current date and time"
           value={simInput}
           onChange={(e) => setSimInput(e.target.value)}
-          className="bg-slate-800 text-teal-300 text-xs font-mono py-1.5 px-2 rounded-lg border border-slate-700 focus:outline-none focus:border-teal-500"
+          className="h-7 bg-slate-800 text-teal-300 text-xs font-mono py-0 px-2 rounded-lg border border-slate-700 focus:outline-none focus:border-teal-500"
         />
         <button
           type="button"
           onClick={applySimulatedTime}
-          className="bg-teal-700 hover:bg-teal-800 text-white text-[11px] font-semibold px-2.5 py-1.5 rounded-lg transition"
+          className="bg-teal-700 hover:bg-teal-800 text-white text-[11px] font-semibold h-7 px-2.5 py-0 rounded-lg transition"
         >
           Set
         </button>
@@ -151,7 +160,7 @@ export default function DebugNav() {
           <button
             type="button"
             onClick={resetSimulatedTime}
-            className="bg-slate-700 hover:bg-slate-600 text-white text-[11px] font-semibold px-2.5 py-1.5 rounded-lg transition"
+            className="bg-slate-700 hover:bg-slate-600 text-white text-[11px] font-semibold h-7 px-2.5 py-0 rounded-lg transition"
           >
             Reset to Real Time
           </button>
@@ -163,7 +172,7 @@ export default function DebugNav() {
           data-testid="debug-country"
           value={forcedCountry}
           onChange={(e) => applyCountry(e.target.value)}
-          className="bg-slate-800 text-teal-300 text-xs font-mono py-1.5 px-2 rounded-lg border border-slate-700 focus:outline-none focus:border-teal-500"
+          className="h-7 bg-slate-800 text-teal-300 text-xs font-mono py-0 px-2 rounded-lg border border-slate-700 focus:outline-none focus:border-teal-500"
         >
           <option value="">Real location ({country})</option>
           <option value={HOME_COUNTRY}>India (INR)</option>
@@ -177,6 +186,11 @@ export default function DebugNav() {
         {/* Pre-launch only, like the bar itself. The server decides whether
             it actually works -- see DebugResetButton. */}
         <DebugResetButton />
+
+        {/* Throwaway logins and the test card -- see DebugTestAccountsPanel.
+            The server decides whether it works. */}
+        <DebugTestAccountsButton />
+        <DebugTestCardOverlay />
 
         {/* slate-400 on this near-black bar, not slate-500: the contrast rule
             is by surface, and on the dark chrome -400 is the readable one --

@@ -50,3 +50,38 @@ export function overlapsSlot(
   const otherEndMs = otherStartMs + otherDurationMinutes * 60_000;
   return otherStartMs < endMs && startMs < otherEndMs;
 }
+
+/** What the patient is told when a new time overlaps one of their own real
+ *  bookings. One sentence, said on Step 1 (/api/appointments/check-slot) and
+ *  again by the route that binds (/api/appointments/create). */
+export const OWN_SLOT_CONFLICT_ERROR =
+  "You already have a session scheduled around this time. Please pick a different slot, or check your dashboard for existing bookings.";
+
+/**
+ * Whether a new booking at `slotMs` for `durationMinutes` overlaps one of the
+ * patient's own real bookings. The patient's unpaid online draft that this
+ * booking would replace does not count (isReplaceableDraft), nor does the
+ * one named in `replacesAppointmentId`. Pure, so Step 1's early check and
+ * the create route give the same answer.
+ */
+export function ownSlotConflict<
+  T extends DraftCandidate & { id: string; slot_time: string | null; duration_minutes: number | null }
+>(
+  existing: T[],
+  slotMs: number,
+  durationMinutes: number,
+  baseDurationMinutes: number,
+  replacesAppointmentId?: string | null
+): { overlapping: T[]; replaceable: T[]; conflict: boolean } {
+  const overlapping = existing.filter(
+    (a) =>
+      !!a.slot_time &&
+      overlapsSlot(slotMs, durationMinutes, new Date(a.slot_time).getTime(), a.duration_minutes ?? baseDurationMinutes)
+  );
+  const replaceable = existing.filter(
+    (a) =>
+      isReplaceableDraft(a) &&
+      (overlapping.includes(a) || (!!replacesAppointmentId && a.id === replacesAppointmentId))
+  );
+  return { overlapping, replaceable, conflict: overlapping.some((a) => !replaceable.includes(a)) };
+}

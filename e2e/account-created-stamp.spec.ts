@@ -13,7 +13,7 @@
 // of these values was already in the page's own data, and the whole of the
 // change is what a person can read.
 import { test, expect, type Page } from "@playwright/test";
-import { BASE, browserCookiesFor, QA_EMAILS, adminClient, profileIdFor } from "./helpers";
+import { BASE, browserCookiesFor, QA_EMAILS, adminClient, profileIdFor, settleNetwork } from "./helpers";
 
 // A direct load of a detail URL renders the dashboard as well as the detail.
 const SLOW = 240_000;
@@ -33,7 +33,7 @@ async function open(page: Page, url: string) {
       timeout: 30_000,
     })
     .catch(() => {});
-  await page.waitForLoadState("networkidle");
+  await settleNetwork(page);
 }
 
 test.describe("account creation stamp", () => {

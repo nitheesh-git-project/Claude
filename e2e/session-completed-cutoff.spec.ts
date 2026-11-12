@@ -232,7 +232,7 @@ test.describe("Session Completed cutoff", () => {
     // never rendered.
     // Exact: the dashboard renders every screen at once, so a substring
     // match also finds the global search and Payment History's own filter.
-    await page.getByPlaceholder("Session ID", { exact: true }).fill(seeded.session_code!);
+    await page.getByPlaceholder(/Search patient, therapist, session ID/).fill(seeded.session_code!);
     const row = page.getByRole("row").filter({ hasText: seeded.session_code! });
     await row.first().waitFor({ timeout: 60_000 });
     // alwaysActive exempts an admin from the join window, never from this.

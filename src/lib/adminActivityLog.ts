@@ -22,6 +22,12 @@ export type AdminActivityAction =
   // at all -- anything else is refused -- and recorded before the delete
   // runs, since afterwards there is no row left to name.
   | "account.delete"
+  // Deleting a person whose account has money behind it: the login goes, the
+  // profile and its records stay, marked deleted with the reason given.
+  | "account.delete_keep_records"
+  // Test accounts made and removed from the debug bar's panel.
+  | "debug.test_accounts.create"
+  | "debug.test_accounts.delete"
   // Signing in as somebody, and signing back out. The deepest capability in
   // the app: everything done during the window is written as that user, so
   // these two rows plus admin_impersonation_sessions are the only record
@@ -69,6 +75,9 @@ export type AdminActivityAction =
   | "payout_request.complete"
   | "refund.issue"
   | "refund.partial"
+  // A refund Razorpay reported that needed a person, marked dealt with.
+  // Moves no money (not counted by isMoneyAction).
+  | "refund.review"
   // The therapist's own route no longer accepts an amount, so this is the
   // only way a collected figure ever changes after the fact -- and it is a
   // money move in its own right, since what a therapist owes the clinic is
@@ -168,6 +177,14 @@ export type AdminActivityAction =
   | "condition_change.direct_edit"
   | "pain_assessment.create"
   | "neuro_assessment.create"
+  | "peds_assessment.create"
+  | "outcome_measurement.create"
+  | "care_milestone.reopen"
+  | "care_status.set"
+  // What a Health Profile shows: for a condition kind (Settings) and for one
+  // patient (People). Details carry the section, from and to.
+  | "profile_widgets.set_kind"
+  | "profile_widgets.set_patient"
   | "clinical_questions.update_intake"
   | "clinical_questions.update_pain_map"
   | "risk.review"
@@ -299,6 +316,9 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
   "account.create": "Created account",
   "account.set_active": "Changed account status",
   "account.delete": "Deleted an account",
+  "account.delete_keep_records": "Deleted an account (records kept)",
+  "debug.test_accounts.create": "Made test accounts",
+  "debug.test_accounts.delete": "Removed test accounts",
   "impersonation.start": "Signed in as a user",
   "impersonation.end": "Stopped signing in as a user",
   "impersonation.action": "Made a change while signed in as a user",
@@ -327,6 +347,7 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
   "payout_request.start_review": "Started payout review",
   "payout_request.complete": "Completed payout request",
   "refund.issue": "Issued refund",
+  "refund.review": "Reviewed a Razorpay refund",
   "refund.partial": "Issued partial refund",
   "cash.correct_amount": "Corrected cash collected",
   "cash.mark_remitted": "Marked cash remitted",
@@ -383,11 +404,17 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
   "dev_reachout.edit_note": "Edited a note on a developer reachout",
   "dev_reachout.delete_note": "Deleted a note on a developer reachout",
   "referral.set_capacity_note": "Edited the referral capacity note",
-  "condition_access.decide": "Decided a record-access request",
-  "condition_change.decide": "Decided a health-profile change",
-  "condition_change.direct_edit": "Edited a health profile directly",
+  "condition_access.decide": "Decided a therapist's access to a Health Profile",
+  "condition_change.decide": "Decided Health Profile answers",
+  "condition_change.direct_edit": "Edited Health Profile answers directly",
   "pain_assessment.create": "Recorded a Pain Map exam",
   "neuro_assessment.create": "Recorded a neurological exam",
+  "peds_assessment.create": "Recorded a paediatric exam",
+  "outcome_measurement.create": "Recorded a measurement",
+  "care_milestone.reopen": "Reopened a milestone marked reached by mistake",
+  "care_status.set": "Set a patient's phase, overruled their status or wrote where things stand",
+  "profile_widgets.set_kind": "Changed which Health Profile sections a condition type shows",
+  "profile_widgets.set_patient": "Changed which Health Profile sections one patient sees",
   "clinical_questions.update_intake": "Reworded an intake question",
   "clinical_questions.update_pain_map": "Reworded a Pain Map question",
   "risk.review": "Reviewed a risk signal",
@@ -404,7 +431,7 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
 export function isMoneyAction(action: string): boolean {
   return (
     action.startsWith("payout") ||
-    action.startsWith("refund") ||
+    (action.startsWith("refund") && action !== "refund.review") ||
     action.startsWith("cash.") ||
     action.startsWith("expense.") ||
     action.startsWith("finance.") ||

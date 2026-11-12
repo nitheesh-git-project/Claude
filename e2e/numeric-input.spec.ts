@@ -7,12 +7,12 @@
 // blank. The rule itself is unit-tested; this is the half that needs a real
 // browser, since it is the browser's own handling being overridden.
 import { test, expect } from "@playwright/test";
-import { BASE, browserCookiesFor, QA_EMAILS } from "./helpers";
+import { BASE, browserCookiesFor, QA_EMAILS, settleNetwork } from "./helpers";
 
 test("NUM-001: a whole-number box refuses everything but digits", async ({ page, context }) => {
   await context.addCookies(await browserCookiesFor(QA_EMAILS.admin));
   await page.goto(`${BASE}/admin/dashboard?section=catalog&tab=conditions`);
-  await page.waitForLoadState("networkidle");
+  await settleNetwork(page);
   await page.getByRole("button", { name: /Add (a )?(new )?(Category|Condition)/i }).first().click();
 
   const order = page.locator("form input[type=number][step='1'][min='0']").last();

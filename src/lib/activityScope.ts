@@ -89,6 +89,14 @@ export const ACTION_DOMAIN: Record<string, ActionDomain> = {
   "condition_change.direct_edit": "sessions",
   "pain_assessment.create": "sessions",
   "neuro_assessment.create": "sessions",
+  "peds_assessment.create": "sessions",
+  // Guarded with requireAdminScope("people"), like the two exams' routes;
+  // filed beside them for the same desk.
+  "outcome_measurement.create": "sessions",
+  "care_milestone.reopen": "sessions",
+  "care_status.set": "sessions",
+  // Guarded with requireAdminScope("people"), like care_status.set beside it.
+  "profile_widgets.set_patient": "sessions",
 
   // money
   // Extending credit is a money capability, whatever screen the control
@@ -105,6 +113,7 @@ export const ACTION_DOMAIN: Record<string, ActionDomain> = {
   "payout_request.start_review": "money",
   "payout_request.complete": "money",
   "refund.issue": "money",
+  "refund.review": "money",
   "refund.partial": "money",
   "cash.correct_amount": "money",
   "cash.mark_remitted": "money",
@@ -151,6 +160,7 @@ export const ACTION_DOMAIN: Record<string, ActionDomain> = {
 
   // settings
   "setting.update": "settings",
+  "profile_widgets.set_kind": "settings",
   "dev_reachout.update_status": "settings",
   "dev_reachout.update_note": "settings",
   "dev_reachout.add_note": "settings",
@@ -172,6 +182,9 @@ export const ACTION_DOMAIN: Record<string, ActionDomain> = {
   "account.create": "full_only",
   // Irreversible and Master-Admin-only, like minting one.
   "account.delete": "full_only",
+  "account.delete_keep_records": "full_only",
+  "debug.test_accounts.create": "full_only",
+  "debug.test_accounts.delete": "full_only",
   "admin.set_scope": "full_only",
   "data.reset": "full_only",
   // The Logs section is Master Admin's alone, so clearing it is too.

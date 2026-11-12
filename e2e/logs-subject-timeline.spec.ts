@@ -7,34 +7,44 @@
 // closing the record history and having to find their entry in the table
 // again. So it is driven as a screen, like the pay-later UI cases.
 import { test, expect } from "@playwright/test";
-import { BASE, browserCookiesFor, QA_EMAILS } from "./helpers";
+import { BASE, browserCookiesFor, QA_EMAILS, adminClient, profileIdFor, settleNetwork } from "./helpers";
 
 test("LOG-BACK: entry and record history each offer the way back", async ({ page, context }) => {
+  // The admin dashboard, then up to a dozen rows and the timeline's own
+  // reads: against a hosted project 30s is not enough (testing.md).
+  test.setTimeout(90_000);
+  // Its own entry naming a record, newest of all, so there is always one to
+  // trace: which entries the log holds otherwise depends on what ran before
+  // on the same database, and on a fresh one the newest dozen can all be
+  // record-less (test-account and settings entries name no record).
+  const db = adminClient();
+  const adminId = await profileIdFor(db, QA_EMAILS.admin);
+  const patientId = await profileIdFor(db, QA_EMAILS.patientA);
+  const { error: logError } = await db.from("admin_activity_log").insert({
+    actor_id: adminId,
+    action: "account.set_active",
+    target_id: patientId,
+    target_label: "QA Patient A (patient)",
+    details: { active: true, e2e: "LOG-BACK" },
+  });
+  expect(logError, logError?.message).toBeNull();
+
   await context.addCookies(await browserCookiesFor(QA_EMAILS.admin));
   await page.goto(`${BASE}/admin/dashboard?section=logs&tab=activity`);
-  await page.waitForLoadState("networkidle");
+  await settleNetwork(page);
 
   // Every admin screen stays mounted behind `hidden`, so the rows have to be
   // scoped to the visible one or this walks another screen's table.
   const rows = page.locator("tbody tr:visible");
   const traceLink = page.getByRole("button", { name: /See everything done to this record/ });
 
-  // An entry with no target_id is offered no history, so the first one that
-  // does is what this walks. A log with none at all (a freshly reset
-  // database) has nothing to test rather than a failure to report.
-  let opened = false;
-  const count = await rows.count();
-  for (let i = 0; i < Math.min(count, 12); i++) {
-    await rows.nth(i).click();
-    await page.waitForTimeout(300);
-    if (await traceLink.isVisible().catch(() => false)) {
-      opened = true;
-      break;
-    }
-    await page.keyboard.press("Escape");
-    await page.waitForTimeout(150);
-  }
-  test.skip(!opened, "no logged action names a record -- nothing to trace");
+  // The entry written above is the newest, so it is the first row; it names
+  // a record, so its dialog offers that record's history. Waited for rather
+  // than glanced at: the dialog renders after the click, not with it.
+  const ours = rows.filter({ hasText: "Changed account status" }).filter({ hasText: "QA Patient A" }).first();
+  await expect(ours).toBeVisible({ timeout: 30_000 });
+  await ours.click();
+  await expect(traceLink).toBeVisible({ timeout: 15_000 });
 
   const dialog = page.getByRole("dialog");
   const entryTitle = await dialog.locator("h3").first().innerText();

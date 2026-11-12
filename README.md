@@ -58,10 +58,11 @@ Recovery is won by turning up. MoveRestore keeps a patient with **the same physi
 | **Payments** | Razorpay orders, signature verification, webhook fulfilment, refunds with Razorpay's own reason quoted, pay later, a single capture funnel so a payment seen twice is recorded once |
 | **Recommended programmes** | Therapist recommends N sessions → admin approves → patient reviews & pays (with promo codes valid on programmes) → sessions booked and assigned through the admin → progress tracked as `SPI_PKG001-2/5` |
 | **Sessions** | Session IDs (`SS1040`), Google Meet links for video, calendar invites with the address for home visits, therapist suggestions, completion and no-show, session notes (clinician-only) and a short summary the patient reads, feedback both ways |
-| **Clinical record** | Health profile per specialty (ortho, neuro, paeds), therapist-led intake, interactive Pain Map (orthopaedic), neurological examination chart (tone, power, reflexes, sensation, coordination, Berg/Romberg balance, gait and timed tests, with change since the last exam), care plans, medical documents, pain-trend charts |
+| **Clinical record** | Health profile per specialty (ortho, neuro, paeds, geriatric "Strength and balance care", cardiopulmonary "Heart and lung rehabilitation" - the last two off until an admin enables them), therapist-led intake, interactive Pain Map (orthopaedic), neurological examination chart (tone, power, reflexes, sensation, coordination, Berg/Romberg balance, gait and timed tests, with change since the last exam), paediatric milestone examination (WHO windows, corrected age; server side, screens to follow), care plans, medical documents, pain-trend charts |
 | **Patient dashboard** | Home feed, suggested programmes, sessions (upcoming / past), programmes, payments, health profile, profile; animated first-visit tutorial with (i) help on every page |
 | **Therapist dashboard** | Today's sessions, weekly roster with exceptions and time off, patients' charts, onboarding guide, recommendations, earnings and payout requests |
 | **Hospital dashboard** | Refer patients, track referral status, earn a configured revenue share |
+| **On every dashboard** | Announcements from the clinic (a banner with a pop-up: pictures, formatted text with tables, a button, a time limit, per-role targeting) and a private notebook that opens like a diary |
 | **Admin back office** | Today (inbox + recommendation pulse), Sessions (schedule, all sessions, roster, delivery), Programmes (pipeline, list, timeline drawer), People, Money (summary, business health, transactions, payouts, owed, costs), Catalog (conditions, home-visit prices, service areas, countries), Logs (everyone's actions), Settings, System Health |
 | **Access control** | Scoped admin desks (Master, Operations, Clinical, Finance), impersonation with an exit banner, approval and decline (with reasons) for new accounts |
 | **Operations** | Scheduled maintenance sweep, rate limiting, risk signals, realtime dashboards, CSV/PDF exports, debug clock and data reset for pre-launch testing |
@@ -176,7 +177,7 @@ flowchart TB
     P[Public site] --- D[Patient · Therapist · Hospital · Admin dashboards]
   end
   Browser -->|HTTPS| PX[src/proxy.ts<br/>auth proxy + rate limits]
-  PX --> APP[Next.js 16 App Router<br/>Server Components + 193 route handlers]
+  PX --> APP[Next.js 16 App Router<br/>Server Components + 220 route handlers]
   APP -->|service role, after route checks| SB[(Supabase Postgres<br/>RLS · triggers · security-definer functions)]
   Browser -->|anon key, RLS| SB
   SB -->|Realtime| D
@@ -214,7 +215,7 @@ GitHub Actions (maintenance cron) ───────────────�
 | **Data & auth** | Supabase - Postgres, Auth, Storage, Realtime (`@supabase/ssr`, `@supabase/supabase-js`) |
 | **Payments** | Razorpay (orders, webhooks, refunds) |
 | **Video & calendar** | Google Calendar API + Google Meet (`googleapis`, `google-auth-library`) |
-| **Rich text** | Tiptap 3 (allow-listed JSON, rendered as React elements - no HTML) |
+| **Rich text** | Tiptap 3 (allow-listed JSON, rendered as React elements - no HTML); tables where a surface opts in (announcements, the notebook) |
 | **Documents** | `pdf-lib` for PDF exports and receipts |
 | **Phone numbers** | `libphonenumber-js` |
 | **Testing** | Vitest (unit), Playwright (end to end, desktop + mobile, layout audit at 17 viewports) |
@@ -233,7 +234,7 @@ One file, `supabase/schema.sql` (~17k lines, 74 tables), defines everything: tab
 | **Booking & sessions** | `appointments` (session codes), therapist availability templates & exceptions, session suggestions |
 | **Programmes** | `care_plans` + versions, `patient_package_purchases`, `home_visit_package_purchases`, programme code counters |
 | **Money** | `payments`, refund attempts, promo codes, payouts, costs |
-| **Clinical** | condition profiles, Pain Map assessments, neurological assessments, session notes, session summaries for the patient, medical documents |
+| **Clinical** | condition profiles, Pain Map assessments, neurological and paediatric assessments, session notes, session summaries for the patient, medical documents |
 | **Audit** | `admin_activity_log`, `user_activity_log` (append-only, guarded by triggers) |
 
 > [!NOTE]
@@ -244,7 +245,7 @@ One file, `supabase/schema.sql` (~17k lines, 74 tables), defines everything: tab
 ## Project layout
 
 ```
-src/app/            pages, layouts and 196 API route handlers (admin/, appointments/, patient/,
+src/app/            pages, layouts and 216 API route handlers (admin/, appointments/, patient/,
                     therapist/, hospital/, packages/, razorpay/, care-plan/, medical-documents/)
 src/components/     UI by area: admin, auth, booking, catalog, dashboard, home, hospital,
                     marketing, packages, profile, tutorial, motion, system, visuals

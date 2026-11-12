@@ -249,7 +249,7 @@ export default function PackageBulkScheduler({
                   // booked and paid for, and an admin confirms who takes it
                   // (docs/rules/programmes.md).
                   <p className="text-xs text-slate-600">
-                    {"The clinic confirms your therapist for each one - the joining details show on your Sessions once it's confirmed."}
+                    {"The clinic confirms your physiotherapist for each one - the joining details show on your Sessions once it's confirmed."}
                   </p>
                 )}
                 {failedCount > 0 && (
@@ -314,7 +314,7 @@ export default function PackageBulkScheduler({
                     </p>
                     <p className="mt-1 text-[11px] text-slate-600">
                       {frequencyPerWeek
-                        ? `Spaced ${frequencyPerWeek} a week, the way your therapist recommended.`
+                        ? `Spaced ${frequencyPerWeek} a week, the way your physiotherapist recommended.`
                         : "Spaced a week apart."}{" "}
                       Change any of them below - nothing is booked until you confirm.
                     </p>
