@@ -198,6 +198,20 @@ function privacy(ctx: LegalContext, f: LegalFacts): LegalDoc {
         ],
       },
       {
+        id: "outside-india",
+        heading: "If you are outside India",
+        blocks: [
+          "We offer video sessions to patients in other countries. If you are in the European Economic Area or the United Kingdom, the GDPR (and the UK GDPR) also apply to how we handle your data, and this section adds to the rest of this policy.",
+          { list: [
+            "Lawful basis: we rely on your explicit consent for health data, on the contract with you to provide sessions and take payment, on legal obligation for financial records, and on our legitimate interests for keeping the service secure.",
+            "Your extra rights: besides the rights above, you can ask for a copy of your data in a portable format, object to or restrict processing based on legitimate interests, and withdraw consent at any time.",
+            "Transfers: your data is processed in India and by the providers listed above, some outside the EEA and UK. Where the law requires it, we rely on Standard Contractual Clauses or equivalent safeguards.",
+            "Complaints: you can complain to the data protection authority where you live or work (in the UK, the Information Commissioner's Office).",
+          ] },
+          "Patients elsewhere have the rights their own law gives them; write to us and we will help.",
+        ],
+      },
+      {
         id: "children",
         heading: "Children",
         blocks: [
@@ -351,7 +365,7 @@ function refunds(ctx: LegalContext, f: LegalFacts): LegalDoc {
         id: "packages",
         heading: "Programmes and packages",
         blocks: [
-          "A request to refund the unused part of a programme or session package is reviewed by our team; sessions already used are not refundable. Write to us with the purchase concerned.",
+          "If you stop a programme or session package early, we refund the sessions not yet delivered, pro rata: the price you paid divided by the number of sessions, for each session not delivered. Sessions already delivered are not refundable. Write to us with the purchase concerned and we will process it.",
           "If we cannot provide a home visit you have paid for, we refund it in full.",
         ],
       },

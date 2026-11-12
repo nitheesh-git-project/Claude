@@ -32,9 +32,9 @@ export const LEGAL_FACTS: LegalFacts = {
   entityName: "",
   registeredAddress: "",
   registrationNumber: "",
-  grievanceOfficerName: "",
-  grievanceOfficerEmail: "",
-  grievanceOfficerPhone: "",
+  grievanceOfficerName: "Nitheesh M",
+  grievanceOfficerEmail: "grievance@moverestorephysio.com",
+  grievanceOfficerPhone: "+91 82772 04388",
   jurisdictionCity: "",
   effectiveDate: "2026-11-12",
 };
