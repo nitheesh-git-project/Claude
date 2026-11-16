@@ -36,7 +36,7 @@ describe("maskPhone", () => {
 
 describe("maskEmail", () => {
   it("keeps the first character and the domain", () => {
-    expect(maskEmail("pooja.sharma@gmail.com").masked).toBe("p•••••••••••@gmail.com");
+    expect(maskEmail("priya.sharma@gmail.com").masked).toBe("p•••••••••••@gmail.com");
   });
   it("handles a missing or malformed address", () => {
     expect(maskEmail(null).present).toBe(false);

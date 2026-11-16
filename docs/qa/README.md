@@ -5,8 +5,8 @@ Two generated documents live here. **Do not hand-edit either** - or their
 
 | Document | Sources | What it is |
 | --- | --- | --- |
-| `DrPoojaPhysio-E2E-Test-Plan.{pdf,docx}` | `src/*.md` | The plan a tester executes: feature guide plus click-by-click suite |
-| `DrPoojaPhysio-QA-Audit-Report.{pdf,docx}` | `audit-src/*.md` | A static audit of the product against that plan, plus a product review. It records what was **executed** here and what could only be **verified in source** - it is not a record of the plan having been run |
+| `MoveRestore-E2E-Test-Plan.{pdf,docx}` | `src/*.md` | The plan a tester executes: feature guide plus click-by-click suite |
+| `MoveRestore-QA-Audit-Report.{pdf,docx}` | `audit-src/*.md` | A static audit of the product against that plan, plus a product review. It records what was **executed** here and what could only be **verified in source** - it is not a record of the plan having been run |
 
 ## Rebuilding
 

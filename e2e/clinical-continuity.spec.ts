@@ -12,7 +12,7 @@ import {
   cookieHeaderFor,
   profileIdFor,
   waitForSplashToClear,
-  markDashboardTourSeen, openProfileBlocks, settleNetwork
+  markDashboardTourSeen, openProfileBlocks, settleNetwork, TERMS_METADATA
 } from "./helpers";
 
 /**
@@ -120,7 +120,7 @@ test.beforeAll(async () => {
       email: PATIENT_EMAIL,
       password: TEST_PASSWORD,
       email_confirm: true,
-      user_metadata: { role: "patient", full_name: "QA Continuity Patient" },
+      user_metadata: { ...TERMS_METADATA, role: "patient", full_name: "QA Continuity Patient" },
     });
     expect(error, "creating the continuity patient").toBeNull();
     user = data.user!;

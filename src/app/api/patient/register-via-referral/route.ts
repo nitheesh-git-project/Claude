@@ -5,6 +5,7 @@ import { lookupServiceArea } from "@/lib/serviceAreaServer";
 import { MIN_HOME_VISIT_ADDRESS_LENGTH } from "@/lib/referralLimits";
 import { enforceRateLimit } from "@/lib/rateLimitServer";
 import { parseJsonBody } from "@/lib/parseJsonBody";
+import { signupTermsMetadata } from "@/lib/policyAcceptance";
 
 export async function POST(request: NextRequest) {
   // Counted before the body is parsed, so a refused caller never gets
@@ -17,11 +18,20 @@ export async function POST(request: NextRequest) {
     fullName?: string;
     email?: string;
     password?: string;
+    acceptedTerms?: unknown;
   }>(request);
   if (parseError) return parseError;
   const { token, fullName, email, password } = body;
   if (!token || !fullName || !email || !password) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+  }
+  // The form's tick box. The version recorded is the one in force here, on
+  // the server, not one the browser names.
+  if (body.acceptedTerms !== true) {
+    return NextResponse.json(
+      { error: "Please agree to the Terms of use and Privacy policy to create your account." },
+      { status: 400 }
+    );
   }
 
   const admin = createAdminClient();
@@ -112,7 +122,7 @@ export async function POST(request: NextRequest) {
     email,
     password,
     email_confirm: true,
-    user_metadata: { role: "patient", full_name: fullName },
+    user_metadata: { role: "patient", full_name: fullName, ...signupTermsMetadata() },
   });
 
   if (createError || !created.user) {

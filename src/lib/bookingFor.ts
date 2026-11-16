@@ -41,7 +41,14 @@ export type BookingFor = {
   relationship: string;
   /** Will another adult be with them during the video call? */
   someoneWithThem: SomeoneWithThem;
+  /** For someone under 18: the booker confirmed they are the parent or legal
+   *  guardian. Always false for an adult. Recorded in policy_acceptances,
+   *  not in the notes line. */
+  guardianConfirmed: boolean;
 };
+
+/** The age below which a parent or guardian must confirm the booking. */
+export const GUARDIAN_AGE = 18;
 
 export type BookingForResult =
   | { ok: true; value: BookingFor | null }
@@ -109,6 +116,12 @@ export function validateBookingFor(raw: unknown): BookingForResult {
     return { ok: false, error: "Please say whether someone will be with them on the call." };
   }
 
+  // A child's data needs a parent's or guardian's consent (DPDP Act, s.9).
+  const minor = ageNumber < GUARDIAN_AGE;
+  if (minor && input.guardianConfirmed !== true) {
+    return { ok: false, error: "Please confirm you are their parent or legal guardian." };
+  }
+
   return {
     ok: true,
     value: {
@@ -116,6 +129,7 @@ export function validateBookingFor(raw: unknown): BookingForResult {
       age: ageNumber,
       relationship,
       someoneWithThem: input.someoneWithThem,
+      guardianConfirmed: minor,
     },
   };
 }
@@ -163,6 +177,8 @@ export function splitBookingNotes(stored: string | null | undefined): {
       age: Number(match[2]),
       relationship: match[3].trim(),
       someoneWithThem: match[4] as SomeoneWithThem,
+      // Not kept in the line: a resumed booking for a child asks again.
+      guardianConfirmed: false,
     },
     notes: text.slice(match[0].length).trim(),
   };
