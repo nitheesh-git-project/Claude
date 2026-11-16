@@ -21,7 +21,7 @@ export type PublicProgram = {
   id: string;
   title: string;
   description: string | null;
-  points: unknown;
+  points?: unknown;
   price_paise: number;
   // Both present on the base treatment_categories table, so unlike the
   // package detail columns these need no isolated query -- optional only
