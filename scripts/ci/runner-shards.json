@@ -23,6 +23,7 @@
     "defaultSeconds": 30,
     "bySpec": {
       "account-created-stamp.spec.ts": 61,
+      "account-rules.spec.ts": 30,
       "acquisition-codes.spec.ts": 8,
       "activity-timeline.spec.ts": 19,
       "admin-account-delete.spec.ts": 38,

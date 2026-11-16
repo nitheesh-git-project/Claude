@@ -1867,6 +1867,18 @@
       ],
       "integration": "local",
       "destructive": false
+    },
+    "account-rules.spec.ts": {
+      "runner": "integrity",
+      "levels": [
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
     }
   },
   "flows": [
@@ -4898,6 +4910,27 @@
       ],
       "rules": [
         "docs/rules/pay-later.md"
+      ]
+    },
+    {
+      "id": "integrity.account-rules",
+      "runner": "integrity",
+      "title": "A locked booking account opens after the configured payment tries; only a Master Admin changes access or creates accounts, never their own",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "account-rules.spec.ts",
+          "tests": [
+            "AR-001",
+            "AR-002"
+          ],
+          "level": "api"
+        }
+      ],
+      "rules": [
+        "docs/rules/payments.md",
+        "docs/rules/admin.md"
       ]
     }
   ],

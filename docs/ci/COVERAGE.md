@@ -206,6 +206,7 @@ Storage-layer and destructive checks: SQL check files, authorization and concurr
 | `integrity.concurrency-rpc` Parallel RPCs at claim_therapist_slot, the rate limiter and the invite cap return exactly one winner | covered | yes | db | `concurrency-checks.mjs` | Guards the verdicts, not serialisation (see the caveat at the top of the script). |
 | `integrity.live-grants` The live database's function grants and RLS agree with schema.sql (three outcomes: pass, fail, not proven) | covered | yes | db | `check-live-grants.mjs` | - |
 | `integrity.debug-reset-armed` The armed reset truncates only what it should and keeps the admin | gap | no | - | - | ALLOW_DEBUG_DATA_RESET must stay unset everywhere, including CI, and debug-reset-sql-checks.sql takes AccessExclusiveLock on every table. It is deliberately not run by the gate. |
+| `integrity.account-rules` A locked booking account opens after the configured payment tries; only a Master Admin changes access or creates accounts, never their own | covered | yes | api | `account-rules.spec.ts` | - |
 
-Specs owned (3): `admin-debug-reset.spec.ts` (api/db, desktop, local), `admin-degraded-schema.spec.ts` (browser/api/db, desktop, local, destructive), `concurrency.spec.ts` (api/db, desktop, mocked)
+Specs owned (4): `account-rules.spec.ts` (api/db, desktop, local), `admin-debug-reset.spec.ts` (api/db, desktop, local), `admin-degraded-schema.spec.ts` (browser/api/db, desktop, local, destructive), `concurrency.spec.ts` (api/db, desktop, mocked)
 
