@@ -386,6 +386,18 @@ Dates in the clinic's zone, voice, no browser default ever speaking to a person,
   simulate-time box carry `aria-label`s of their own -- the visible words
   beside them are spans that vanish below `sm`, so on a phone both controls
   were announced as nothing.
+- **Accessibility is checked by a machine before every merge to staging.**
+  `npm run test:a11y` (`e2e/accessibility.spec.ts`) runs axe-core against
+  WCAG 2.2 A/AA on every public page and sign-in door, and walks each of
+  `/`, `/book` and `/privacy` by keyboard: every Tab stop must be visible,
+  carry a focus ring (outline or box-shadow), and focus must never stick.
+  The first run (2026-11-12) found one failure, the "from …" figure in the
+  home page's recovery story at `text-slate-400` (2.6:1); it is
+  `text-slate-500` now. Light grey on white is the usual way this fails, so
+  reach for slate-500 or darker for any text a patient has to read. The
+  debug bar (`data-debug-bar`) is skipped by the keyboard walk only: it is a
+  developer tool, off in production. Signed-in dashboards are not scanned
+  yet.
 - **Every control carries an accessible name, and an icon-only one carries it
   explicitly.** A visible label is associated with `htmlFor` + `useId` (not
   by sitting next to the input), a control with no visible label at all --

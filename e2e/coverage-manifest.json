@@ -985,6 +985,55 @@
       "integration": "local",
       "destructive": false
     },
+    "data-requests.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "terms-acceptance.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "accessibility.spec.ts": {
+      "runner": "platform",
+      "levels": [
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "legal-pages.spec.ts": {
+      "runner": "platform",
+      "levels": [
+        "browser",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "invite-promise.spec.ts": {
       "runner": "platform",
       "levels": [
@@ -1759,13 +1808,15 @@
     "analytics-consent.spec.ts": {
       "runner": "platform",
       "levels": [
-        "browser"
+        "browser",
+        "api",
+        "db"
       ],
       "projects": [
         "desktop"
       ],
       "integration": "local",
-      "destructive": false
+      "destructive": true
     },
     "announcements-notebook.spec.ts": {
       "runner": "platform",
@@ -3680,6 +3731,91 @@
       ]
     },
     {
+      "id": "patient.data-requests",
+      "runner": "patient",
+      "title": "A person's own data: Download my data returns a PDF and records it; Delete my account opens one request that can be taken back and is worked by the People desk; a grievance gets a reference and is acknowledged then resolved with a note",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "data-requests.spec.ts",
+          "tests": [
+            "DR-001",
+            "DR-002",
+            "DR-003",
+            "DR-004"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/admin.md"
+      ]
+    },
+    {
+      "id": "patient.terms-acceptance",
+      "runner": "patient",
+      "title": "Agreeing to the Terms: a signup that ticked the box is recorded, an account that never agreed is stopped at the dashboards until it does, the signup form refuses without the box, and a booking for a child needs the guardian box and records the guardian and telehealth consents",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "terms-acceptance.spec.ts",
+          "tests": [
+            "TA-001",
+            "TA-002",
+            "TA-003",
+            "TA-004"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/clinical.md"
+      ]
+    },
+    {
+      "id": "platform.accessibility",
+      "runner": "platform",
+      "title": "The public pages and sign-in doors pass an axe WCAG 2.2 AA scan, and the keyboard moves through them with visible focus",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "accessibility.spec.ts",
+          "tests": [
+            "A11Y-001",
+            "A11Y-002"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/frontend.md"
+      ]
+    },
+    {
+      "id": "platform.legal-pages",
+      "runner": "platform",
+      "title": "The public legal pages render, the footer reaches each one, and the refund page quotes the live refund window",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "legal-pages.spec.ts",
+          "tests": [
+            "LEG-001",
+            "LEG-002",
+            "LEG-003"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/public-site.md"
+      ]
+    },
+    {
       "id": "platform.invite-promise",
       "runner": "platform",
       "title": "A patient is promised a calendar invite only where this deployment sends one",
@@ -4693,7 +4829,7 @@
     {
       "id": "platform.analytics-consent",
       "runner": "platform",
-      "title": "Google Analytics loads only after consent, a refusal sticks, the footer link withdraws it, and the signed-in route trees never show the card",
+      "title": "The cookie card: nothing optional loads before a yes, Accept and Reject are the same size, a refusal sticks, it opens as the splash lifts but never inside a booking, Cookie settings withdraws it, and each choice is recorded append-only",
       "required": true,
       "status": "covered",
       "coverage": [
@@ -4706,9 +4842,19 @@
             "AC-004",
             "AC-005",
             "AC-006",
-            "AC-007"
+            "AC-007",
+            "AC-008",
+            "AC-009"
           ],
           "level": "browser"
+        },
+        {
+          "spec": "analytics-consent.spec.ts",
+          "tests": [
+            "CC-001",
+            "CC-002"
+          ],
+          "level": "db"
         }
       ],
       "rules": [

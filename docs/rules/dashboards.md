@@ -870,3 +870,18 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   them. The admin page is still the slowest because it builds every screen
   of the back office on each load, so tab switches need no request.
 
+- **Every profile page ends with "Your data", for all three roles.**
+  `YourDataSection` (reads the person's open deletion request under RLS) draws
+  `YourDataCard` on the patient, therapist and hospital profile pages:
+  **Download PDF** (`GET /api/account/my-data`, a designed "Your data" PDF from
+  `src/lib/personalDataPdf.ts`, filled per role by
+  `personalDataExportServer.ts` -- a therapist's sessions and a hospital's
+  referrals leave out other people's names) and **Ask to delete my account**
+  (a dialog saying what is removed and what the law keeps, then
+  `POST /api/account/deletion-request`). An open request shows its reference
+  and status and, while still `open`, a "Take back my request" link. Staff
+  viewing as the person are refused by both routes (403); a failed read of
+  the request says "couldn't check" rather than offering a second request.
+  Each section of the PDF that could not be read says so in the PDF, never as
+  an empty table.
+

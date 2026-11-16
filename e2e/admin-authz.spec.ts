@@ -35,6 +35,8 @@ function adminRoutePaths(): string[] {
 const GET_ONLY = new Set([
   "/api/admin/package-purchase-detail",
   "/api/admin/home-visit-purchase-detail",
+  "/api/admin/cookie-consents",
+  "/api/admin/data-requests",
 ]);
 
 // Routes that answer 404 rather than 401/403 to an unauthorised caller, on
@@ -87,7 +89,9 @@ test.describe("Suite F: admin route authorization", () => {
     // Three roles x ~80 routes against a dev server. Generous, because the
     // point of this test is coverage, not speed.
     test.setTimeout(10 * 60_000);
-    const routes = adminRoutePaths().filter((r) => !GET_ONLY.has(r));
+    // GET-only routes are probed with a GET (a POST would only meet Next's
+    // 405), so they are checked for every role rather than skipped.
+    const routes = adminRoutePaths();
     // One representative session per non-admin role. Every role is checked
     // against every route -- a route that only remembered to exclude
     // patients is exactly the bug this catches.
@@ -101,10 +105,9 @@ test.describe("Suite F: admin route authorization", () => {
         const batch = routes.slice(i, i + BATCH);
         const results = await Promise.all(
           batch.map(async (route) => {
-            const res = await request.post(`${BASE}${route}`, {
-              data: {},
-              headers: { Cookie: cookie },
-            });
+            const res = GET_ONLY.has(route)
+              ? await request.get(`${BASE}${route}`, { headers: { Cookie: cookie } })
+              : await request.post(`${BASE}${route}`, { data: {}, headers: { Cookie: cookie } });
             return { route, status: res.status() };
           })
         );

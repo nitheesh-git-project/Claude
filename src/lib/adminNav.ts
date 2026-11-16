@@ -200,6 +200,9 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
       // is locked, and is deleted after a few days if it stays that way.
       // Leads worth a call, never an approval decision.
       { key: "abandoned", label: "Abandoned checkouts" },
+      // "Delete my account" requests and grievances from the /grievances
+      // form, each with its legal deadline (src/lib/dataRequests.ts).
+      { key: "data-requests", label: "Data requests" },
     ],
   },
   {
@@ -410,6 +413,16 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
         group: "Your website",
         blurb: "What visitors read on your website.",
         example: "Add a patient's story to the home page, or answer a new question on the FAQ page.",
+      },
+      // What visitors chose in the cookie pop-up. Under "Your website"
+      // because it is about the public site's visitors; read-only, so it
+      // carries no switch of its own.
+      {
+        key: "cookies",
+        label: "Cookie consent",
+        group: "Your website",
+        blurb: "What visitors chose when the website asked about cookies.",
+        example: "See how many visitors accepted analytics in the last 30 days.",
       },
       {
         key: "booking",

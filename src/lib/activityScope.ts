@@ -164,6 +164,8 @@ export const ACTION_DOMAIN: Record<string, ActionDomain> = {
   "dev_reachout.update_status": "settings",
   "dev_reachout.update_note": "settings",
   "dev_reachout.add_note": "settings",
+  "data_request.update": "people",
+  "grievance.update": "people",
   "dev_reachout.edit_note": "settings",
   "dev_reachout.delete_note": "settings",
   "dev_reachout.delete": "settings",

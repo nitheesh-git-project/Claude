@@ -12,6 +12,7 @@ import { computeFieldStatus } from "@/lib/computeFieldStatus";
 import { buildTherapistNavItems } from "@/lib/dashboardNavItems";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { isDebugNavVisible } from "@/lib/debugNavVisible";
+import YourDataSection from "@/components/profile/YourDataSection";
 import { THERAPIST_SPECIALTY_LABELS } from "@/lib/therapistSpecialties";
 
 export const metadata: Metadata = {
@@ -227,7 +228,11 @@ export default async function TherapistProfilePage() {
       </>
       )}
 
-      <div id="account-security" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mt-6">
+      <div className="mt-6">
+        <YourDataSection userId={user.id} role="therapist" />
+      </div>
+
+      <div id="account-security" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Account Security</h2>
         <p className="text-xs text-slate-500 mb-4">
           Change your password by email - this keeps your account secure.

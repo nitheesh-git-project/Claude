@@ -1,9 +1,9 @@
-# QA Audit Report - Dr. Pooja's Physio
+# QA Audit Report - MoveRestore Physiotherapy
 
 | | |
 | --- | --- |
 | **Report type** | Senior QA audit against the manual E2E test plan - **second pass** |
-| **Subject** | Dr. Pooja's Physio - branch `claude/complete-e2e-testing-plan-ll8qet` |
+| **Subject** | MoveRestore Physiotherapy - branch `claude/complete-e2e-testing-plan-ll8qet` |
 | **Method** | Pass 1 (2 Sep 2026): static verification plus a live run against a disposable Supabase project. Pass 2 (4 Sep 2026): re-verification against the current branch head, **static and executed only - no live environment was available**, and §2A is retained as the record of the earlier run |
 | **Date** | 4 September 2026 (first issued 2 September 2026) |
 | **Verdict** | **Pass, after remediation.** The eight findings of pass 1 were re-checked and all eight hold. Pass 2 raised **five** more - one of them the first pass's own fix applied too narrowly - and all five are fixed. `npm run verify` green: **384 unit tests in 23 files**, lint (including the realtime check) and a full production build. |

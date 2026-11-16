@@ -121,7 +121,7 @@ export default function PatientBookingHub({
           {/* The public cards themselves (/conditions), so a tap on one opens
               the same detail pop-up a visitor gets, with booking one button
               away; the patient's dashboard had the cards without it. */}
-          <ProgramCards programs={categories} columns="three" />
+          <ProgramCards programs={categories.map((c) => ({ ...c, points: c.points ?? null }))} columns="three" />
         </Group>
       )}
 

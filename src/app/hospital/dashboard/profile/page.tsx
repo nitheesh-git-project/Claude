@@ -10,6 +10,7 @@ import DashboardShell from "@/components/dashboard/DashboardShell";
 import { HOSPITAL_NAV_ITEMS } from "@/lib/dashboardNavItems";
 import { computeFieldStatus } from "@/lib/computeFieldStatus";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
+import YourDataSection from "@/components/profile/YourDataSection";
 import { isDebugNavVisible } from "@/lib/debugNavVisible";
 
 export const metadata: Metadata = {
@@ -160,6 +161,8 @@ export default async function HospitalProfilePage() {
 
         </>
         )}
+
+        <YourDataSection userId={user.id} role="hospital" />
 
         <div id="account-security" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
           <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Account Security</h2>

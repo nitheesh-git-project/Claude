@@ -48,6 +48,8 @@ import AdminSystemHealthTab from "@/components/admin/AdminSystemHealthTab";
 import { readCheckoutSpeed } from "@/lib/checkoutSpeedServer";
 import AdminAdvancedTab from "@/components/admin/AdminAdvancedTab";
 import DevReachoutsTab, { type DevReachoutRow } from "@/components/admin/DevReachoutsTab";
+import CookieConsentStats from "@/components/admin/CookieConsentStats";
+import DataRequestsTab from "@/components/admin/DataRequestsTab";
 import AbandonedCheckoutsTab, { type AbandonedCheckoutRow } from "@/components/admin/AbandonedCheckoutsTab";
 import DeclinedApplicationsTab from "@/components/admin/DeclinedApplicationsTab";
 import PriorDeclineChip from "@/components/admin/PriorDeclineChip";
@@ -5872,6 +5874,9 @@ export default async function AdminDashboardPage({
         )}
       />
     ),
+    // Self-fetching; its routes are requireAdminScope("people"), and a desk
+    // that can only read People sees the cases without the buttons.
+    "people:data-requests": <DataRequestsTab canManage={scopeCanManage(viewerScope, "people")} />,
     "people:abandoned": (
       <AbandonedCheckoutsTab
         rows={scopeCanOpen(viewerScope, "people") ? abandonedCheckouts : []}
@@ -6023,6 +6028,8 @@ export default async function AdminDashboardPage({
     ),
     "settings:brand": settingsBrandTab,
     "settings:public": settingsPublicSiteTab,
+    // Self-fetching; its route is requireAdminScope("settings").
+    "settings:cookies": <CookieConsentStats />,
     "settings:booking": settingsBookingTab,
     "settings:offers": settingsOffersTab,
     "settings:programmes": settingsProgrammesTab,

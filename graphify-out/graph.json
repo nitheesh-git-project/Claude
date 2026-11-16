@@ -7,14 +7,14 @@
         "id": "admin_oversight_queues",
         "label": "Admin Oversight and Risk Management",
         "nodes": [
-          "docs_qa_drpoojaphysio_e2e_test_plan_adm_today_001",
-          "docs_qa_drpoojaphysio_e2e_test_plan_adm_risk_001",
-          "docs_qa_drpoojaphysio_e2e_test_plan_adm_care_004"
+          "docs_qa_moverestore_e2e_test_plan_adm_today_001",
+          "docs_qa_moverestore_e2e_test_plan_adm_risk_001",
+          "docs_qa_moverestore_e2e_test_plan_adm_care_004"
         ],
         "relation": "form",
         "confidence": "EXTRACTED",
         "confidence_score": 0.9,
-        "source_file": "docs/qa/DrPoojaPhysio-E2E-Test-Plan.md"
+        "source_file": "docs/qa/MoveRestore-E2E-Test-Plan.md"
       },
       {
         "id": "clinical_data_layers",
@@ -33,14 +33,14 @@
         "id": "clinical_workflow",
         "label": "Clinical Recommendation & Purchase Flow",
         "nodes": [
-          "docs_qa_drpoojaphysio_e2e_test_plan_care_plan",
-          "docs_qa_drpoojaphysio_e2e_test_plan_booking_wizard",
-          "docs_qa_drpoojaphysio_e2e_test_plan_health_profile"
+          "docs_qa_moverestore_e2e_test_plan_care_plan",
+          "docs_qa_moverestore_e2e_test_plan_booking_wizard",
+          "docs_qa_moverestore_e2e_test_plan_health_profile"
         ],
         "relation": "participate_in",
         "confidence": "EXTRACTED",
         "confidence_score": 0.95,
-        "source_file": "docs/qa/DrPoojaPhysio-E2E-Test-Plan.md"
+        "source_file": "docs/qa/MoveRestore-E2E-Test-Plan.md"
       },
       {
         "id": "graphify_operations",
@@ -86,15 +86,15 @@
         "id": "financial_integrity_flow",
         "label": "Financial Integrity and Split Logic",
         "nodes": [
-          "docs_qa_drpoojaphysio_e2e_test_plan_thr_earn_001",
-          "docs_qa_drpoojaphysio_e2e_test_plan_hos_money_001",
-          "docs_qa_drpoojaphysio_e2e_test_plan_fin_sum_001",
-          "docs_qa_drpoojaphysio_qa_audit_report_f06"
+          "docs_qa_moverestore_e2e_test_plan_thr_earn_001",
+          "docs_qa_moverestore_e2e_test_plan_hos_money_001",
+          "docs_qa_moverestore_e2e_test_plan_fin_sum_001",
+          "docs_qa_moverestore_qa_audit_report_f06"
         ],
         "relation": "participate_in",
         "confidence": "EXTRACTED",
         "confidence_score": 1.0,
-        "source_file": "docs/qa/DrPoojaPhysio-E2E-Test-Plan.md"
+        "source_file": "docs/qa/MoveRestore-E2E-Test-Plan.md"
       },
       {
         "id": "font_assets_collection",
@@ -214,14 +214,14 @@
         "id": "security_and_privacy",
         "label": "Data Privacy & Access Control",
         "nodes": [
-          "docs_qa_drpoojaphysio_e2e_test_plan_contact_masking",
-          "docs_qa_drpoojaphysio_e2e_test_plan_health_profile",
-          "docs_qa_drpoojaphysio_e2e_test_plan_data_reset"
+          "docs_qa_moverestore_e2e_test_plan_contact_masking",
+          "docs_qa_moverestore_e2e_test_plan_health_profile",
+          "docs_qa_moverestore_e2e_test_plan_data_reset"
         ],
         "relation": "form",
         "confidence": "INFERRED",
         "confidence_score": 0.85,
-        "source_file": "docs/qa/DrPoojaPhysio-E2E-Test-Plan.md"
+        "source_file": "docs/qa/MoveRestore-E2E-Test-Plan.md"
       },
       {
         "id": "shadcn_accessibility_foundation",
@@ -49979,7 +49979,7 @@
       "file_type": "concept",
       "norm_label": "debug bar",
       "rationale": "Pre-launch tool for time simulation, route jumping, and data resetting.",
-      "source_file": "docs/qa/DrPoojaPhysio-E2E-Test-Plan.html"
+      "source_file": "docs/qa/MoveRestore-E2E-Test-Plan.html"
     },
     {
       "id": "readme_home_visit_mode",
@@ -50001,7 +50001,7 @@
       "file_type": "document",
       "norm_label": "complete manual e2e test plan & feature guide",
       "rationale": "Comprehensive guide for manual testing, feature explanations, and regression suite.",
-      "source_file": "docs/qa/DrPoojaPhysio-E2E-Test-Plan.html"
+      "source_file": "docs/qa/MoveRestore-E2E-Test-Plan.html"
     },
     {
       "id": "github_workflows_docs_freshness",
@@ -50168,37 +50168,37 @@
       "community_name": "Debug Bar",
       "file_type": "code",
       "norm_label": "post /api/admin/debug-reset",
-      "source_file": "docs/qa/DrPoojaPhysio-E2E-Test-Plan.md"
+      "source_file": "docs/qa/MoveRestore-E2E-Test-Plan.md"
     },
     {
-      "id": "docs_qa_drpoojaphysio_e2e_test_plan_data_reset",
+      "id": "docs_qa_moverestore_e2e_test_plan_data_reset",
       "label": "Data Reset (debug_reset_all_data)",
       "community": 164,
       "community_name": "Debug Bar",
       "file_type": "code",
       "norm_label": "data reset (debug_reset_all_data)",
       "rationale": "Atomic TRUNCATE operation to clear test data, gated by ALLOW_DEBUG_DATA_RESET environment variable and full admin scope.",
-      "source_file": "docs/qa/DrPoojaPhysio-E2E-Test-Plan.md"
+      "source_file": "docs/qa/MoveRestore-E2E-Test-Plan.md"
     },
     {
-      "id": "docs_qa_drpoojaphysio_e2e_test_plan_debug_bar",
+      "id": "docs_qa_moverestore_e2e_test_plan_debug_bar",
       "label": "Debug Bar",
       "community": 164,
       "community_name": "Debug Bar",
       "file_type": "code",
       "norm_label": "debug bar",
       "rationale": "A development/pre-launch tool for navigating routes, simulating time, and resetting data.",
-      "source_file": "docs/qa/DrPoojaPhysio-E2E-Test-Plan.md"
+      "source_file": "docs/qa/MoveRestore-E2E-Test-Plan.md"
     },
     {
-      "id": "docs_qa_drpoojaphysio_e2e_test_plan_simulated_clock",
+      "id": "docs_qa_moverestore_e2e_test_plan_simulated_clock",
       "label": "Simulated Clock",
       "community": 164,
       "community_name": "Debug Bar",
       "file_type": "code",
       "norm_label": "simulated clock",
       "rationale": "Client-side time offset stored in localStorage (debugNowOffsetMs) to test time-gated UI states without affecting server-side validation.",
-      "source_file": "docs/qa/DrPoojaPhysio-E2E-Test-Plan.md"
+      "source_file": "docs/qa/MoveRestore-E2E-Test-Plan.md"
     },
     {
       "id": "github_workflows_schema_apply",
@@ -50210,14 +50210,14 @@
       "source_file": ".github/workflows/schema-apply.yml"
     },
     {
-      "id": "docs_qa_drpoojaphysio_e2e_test_plan_app",
-      "label": "Dr. Pooja's Physio Application",
+      "id": "docs_qa_moverestore_e2e_test_plan_app",
+      "label": "MoveRestore Physiotherapy Application",
       "community": 164,
       "community_name": "Debug Bar",
       "file_type": "concept",
-      "norm_label": "dr. pooja's physio application",
+      "norm_label": "moverestore physiotherapy application",
       "rationale": "Core application described in the E2E test plan, utilizing Next.js 16, React 19, Supabase, Razorpay, and Google Calendar/Meet.",
-      "source_file": "docs/qa/DrPoojaPhysio-E2E-Test-Plan.md"
+      "source_file": "docs/qa/MoveRestore-E2E-Test-Plan.md"
     },
     {
       "id": "api_appointments_create",
@@ -50226,17 +50226,17 @@
       "community_name": "POST /api/appointments/create",
       "file_type": "code",
       "norm_label": "post /api/appointments/create",
-      "source_file": "docs/qa/DrPoojaPhysio-E2E-Test-Plan.md"
+      "source_file": "docs/qa/MoveRestore-E2E-Test-Plan.md"
     },
     {
-      "id": "docs_qa_drpoojaphysio_e2e_test_plan_booking_wizard",
+      "id": "docs_qa_moverestore_e2e_test_plan_booking_wizard",
       "label": "Patient Booking Wizard (/book)",
       "community": 214,
       "community_name": "POST /api/appointments/create",
       "file_type": "code",
       "norm_label": "patient booking wizard (/book)",
       "rationale": "3-step wizard for first-time video consultation booking, account creation, and payment.",
-      "source_file": "docs/qa/DrPoojaPhysio-E2E-Test-Plan.md"
+      "source_file": "docs/qa/MoveRestore-E2E-Test-Plan.md"
     },
     {
       "id": "api_razorpay_webhook",
@@ -50245,197 +50245,197 @@
       "community_name": "POST /api/razorpay/webhook",
       "file_type": "code",
       "norm_label": "post /api/razorpay/webhook",
-      "source_file": "docs/qa/DrPoojaPhysio-E2E-Test-Plan.md"
+      "source_file": "docs/qa/MoveRestore-E2E-Test-Plan.md"
     },
     {
-      "id": "docs_qa_drpoojaphysio_e2e_test_plan_payment_model",
+      "id": "docs_qa_moverestore_e2e_test_plan_payment_model",
       "label": "Razorpay Payment Model",
       "community": 215,
       "community_name": "POST /api/razorpay/webhook",
       "file_type": "code",
       "norm_label": "razorpay payment model",
       "rationale": "Idempotent payment capture system using browser callbacks and webhooks to prevent duplicate entitlements.",
-      "source_file": "docs/qa/DrPoojaPhysio-E2E-Test-Plan.md"
+      "source_file": "docs/qa/MoveRestore-E2E-Test-Plan.md"
     },
     {
-      "id": "docs_qa_drpoojaphysio_e2e_test_plan_thr_leak_scanner",
+      "id": "docs_qa_moverestore_e2e_test_plan_thr_leak_scanner",
       "label": "Contact-leak scanner (therapist side)",
       "community": 241,
       "community_name": "ADM-RISK-001 \u2014 The Risk queue",
       "file_type": "concept",
       "norm_label": "contact-leak scanner (therapist side)",
       "rationale": "Two-tier scanning (block vs flag) for clinical text to prevent contact leaks while allowing clinical digits.",
-      "source_file": "docs/qa/DrPoojaPhysio-E2E-Test-Plan.md"
+      "source_file": "docs/qa/MoveRestore-E2E-Test-Plan.md"
     },
     {
-      "id": "docs_qa_drpoojaphysio_e2e_test_plan_adm_risk_001",
+      "id": "docs_qa_moverestore_e2e_test_plan_adm_risk_001",
       "label": "ADM-RISK-001 \u2014 The Risk queue",
       "community": 241,
       "community_name": "ADM-RISK-001 \u2014 The Risk queue",
       "file_type": "document",
       "norm_label": "adm-risk-001 \u2014 the risk queue",
       "rationale": "Surfaces suspicious patterns via lazy sweep; actionless tab to ensure deliberate admin intervention.",
-      "source_file": "docs/qa/DrPoojaPhysio-E2E-Test-Plan.md"
+      "source_file": "docs/qa/MoveRestore-E2E-Test-Plan.md"
     },
     {
-      "id": "docs_qa_drpoojaphysio_e2e_test_plan_adm_sess_003",
+      "id": "docs_qa_moverestore_e2e_test_plan_adm_sess_003",
       "label": "ADM-SESS-003 \u2014 Meet sync failure",
       "community": 242,
       "community_name": "ADM-SESS-003 \u2014 Meet sync failure",
       "file_type": "document",
       "norm_label": "adm-sess-003 \u2014 meet sync failure",
       "rationale": "Google sync failures are recorded and retried via lazy sweep without blocking bookings.",
-      "source_file": "docs/qa/DrPoojaPhysio-E2E-Test-Plan.md"
+      "source_file": "docs/qa/MoveRestore-E2E-Test-Plan.md"
     },
     {
-      "id": "docs_qa_drpoojaphysio_e2e_test_plan_adm_set_021",
+      "id": "docs_qa_moverestore_e2e_test_plan_adm_set_021",
       "label": "ADM-SET-021 \u2014 Automatic therapist assignment",
       "community": 242,
       "community_name": "ADM-SESS-003 \u2014 Meet sync failure",
       "file_type": "document",
       "norm_label": "adm-set-021 \u2014 automatic therapist assignment",
       "rationale": "Automatically assigns therapist if exactly one is free; respects roster and patient preference.",
-      "source_file": "docs/qa/DrPoojaPhysio-E2E-Test-Plan.md"
+      "source_file": "docs/qa/MoveRestore-E2E-Test-Plan.md"
     },
     {
-      "id": "docs_qa_drpoojaphysio_e2e_test_plan_fin_sum_001",
+      "id": "docs_qa_moverestore_e2e_test_plan_fin_sum_001",
       "label": "FIN-SUM-001 \u2014 Summary and the two identities",
       "community": 243,
       "community_name": "FIN-SUM-001 \u2014 Summary and the two identities",
       "file_type": "document",
       "norm_label": "fin-sum-001 \u2014 summary and the two identities",
       "rationale": "Financial integrity check: net = gross - refunds; clinic share = splittable net - therapist share - partner share.",
-      "source_file": "docs/qa/DrPoojaPhysio-E2E-Test-Plan.md"
+      "source_file": "docs/qa/MoveRestore-E2E-Test-Plan.md"
     },
     {
-      "id": "docs_qa_drpoojaphysio_qa_audit_report_f06",
+      "id": "docs_qa_moverestore_qa_audit_report_f06",
       "label": "F-06 \u2014 Missing unit tests for adminMetrics",
       "community": 243,
       "community_name": "FIN-SUM-001 \u2014 Summary and the two identities",
       "file_type": "rationale",
       "norm_label": "f-06 \u2014 missing unit tests for adminmetrics",
       "rationale": "Audit finding: the core revenue split module lacked tests; remediated with 24 new tests.",
-      "source_file": "docs/qa/DrPoojaPhysio-QA-Audit-Report.html"
+      "source_file": "docs/qa/MoveRestore-QA-Audit-Report.html"
     },
     {
-      "id": "docs_qa_drpoojaphysio_e2e_test_plan_adm_care_004",
+      "id": "docs_qa_moverestore_e2e_test_plan_adm_care_004",
       "label": "ADM-CARE-004 \u2014 Approve a recommendation",
       "community": 299,
       "community_name": "ADM-CARE-004 \u2014 Approve a recommendation",
       "file_type": "document",
       "norm_label": "adm-care-004 \u2014 approve a recommendation",
       "rationale": "Admin review of therapist care plans before patient purchase; uses oldest-first queue.",
-      "source_file": "docs/qa/DrPoojaPhysio-E2E-Test-Plan.md"
+      "source_file": "docs/qa/MoveRestore-E2E-Test-Plan.md"
     },
     {
-      "id": "docs_qa_drpoojaphysio_e2e_test_plan_adm_money_gw_001",
+      "id": "docs_qa_moverestore_e2e_test_plan_adm_money_gw_001",
       "label": "ADM-MONEY-GW-001 \u2014 Goodwill discount",
       "community": 300,
       "community_name": "ADM-MONEY-GW-001 \u2014 Goodwill discount",
       "file_type": "document",
       "norm_label": "adm-money-gw-001 \u2014 goodwill discount",
       "rationale": "Allows manual price reduction for hardship or service issues; requires mandatory reason.",
-      "source_file": "docs/qa/DrPoojaPhysio-E2E-Test-Plan.md"
+      "source_file": "docs/qa/MoveRestore-E2E-Test-Plan.md"
     },
     {
-      "id": "docs_qa_drpoojaphysio_e2e_test_plan_adm_set_019",
+      "id": "docs_qa_moverestore_e2e_test_plan_adm_set_019",
       "label": "ADM-SET-019 \u2014 The ledger authority switch",
       "community": 301,
       "community_name": "ADM-SET-019 \u2014 The ledger authority switch",
       "file_type": "document",
       "norm_label": "adm-set-019 \u2014 the ledger authority switch",
       "rationale": "Toggles between legacy counters and credit ledger for balance display.",
-      "source_file": "docs/qa/DrPoojaPhysio-E2E-Test-Plan.md"
+      "source_file": "docs/qa/MoveRestore-E2E-Test-Plan.md"
     },
     {
-      "id": "docs_qa_drpoojaphysio_e2e_test_plan_adm_today_001",
+      "id": "docs_qa_moverestore_e2e_test_plan_adm_today_001",
       "label": "ADM-TODAY-001 \u2014 The Today screen",
       "community": 302,
       "community_name": "ADM-TODAY-001 \u2014 The Today screen",
       "file_type": "document",
       "norm_label": "adm-today-001 \u2014 the today screen",
       "rationale": "Centralized admin dashboard for queues, figures, and activity feed.",
-      "source_file": "docs/qa/DrPoojaPhysio-E2E-Test-Plan.md"
+      "source_file": "docs/qa/MoveRestore-E2E-Test-Plan.md"
     },
     {
-      "id": "docs_qa_drpoojaphysio_e2e_test_plan_care_plan",
+      "id": "docs_qa_moverestore_e2e_test_plan_care_plan",
       "label": "Care Plan / Recommendation System",
       "community": 303,
       "community_name": "Care Plan / Recommendation System",
       "file_type": "code",
       "norm_label": "care plan / recommendation system",
       "rationale": "Therapist-driven workflow for recommending multi-session packages, requiring admin approval before patient purchase.",
-      "source_file": "docs/qa/DrPoojaPhysio-E2E-Test-Plan.md"
+      "source_file": "docs/qa/MoveRestore-E2E-Test-Plan.md"
     },
     {
-      "id": "docs_qa_drpoojaphysio_e2e_test_plan_contact_masking",
+      "id": "docs_qa_moverestore_e2e_test_plan_contact_masking",
       "label": "Contact Masking",
       "community": 304,
       "community_name": "Contact Masking",
       "file_type": "code",
       "norm_label": "contact masking",
       "rationale": "Security feature masking patient phone numbers from therapists until a logged 'reveal' action occurs within a session window.",
-      "source_file": "docs/qa/DrPoojaPhysio-E2E-Test-Plan.md"
+      "source_file": "docs/qa/MoveRestore-E2E-Test-Plan.md"
     },
     {
-      "id": "docs_qa_drpoojaphysio_e2e_test_plan_health_profile",
+      "id": "docs_qa_moverestore_e2e_test_plan_health_profile",
       "label": "Health Profile",
       "community": 305,
       "community_name": "Health Profile",
       "file_type": "code",
       "norm_label": "health profile",
       "rationale": "Clinical record system including intake answers, Pain Map, and medical document storage.",
-      "source_file": "docs/qa/DrPoojaPhysio-E2E-Test-Plan.md"
+      "source_file": "docs/qa/MoveRestore-E2E-Test-Plan.md"
     },
     {
-      "id": "docs_qa_drpoojaphysio_e2e_test_plan_hos_money_001",
+      "id": "docs_qa_moverestore_e2e_test_plan_hos_money_001",
       "label": "HOS-MONEY-001 \u2014 Earnings reflects delivered, paid, non-refunded work",
       "community": 306,
       "community_name": "HOS-MONEY-001 \u2014 Earnings reflects delivered, paid, non-refunded work",
       "file_type": "document",
       "norm_label": "hos-money-001 \u2014 earnings reflects delivered, paid, non-refunded work",
       "rationale": "Hospital commission is calculated on net revenue (paid - refund).",
-      "source_file": "docs/qa/DrPoojaPhysio-E2E-Test-Plan.md"
+      "source_file": "docs/qa/MoveRestore-E2E-Test-Plan.md"
     },
     {
-      "id": "docs_qa_drpoojaphysio_e2e_test_plan_pay_wh_002",
+      "id": "docs_qa_moverestore_e2e_test_plan_pay_wh_002",
       "label": "PAY-WH-002 \u2014 Webhook races the browser callback",
       "community": 307,
       "community_name": "PAY-WH-002 \u2014 Webhook races the browser callback",
       "file_type": "document",
       "norm_label": "pay-wh-002 \u2014 webhook races the browser callback",
       "rationale": "Ensures payment capture is idempotent regardless of whether webhook or browser callback arrives first.",
-      "source_file": "docs/qa/DrPoojaPhysio-E2E-Test-Plan.md"
+      "source_file": "docs/qa/MoveRestore-E2E-Test-Plan.md"
     },
     {
-      "id": "docs_qa_drpoojaphysio_e2e_test_plan_thr_earn_001",
+      "id": "docs_qa_moverestore_e2e_test_plan_thr_earn_001",
       "label": "THR-EARN-001 \u2014 Earnings shows delivered work only",
       "community": 308,
       "community_name": "THR-EARN-001 \u2014 Earnings shows delivered work only",
       "file_type": "document",
       "norm_label": "thr-earn-001 \u2014 earnings shows delivered work only",
       "rationale": "Therapist share is earned by delivering (completed sessions), not just booking.",
-      "source_file": "docs/qa/DrPoojaPhysio-E2E-Test-Plan.md"
+      "source_file": "docs/qa/MoveRestore-E2E-Test-Plan.md"
     },
     {
-      "id": "docs_qa_drpoojaphysio_e2e_test_plan_thr_sugg_001",
+      "id": "docs_qa_moverestore_e2e_test_plan_thr_sugg_001",
       "label": "THR-SUGG-001 \u2014 Suggest a session",
       "community": 309,
       "community_name": "THR-SUGG-001 \u2014 Suggest a session",
       "file_type": "document",
       "norm_label": "thr-sugg-001 \u2014 suggest a session",
       "rationale": "Therapist suggests a session; guarded by synchronous ref and partial unique index to prevent duplicates.",
-      "source_file": "docs/qa/DrPoojaPhysio-E2E-Test-Plan.md"
+      "source_file": "docs/qa/MoveRestore-E2E-Test-Plan.md"
     },
     {
-      "id": "docs_qa_drpoojaphysio_e2e_test_plan_xr_cutoff_001",
+      "id": "docs_qa_moverestore_e2e_test_plan_xr_cutoff_001",
       "label": "XR-CUTOFF-001 \u2014 Session Completed cutoff",
       "community": 310,
       "community_name": "XR-CUTOFF-001 \u2014 Session Completed cutoff",
       "file_type": "document",
       "norm_label": "xr-cutoff-001 \u2014 session completed cutoff",
       "rationale": "Cross-role consistency check for session status after the grace period.",
-      "source_file": "docs/qa/DrPoojaPhysio-E2E-Test-Plan.md"
+      "source_file": "docs/qa/MoveRestore-E2E-Test-Plan.md"
     },
     {
       "id": "github_workflows_graphify",
@@ -178718,84 +178718,84 @@
       "source_file": ".claude/skills/design-system/references/token-architecture.md"
     },
     {
-      "source": "docs_qa_drpoojaphysio_e2e_test_plan_booking_wizard",
+      "source": "docs_qa_moverestore_e2e_test_plan_booking_wizard",
       "target": "api_appointments_create",
       "relation": "calls",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
-      "source_file": "docs/qa/DrPoojaPhysio-E2E-Test-Plan.md"
+      "source_file": "docs/qa/MoveRestore-E2E-Test-Plan.md"
     },
     {
-      "source": "docs_qa_drpoojaphysio_e2e_test_plan_debug_bar",
+      "source": "docs_qa_moverestore_e2e_test_plan_debug_bar",
       "target": "api_admin_debug_reset",
       "relation": "calls",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
-      "source_file": "docs/qa/DrPoojaPhysio-E2E-Test-Plan.md"
+      "source_file": "docs/qa/MoveRestore-E2E-Test-Plan.md"
     },
     {
-      "source": "docs_qa_drpoojaphysio_e2e_test_plan_app",
-      "target": "docs_qa_drpoojaphysio_e2e_test_plan_debug_bar",
+      "source": "docs_qa_moverestore_e2e_test_plan_app",
+      "target": "docs_qa_moverestore_e2e_test_plan_debug_bar",
       "relation": "references",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
-      "source_file": "docs/qa/DrPoojaPhysio-E2E-Test-Plan.md"
+      "source_file": "docs/qa/MoveRestore-E2E-Test-Plan.md"
     },
     {
-      "source": "docs_qa_drpoojaphysio_e2e_test_plan_debug_bar",
-      "target": "docs_qa_drpoojaphysio_e2e_test_plan_data_reset",
+      "source": "docs_qa_moverestore_e2e_test_plan_debug_bar",
+      "target": "docs_qa_moverestore_e2e_test_plan_data_reset",
       "relation": "references",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
-      "source_file": "docs/qa/DrPoojaPhysio-E2E-Test-Plan.md"
+      "source_file": "docs/qa/MoveRestore-E2E-Test-Plan.md"
     },
     {
-      "source": "docs_qa_drpoojaphysio_e2e_test_plan_debug_bar",
-      "target": "docs_qa_drpoojaphysio_e2e_test_plan_simulated_clock",
+      "source": "docs_qa_moverestore_e2e_test_plan_debug_bar",
+      "target": "docs_qa_moverestore_e2e_test_plan_simulated_clock",
       "relation": "references",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
-      "source_file": "docs/qa/DrPoojaPhysio-E2E-Test-Plan.md"
+      "source_file": "docs/qa/MoveRestore-E2E-Test-Plan.md"
     },
     {
-      "source": "docs_qa_drpoojaphysio_e2e_test_plan_payment_model",
+      "source": "docs_qa_moverestore_e2e_test_plan_payment_model",
       "target": "api_razorpay_webhook",
       "relation": "references",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
-      "source_file": "docs/qa/DrPoojaPhysio-E2E-Test-Plan.md"
+      "source_file": "docs/qa/MoveRestore-E2E-Test-Plan.md"
     },
     {
-      "source": "docs_qa_drpoojaphysio_e2e_test_plan_adm_set_021",
-      "target": "docs_qa_drpoojaphysio_e2e_test_plan_adm_sess_003",
+      "source": "docs_qa_moverestore_e2e_test_plan_adm_set_021",
+      "target": "docs_qa_moverestore_e2e_test_plan_adm_sess_003",
       "relation": "calls",
       "confidence": "INFERRED",
       "confidence_score": 0.8,
-      "source_file": "docs/qa/DrPoojaPhysio-E2E-Test-Plan.md"
+      "source_file": "docs/qa/MoveRestore-E2E-Test-Plan.md"
     },
     {
-      "source": "docs_qa_drpoojaphysio_e2e_test_plan_adm_risk_001",
-      "target": "docs_qa_drpoojaphysio_e2e_test_plan_thr_leak_scanner",
+      "source": "docs_qa_moverestore_e2e_test_plan_adm_risk_001",
+      "target": "docs_qa_moverestore_e2e_test_plan_thr_leak_scanner",
       "relation": "conceptually_related_to",
       "confidence": "INFERRED",
       "confidence_score": 0.9,
-      "source_file": "docs/qa/DrPoojaPhysio-E2E-Test-Plan.md"
+      "source_file": "docs/qa/MoveRestore-E2E-Test-Plan.md"
     },
     {
       "source": "github_workflows_schema_apply",
-      "target": "docs_qa_drpoojaphysio_e2e_test_plan_app",
+      "target": "docs_qa_moverestore_e2e_test_plan_app",
       "relation": "references",
       "confidence": "INFERRED",
       "confidence_score": 0.9,
       "source_file": ".github/workflows/schema-apply.yml"
     },
     {
-      "source": "docs_qa_drpoojaphysio_e2e_test_plan_fin_sum_001",
-      "target": "docs_qa_drpoojaphysio_qa_audit_report_f06",
+      "source": "docs_qa_moverestore_e2e_test_plan_fin_sum_001",
+      "target": "docs_qa_moverestore_qa_audit_report_f06",
       "relation": "shares_data_with",
       "confidence": "INFERRED",
       "confidence_score": 0.95,
-      "source_file": "docs/qa/DrPoojaPhysio-QA-Audit-Report.html"
+      "source_file": "docs/qa/MoveRestore-QA-Audit-Report.html"
     }
   ],
   "hyperedges": [
@@ -178803,14 +178803,14 @@
       "id": "admin_oversight_queues",
       "label": "Admin Oversight and Risk Management",
       "nodes": [
-        "docs_qa_drpoojaphysio_e2e_test_plan_adm_today_001",
-        "docs_qa_drpoojaphysio_e2e_test_plan_adm_risk_001",
-        "docs_qa_drpoojaphysio_e2e_test_plan_adm_care_004"
+        "docs_qa_moverestore_e2e_test_plan_adm_today_001",
+        "docs_qa_moverestore_e2e_test_plan_adm_risk_001",
+        "docs_qa_moverestore_e2e_test_plan_adm_care_004"
       ],
       "relation": "form",
       "confidence": "EXTRACTED",
       "confidence_score": 0.9,
-      "source_file": "docs/qa/DrPoojaPhysio-E2E-Test-Plan.md"
+      "source_file": "docs/qa/MoveRestore-E2E-Test-Plan.md"
     },
     {
       "id": "clinical_data_layers",
@@ -178829,14 +178829,14 @@
       "id": "clinical_workflow",
       "label": "Clinical Recommendation & Purchase Flow",
       "nodes": [
-        "docs_qa_drpoojaphysio_e2e_test_plan_care_plan",
-        "docs_qa_drpoojaphysio_e2e_test_plan_booking_wizard",
-        "docs_qa_drpoojaphysio_e2e_test_plan_health_profile"
+        "docs_qa_moverestore_e2e_test_plan_care_plan",
+        "docs_qa_moverestore_e2e_test_plan_booking_wizard",
+        "docs_qa_moverestore_e2e_test_plan_health_profile"
       ],
       "relation": "participate_in",
       "confidence": "EXTRACTED",
       "confidence_score": 0.95,
-      "source_file": "docs/qa/DrPoojaPhysio-E2E-Test-Plan.md"
+      "source_file": "docs/qa/MoveRestore-E2E-Test-Plan.md"
     },
     {
       "id": "graphify_operations",
@@ -178882,15 +178882,15 @@
       "id": "financial_integrity_flow",
       "label": "Financial Integrity and Split Logic",
       "nodes": [
-        "docs_qa_drpoojaphysio_e2e_test_plan_thr_earn_001",
-        "docs_qa_drpoojaphysio_e2e_test_plan_hos_money_001",
-        "docs_qa_drpoojaphysio_e2e_test_plan_fin_sum_001",
-        "docs_qa_drpoojaphysio_qa_audit_report_f06"
+        "docs_qa_moverestore_e2e_test_plan_thr_earn_001",
+        "docs_qa_moverestore_e2e_test_plan_hos_money_001",
+        "docs_qa_moverestore_e2e_test_plan_fin_sum_001",
+        "docs_qa_moverestore_qa_audit_report_f06"
       ],
       "relation": "participate_in",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
-      "source_file": "docs/qa/DrPoojaPhysio-E2E-Test-Plan.md"
+      "source_file": "docs/qa/MoveRestore-E2E-Test-Plan.md"
     },
     {
       "id": "font_assets_collection",
@@ -179010,14 +179010,14 @@
       "id": "security_and_privacy",
       "label": "Data Privacy & Access Control",
       "nodes": [
-        "docs_qa_drpoojaphysio_e2e_test_plan_contact_masking",
-        "docs_qa_drpoojaphysio_e2e_test_plan_health_profile",
-        "docs_qa_drpoojaphysio_e2e_test_plan_data_reset"
+        "docs_qa_moverestore_e2e_test_plan_contact_masking",
+        "docs_qa_moverestore_e2e_test_plan_health_profile",
+        "docs_qa_moverestore_e2e_test_plan_data_reset"
       ],
       "relation": "form",
       "confidence": "INFERRED",
       "confidence_score": 0.85,
-      "source_file": "docs/qa/DrPoojaPhysio-E2E-Test-Plan.md"
+      "source_file": "docs/qa/MoveRestore-E2E-Test-Plan.md"
     },
     {
       "id": "shadcn_accessibility_foundation",

@@ -174,6 +174,46 @@ export const RATE_LIMITS = {
     message: "I already have your message from a moment ago.",
   },
 
+  /**
+   * A cookie consent choice (/api/consent). Its own scope so a visitor
+   * changing their mind a few times never spends anybody else's allowance.
+   * Generous, because a refusal here costs nothing visible -- the choice is
+   * already kept in the browser -- but bounded, because the table is public
+   * to write to and nothing sweeps it.
+   */
+  cookieConsent: {
+    scope: "cookie-consent",
+    limit: 30,
+    windowSeconds: 3600,
+    message: "Your choice is saved.",
+  },
+
+  /** Downloading "Your data" (a PDF built from every table the person has
+   *  rows in): heavy enough to bound, and nobody needs it twice a minute. */
+  dataExport: {
+    scope: "data-export",
+    limit: 5,
+    windowSeconds: 3600,
+    message: "Your data was downloaded a moment ago. Please try again a little later.",
+  },
+
+  /** "Delete my account" and taking that request back. */
+  deletionRequest: {
+    scope: "deletion-request",
+    limit: 5,
+    windowSeconds: 3600,
+    message: "We already have your request from a moment ago.",
+  },
+
+  /** The grievance form on /grievances. Its own scope, so a complaint never
+   *  spends the allowance somebody needs to ask about a partnership. */
+  grievance: {
+    scope: "grievance",
+    limit: 5,
+    windowSeconds: 3600,
+    message: "We already have your complaint from a moment ago.",
+  },
+
   /** Creating an account from a referral link. */
   registration: {
     scope: "registration",
