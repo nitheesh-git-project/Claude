@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DEV_REACHOUT_STATUSES,
+  validateDevReachoutDelete,
   MAX_DEV_REACHOUT_MESSAGE_LENGTH,
   MAX_DEV_REACHOUT_NAME_LENGTH,
   MAX_DEV_REACHOUT_NOTE_LENGTH,
@@ -232,5 +233,20 @@ describe("groupDevReachoutNotes", () => {
   it("keeps a failed read distinct from no notes", () => {
     expect(groupDevReachoutNotes(null)).toBeNull();
     expect(groupDevReachoutNotes([])!.size).toBe(0);
+  });
+});
+
+describe("validateDevReachoutDelete", () => {
+  it("needs a listed reason, and a note for Other", () => {
+    expect(validateDevReachoutDelete("spam", "")).toEqual({ ok: true, reason: "spam", note: null });
+    expect(validateDevReachoutDelete("handled", "  replied by email ")).toEqual({
+      ok: true,
+      reason: "handled",
+      note: "replied by email",
+    });
+    expect(validateDevReachoutDelete("nope", "").ok).toBe(false);
+    expect(validateDevReachoutDelete(undefined, "x").ok).toBe(false);
+    expect(validateDevReachoutDelete("other", "  ").ok).toBe(false);
+    expect(validateDevReachoutDelete("other", "x".repeat(501)).ok).toBe(false);
   });
 });

@@ -275,8 +275,12 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   `people` scope the clinic's own lead pipelines use: a scoped admin must not
   receive a stranger's name, email and number, so the dashboard reads the
   table only when `scopeCanOpen(viewerScope, "settings")` and
-  `/api/admin/update-dev-reachout` (status) and `/api/admin/dev-reachout-note`
-  (add / edit / delete a note) are `requireAdminScope("settings")`. Notes are
+  `/api/admin/update-dev-reachout` (status), `/api/admin/dev-reachout-note`
+  (add / edit / delete a note) and `/api/admin/delete-dev-reachout` are
+  `requireAdminScope("settings")`. **Deleting a message needs a reason**
+  (`DEV_REACHOUT_DELETE_REASONS`; Other needs a note): the message and its
+  notes go, and the `dev_reachout.delete` log row keeps who, why and the
+  sender's name and email (never the message) - DEV-005. Notes are
   a dated thread, one `dev_reachout_notes` row each, oldest first, with author
   and an `edited_at` that stays null until a note changes; the old single
   `dev_reachouts.admin_note` was carried into it and is no longer read. The
