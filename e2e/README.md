@@ -167,7 +167,7 @@ total, which moves with every spec added.
 | `date-field` | 6 | the clinic's own month grid in place of the browser's panel, including a past date, and Today bringing the grid back to this month |
 | `form-validation-chrome` | 2 | the app's own message in place of the OS tooltip |
 | `numeric-input` | 1 | a number box refusing `e`, `E` and `+` |
-| `navigation-feedback` | 3 | a tap acknowledged, and a screen already rendered not fetched again |
+| `navigation-feedback` | 4 | a tap acknowledged, a screen already rendered not fetched again, and the logo after signing out going home with no loader |
 | `realtime-reconnect` | 1 | "Live updates paused" draws once and its Refresh reconnects every channel and clears it (the realtime server is stood in for, since sandbox egress cannot carry the socket) |
 | `section-nav` | 7 | the public pages' section rail and scroll arrow |
 | `public-hydration` | 3 | the eight public pages and `/book` hydrate with no server/client mismatch for an en-GB, reduced-motion browser on the debug clock - the three conditions behind the #418s QA saw - and ship no inline `opacity:0` in their server HTML |

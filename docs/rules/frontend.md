@@ -787,6 +787,13 @@ is invisible to any tooling here.
   changes (12s ceiling); an anchor that genuinely goes nowhere carries
   `data-no-loader`. The loader appears after 150 ms. Guard:
   `e2e/chrome-and-loader.spec.ts` CHROME-006.
+- **Never navigate just to drop the query from the current path.** Next
+  16.2 never completes `/x?a=1` -> `/x`: no request, no URL change, and the
+  loader sits for its 12s ceiling (fixed upstream in 16.3). Clearing a
+  marker such as `?farewell=1` is `window.history.replaceState`, which Next
+  keeps `useSearchParams` in step with, and the logo on `/` scrolls to the
+  top instead of navigating. Guard: `e2e/navigation-feedback.spec.ts`
+  NAV-004.
 - **A long value in a two-column summary wraps inside its box.** The label
   `shrink-0`, the value `min-w-0 [overflow-wrap:anywhere]`; an email goes on
   its own line under its label on a phone, breakable after the "@".
