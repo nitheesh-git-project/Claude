@@ -523,10 +523,16 @@ export default function AdminShell({
           const caption = t.group && t.group !== section.tabs[i - 1]?.group ? t.group : null;
           return (
             <Fragment key={t.key}>
+              {/* A title, not a link: darker than the screens under it, with
+                  a rule running out to the edge, and no hover or pointer --
+                  the owner read the old grey caps as more buttons. */}
               {caption && (
                 <p
-                  className={`px-2.5 pb-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 ${
-                    i === 0 ? "pt-1" : "pt-3"
+                  role="heading"
+                  aria-level={3}
+                  data-testid="settings-group-title"
+                  className={`flex cursor-default select-none items-center gap-2 px-2.5 pb-1 text-[11px] font-extrabold uppercase tracking-wider text-slate-800 after:h-px after:flex-1 after:bg-slate-200 after:content-[''] ${
+                    i === 0 ? "pt-1" : "pt-4"
                   }`}
                 >
                   {caption}
@@ -921,13 +927,29 @@ export default function AdminShell({
               tap between Schedule and All Sessions, at every width. */}
           {activeSection.tabs.length > 1 && (
             <div className="-mx-4 mb-5 overflow-x-auto px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 2xl:hidden">
-              <div role="group" aria-label={`${activeSection.label} screens`} className="flex w-max gap-2 pb-1">
-                {activeSection.tabs.map((t) => {
+              <div role="group" aria-label={`${activeSection.label} screens`} className="flex w-max items-center gap-2 pb-1">
+                {activeSection.tabs.map((t, i) => {
                   const on = t.key === tabKey;
                   const n = badges[`${activeSection.key}:${t.key}`] ?? 0;
+                  // Settings' groups (Your website, How the clinic runs...)
+                  // as plain titles between the pills, with a divider before
+                  // each new group -- a title shaped like a pill read as one
+                  // more page.
+                  const groupTitle =
+                    t.group && t.group !== activeSection.tabs[i - 1]?.group ? t.group : null;
                   return (
+                    <Fragment key={t.key}>
+                    {groupTitle && (
+                      <span
+                        data-testid="settings-group-title"
+                        className={`cursor-default select-none whitespace-nowrap text-[11px] font-extrabold uppercase tracking-wider text-slate-500 ${
+                          i > 0 ? "ml-2 border-l-2 border-slate-200 pl-4" : ""
+                        }`}
+                      >
+                        {groupTitle}
+                      </span>
+                    )}
                     <button
-                      key={t.key}
                       type="button"
                       onClick={() => navigate(activeSection.key, t.key)}
                       aria-current={on ? "page" : undefined}
@@ -940,6 +962,7 @@ export default function AdminShell({
                       {t.label}
                       {count(n, "h-[18px] min-w-[18px] text-[10px]")}
                     </button>
+                    </Fragment>
                   );
                 })}
               </div>

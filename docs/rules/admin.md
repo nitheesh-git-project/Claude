@@ -10,6 +10,12 @@ The eight sections, scopes and levels, User Access, the Settings information arc
 
 ---
 
+- **Settings' groups are titles, never shaped like what they title.** In
+  the sidebar a group name ("Your website", "How the clinic runs") is a
+  dark heading with a rule running to the edge, no hover; in the pill strip
+  below `2xl` it is plain text between the pills with a divider before each
+  new group. The old grey caps in the sidebar, and no group at all in the
+  strip, read as more screens (owner's report).
 - **A setting appears once, and says what it applies to.** Settings ->
   Programmes & Home Visits used to repeat "Default programme validity" and
   "Bulk scheduling limit" in the home-visit box under the programme ones
