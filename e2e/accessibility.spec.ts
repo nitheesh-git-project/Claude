@@ -8,7 +8,7 @@
 // A new public page joins PAGES in the same change. Read-only.
 import { test, expect, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
-import { BASE, waitForSplashToClear } from "./helpers";
+import { BASE, answerCookieConsent, waitForSplashToClear } from "./helpers";
 
 const PAGES = [
   "/",
@@ -38,14 +38,7 @@ const WCAG_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 async function open(page: Page, path: string) {
   // Answer the cookie pop-up up front so it is not part of every scan; the
   // pop-up itself is scanned in A11Y-003.
-  await page.addInitScript(() => {
-    try {
-      localStorage.setItem(
-        "mr_cookie_consent",
-        JSON.stringify({ version: "2026-11-12", analytics: false, marketing: false, at: Date.now() })
-      );
-    } catch {}
-  });
+  await answerCookieConsent(page);
   const res = await page.goto(`${BASE}${path}`);
   await waitForSplashToClear(page);
   return res;

@@ -14,7 +14,7 @@ adding any new service.
 | **Google Analytics** | Website analytics, only after consent | Pseudonymous device identifiers, pages visited, booking-funnel events (no names, contacts or health data -- see the allowlist in `src/lib/analytics.ts`) | Google's global infrastructure | Google Ads Data Processing Terms (accept in GA admin) | Nitheesh M |
 | **Resend** | Emails for complaints and deletion requests | Name, email address, complaint text, reference numbers | USA | Resend DPA (resend.com/legal/dpa) | Nitheesh M |
 | **WhatsApp (Meta)** | Only when a person chooses to message the clinic | Whatever they send | Meta's global infrastructure | WhatsApp Business Terms | Nitheesh M |
-| **Hosting provider** *(to fill in: Vercel or other)* | Runs the website and API | Request data passing through; server logs (IP addresses) | *to fill in* | *its DPA* | Nitheesh M |
+| **Vercel** (hosting) | Runs the website and API | Request data passing through; server logs (IP addresses) | USA, with a global edge network | Vercel DPA | Nitheesh M |
 
 ## Transfers outside India
 

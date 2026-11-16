@@ -6,6 +6,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
 import { currentTermsVersion, signupTermsMetadata } from "../src/lib/policyAcceptance";
+import { COOKIE_POLICY_VERSION } from "../src/lib/cookieConsent";
 
 export const BASE = process.env.E2E_BASE_URL ?? "http://localhost:3000";
 
@@ -513,6 +514,21 @@ export async function pickTimeOnStepOne(page: Page): Promise<void> {
  * before that lands on the splash and retries until the test times out,
  * which reads as a dead link rather than as a splash still showing.
  */
+/** Answer the cookie pop-up before the page loads (all optional cookies
+ *  off), for a spec about something else on the page: the card sits over
+ *  the bottom-right corner while it is open. e2e/analytics-consent.spec.ts
+ *  tests the pop-up itself. */
+export async function answerCookieConsent(page: Page): Promise<void> {
+  await page.addInitScript((version) => {
+    try {
+      localStorage.setItem(
+        "mr_cookie_consent",
+        JSON.stringify({ version, analytics: false, marketing: false, at: Date.now() })
+      );
+    } catch {}
+  }, COOKIE_POLICY_VERSION);
+}
+
 export async function waitForSplashToClear(page: Page): Promise<void> {
   await page.waitForFunction(() => !document.documentElement.hasAttribute("data-splash"), null, {
     timeout: 30_000,

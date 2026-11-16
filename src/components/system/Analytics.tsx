@@ -251,6 +251,16 @@ export default function Analytics() {
     return () => window.clearInterval(timer);
   }, [autoOpen]);
 
+  // While the card is up, <html> carries data-cookie-card so the front
+  // page's floating scroll arrow (ScrollHint), which sits in the same
+  // bottom-right corner, steps aside instead of hiding under the card.
+  useEffect(() => {
+    const root = document.documentElement;
+    if (open) root.setAttribute("data-cookie-card", "");
+    else root.removeAttribute("data-cookie-card");
+    return () => root.removeAttribute("data-cookie-card");
+  }, [open]);
+
   // The footer's "Cookie settings" opens it on any public page, booking included.
   useEffect(() => {
     const reopen = () => {

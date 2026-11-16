@@ -157,6 +157,7 @@ function privacy(ctx: LegalContext, f: LegalFacts): LegalDoc {
             head: ["Provider", "What for"],
             rows: [
               ["Supabase", "Hosting our database, sign-in and file storage, and sending sign-in and password emails"],
+              ["Vercel", "Running our website and its servers"],
               ["Razorpay", "Taking payments and refunds"],
               ["Google", "Calendar invites and Meet links for video sessions; website analytics only with your consent"],
               ["Resend", "Sending emails about your requests and complaints"],
