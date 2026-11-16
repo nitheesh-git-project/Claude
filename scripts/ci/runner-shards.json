@@ -62,6 +62,7 @@
       "booking-wizard-clarity.spec.ts": 4,
       "catalog-cover-image.spec.ts": 18,
       "catalog-detail.spec.ts": 40,
+      "public-section-visibility.spec.ts": 45,
       "public-hydration.spec.ts": 30,
       "catalog-home-visit-prices.spec.ts": 17,
       "checkout-resume.spec.ts": 28,

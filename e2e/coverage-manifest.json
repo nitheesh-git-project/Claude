@@ -1828,6 +1828,19 @@
       ],
       "integration": "local",
       "destructive": false
+    },
+    "public-section-visibility.spec.ts": {
+      "runner": "platform",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
     }
   },
   "flows": [
@@ -4796,6 +4809,26 @@
       ],
       "rules": [
         "docs/rules/ops-security.md"
+      ]
+    },
+    {
+      "id": "platform.public-section-visibility",
+      "runner": "platform",
+      "title": "What We Promise, What We Will Not Do and Testimonials can be hidden from the public site without deleting them, each switch asking first",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "public-section-visibility.spec.ts",
+          "tests": [
+            "PSV-001",
+            "PSV-002"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/public-site.md"
       ]
     }
   ],

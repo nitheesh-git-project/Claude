@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { PUBLIC_SECTION_TOGGLES } from "@/lib/publicSectionVisibility";
 import { revalidatePath } from "next/cache";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -24,6 +25,8 @@ import { EMAIL_RE, MAX_DEV_REACHOUT_EMAIL_LENGTH } from "@/lib/devReachout";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { SOCIAL_LINK_COLUMNS, normaliseSocialUrl, socialLinkForColumn } from "@/lib/socialLinks";
 import { serverError } from "@/lib/apiError";
+
+const PUBLIC_SECTION_COLUMN_SET: ReadonlySet<string> = new Set(PUBLIC_SECTION_TOGGLES.map((t) => t.column));
 
 const ALLOWED_COLUMNS = new Set([
   "therapist_suggestions_enabled",
@@ -94,6 +97,8 @@ const ALLOWED_COLUMNS = new Set([
   // publishes. Their own screen is Settings -> Developer messages.
   "dev_contact_enabled",
   "dev_contact_email",
+  // Show or hide three public sections (publicSectionVisibility.ts).
+  ...PUBLIC_SECTION_TOGGLES.map((t) => t.column),
   "home_visit_enabled",
   "home_visit_cash_enabled",
   "home_visit_lead_time_hours",
@@ -237,7 +242,8 @@ export async function POST(request: NextRequest) {
       key === "splash_enabled" ||
       key === "follow_device_theme" ||
       key === "pay_later_age_warning_enabled" ||
-      key === "pay_later_enabled") &&
+      key === "pay_later_enabled" ||
+      PUBLIC_SECTION_COLUMN_SET.has(key)) &&
     typeof value !== "boolean"
   ) {
     return NextResponse.json({ error: "value must be a boolean" }, { status: 400 });
@@ -839,7 +845,7 @@ export async function POST(request: NextRequest) {
   // these, and both pages are ISR-cached (revalidate = 300). Without this an
   // owner rewords the sentence the site leads with and watches the old one
   // stay up for five minutes, which reads as a save that failed.
-  if (MISSION_COPY_FIELDS.has(key)) {
+  if (MISSION_COPY_FIELDS.has(key) || PUBLIC_SECTION_COLUMN_SET.has(key)) {
     revalidatePath("/");
     revalidatePath("/mission");
   }

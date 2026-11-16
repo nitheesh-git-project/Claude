@@ -135,6 +135,8 @@ import ResetHospitalPasswordButton from "@/components/admin/ResetHospitalPasswor
 import EditRevenueShareForm from "@/components/admin/EditRevenueShareForm";
 import CopyInviteLinkButton from "@/components/admin/CopyInviteLinkButton";
 import TreatmentCategoryManager from "@/components/admin/TreatmentCategoryManager";
+import PublicSectionVisibilityToggle from "@/components/admin/PublicSectionVisibilityToggle";
+import { readPublicSectionVisibility } from "@/lib/publicSectionVisibilityServer";
 import { clinicWideHomeVisitRate, isHomeVisitPriceRow } from "@/lib/homeVisitRates";
 import { formatInr, formatRupees } from "@/lib/formatMoney";
 import TestimonialManager from "@/components/admin/TestimonialManager";
@@ -4062,6 +4064,12 @@ export default async function AdminDashboardPage({
   // Long enough to need a map of itself -- see SettingsJumpNav. The blocks
   // are in the order an owner reads the site: what visitors are shown, then
   // what it says, then what it says about itself, then other people's words.
+  // Three show/hide switches for public sections, in their own isolated read
+  // (new columns: a database without them shows all three and draws them on).
+  const publicSectionsShown = scopeCanOpen(viewerScope, "settings")
+    ? await readPublicSectionVisibility()
+    : null;
+
   const settingsPublicSiteTab = (
     <div className="space-y-8">
       <SettingsJumpNav
@@ -4095,6 +4103,9 @@ export default async function AdminDashboardPage({
       </SettingsSection>
 
       <SettingsSection id="public-promises">
+        {publicSectionsShown && (
+          <PublicSectionVisibilityToggle section="promises" visible={publicSectionsShown.promises} />
+        )}
         <MissionPrincipleManager
           kind="promise"
           rows={missionPrincipleRows ?? []}
@@ -4105,6 +4116,9 @@ export default async function AdminDashboardPage({
       </SettingsSection>
 
       <SettingsSection id="public-limits">
+        {publicSectionsShown && (
+          <PublicSectionVisibilityToggle section="limits" visible={publicSectionsShown.limits} />
+        )}
         <MissionPrincipleManager
           kind="limit"
           rows={missionPrincipleRows ?? []}
@@ -4135,6 +4149,9 @@ export default async function AdminDashboardPage({
           <p className="text-xs text-slate-500 mb-4">
             Controls the patient-story band on the Home page and Our Mission.
           </p>
+          {publicSectionsShown && (
+            <PublicSectionVisibilityToggle section="testimonials" visible={publicSectionsShown.testimonials} />
+          )}
           <TestimonialManager
             testimonials={(testimonials ?? []).map((t) => ({
               ...t,

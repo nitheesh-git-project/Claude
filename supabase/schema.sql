@@ -20896,3 +20896,18 @@ alter default privileges in schema public grant execute on functions to service_
 -- Re-runnable: revoking a privilege that is not held is a no-op.
 -- ---------------------------------------------------------------------
 revoke update (bio) on profiles from authenticated;
+
+-- ---------------------------------------------------------------------
+-- Show or hide three public sections (November 2026).
+--
+-- Settings -> Public Site can switch off What We Promise, What We Will Not
+-- Do and Testimonials without deleting what is in them (each asks first).
+-- On by default, so a database that runs this changes nothing a visitor
+-- sees. The pages read them in their own query and treat a missing column
+-- or a failed read as "shown" (src/lib/publicSectionVisibility.ts).
+-- site_settings is already readable by anyone (site_settings_select_public)
+-- and written only through /api/admin/update-setting with the service role.
+-- ---------------------------------------------------------------------
+alter table site_settings add column if not exists promises_section_visible boolean not null default true;
+alter table site_settings add column if not exists limits_section_visible boolean not null default true;
+alter table site_settings add column if not exists testimonials_section_visible boolean not null default true;

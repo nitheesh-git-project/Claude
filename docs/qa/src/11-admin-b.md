@@ -755,6 +755,10 @@ The Logs section is **Master Admin only**. Operations, Finance and Clinical have
 * Step 7: no reason says `Choose why this message is being deleted.`; Other with no note says `Say why it is being deleted.`; **Keep it** deletes nothing. After the delete the card and its notes are gone, the toast reads `The message from <name> is deleted`, and Logs → All Activity shows *Deleted a developer reachout message* with the reason and the sender's name and email.
 **Negative:** the debug **Reset data** button must **not** remove these messages or their notes, or change either setting - they are the developer's own leads, not test data.
 
+#### `ADM-SET-039` - Hide a public section without deleting it · P1
+**Steps.** Settings -> **Public Site**. On **What We Promise**, **What We Will Not Do** and **Testimonials** there is a **Show … on the website** switch. Tap it on What We Will Not Do, then **Keep it shown**. Tap it again and **Hide it**. Open `/mission`. Switch it back on (**Show it**). Repeat for What We Promise, opening `/` and `/mission`.
+**Expected Result.** Every tap asks first, in both directions, naming the pages it affects; **Keep it shown** / **Keep it hidden** change nothing. Hidden: the band and its section-rail entry are gone from the pages named (What We Promise also leaves the home page's mission band), and the entries are **still listed here** to edit. Shown again: they return. The toast names the new state.
+
 #### `ADM-SET-035` - Sign-in & Security · P2
 **Steps.** Open **Settings → Sign-in & Security** and change the admin's own password. Check the screen carries two headed blocks: *Your own sign-in* (the reset button) and *Everybody else's sign-in* (the inactivity timeout and the sign-out message).
 **Expected Result.** The change succeeds and the new password works. Admins are exempt from the idle timeout, so no timeout dialog appears while working here.

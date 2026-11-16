@@ -276,6 +276,16 @@ Eight pages from one design system, the word budgets, why every photograph carri
   4. **Its tablist is "Goals by kind of care"**, distinct from the recovery
      story's "Kinds of care" and the walkthrough's "How the process works".
   Guards: `e2e/treatment-goals.spec.ts` TG-001..003.
+- **Three public sections can be hidden without being deleted.** Settings ->
+  Public Site has a Shown / Hidden switch on What We Promise, What We Will
+  Not Do and Testimonials (`site_settings.promises_section_visible`,
+  `limits_section_visible`, `testimonials_section_visible`, default on). Each
+  asks in both directions and names where it shows; the home page and Our
+  Mission pass an empty list for a hidden one, which drops the band and its
+  rail entry as an empty table always did. Read in their own query
+  (`readPublicSectionVisibility`), never `SITE_SETTINGS_SELECT`: a missing
+  column or a failed read shows all three. Guard:
+  `e2e/public-section-visibility.spec.ts`.
 - **The patient's Book a session screen uses the public cards.**
   `PatientBookingHub` renders `ProgramCards` and `HomeVisitConditions`, so a
   tap on a consultation opens the same detail pop-up as `/conditions` and
