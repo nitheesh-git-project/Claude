@@ -514,8 +514,8 @@ and a booking for someone under 18 needs and records a parent's or
 guardian's confirmation. The admin's patient page lists them under
 **Agreements**.
 
-**Cookie consent:** the pop-up on the public pages (Accept all / Reject all /
-Choose what to allow) records every choice through `POST /api/consent` into
+**Cookie consent:** the deep-teal card at the bottom of the public pages
+(Customise / Reject / Accept, opening as the splash lifts) records every choice through `POST /api/consent` into
 `cookie_consents` (append-only, no name, contact detail or IP address).
 **Settings -> Cookie consent** shows the acceptance rates over 7, 30 or 90 days
 and the latest choices (`GET /api/admin/cookie-consents`, settings scope).

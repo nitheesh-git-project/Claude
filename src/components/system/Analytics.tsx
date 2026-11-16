@@ -15,7 +15,6 @@ import {
 import {
   COOKIE_CONSENT_EVENT,
   COOKIE_CONSENT_KEY,
-  CONSENT_OPEN_DELAY_MS,
   LEGACY_ANALYTICS_CONSENT_KEY,
   autoOpensOn,
   consentFor,
@@ -29,17 +28,17 @@ import {
   writeCookieConsent,
   type ConsentAction,
 } from "@/lib/cookieConsent";
-import { useDialogChrome } from "@/lib/useDialogChrome";
 
 // Cookie consent and Google Analytics, for the public pages and the booking
 // widget.
 //
 // Nothing optional loads until the visitor says yes: no script, no cookie, no
-// request. The pop-up (design 3A) opens 2 seconds after the page has fully
-// loaded, or on the first scroll, whichever comes first -- never by itself
-// inside a booking (autoOpensOn), and never on the signed-in trees or the back
-// office, which are never recorded (isTrackablePath). Accept all and Reject
-// all are the same size; "Choose what to allow" opens the switches. Every
+// request. The cookie card (the dark "bottom card" design) slides up at the
+// bottom of the screen as soon as the opening splash has lifted -- never by
+// itself inside a booking (autoOpensOn), and never on the signed-in trees or
+// the back office, which are never recorded (isTrackablePath). It does not
+// block the page. Customise, Reject and Accept are the same size; Accept is
+// the bright one. Customise shows the switches and turns into Save. Every
 // choice is kept in this browser and recorded on the server (/api/consent),
 // which is what Settings -> Cookie consent counts.
 //
@@ -89,6 +88,9 @@ function snapshotConsent(): string {
 
 const MARKETING_ASKED = marketingConsentEnabled();
 
+const SECONDARY_BUTTON =
+  "min-h-12 rounded-[14px] border-[1.5px] border-white/45 bg-transparent text-[15px] font-semibold text-white transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b3b37]";
+
 function Switch({
   label,
   checked,
@@ -105,8 +107,8 @@ function Switch({
       aria-checked={checked}
       aria-label={label}
       onClick={() => onChange(!checked)}
-      className={`relative h-[26px] w-11 flex-none rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 ${
-        checked ? "bg-teal-700" : "bg-slate-300"
+      className={`relative h-[26px] w-11 flex-none rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b3b37] ${
+        checked ? "bg-teal-500" : "bg-white/25"
       }`}
     >
       <span
@@ -231,27 +233,22 @@ export default function Analytics() {
     return () => io.disconnect();
   }, [ready, trackable, pathname]);
 
-  // When it opens by itself: 2 seconds after the page has fully loaded, or on
-  // the first scroll, whichever is first. Never inside a booking.
+  // When it opens by itself: as soon as the opening splash has lifted (on a
+  // page with no splash, straight after hydration). Never inside a booking.
   const autoOpen = offered && askThisVisit && trackable && autoOpensOn(pathname);
   useEffect(() => {
     if (!autoOpen) return;
-    let timer = 0;
-    const show = () => {
-      window.clearTimeout(timer);
-      setOpen(true);
-    };
-    const arm = () => {
-      timer = window.setTimeout(show, CONSENT_OPEN_DELAY_MS);
-    };
-    if (document.readyState === "complete") arm();
-    else window.addEventListener("load", arm, { once: true });
-    window.addEventListener("scroll", show, { once: true, passive: true });
-    return () => {
-      window.clearTimeout(timer);
-      window.removeEventListener("load", arm);
-      window.removeEventListener("scroll", show);
-    };
+    let tries = 0;
+    const timer = window.setInterval(() => {
+      tries += 1;
+      // The splash is on screen while <html> carries data-splash; 60 tries
+      // (6 s) is a ceiling so a stuck attribute never hides the choice.
+      if (!document.documentElement.hasAttribute("data-splash") || tries > 60) {
+        window.clearInterval(timer);
+        setOpen(true);
+      }
+    }, 100);
+    return () => window.clearInterval(timer);
   }, [autoOpen]);
 
   // The footer's "Cookie settings" opens it on any public page, booking included.
@@ -317,27 +314,7 @@ export default function Analytics() {
     window.setTimeout(() => setThanks(null), 2600);
   }
 
-  // Escape: someone who already answered keeps their answer; someone who has
-  // not is treated as "only necessary", never as a yes.
-  function close() {
-    if (isCurrentConsent(consent)) {
-      setLeaving(true);
-      window.setTimeout(() => {
-        setOpen(false);
-        setLeaving(false);
-        setStep(1);
-      }, 250);
-    } else {
-      choose("dismiss");
-    }
-  }
-
   const visible = open && offered && !pending;
-  const { panelRef, dialogProps } = useDialogChrome({
-    onClose: close,
-    labelledBy: step === 1 ? "cookie-consent-title" : "cookie-consent-choose",
-    active: visible && !leaving,
-  });
 
   if (pending) return null;
 
@@ -362,123 +339,81 @@ export default function Analytics() {
         </>
       )}
       {visible && (
-        <div className="fixed inset-0 z-[60] print:hidden">
-          <div
-            aria-hidden="true"
+        // A card at the bottom, not a dialog: the page stays readable and
+        // usable behind it, nothing is dimmed or locked, and focus is not
+        // trapped. Accept is the bright one; Reject and Customise are the
+        // same size beside it, so saying no is exactly as easy.
+        <div className="pointer-events-none fixed inset-x-3 bottom-3 z-[60] flex justify-center sm:inset-x-auto sm:bottom-6 sm:left-6 sm:justify-start print:hidden">
+          <section
+            role="region"
+            aria-labelledby="cookie-consent-title"
+            data-testid="cookie-consent"
             data-leaving={leaving || undefined}
-            className="mr-cookie-dim absolute inset-0 bg-slate-900/45 backdrop-blur-[3px]"
-          />
-          <div className="absolute inset-0 flex items-center justify-center p-4">
-            <div
-              ref={panelRef}
-              {...dialogProps}
-              data-testid="cookie-consent"
-              data-leaving={leaving || undefined}
-              className="mr-cookie w-full max-w-[400px] overflow-hidden rounded-[28px] bg-white px-6 pb-5 pt-7 shadow-[0_24px_60px_rgba(15,23,42,0.25)]"
-            >
+            className="mr-cookie pointer-events-auto flex w-full max-w-[440px] flex-col gap-3.5 rounded-3xl bg-[#0b3b37] px-5 pb-5 pt-[22px] text-white shadow-[0_24px_60px_rgba(15,23,42,0.35)]"
+          >
+            <h2 id="cookie-consent-title" className="font-display text-[22px] font-extrabold leading-tight">
+              Cookie settings
+            </h2>
+            <p className="text-[15px] leading-relaxed text-[#cfe9e5]">
+              We use cookies to run the site and, if you agree, to improve it. Your health details are
+              never shared. Read our{" "}
+              <a href="/cookies" className="text-white underline underline-offset-2 hover:text-teal-100">
+                Cookie policy
+              </a>
+              .
+            </p>
+            {step === 2 && (
+              <ul className="mr-cookie-step divide-y divide-white/10 rounded-2xl bg-white/[0.08]">
+                <li className="flex items-center justify-between gap-3 px-3.5 py-3">
+                  <div>
+                    <p className="text-[15px] font-semibold">Necessary</p>
+                    <p className="text-[13px] text-[#cfe9e5]">Sign-in, security, payments</p>
+                  </div>
+                  <span className="text-[13px] font-semibold text-[#5eead4]">Always on</span>
+                </li>
+                {GA_MEASUREMENT_ID && (
+                  <li className="flex items-center justify-between gap-3 px-3.5 py-3">
+                    <div>
+                      <p className="text-[15px] font-semibold">Analytics</p>
+                      <p className="text-[13px] text-[#cfe9e5]">Which pages help people</p>
+                    </div>
+                    <Switch label="Analytics" checked={analyticsOn} onChange={setAnalyticsOn} />
+                  </li>
+                )}
+                {MARKETING_ASKED && (
+                  <li className="flex items-center justify-between gap-3 px-3.5 py-3">
+                    <div>
+                      <p className="text-[15px] font-semibold">Marketing</p>
+                      <p className="text-[13px] text-[#cfe9e5]">Relevant ads on other sites</p>
+                    </div>
+                    <Switch label="Marketing" checked={marketingOn} onChange={setMarketingOn} />
+                  </li>
+                )}
+              </ul>
+            )}
+            <div className="grid grid-cols-3 gap-2">
               {step === 1 ? (
-                <div className="flex flex-col items-center gap-3.5 text-center">
-                  <span aria-hidden="true" className="flex h-14 w-14 items-center justify-center rounded-full bg-teal-100 text-teal-700">
-                    <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z" />
-                      <path d="M9 12l2 2 4-4" />
-                    </svg>
-                  </span>
-                  <h2 id="cookie-consent-title" className="font-display text-[22px] font-extrabold leading-tight text-slate-900">
-                    Help us do better
-                  </h2>
-                  <p className="text-[15px] leading-normal text-slate-600">
-                    Cookies help us improve the site. Your health details are never shared.
-                  </p>
-                  <div className="flex w-full flex-col gap-2 pt-1.5">
-                    <button
-                      type="button"
-                      onClick={() => choose("accept_all")}
-                      className="min-h-[54px] rounded-full bg-teal-700 text-[17px] font-semibold text-white transition hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
-                    >
-                      Accept all
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => choose("reject_all")}
-                      className="min-h-[54px] rounded-full border-[1.5px] border-teal-700 bg-white text-[17px] font-semibold text-teal-700 transition hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
-                    >
-                      Reject all
-                    </button>
-                  </div>
-                  <div className="flex flex-wrap items-center justify-center gap-1.5 text-[13px] text-slate-600">
-                    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="5" y="11" width="14" height="10" rx="2" />
-                      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
-                    </svg>
-                    <span>Change it any time.</span>
-                    <button
-                      type="button"
-                      onClick={() => setStep(2)}
-                      className="min-h-11 rounded font-semibold text-teal-700 underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
-                    >
-                      Choose what to allow
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="mr-cookie-step flex flex-col gap-3.5">
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setStep(1)}
-                      aria-label="Back"
-                      className="-ml-3 flex h-11 w-11 items-center justify-center rounded-full text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
-                    >
-                      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M15 6l-6 6 6 6" />
-                      </svg>
-                    </button>
-                    <h2 id="cookie-consent-choose" className="font-display text-xl font-extrabold text-slate-900">
-                      Choose what to allow
-                    </h2>
-                  </div>
-                  <ul className="divide-y divide-slate-200 rounded-2xl border border-slate-200">
-                    <li className="flex items-center justify-between gap-3 px-4 py-3">
-                      <div>
-                        <p className="text-[15px] font-semibold text-slate-900">Necessary</p>
-                        <p className="text-[13px] text-slate-600">Sign-in, security, payments</p>
-                      </div>
-                      <span className="text-[13px] font-semibold text-teal-700">Always on</span>
-                    </li>
-                    {GA_MEASUREMENT_ID && (
-                      <li className="flex items-center justify-between gap-3 px-4 py-3">
-                        <div>
-                          <p className="text-[15px] font-semibold text-slate-900">Analytics</p>
-                          <p className="text-[13px] text-slate-600">Which pages help people</p>
-                        </div>
-                        <Switch label="Analytics" checked={analyticsOn} onChange={setAnalyticsOn} />
-                      </li>
-                    )}
-                    {MARKETING_ASKED && (
-                      <li className="flex items-center justify-between gap-3 px-4 py-3">
-                        <div>
-                          <p className="text-[15px] font-semibold text-slate-900">Marketing</p>
-                          <p className="text-[13px] text-slate-600">Relevant ads on other sites</p>
-                        </div>
-                        <Switch label="Marketing" checked={marketingOn} onChange={setMarketingOn} />
-                      </li>
-                    )}
-                  </ul>
-                  <button
-                    type="button"
-                    onClick={() => choose("save")}
-                    className="min-h-[50px] rounded-full bg-teal-700 text-base font-semibold text-white transition hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
-                  >
-                    Save my choices
-                  </button>
-                  <a href="/cookies" className="mx-auto inline-flex min-h-11 items-center text-[13px] text-teal-700 underline-offset-2 hover:underline">
-                    Cookie policy
-                  </a>
-                </div>
-              )}
+                <button type="button" onClick={() => setStep(2)} className={SECONDARY_BUTTON}>
+                  Customise
+                </button>
+              ) : null}
+              <button type="button" onClick={() => choose("reject_all")} className={SECONDARY_BUTTON}>
+                Reject
+              </button>
+              {step === 2 ? (
+                <button type="button" onClick={() => choose("save")} className={SECONDARY_BUTTON}>
+                  Save
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => choose("accept_all")}
+                className="min-h-12 rounded-[14px] bg-[#5eead4] text-[15px] font-bold text-[#042f2e] shadow-[0_6px_18px_rgba(0,0,0,0.25)] transition hover:bg-[#99f6e4] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b3b37]"
+              >
+                Accept
+              </button>
             </div>
-          </div>
+          </section>
         </div>
       )}
       {thanks && (

@@ -12,9 +12,9 @@
 //    added it reads a real answer.
 //
 // The rules the pop-up keeps (docs/rules/public-site.md, "Cookie consent"):
-// nothing optional loads before a yes; Accept all and Reject all are the same
-// size; an ignored pop-up rests for CONSENT_REST_MS before asking again; a
-// new COOKIE_POLICY_VERSION asks everybody again.
+// nothing optional loads before a yes; Accept and Reject are the same size;
+// an ignored card rests for CONSENT_REST_MS before asking again; a new
+// COOKIE_POLICY_VERSION asks everybody again.
 
 export const COOKIE_CONSENT_KEY = "mr_cookie_consent";
 /** The analytics-only choice the earlier banner stored. Read once, as a
@@ -31,9 +31,6 @@ export const COOKIE_POLICY_VERSION = "2026-11-12";
 
 /** An ignored pop-up rests this long before it asks again. */
 export const CONSENT_REST_MS = 24 * 60 * 60 * 1000;
-/** How long after the page has fully loaded the pop-up opens, unless the
- *  visitor scrolls first. */
-export const CONSENT_OPEN_DELAY_MS = 2000;
 
 export const CONSENT_ACTIONS = ["accept_all", "reject_all", "save", "dismiss"] as const;
 export type ConsentAction = (typeof CONSENT_ACTIONS)[number];

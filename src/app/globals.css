@@ -702,21 +702,15 @@ input::-ms-clear {
   }
 }
 
-/* The cookie consent pop-up (src/components/system/Analytics.tsx): the page
-   dims, the card rises in, the choices slide across, and it fades away on a
+/* The cookie card (src/components/system/Analytics.tsx): it slides up from
+   the bottom edge, the switches open inside it, and it drops away on a
    choice; a short toast confirms it. Reduced motion shows and hides it
    without moving. */
-.mr-cookie-dim {
-  animation: mr-cookie-fade 0.3s ease-out both;
-}
-.mr-cookie-dim[data-leaving] {
-  animation: mr-cookie-fade-out 0.25s ease forwards;
-}
 .mr-cookie {
-  animation: mr-cookie-pop 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) 0.08s both;
+  animation: mr-cookie-up 0.5s cubic-bezier(0.2, 0.9, 0.25, 1) both;
 }
 .mr-cookie[data-leaving] {
-  animation: mr-cookie-out 0.25s ease forwards;
+  animation: mr-cookie-down 0.25s ease forwards;
 }
 .mr-cookie-step {
   animation: mr-cookie-slide 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) both;
@@ -725,17 +719,15 @@ input::-ms-clear {
   animation: mr-consent-toast 2.6s ease both;
   transform: translateX(-50%);
 }
-@keyframes mr-cookie-fade { from { opacity: 0; } to { opacity: 1; } }
-@keyframes mr-cookie-fade-out { to { opacity: 0; } }
-@keyframes mr-cookie-pop {
-  from { opacity: 0; transform: translateY(28px) scale(0.96); }
+@keyframes mr-cookie-up {
+  from { opacity: 0; transform: translateY(110%); }
   to { opacity: 1; transform: none; }
 }
-@keyframes mr-cookie-out {
-  to { opacity: 0; transform: translateY(16px) scale(0.98); }
+@keyframes mr-cookie-down {
+  to { opacity: 0; transform: translateY(110%); }
 }
 @keyframes mr-cookie-slide {
-  from { opacity: 0; transform: translateX(24px); }
+  from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: none; }
 }
 @keyframes mr-consent-toast {
@@ -744,5 +736,5 @@ input::-ms-clear {
   100% { opacity: 0; transform: translate(-50%, 0); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .mr-cookie, .mr-cookie-dim, .mr-cookie-step, .mr-consent-toast { animation-duration: 0.01s; animation-delay: 0s; }
+  .mr-cookie, .mr-cookie-step, .mr-consent-toast { animation-duration: 0.01s; animation-delay: 0s; }
 }

@@ -4730,7 +4730,7 @@
     {
       "id": "platform.analytics-consent",
       "runner": "platform",
-      "title": "The cookie pop-up: nothing optional loads before a yes, Accept all and Reject all are the same size, a refusal sticks, it opens after load or on scroll but never inside a booking, Cookie settings withdraws it, and each choice is recorded append-only",
+      "title": "The cookie card: nothing optional loads before a yes, Accept and Reject are the same size, a refusal sticks, it opens as the splash lifts but never inside a booking, Cookie settings withdraws it, and each choice is recorded append-only",
       "required": true,
       "status": "covered",
       "coverage": [

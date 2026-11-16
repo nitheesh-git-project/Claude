@@ -4,8 +4,8 @@
 // Google is stubbed below, so nothing leaves the machine).
 //
 // What is asserted is the promise the pop-up makes: nothing optional is
-// requested before a yes, Accept all and Reject all are the same size, a
-// refusal sticks, it opens 2 s after load or on the first scroll and never
+// requested before a yes, Accept and Reject are the same size, a refusal
+// sticks, it opens as soon as the opening splash lifts and never
 // by itself inside a booking, an ignored pop-up rests for a day, and the
 // signed-in trees never show it.
 import { test, expect, type Page } from "@playwright/test";
@@ -38,7 +38,7 @@ async function watchRecords(page: Page) {
   return bodies;
 }
 
-const popup = (page: Page) => page.getByRole("dialog", { name: "Help us do better" });
+const popup = (page: Page) => page.getByRole("region", { name: "Cookie settings" });
 const stored = (page: Page) =>
   page.evaluate(() => JSON.parse(localStorage.getItem("mr_cookie_consent") ?? "null"));
 
@@ -48,7 +48,7 @@ test.describe("cookie consent pop-up", () => {
     await watchRecords(page);
   });
 
-  test("AC-001: nothing reaches Google before a choice; it opens after load, and Accept all loads it and records the choice", async ({ page }) => {
+  test("AC-001: nothing reaches Google before a choice; the card opens, and Accept loads it and records the choice", async ({ page }) => {
     const hits = await watchGoogle(page);
     await page.unroute("**/api/consent");
     const records = await watchRecords(page);
@@ -56,7 +56,7 @@ test.describe("cookie consent pop-up", () => {
     await expect(popup(page)).toBeVisible({ timeout: 10_000 });
     expect(hits).toHaveLength(0);
 
-    await popup(page).getByRole("button", { name: "Accept all" }).click();
+    await popup(page).getByRole("button", { name: "Accept", exact: true }).click();
     await expect(popup(page)).toBeHidden();
     await expect.poll(() => hits.some((u) => u.includes("gtag/js"))).toBe(true);
     expect(await stored(page)).toMatchObject({ analytics: true });
@@ -64,11 +64,11 @@ test.describe("cookie consent pop-up", () => {
     expect(records[0]).toMatchObject({ action: "accept_all", analytics: true, pagePath: "/faq" });
   });
 
-  test("AC-002: Reject all is the same size as Accept all, and sticks across a reload", async ({ page }) => {
+  test("AC-002: Reject is the same size as Accept, and sticks across a reload", async ({ page }) => {
     const hits = await watchGoogle(page);
     await page.goto(`${BASE}/faq`);
-    const accept = popup(page).getByRole("button", { name: "Accept all" });
-    const reject = popup(page).getByRole("button", { name: "Reject all" });
+    const accept = popup(page).getByRole("button", { name: "Accept", exact: true });
+    const reject = popup(page).getByRole("button", { name: "Reject", exact: true });
     await expect(reject).toBeVisible({ timeout: 10_000 });
     // Measured once the rise-in animation (a slight scale) has settled.
     await page.waitForTimeout(800);
@@ -87,16 +87,17 @@ test.describe("cookie consent pop-up", () => {
     expect(hits).toHaveLength(0);
   });
 
-  test("AC-003: the first scroll opens it before the two seconds are up", async ({ page }) => {
-    await watchGoogle(page);
+  test("AC-003: it opens as soon as the splash lifts, without waiting or scrolling, and leaves the page usable", async ({ page }) => {
     await page.goto(`${BASE}/faq`);
-    await page.waitForLoadState("load");
-    // Hydrated (the footer link's handler exists), so the scroll listener is on.
-    await expect(page.getByRole("link", { name: "Cookie settings" })).toBeVisible();
-    const scrolledAt = Date.now();
-    await page.evaluate(() => window.scrollBy(0, 600));
-    await expect(popup(page)).toBeVisible({ timeout: 1500 });
-    expect(Date.now() - scrolledAt).toBeLessThan(1900);
+    await expect
+      .poll(() => page.evaluate(() => document.documentElement.hasAttribute("data-splash")), { timeout: 15_000 })
+      .toBe(false);
+    const liftedAt = Date.now();
+    await expect(popup(page)).toBeVisible({ timeout: 3000 });
+    expect(Date.now() - liftedAt).toBeLessThan(2000);
+    // A card, not a modal: nothing is dimmed or locked behind it.
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    expect(await page.evaluate(() => getComputedStyle(document.body).overflow)).not.toBe("hidden");
   });
 
   test("AC-004: an accepted visitor sends page views from public pages only", async ({ page }) => {
@@ -132,12 +133,12 @@ test.describe("cookie consent pop-up", () => {
     await page.goto(`${BASE}/faq`);
     await page.getByRole("link", { name: "Cookie settings" }).click();
     await expect(popup(page)).toBeVisible();
-    await popup(page).getByRole("button", { name: "Choose what to allow" }).click();
-    const choose = page.getByRole("dialog", { name: "Choose what to allow" });
+    await popup(page).getByRole("button", { name: "Customise" }).click();
+    const choose = popup(page);
     const analytics = choose.getByRole("switch", { name: "Analytics" });
     await expect(analytics).toHaveAttribute("aria-checked", "true");
     await analytics.click();
-    await choose.getByRole("button", { name: "Save my choices" }).click();
+    await choose.getByRole("button", { name: "Save", exact: true }).click();
     await expect(choose).toBeHidden();
     expect(await stored(page)).toMatchObject({ analytics: false });
     expect(

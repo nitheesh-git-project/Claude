@@ -938,23 +938,27 @@ Eight pages from one design system, the word budgets, why every photograph carri
   Analytics calls never throw and never wait: a blocked script must not break
   checkout.
 - GA is for funnels. Revenue, utilisation and no-shows come from Supabase.
-- **The cookie pop-up is design 3A, and Reject all is as big as Accept all.**
-  `src/components/system/Analytics.tsx` draws one centred card ("Help us do
-  better", max 400px, full width on a phone): Accept all, then Reject all at
-  the same size directly under it, then "Change it any time. Choose what to
-  allow", which slides to the switches (Necessary always on, Analytics, and
-  Marketing only while `NEXT_PUBLIC_MARKETING_CONSENT_ENABLED` is "true" --
-  never ask about something the site does not do). The owner wanted Accept
-  big and Reject as small text, with the switches on by default; both were
-  declined on purpose, because a pre-ticked box or a harder Reject is not
-  valid consent under GDPR (EU/UK patients) or the DPDP Act, and every
-  cookie set on such a "yes" is at risk. `AC-002` holds the sizes equal.
-  Escape counts as "only necessary" for someone who has not answered, and
-  changes nothing for someone who has. The rules live in
+- **The cookie card sits at the bottom, deep teal, and Reject is as big as
+  Accept.** `src/components/system/Analytics.tsx` draws one dark card
+  (`#0b3b37`, max 440px; full width less 12px on a phone, bottom-left from
+  `sm:` up) with "Cookie settings", two lines of text and three equal buttons:
+  Customise, Reject, and **Accept** -- the only filled one, in mint
+  (`#5eead4`). Customise opens the switches inside the card (Necessary always
+  on, Analytics, and Marketing only while
+  `NEXT_PUBLIC_MARKETING_CONSENT_ENABLED` is "true" -- never ask about
+  something the site does not do) and turns into Save. It is a `region`, not a
+  dialog: nothing behind it is dimmed, locked or focus-trapped, because a card
+  that lets people keep reading is answered more often than one that blocks
+  them. The owner first wanted Accept big and Reject as small text, with the
+  switches on by default; both were declined on purpose, because a pre-ticked
+  box or a harder Reject is not valid consent under GDPR (EU/UK patients) or
+  the DPDP Act. A different colour for Accept is allowed; a different size
+  is not. `AC-002` holds the sizes equal. The rules live in
   `src/lib/cookieConsent.ts` (unit-tested).
-- **It opens 2 seconds after the page has fully loaded, or on the first
-  scroll, and never by itself inside a booking.** `CONSENT_OPEN_DELAY_MS`
-  after `load`, or the first `scroll`, whichever is first. `/book` and
+- **It opens as soon as the opening splash lifts, and never by itself inside
+  a booking.** It waits for `data-splash` to leave `<html>` (a 6-second
+  ceiling, so a stuck attribute never hides it), then slides up; on a page
+  with no splash that is straight after hydration. `/book` and
   `/book-home-visit` never open it on their own (`autoOpensOn`): interrupting
   a booking makes people tap whatever gets rid of it. The footer link still
   opens it there.
@@ -980,6 +984,6 @@ Eight pages from one design system, the word budgets, why every photograph carri
 - **The footer's "Cookie settings" works before the page has hydrated.** It
   is a link to `#cookie-settings` (`COOKIE_SETTINGS_HASH`), not a button: a
   tap that lands before React has attached its click handler still sets the
-  hash, and the pop-up opens for it on mount or on `hashchange`, then clears
+  hash, and the card opens for it on mount or on `hashchange`, then clears
   the hash. The splash leaves on a CSS timer, so the page can be tapped before
   hydration; a button there was a dead control.
