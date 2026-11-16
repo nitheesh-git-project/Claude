@@ -122,9 +122,10 @@ export default function CatalogCard({
    */
   compact?: boolean;
   /**
-   * Opens the detail dialog. Optional: the patient's booking screen has the
-   * wizard one tap away and no dialog of its own, and a "View full details"
-   * link that opened nothing would be worse than its absence.
+   * Opens the detail dialog. Optional, because a "View full details" link
+   * that opened nothing would be worse than its absence -- every catalogue
+   * today passes one (the patient's booking screen uses the public
+   * ProgramCards / HomeVisitConditions, dialogs included).
    */
   onOpenDetails?: () => void;
 }) {

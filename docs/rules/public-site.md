@@ -276,6 +276,11 @@ Eight pages from one design system, the word budgets, why every photograph carri
   4. **Its tablist is "Goals by kind of care"**, distinct from the recovery
      story's "Kinds of care" and the walkthrough's "How the process works".
   Guards: `e2e/treatment-goals.spec.ts` TG-001..003.
+- **The patient's Book a session screen uses the public cards.**
+  `PatientBookingHub` renders `ProgramCards` and `HomeVisitConditions`, so a
+  tap on a consultation opens the same detail pop-up as `/conditions` and
+  `/home-visit`; it used to draw the bare cards, and a tap did nothing.
+  Guard: `catalog-cover-image` CI-010.
 - **A carousel that moves on its own must stop the moment someone engages.**
   `TreatmentGoals` used to never advance by itself, because the home page
   already carries the auto-rotating `JourneySteps`; the owner chose a loop

@@ -236,7 +236,7 @@ test.describe("Catalog cover images", () => {
     expect(headingBox!.y).toBeGreaterThanOrEqual(imgBox!.y + imgBox!.height - 1);
   });
 
-  test("CI-010 the patient's booking screen renders the same card, not a text list", async ({
+  test("CI-010 the patient's booking screen renders the same card, and its tap opens the same pop-up", async ({
     page,
   }) => {
     test.setTimeout(120_000);
@@ -262,6 +262,13 @@ test.describe("Catalog cover images", () => {
     await expect(
       page.locator(`a[href="/book?category=${categoryId}"]`).first()
     ).toBeVisible();
+
+    // A tap on the card opens the same detail pop-up a visitor gets on
+    // /conditions (it did nothing on the dashboard), with booking inside it.
+    await page.getByRole("button", { name: /^View full details for/ }).first().click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+    await expect(dialog.locator('a[href^="/book"]').first()).toBeVisible();
   });
 
   test("CI-011 a row with no cover still renders at the same height", async ({ page }) => {

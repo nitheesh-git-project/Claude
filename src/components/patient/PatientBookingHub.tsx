@@ -1,7 +1,7 @@
 import HomeVisitOnly from "@/components/pricing/HomeVisitOnly";
-import CatalogCard from "@/components/catalog/CatalogCard";
-import { homeVisitConditionOption, type HomeVisitConditionRow } from "@/lib/serviceOptions";
-import { homeVisitBookHref } from "@/lib/homeVisitRates";
+import ProgramCards from "@/components/catalog/ProgramCards";
+import HomeVisitConditions from "@/components/home/HomeVisitConditions";
+import { type HomeVisitConditionRow } from "@/lib/serviceOptions";
 
 export type HubCategory = {
   id: string;
@@ -70,7 +70,7 @@ function Group({
           online ? "from-teal-300 via-teal-100" : "from-amber-300 via-amber-100"
         }`}
       />
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{children}</div>
+      {children}
     </div>
   );
 }
@@ -84,8 +84,10 @@ function Group({
  * kind any time, and hiding a product because they have not used it yet is
  * how a patient never discovers it.
  *
- * Every card deep-links into the existing wizard for its mode, so nothing
- * about the booking flows is duplicated here. A signed-in patient skips the
+ * The cards are the public ones (ProgramCards, HomeVisitConditions): a tap
+ * opens the same detail pop-up as on /conditions and /home-visit, and Book
+ * deep-links into the existing wizard for its mode, so nothing about the
+ * booking flows is duplicated here. A signed-in patient skips the
  * signup step in either wizard automatically.
  */
 export default function PatientBookingHub({
@@ -116,25 +118,10 @@ export default function PatientBookingHub({
           icon="fa-video"
           count={categories.length}
         >
-          {categories.map((c) => (
-            <CatalogCard
-              key={c.id}
-              data={{
-                id: c.id,
-                title: c.title,
-                summary: c.description,
-                imageUrl: c.image_url ?? null,
-                focalX: c.image_focal_x,
-                focalY: c.image_focal_y,
-                meta: [`${c.duration_minutes} min`, "Video session", "1-on-1"],
-                points: c.points ?? [],
-                pricePaise: c.price_paise,
-                priceUnit: `/ ${c.duration_minutes} min session`,
-                bookHref: `/book?category=${c.id}`,
-                bookLabel: c.cta_label?.trim() || "Book this session",
-              }}
-            />
-          ))}
+          {/* The public cards themselves (/conditions), so a tap on one opens
+              the same detail pop-up a visitor gets, with booking one button
+              away; the patient's dashboard had the cards without it. */}
+          <ProgramCards programs={categories} columns="three" />
         </Group>
       )}
 
@@ -147,30 +134,7 @@ export default function PatientBookingHub({
           icon="fa-house-medical"
           count={homeVisitConditions.length}
         >
-          {homeVisitConditions.map((c) => {
-            const option = homeVisitConditionOption(c);
-            return (
-              <CatalogCard
-                key={c.id}
-                data={{
-                  id: option.id,
-                  title: option.title,
-                  summary: option.summary,
-                  imageUrl: option.imageUrl,
-                  focalX: option.focalX,
-                  focalY: option.focalY,
-                  meta: option.meta,
-                  points: option.points,
-                  pricePaise: option.pricePaise,
-                  rupeesOnly: true,
-                  priceUnit: option.priceUnit,
-                  bookHref: homeVisitBookHref(c.id),
-                  bookLabel: "Book a home visit",
-                  icon: option.icon,
-                }}
-              />
-            );
-          })}
+          <HomeVisitConditions conditions={homeVisitConditions} />
         </Group>
         </HomeVisitOnly>
       )}
