@@ -717,8 +717,8 @@ Covered by `HOS-AUTH-002`, `HOS-MONEY-*`. The screen opens on a three-figure str
 
 
 #### `ADM-CAT-003` - Default on booking: one service at a time · P1
-**Steps.** Open **Catalog → Conditions → Online sessions**. Each service row has a **Default on booking** switch next to its Active pill. Switch it on for **General Physiotherapy Consultation** (or any active service).
-**Expected Result.** That switch turns on and the one that was on turns off - never two on at once. Open `/book` and `/book-home-visit` in a fresh tab: both open with that service already chosen. `/book?category=<another id>` still opens on the linked service. Switch the default off: the notice reads `No service is the booking default, so the booking pages open with nothing picked.` and `/book` opens with nothing chosen.
+**Steps.** Open **Catalog → Conditions → Online sessions**. Each service row has a **Default on booking** switch next to its Active pill. Switch it on for **General Physiotherapy Consultation** (or any active service). A confirmation asks first, naming the service it replaces: tap **Keep as it is** once and check nothing changed, then switch it again and tap **Make it the default**.
+**Expected Result.** **Keep as it is** changes nothing. After **Make it the default**, that switch turns on and the one that was on turns off - never two on at once. Open `/book` and `/book-home-visit` in a fresh tab: both open with that service already chosen. `/book?category=<another id>` still opens on the linked service. Switch the default off: the notice reads `No service is the booking default, so the booking pages open with nothing picked.` and `/book` opens with nothing chosen.
 **Negatives:** an **Inactive** service's switch is disabled (`Only an active service can be the booking default.`); deactivating the current default turns its switch off. An admin without the Catalog scope never sees the switch.
 #### `ADM-CAT-004` - Deleting a condition says what happened · P0
 
