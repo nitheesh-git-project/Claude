@@ -275,7 +275,12 @@ export default async function Home() {
                 extracting the page's headline gets. "Or at your home" is only
                 said while a visit can actually be booked. */}
             Physiotherapy for you or your parent &ndash;{" "}
-            <span className="block bg-gradient-to-r from-teal-700 to-emerald-500 bg-clip-text text-transparent">
+            {/* bg-clip-text paints the gradient only inside the span's own
+                box, and the h1's tight leading puts the descenders of "by"
+                and "your" below it -- so they were cut off. The padding
+                gives them room and the matching negative margin keeps the
+                layout where it was. */}
+            <span className="-mb-[0.15em] block bg-gradient-to-r from-teal-700 to-emerald-500 bg-clip-text pb-[0.15em] leading-[1.12] text-transparent">
               {homeVisitEnabled ? "by video, or at your home" : "by video, wherever you are"}
             </span>
           </>

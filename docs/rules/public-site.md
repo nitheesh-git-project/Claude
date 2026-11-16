@@ -251,7 +251,8 @@ Eight pages from one design system, the word budgets, why every photograph carri
   booking bar drops its two lines of text (they could only read "Video or a
   visit a...") and the button takes the width.
 - **"What treatment works towards" replaced "Find what hurts", on `/` and
-  `/conditions`.** `TreatmentGoals` shows one kind of care at a time as a
+  `/how-it-works`** (it moved there from `/conditions`, straight after the
+  four steps; "Recovery is a course" now follows the health profile band). `TreatmentGoals` shows one kind of care at a time as a
   before and after. A divider sweeps across the card: the first visit (grey
   photo, rose figure, three things that are hard today) becomes the goal
   (colour, teal figure, three goals and the goal in the patient's words). The
