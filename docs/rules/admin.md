@@ -1124,6 +1124,14 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   meaning the same thing (device -> true). Null `site_theme` (nobody has
   picked yet) falls back to that old switch, so the column changed nothing
   on its own. Guard: `dark-mode` DARK-001..005.
+- **Every Health Profile layout option explains itself.** Each row has
+  "What is this? See a preview": what it is, why it helps, how its data gets
+  in (who fills it and where), and a small preview with sample data drawn as
+  the patient's page draws it, labelled as a sample (`WidgetGuidePanel`).
+  The words live in `src/lib/profileWidgetGuide.ts`: one entry per section,
+  and graph lines built from the measure registry (plain name, unit, which
+  direction is better). `profileWidgetGuide.test.ts` fails if any option
+  is left without one. Guard: `admin-dashboard-ui` K-HPL.
 - **Settings -> Health Profile layout chooses what every patient of a
   condition kind sees; the patient's record chooses for one patient.** The
   Settings screen (`ProfileWidgetSettings`, self-fetching) lists every

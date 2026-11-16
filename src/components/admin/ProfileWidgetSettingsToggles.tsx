@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import WidgetGuidePanel from "@/components/admin/WidgetGuidePanel";
+import { widgetGuide } from "@/lib/profileWidgetGuide";
 import { useRouter } from "@/lib/useRouter";
 import { useToast } from "@/lib/toast";
 import type { WidgetGroup, WidgetSource } from "@/lib/profileWidgets";
@@ -93,6 +95,8 @@ export function ProfileWidgetKindEditor({
   const [overrides, setOverrides] = useState<Record<string, boolean | null>>({});
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Which option's explanation and preview is open (one at a time).
+  const [openGuide, setOpenGuide] = useState<string | null>(null);
   const current = kinds.find((k) => k.kind === active) ?? kinds[0];
 
   const rows = useMemo(
@@ -178,7 +182,8 @@ export function ProfileWidgetKindEditor({
                   {inGroup.map((r) => {
                     const id = `${current.kind}:${r.key}`;
                     return (
-                      <li key={r.key} className="flex items-center justify-between gap-3 py-1.5" data-widget={r.key}>
+                      <li key={r.key} className="py-1.5" data-widget={r.key}>
+                        <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0">
                           <p className="text-sm font-semibold text-slate-900">{r.label}</p>
                           <p className="text-xs text-slate-600">
@@ -186,6 +191,16 @@ export function ProfileWidgetKindEditor({
                             {!r.locked && r.source === "kind" && " · Set by the clinic"}
                             {parentHidden(r) && " · Hidden with the progress graph"}
                           </p>
+                          {widgetGuide(r) && (
+                            <button
+                              type="button"
+                              onClick={() => setOpenGuide(openGuide === r.key ? null : r.key)}
+                              aria-expanded={openGuide === r.key}
+                              className="mt-0.5 text-xs font-semibold text-teal-700 hover:underline"
+                            >
+                              {openGuide === r.key ? "Hide the explanation" : "What is this? See a preview"}
+                            </button>
+                          )}
                         </div>
                         {r.locked ? (
                           <LockedNote row={r} />
@@ -204,6 +219,8 @@ export function ProfileWidgetKindEditor({
                             <Switch on={r.visible} disabled={pending === id} label={`Show ${r.label}`} onToggle={() => void change(r, !r.visible)} />
                           </div>
                         )}
+                        </div>
+                        {openGuide === r.key && widgetGuide(r) && <WidgetGuidePanel guide={widgetGuide(r)!} />}
                       </li>
                     );
                   })}
