@@ -1815,6 +1815,19 @@
       ],
       "integration": "local",
       "destructive": false
+    },
+    "password-flows.spec.ts": {
+      "runner": "platform",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
     }
   },
   "flows": [
@@ -4757,6 +4770,28 @@
             "DTA-003"
           ],
           "level": "api"
+        }
+      ],
+      "rules": [
+        "docs/rules/ops-security.md"
+      ]
+    },
+    {
+      "id": "platform.password-flows",
+      "runner": "platform",
+      "title": "Change password needs the current one; the reset link sets one without it; /reset-password shows its form only to somebody who came through a link",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "password-flows.spec.ts",
+          "tests": [
+            "PW-001",
+            "PW-002",
+            "PW-003",
+            "PW-004"
+          ],
+          "level": "browser"
         }
       ],
       "rules": [

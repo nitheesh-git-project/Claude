@@ -114,7 +114,7 @@ The therapist Overview is where a clinician starts every shift: what is on today
 11. Repeat steps 7–8 for **Specialist In** only. Leave it pending.
 12. Sign in as a full admin and open **Today → Approvals**. Decline **both** requested fields with the note `Send the council registration number first.`
 13. Sign back in as the therapist and reopen **Edit Profile**.
-14. Under **Account Security**, tap **Send password reset email**.
+14. Under **Account Security**, tap **Email me a reset link** (the **Change password** form above it is covered by `PW-001`: it needs the current password).
 
 **Expected Result.**
 * **Languages save instantly.** The button reads `Saving...` then `Save`; the value survives the reload at step 5.

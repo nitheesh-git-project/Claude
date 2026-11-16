@@ -117,6 +117,7 @@
       "patient-session-summary.spec.ts": 45,
       "patient-meet-join.spec.ts": 18,
       "patient-upcoming-rule.spec.ts": 25,
+      "password-flows.spec.ts": 60,
       "patient-registration.spec.ts": 15,
       "patient-saved-addresses.spec.ts": 20,
       "pay-later.spec.ts": 93,

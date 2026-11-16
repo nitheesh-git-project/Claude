@@ -206,7 +206,7 @@ Other reference, read on demand: `docs/PRODUCT-GUIDE.md` (the product and setup 
 ## Layout
 
 ```
-src/app/                 pages, layouts, API route handlers (231 of them)
+src/app/                 pages, layouts, API route handlers (232 of them)
 src/app/api/**           grouped by audience: admin/, appointments/, patient/,
                          therapist/, hospital/, packages/, razorpay/, and
                          medical-documents/ (the one route every role shares,

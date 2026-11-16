@@ -225,6 +225,7 @@ total, which moves with every spec added.
 | `therapist-readiness` | 4 | the five things a therapist needs before live patients |
 | `therapist-specialty` | 3 | a specialisation as a value rather than a sentence |
 | `therapist-request` | 4 | booking a named specialist from `/team` |
+| `password-flows` | 4 | Change password on the profile needs the current one and only the right one changes it; the route refuses no session, no current password and a too-short new one; `/reset-password` typed in shows no form, signed in or not; through a reset link the form appears without a current password and survives a refresh |
 | `patient-registration` | 7 | self-signup with no email-confirmation step |
 | `consultation-first` | 4 | direct programme purchase is gone, a stale `?package=` is answered, and an old link to the four-visit home programme gets the programme refusal (403) rather than one visit |
 | `catalog-home-visit-prices` | 5 | Catalog -> Conditions as the one catalogue (Online sessions, then Home visits; `?tab=packages` lands there); set own price and use clinic-wide each leaving exactly one active price row and moving the wizard's quote; the route's 400s, 404 and 403; two admins at once leaving one price (200/409, either order); a hands-on recommendation written at the own price then the clinic-wide one (that last case append-only - disposable project only) |

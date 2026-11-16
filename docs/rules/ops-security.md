@@ -236,6 +236,24 @@ describes, same posture as the Meet-sync rule below. `admin_activity_log`
 has a select policy and deliberately no insert policy, so the service-role
 client is the only writer and the log is append-only from any session.
 
+- **Two ways to a new password, and each asks for exactly what proves
+  who you are.** *Change password* on every profile (`AccountSecuritySection`,
+  all four roles) needs the **current** password: `/api/change-password`
+  checks it with a throwaway sign-in that never touches the request's
+  cookies, rate-limited per account (`passwordChange`, closed on failure),
+  then sets the new one with the service role. *Forgot password* (the
+  patient, therapist and hospital sign-in cards, and "Email me a reset link"
+  on the profile) emails a link to `/reset-password`, which needs no current
+  password because the inbox is the proof. **`/reset-password` shows its form
+  only to somebody who arrived through a link** this tab exchanged (a code,
+  a token hash, or a `type=recovery` fragment; a sessionStorage mark keeps
+  it across a refresh): typed in while signed in, it sent a person to set a
+  new password without the current one. The admin sign-in has no
+  pre-auth "Forgot password?" by decision (`AdminLoginCard`): another admin
+  issues a set-password link. Supabase's own `updateUser({ password })`
+  still accepts any live session from the browser; turning on **Secure
+  password change** in the Supabase dashboard (Authentication -> Providers ->
+  Email) closes that at the source. Guard: `e2e/password-flows.spec.ts`.
 - **Rate limiting is Postgres, not Redis, and it fails open.** 173 route
   handlers had nothing throttled. `src/lib/rateLimit.ts` holds the named
   limits and the pure judgements (which caller a request counts against, how
