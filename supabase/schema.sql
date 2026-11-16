@@ -21136,6 +21136,15 @@ create policy "grievances_select_admin" on grievances
 
 revoke insert, update, delete on grievances from anon, authenticated;
 
+-- A deletion request keeps who to write to until it is closed: the account's
+-- email is cleared when the account is deleted, and the person is still owed
+-- the "your account has been deleted" email. The update route clears both
+-- columns the moment the request is closed, so they never outlive the case.
+alter table data_requests add column if not exists contact_name text
+  check (contact_name is null or char_length(contact_name) <= 120);
+alter table data_requests add column if not exists contact_email text
+  check (contact_email is null or char_length(contact_email) <= 254);
+
 -- ---------------------------------------------------------------------
 -- service_role's EXECUTE, written out rather than inherited.
 --

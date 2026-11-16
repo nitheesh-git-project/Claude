@@ -1186,4 +1186,15 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   the request deleted. The log records `data_request.update` /
   `grievance.update` with the from/to and the note's length, never its text.
   A desk that can only read People sees the cases without buttons.
+  **Each step emails the person, best effort.** `src/lib/legalEmails.ts`
+  (pure templates, every typed value escaped) and `emailServer.ts` (Resend,
+  switched on by `RESEND_API_KEY` + `EMAIL_FROM`, never throws, 8-second
+  timeout): a receipt on filing plus an alert to the Grievance Officer
+  (`LEGAL_FACTS.grievanceOfficerEmail`, else the site's contact email); an
+  acknowledgement and a resolution email for a grievance; "deleted" or
+  "declined, because..." for a deletion request. A deletion request keeps
+  `contact_name` / `contact_email` only so the last email can still be sent
+  after the account's own email is cleared; the update route nulls both the
+  moment the case closes. The log records whether the email was `sent`,
+  `skipped` or `failed`, never its text.
 

@@ -156,10 +156,10 @@ function privacy(ctx: LegalContext, f: LegalFacts): LegalDoc {
           { table: {
             head: ["Provider", "What for"],
             rows: [
-              ["Supabase", "Hosting our database, sign-in and file storage"],
+              ["Supabase", "Hosting our database, sign-in and file storage, and sending sign-in and password emails"],
               ["Razorpay", "Taking payments and refunds"],
-              ["Google", "Calendar and Meet links for video sessions; website analytics only with your consent"],
-              ["Resend", "Sending account and booking emails"],
+              ["Google", "Calendar invites and Meet links for video sessions; website analytics only with your consent"],
+              ["Resend", "Sending emails about your requests and complaints"],
               ["WhatsApp (Meta)", "Only when you choose to message us there"],
             ],
           } },

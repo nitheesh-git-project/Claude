@@ -5,6 +5,9 @@ import { parseJsonBody } from "@/lib/parseJsonBody";
 import { enforceRateLimit } from "@/lib/rateLimitServer";
 import { IMPERSONATION_COOKIE } from "@/lib/impersonation";
 import { makeReference, validateGrievance } from "@/lib/dataRequests";
+import { sendEmail } from "@/lib/emailServer";
+import { grievanceReceivedEmail, officerAlertEmail } from "@/lib/legalEmails";
+import { legalEmailContext } from "@/lib/legalEmailContext";
 
 // The complaint form on /grievances. Public: a complaint must never need an
 // account. The table has no insert policy and no insert grant, so this route
@@ -51,7 +54,18 @@ export async function POST(request: NextRequest) {
       booking_reference: checked.value.bookingReference,
       message: checked.value.message,
     });
-    if (!error) return NextResponse.json({ reference });
+    if (!error) {
+      // The receipt (proof the complaint arrived) and the officer's alert
+      // (the 48-hour clock is running). Best effort: the complaint is on
+      // People -> Data requests whether or not either lands.
+      const { brand, officerEmail } = await legalEmailContext(request);
+      const v = checked.value;
+      await Promise.allSettled([
+        sendEmail(v.email, grievanceReceivedEmail(brand, { name: v.name, reference, category: v.category }), { replyTo: officerEmail }),
+        sendEmail(officerEmail, officerAlertEmail(brand, { kind: "grievance", reference, name: v.name, email: v.email, category: v.category, message: v.message }), { replyTo: v.email }),
+      ]);
+      return NextResponse.json({ reference });
+    }
     if (error.code !== "23505") {
       console.error("Could not record a grievance", error.message);
       return NextResponse.json({ error: "We couldn't send your complaint just now. Please try again, or write to us." }, { status: 500 });

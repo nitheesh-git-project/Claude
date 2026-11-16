@@ -5,6 +5,9 @@ import { parseJsonBody } from "@/lib/parseJsonBody";
 import { enforceRateLimit } from "@/lib/rateLimitServer";
 import { IMPERSONATION_COOKIE } from "@/lib/impersonation";
 import { isDataRequestRole, makeReference, validateDeletionReason } from "@/lib/dataRequests";
+import { sendEmail } from "@/lib/emailServer";
+import { deletionRequestedEmail, officerAlertEmail } from "@/lib/legalEmails";
+import { legalEmailContext } from "@/lib/legalEmailContext";
 
 // "Delete my account" on a profile page. It opens a case for the People desk
 // rather than deleting anything: clinical, payment and audit records must be
@@ -28,7 +31,11 @@ export async function POST(request: NextRequest) {
   }
 
   const admin = createAdminClient();
-  const { data: profile, error: profileError } = await admin.from("profiles").select("role").eq("id", user.id).maybeSingle();
+  const { data: profile, error: profileError } = await admin
+    .from("profiles")
+    .select("role, full_name, email, organization_name")
+    .eq("id", user.id)
+    .maybeSingle();
   if (profileError) {
     return NextResponse.json({ error: "We couldn't reach your account just now. Please try again." }, { status: 503 });
   }
@@ -62,6 +69,11 @@ export async function POST(request: NextRequest) {
   const reason = validateDeletionReason(body.reason);
   if (!reason.ok) return NextResponse.json({ error: reason.error }, { status: 400 });
 
+  // Who to write to, kept on the request until it closes (the account's own
+  // email is cleared when the account is deleted).
+  const contactEmail = (profile?.email ?? user.email ?? "").trim() || null;
+  const contactName = ((profile?.role === "hospital" ? profile?.organization_name : null) || profile?.full_name || "there").slice(0, 120);
+
   // A reference collision is astronomically unlikely, but a unique index
   // refusal is a retry, not a failure the person sees.
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -73,8 +85,19 @@ export async function POST(request: NextRequest) {
       kind: "deletion",
       status: "open",
       reason: reason.value,
+      contact_name: contactName,
+      contact_email: contactEmail,
     });
-    if (!error) return NextResponse.json({ reference });
+    if (!error) {
+      if (contactEmail) {
+        const { brand, officerEmail } = await legalEmailContext(request);
+        await Promise.allSettled([
+          sendEmail(contactEmail, deletionRequestedEmail(brand, { name: contactName, reference }), { replyTo: officerEmail }),
+          sendEmail(officerEmail, officerAlertEmail(brand, { kind: "deletion", reference, name: contactName, email: contactEmail, role: profile!.role, reason: reason.value }), { replyTo: contactEmail }),
+        ]);
+      }
+      return NextResponse.json({ reference });
+    }
     if (error.code === "23505" && /one_open_deletion/.test(error.message)) {
       return NextResponse.json({ error: "You already have a deletion request open." }, { status: 409 });
     }

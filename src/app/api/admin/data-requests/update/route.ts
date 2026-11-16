@@ -10,6 +10,15 @@ import {
   type DataRequestStatus,
   type GrievanceStatus,
 } from "@/lib/dataRequests";
+import { sendEmail } from "@/lib/emailServer";
+import {
+  deletionCompletedEmail,
+  deletionDeclinedEmail,
+  grievanceAcknowledgedEmail,
+  grievanceResolvedEmail,
+  type Email,
+} from "@/lib/legalEmails";
+import { legalEmailContext } from "@/lib/legalEmailContext";
 
 // Moves a deletion request or a grievance to its next status.
 //
@@ -39,7 +48,11 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient();
   const table = type === "deletion" ? "data_requests" : "grievances";
-  const { data: current, error: readError } = await admin.from(table).select("status, reference").eq("id", id).maybeSingle();
+  const { data: current, error: readError } = await admin
+    .from(table)
+    .select(type === "deletion" ? "status, reference, contact_name, contact_email" : "status, reference, name, email")
+    .eq("id", id)
+    .maybeSingle<{ status: string; reference: string; contact_name?: string | null; contact_email?: string | null; name?: string; email?: string }>();
   if (readError) return NextResponse.json({ error: "Could not read that case. Please try again." }, { status: 503 });
   if (!current) return NextResponse.json({ error: "Not found." }, { status: 404 });
 
@@ -76,12 +89,35 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Somebody else updated this case a moment ago. Refresh to see it." }, { status: 409 });
   }
 
+  // Tell the person. A closed deletion request then forgets who to write to
+  // (contact_* exist only so this email could still be sent).
+  const { brand, officerEmail } = await legalEmailContext(request);
+  let recipient: string | null = null;
+  let message: Email | null = null;
+  if (type === "grievance") {
+    recipient = current.email ?? null;
+    const name = current.name ?? "there";
+    if (to === "acknowledged") message = grievanceAcknowledgedEmail(brand, { name, reference: current.reference });
+    if (to === "resolved") message = grievanceResolvedEmail(brand, { name, reference: current.reference, resolution: note });
+  } else if (to === "completed" || to === "rejected") {
+    recipient = current.contact_email ?? null;
+    const name = current.contact_name ?? "there";
+    message =
+      to === "completed"
+        ? deletionCompletedEmail(brand, { name, reference: current.reference })
+        : deletionDeclinedEmail(brand, { name, reference: current.reference, reason: note });
+  }
+  const emailed = recipient && message ? await sendEmail(recipient, message, { replyTo: officerEmail }) : "skipped";
+  if (type === "deletion" && (to === "completed" || to === "rejected")) {
+    await admin.from("data_requests").update({ contact_name: null, contact_email: null }).eq("id", id);
+  }
+
   await recordAdminActivity(admin, adminUser.id, {
     action: type === "deletion" ? "data_request.update" : "grievance.update",
     targetId: id,
     targetLabel: current.reference as string,
     // The from/to only: a note is free text about a person.
-    details: { from, to, noteLength: note.length },
+    details: { from, to, noteLength: note.length, emailed },
   });
   return NextResponse.json({ success: true });
 }
