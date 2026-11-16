@@ -263,10 +263,12 @@ Eight pages from one design system, the word budgets, why every photograph carri
      beside it. The headline figures equal the health-profile samples'
      (`treatmentGoals.test.ts`), and the words are tested for promises
      ("cure", "guarantee", "pain-free").
-  2. **It never advances on its own.** The sweep plays once when the band
-     comes into view and again when a kind of care is picked. "Play all six"
-     walks through every one, but only when tapped. Under reduced motion the
-     goal side shows at once.
+  2. **It loops until the visitor chooses, then never takes the choice
+     back** (the owner's call, replacing a "Play all six" button). While the
+     band is on screen it plays all six in turn, each sweeping and holding;
+     it pauses while scrolled away. A tap or arrow key on any kind of care
+     stops the loop on it until the page is reloaded or left and reopened.
+     Under reduced motion nothing advances and the goal side shows at once.
   3. **Its photographs show the care, not a screen**: the one exception to
      the screen rule above, because what changes here is the body. There is
      one photograph per kind of care (`goal-*` in `marketingPhotos.ts`, free
@@ -274,10 +276,12 @@ Eight pages from one design system, the word budgets, why every photograph carri
   4. **Its tablist is "Goals by kind of care"**, distinct from the recovery
      story's "Kinds of care" and the walkthrough's "How the process works".
   Guards: `e2e/treatment-goals.spec.ts` TG-001..003.
-- **A carousel that moves on its own is a carousel nobody can read.**
-  `TreatmentGoals` (and `CareAreaShowcase` before it) never advances by itself: the home page already carries
-  the auto-rotating `JourneySteps`, and a second thing moving while you read
-  the first is worse than either alone. Swipe, the arrow buttons and the
+- **A carousel that moves on its own must stop the moment someone engages.**
+  `TreatmentGoals` used to never advance by itself, because the home page
+  already carries the auto-rotating `JourneySteps`; the owner chose a loop
+  instead, so it holds each story long enough to read (sweep 1.8s + hold
+  1.6s), stops for good on a pick, pauses off screen, and does not move at
+  all under reduced motion. Swipe, the arrow buttons and the
   picker all go through one `select()` so they cannot disagree about what is
   showing, and the picker is a real tablist with roving focus and arrow keys.
   Its `aria-label` is "Goals by kind of care" and must stay distinct from

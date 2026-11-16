@@ -13,11 +13,13 @@ import { formatGoalValue, TREATMENT_GOALS, TREATMENT_GOALS_NOTE, type TreatmentG
  * rose figure, what is hard today) becomes the goal (colour, teal figure,
  * what the physiotherapist works towards).
  *
- * The sweep plays once when the band comes into view and again whenever a
- * kind of care is picked. "Play all six" walks through every kind of care,
- * and only when it is tapped: nothing here advances on its own (the carousel
- * rule in docs/rules/public-site.md). Under reduced motion the goal side is
- * shown at once, with nothing moving.
+ * While the band is on screen it plays all six in a loop, each sweeping from
+ * the first visit to the goal and holding there (the owner's call: it
+ * replaced a "Play all six" button). A tap or arrow key on any kind of care
+ * stops the loop and stays on it until the page is reloaded or left and
+ * opened again -- the loop never takes a choice back. It pauses while the
+ * band is scrolled away. Under reduced motion nothing advances: the first
+ * goal is shown at once, and a pick shows its goal at once.
  *
  * Every story is a made-up sample patient, labelled as one, and the words are
  * goals, never promises (`treatmentGoals.ts`, unit-tested).
@@ -29,12 +31,14 @@ export default function TreatmentGoals() {
   const reduce = useHydrationSafeReducedMotion();
   const baseId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
-  const inView = useInView(rootRef, { once: true, amount: 0.35 });
+  // Not `once`: the loop pauses while the band is scrolled away.
+  const inView = useInView(rootRef, { amount: 0.35 });
   const tabsRef = useRef<(HTMLButtonElement | null)[]>([]);
   const [active, setActive] = useState(0);
   // 0 = the first visit fully showing, 1 = the goal fully showing.
   const [progress, setProgress] = useState(0);
-  const [playingAll, setPlayingAll] = useState(false);
+  // Set by the visitor's own pick; from then on the loop is over for good.
+  const pinned = useRef(false);
   const run = useRef(0);
 
   const sweep = useCallback(
@@ -60,34 +64,32 @@ export default function TreatmentGoals() {
     [reduce]
   );
 
-  // The first time the band is on screen, its first story plays once.
+  // On screen and not pinned: loop through all six, from where it was.
+  // Off screen: stop (the next sweep resumes at the following story).
+  const loopFrom = useRef(0);
   useEffect(() => {
-    if (!inView) return;
-    // Starting an animation in response to the band scrolling into view:
-    // the in-view signal is the external event this effect follows.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    sweep(0);
-  }, [inView, sweep]);
+    if (!inView) {
+      // Only the loop pauses: a picked story's sweep is left to finish, or
+      // it would sit half-way when the visitor scrolls back.
+      if (!pinned.current) run.current += 1;
+      return;
+    }
+    if (pinned.current) return;
+    const loop = (i: number) => {
+      loopFrom.current = i;
+      // The in-view signal is the external event this effect follows.
+      sweep(i, reduce ? undefined : () => loop((i + 1) % TREATMENT_GOALS.length));
+    };
+    loop(loopFrom.current);
+  }, [inView, sweep, reduce]);
 
   // Nothing keeps running once the visitor has gone.
   useEffect(() => () => void (run.current += 1), []);
 
   function pick(index: number, focus = false) {
-    setPlayingAll(false);
+    pinned.current = true;
     sweep(index);
     if (focus) tabsRef.current[index]?.focus();
-  }
-
-  function playAll() {
-    setPlayingAll(true);
-    const next = (i: number) => {
-      if (i >= TREATMENT_GOALS.length) {
-        setPlayingAll(false);
-        return;
-      }
-      sweep(i, () => next(i + 1));
-    };
-    next(0);
   }
 
   function onTabKey(e: React.KeyboardEvent, i: number) {
@@ -170,22 +172,9 @@ export default function TreatmentGoals() {
         )}
       </div>
 
-      {/* Under the card rather than on it: over the card it sat on the text
-          column's first line (the layout audit's overlap). */}
-      <div className="mt-3 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-slate-500">
-          {goal.sample} · {TREATMENT_GOALS_NOTE}
-        </p>
-        <button
-          type="button"
-          onClick={playAll}
-          disabled={playingAll}
-          className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 self-start rounded-full bg-slate-900 px-4 text-sm font-bold text-white shadow-lg transition hover:bg-slate-800 disabled:opacity-80 sm:self-auto"
-        >
-          <i className="fa-solid fa-play text-xs" aria-hidden="true" />
-          {playingAll ? "Playing…" : "Play all six"}
-        </button>
-      </div>
+      <p className="mt-3 text-sm text-slate-500">
+        {goal.sample} · {TREATMENT_GOALS_NOTE}
+      </p>
     </div>
   );
 }
