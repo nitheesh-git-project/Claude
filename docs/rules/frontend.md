@@ -796,6 +796,13 @@ is invisible to any tooling here.
   in the address exactly as long as the goodbye banner is on screen and is
   replaced with `/` when it leaves (its timer or the X) -- the owner's call.
   Guard: `e2e/navigation-feedback.spec.ts` NAV-004.
+- **An empty phone field opens on the visitor's country.** `PhoneNumberField`
+  seeds from the browser (time zone, then language), then follows the
+  country the site resolved from where the visitor is (`usePricing().country`,
+  the one prices use) once it is known: an "English (US)" phone in India
+  guessed United States on every form (/hospitals, /developer/lets-talk,
+  sign-up). It never overrides a stored number or a country the visitor
+  picked by hand. Guard: `chrome-and-loader` CHROME-010.
 - **A long value in a two-column summary wraps inside its box.** The label
   `shrink-0`, the value `min-w-0 [overflow-wrap:anywhere]`; an email goes on
   its own line under its label on a phone, breakable after the "@".

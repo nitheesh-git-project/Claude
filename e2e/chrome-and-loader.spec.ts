@@ -253,3 +253,27 @@ test("CHROME-009: a signed-in visitor on the suspended page still gets Sign Out"
   await expect(page.getByRole("button", { name: /Sign Out/ })).toBeVisible({ timeout: 15_000 });
   await ctx.close();
 });
+
+test("CHROME-010: an empty phone field starts on the visitor's country, not the browser language's", async ({ browser }) => {
+  // A phone set to "English (US)" in a time zone the table does not know
+  // used to open every phone field on United States. The site resolves the
+  // visitor's country from where they are (the one prices use); in this
+  // environment that is India. The browser below is en-US in UTC on purpose.
+  const ctx = await browser.newContext({ locale: "en-US", timezoneId: "UTC", viewport: { width: 1280, height: 900 } });
+  const page = await ctx.newPage();
+  const country = page.getByRole("combobox", { name: "Country code" }).first();
+  await page.goto(`${BASE}/hospitals`);
+  await waitForSplashToClear(page);
+  await country.scrollIntoViewIfNeeded();
+  await expect(country).toHaveValue("IN", { timeout: 15_000 });
+  // A country chosen by hand stays chosen.
+  await country.selectOption("AE");
+  await page.waitForTimeout(1_000);
+  await expect(country).toHaveValue("AE");
+
+  const res = await page.goto(`${BASE}/developer/lets-talk`);
+  if (res?.status() === 200) {
+    await expect(page.getByRole("combobox", { name: "Country code" }).first()).toHaveValue("IN", { timeout: 15_000 });
+  }
+  await ctx.close();
+});
