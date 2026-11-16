@@ -384,7 +384,7 @@ The screen warns you to turn it on only once System Health has been clean.
 **Feature.** A patient's, therapist's or condition's detail is normally an overlay over the dashboard. Interception only covers client-side navigation, so a reload, a shared link, a new tab and any refresh that misses the router's own state land on the real route. That route has been wrong twice: first a bare panel with a "Back to Dashboard" link, then a frame that reproduced the rail but dropped the badges, the search and the tab state - which read as a different, plainer site rather than as a leaf page. It renders the dashboard itself now, with the same overlay on top.
 
 **Steps**
-1. **People → Therapists → a therapist.** On an **upcoming** session press **Reschedule / Reassign**, change the therapist or the time, and **Save**.
+1. **People → Therapists → a therapist.** On an **upcoming** session press **Change time & reassign**, change the therapist or the time, and **Save**.
 2. Look at what you are on afterwards.
 3. Copy the URL, open it in a **new tab**, and reload it.
 4. Press the overlay's **×**.

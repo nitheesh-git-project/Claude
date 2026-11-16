@@ -163,11 +163,13 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   action an admin most often needs had no name on screen. Where a therapist
   is missing, every surface now says **Tap to assign**: the All Sessions and
   Calendar rows carry it as a chip (the row click already opens the drawer,
-  where the work is done), `EditBookingForm`'s trigger swaps its label on
-  `currentTherapistId`, and `SessionDetailDrawer` leads with
+  where the work is done), `SessionDetailDrawer` leads with
   `AssignTherapistForm` - one tap, honouring `preferred_therapist_id`, the
   therapist the patient asked for - with the reschedule form kept below for
-  when the time has to move too.
+  when the time has to move too. That form's trigger is named for the time,
+  never for assigning alone (two "assign" buttons read as one control
+  twice): **Change time & reassign**, or **Change time & assign** while
+  nobody is assigned (`currentTherapistId`).
 - **A session is listed once - on every dashboard, not only the admin's.**
   The patient's and therapist's video sessions and home visits were
   separate sidebar entries over the same `appointments` rows, so "what is

@@ -86,11 +86,12 @@ export default function EditBookingForm({
         onClick={() => setOpen(true)}
         className="text-teal-700 font-semibold hover:underline"
       >
-        {/* A session nobody has been assigned to has not been "reassigned"
-            or "rescheduled" -- naming it that way made the one action an
-            admin most often needs read like an edit of something that
-            already happened. */}
-        {currentTherapistId ? "Reschedule / Reassign" : "Tap to assign & set the time"}
+        {/* Named for what it adds: moving the time. Assigning alone is the
+            AssignTherapistForm above it in the drawer, and a second
+            "assign" button below that read as the same control twice
+            (owner's call). "assign" rather than "reassign" while nobody
+            has been assigned yet. */}
+        {currentTherapistId ? "Change time & reassign" : "Change time & assign"}
       </button>
     );
   }
