@@ -343,7 +343,7 @@ export default function Analytics() {
         // usable behind it, nothing is dimmed or locked, and focus is not
         // trapped. Accept is the bright one; Reject and Customise are the
         // same size beside it, so saying no is exactly as easy.
-        <div className="pointer-events-none fixed inset-x-3 bottom-3 z-[60] flex justify-center sm:inset-x-auto sm:bottom-6 sm:left-6 sm:justify-start print:hidden">
+        <div className="pointer-events-none fixed inset-x-3 bottom-3 z-[60] flex justify-center sm:inset-x-auto sm:bottom-6 sm:right-6 sm:justify-end print:hidden">
           <section
             role="region"
             aria-labelledby="cookie-consent-title"

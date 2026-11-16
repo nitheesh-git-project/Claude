@@ -940,7 +940,7 @@ Eight pages from one design system, the word budgets, why every photograph carri
 - GA is for funnels. Revenue, utilisation and no-shows come from Supabase.
 - **The cookie card sits at the bottom, deep teal, and Reject is as big as
   Accept.** `src/components/system/Analytics.tsx` draws one dark card
-  (`#0b3b37`, max 440px; full width less 12px on a phone, bottom-left from
+  (`#0b3b37`, max 440px; full width less 12px on a phone, bottom-right from
   `sm:` up) with "Cookie settings", two lines of text and three equal buttons:
   Customise, Reject, and **Accept** -- the only filled one, in mint
   (`#5eead4`). Customise opens the switches inside the card (Necessary always
