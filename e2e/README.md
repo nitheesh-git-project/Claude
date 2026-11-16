@@ -233,7 +233,7 @@ total, which moves with every spec added.
 | `booking-rules` | 9 | lead time, the cancellation window, and the bulk-scheduler regression |
 | `booking-wizard-clarity` | 3 | Step 1 leaves the hour unselected and Continue says why it is disabled, the time is a request, Step 2 leads with sign-in and has no retype box, and a family member's details are validated by the server and written as one prefixed notes line |
 | `home-visit-disabled` | 3 | the master switch off, flipped in the **database** rather than through the route - the case the cache could not survive; and switched on with no area served is announced, not sold |
-| `dark-mode` | 4 | the Appearance switch: off stays light on a dark device, on follows the device (and live), the brand button keeps its fill, printing stays light |
+| `dark-mode` | 5 | Appearance's three choices: Light stays light on a dark device, Dark is dark on a light device, Device follows the device (and live), the brand button keeps its fill, printing stays light, and the three cards save the one picked |
 | `chrome-and-loader` | 4 | the sign-in nav keeps Sign In and Book (Get Started moved to the footer), a slow dashboard tab shows the word-roll loader with the sidebar still in place, the admin sidebar is light, and /conditions puts programmes first |
 | `impersonation-exit` | 1 | "Exit and go back to admin" restores the admin's own session and lands on the dashboard, not the login page |
 | `country-pricing` | 3 | Countries & currency: the screen and its search, a US visitor reading dollars rounded up to .99 while the quote charges the rupee equal, no home visit offered abroad, and no country switched on without a rate |

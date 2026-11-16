@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isThemeMode } from "@/lib/deviceTheme";
 import { PUBLIC_SECTION_TOGGLES } from "@/lib/publicSectionVisibility";
 import { revalidatePath } from "next/cache";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
@@ -148,6 +149,8 @@ const ALLOWED_COLUMNS = new Set([
   "splash_revisit_minutes",
   // Appearance: follow the device's light/dark setting.
   "follow_device_theme",
+  // Light, dark or the device (deviceTheme.ts); supersedes the switch above.
+  "site_theme",
 ]);
 
 // The home page walkthrough's rotation pace. Neither of the numeric rules
@@ -279,6 +282,9 @@ export async function POST(request: NextRequest) {
   }
   // Matches the column's own check constraint, so a value the database
   // would reject is refused here with a sentence rather than a 500.
+  if (key === "site_theme" && !isThemeMode(value)) {
+    return NextResponse.json({ error: "Choose light, dark or the visitor's device." }, { status: 400 });
+  }
   if (key === "contact_scan_mode" && !isContactScanMode(value)) {
     return NextResponse.json(
       { error: "Unknown checking mode." },
@@ -793,6 +799,16 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // The old on/off switch is still read where site_theme is not (a reader
+  // written before it, or a database a step behind): keep it meaning the
+  // same thing. Best effort -- site_theme, saved above, is what decides.
+  if (key === "site_theme") {
+    await admin
+      .from("site_settings")
+      .update({ follow_device_theme: nextValue === "device" })
+      .eq("id", true);
+  }
+
   await recordAdminActivity(admin, adminUser.id, {
     action: "setting.update",
     targetLabel: key,
@@ -879,7 +895,8 @@ export async function POST(request: NextRequest) {
     key === "splash_revisit_minutes" ||
     // The appearance switch is read by the root layout too: its head script
     // decides light or dark before the first paint of every page.
-    key === "follow_device_theme"
+    key === "follow_device_theme" ||
+    key === "site_theme"
   ) {
     revalidatePath("/", "layout");
   }

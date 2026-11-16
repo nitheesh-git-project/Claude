@@ -747,10 +747,10 @@ is invisible to any tooling here.
 
 - **Dark mode is a palette, not a second set of classes - write colours as
   you always have.** Settings -> Public Site -> Appearance
-  (`site_settings.follow_device_theme`, off by default) lets the app follow
-  the device. When it is on and the device is dark, a head script
-  (`src/lib/deviceTheme.ts`) sets `<html data-theme="dark">` before first
-  paint, and `DeviceThemeFollower` keeps it in step if the device changes.
+  (`site_settings.site_theme`: light, dark or device; see `deviceTheme.ts`)
+  decides. For dark, or device on a dark device, a head script sets
+  `<html data-theme="dark">` before first paint, and `DeviceThemeFollower`
+  keeps a device-following page in step if the device changes.
   `src/app/dark-theme.css` - **generated** by `node scripts/build-dark-theme.mjs`,
   so edit the script, never the CSS - declares Tailwind 4's per-utility
   namespaces (`--background-color-*`, `--border-color-*`, `--ring-color-*`)

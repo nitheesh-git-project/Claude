@@ -20911,3 +20911,21 @@ revoke update (bio) on profiles from authenticated;
 alter table site_settings add column if not exists promises_section_visible boolean not null default true;
 alter table site_settings add column if not exists limits_section_visible boolean not null default true;
 alter table site_settings add column if not exists testimonials_section_visible boolean not null default true;
+
+-- ---------------------------------------------------------------------
+-- Appearance: light, dark, or the visitor's device (November 2026).
+--
+-- follow_device_theme was one switch (device or light). The owner asked
+-- for three choices: always light, always dark, or follow each visitor's
+-- device. site_theme holds the choice; null means nobody has picked yet and
+-- the old switch still decides (on -> device, off -> light), so adding the
+-- column changes nothing anyone sees (src/lib/deviceTheme.ts). Saving a
+-- choice keeps follow_device_theme in step for anything still reading it.
+-- ---------------------------------------------------------------------
+alter table site_settings add column if not exists site_theme text;
+do $$
+begin
+  alter table site_settings add constraint site_settings_site_theme_check
+    check (site_theme is null or site_theme in ('light', 'dark', 'device'));
+exception when duplicate_object then null;
+end $$;

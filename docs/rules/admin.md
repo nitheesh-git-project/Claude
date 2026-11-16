@@ -1116,11 +1116,14 @@ The eight sections, scopes and levels, User Access, the Settings information arc
     on, a visitor abroad can choose India and pay the Indian price. Turning
     the picker off leaves location alone in charge.
 
-- **Appearance (Settings -> Public Site) is one switch: follow the device's
-  light/dark setting.** Off, the default, is the app exactly as it has
-  always looked. On, every page follows each visitor's device, live. Saved
-  through `update-setting` (`follow_device_theme`), which revalidates the
-  root layout because the decision is made by a script in `<head>`.
+- **Appearance (Settings -> Public Site) is three choices: Light, Dark, or
+  Based on the visitor's device**, each a card with its own preview (Device
+  is the page split light and dark). Saved through `update-setting`
+  (`site_theme`), which revalidates the root layout because the decision is
+  made by a script in `<head>`, and keeps the older `follow_device_theme`
+  meaning the same thing (device -> true). Null `site_theme` (nobody has
+  picked yet) falls back to that old switch, so the column changed nothing
+  on its own. Guard: `dark-mode` DARK-001..005.
 - **Settings -> Health Profile layout chooses what every patient of a
   condition kind sees; the patient's record chooses for one patient.** The
   Settings screen (`ProfileWidgetSettings`, self-fetching) lists every

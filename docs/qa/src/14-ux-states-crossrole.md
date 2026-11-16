@@ -237,14 +237,16 @@
 
 ### 19.4 Dark mode
 
-Settings -> Public Site -> **Appearance** -> "Follow the device's light/dark setting". Test with the device (or the browser's DevTools rendering panel) set to dark.
+Settings -> Public Site -> **Appearance**: three cards - **Light**, **Dark**, **Based on the visitor's device** - each with a small preview above its name (Device shows the page split light and dark). Test with the device (or the browser's DevTools rendering panel) set to dark and to light.
 
 | Step | Expected | Test |
 | --- | --- | --- |
-| Switch **off**, device dark | The app is light, exactly as before | `DARK-001` |
-| Switch **on**, device dark | Every page dark from the first paint - no white flash; cards dark, teal buttons unchanged with white text | `DARK-002` |
-| Switch on, device light | Light | `DARK-002` |
-| Switch on, change the device setting with a page open | The page changes without a reload | `DARK-003` |
+| **Light**, device dark | The app is light, exactly as before | `DARK-001` |
+| **Dark**, device light | Every page dark from the first paint, whatever the device says | `DARK-005` |
+| **Device**, device dark | Every page dark from the first paint - no white flash; cards dark, teal buttons unchanged with white text | `DARK-002` |
+| **Device**, device light | Light | `DARK-002` |
+| **Device**, change the device setting with a page open | The page changes without a reload | `DARK-003` |
+| Pick each card in turn | The picked card is ringed in teal, saves at once, and the line under them says what it means | `DARK-004` |
 | Print any page while dark | Prints on white | `DARK-003` |
 | Walk the home page, booking, login, each dashboard, charts (Progress, Money, Earnings), the Pain Map | Nothing invisible: no dark text on dark, no white panels left behind; the MR logo sits on a light tile | manual |
 

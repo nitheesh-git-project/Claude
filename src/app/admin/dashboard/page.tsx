@@ -135,6 +135,7 @@ import ResetHospitalPasswordButton from "@/components/admin/ResetHospitalPasswor
 import EditRevenueShareForm from "@/components/admin/EditRevenueShareForm";
 import CopyInviteLinkButton from "@/components/admin/CopyInviteLinkButton";
 import TreatmentCategoryManager from "@/components/admin/TreatmentCategoryManager";
+import { resolveThemeMode, type ThemeMode } from "@/lib/deviceTheme";
 import PublicSectionVisibilityToggle from "@/components/admin/PublicSectionVisibilityToggle";
 import { readPublicSectionVisibility } from "@/lib/publicSectionVisibilityServer";
 import { clinicWideHomeVisitRate, isHomeVisitPriceRow } from "@/lib/homeVisitRates";
@@ -4070,6 +4071,15 @@ export default async function AdminDashboardPage({
     ? await readPublicSectionVisibility()
     : null;
 
+  // site_theme in its own read for the same reason: a database a step behind
+  // still shows the old switch's answer (deviceTheme.ts).
+  const themeMode: ThemeMode = scopeCanOpen(viewerScope, "settings")
+    ? await (async () => {
+        const { data, error } = await supabase.from("site_settings").select("site_theme").maybeSingle();
+        return resolveThemeMode(error ? null : (data as { site_theme?: unknown } | null)?.site_theme, adminSettings.followDeviceTheme);
+      })()
+    : resolveThemeMode(null, adminSettings.followDeviceTheme);
+
   const settingsPublicSiteTab = (
     <div className="space-y-8">
       <SettingsJumpNav
@@ -4140,7 +4150,7 @@ export default async function AdminDashboardPage({
       </SettingsSection>
 
       <SettingsSection id="public-appearance">
-        <AppearanceForm enabled={adminSettings.followDeviceTheme} />
+        <AppearanceForm mode={themeMode} />
       </SettingsSection>
 
       <SettingsSection id="public-testimonials">

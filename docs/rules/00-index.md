@@ -62,7 +62,7 @@ rg -i "<the thing you are seeing>" docs/rules/
 - Checkout speed is the one check that measures the product rather than a backlog
 - Catalog -> Conditions is the one catalogue, and there is no Packages screen
 - Countries & currency lives under Catalog, because it decides what a patient is charged
-- Appearance (Settings -> Public Site) is one switch: follow the device's light/dark setting
+- Appearance (Settings -> Public Site) is three choices: Light, Dark, or Based on the visitor's device
 - Settings -> Health Profile layout chooses what every patient of a condition kind sees; the patient's record chooses for one patient
 - Announcements is a Settings screen, so only a Master Admin posts one
 - The top search finds screens as well as people

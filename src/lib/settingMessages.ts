@@ -334,6 +334,15 @@ export const SETTING_MESSAGES: Record<string, SettingMessage> = {
     on: "Testimonials are shown again on the home page and Our Mission.",
     off: "Testimonials are hidden from the home page and Our Mission. The stories are kept here.",
   },
+  site_theme: {
+    kind: "text",
+    describe: (v) =>
+      v === "dark"
+        ? "The whole app is now dark for every visitor."
+        : v === "device"
+          ? "The app now follows each visitor's device: dark on a dark device, light on a light one."
+          : "The whole app is now light for every visitor.",
+  },
   dev_contact_enabled: {
     kind: "boolean",
     on: "Developer credit is now shown. The footer line and the contact pages are live.",
