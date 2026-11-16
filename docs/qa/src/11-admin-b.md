@@ -186,11 +186,11 @@ Where a case below still says "Settings → Booking Rules", that is correct - it
 | Setting | Default | Dependent feature to verify |
 | --- | --- | --- |
 | Allow cash on visit | on | The cash option on `/book-home-visit` Step 4; `/api/home-visit/book-cash` refuses when off |
-| Booking lead time | 24 h | The wizard's Step 2 copy and its picker; **must stay independent of the online 12 h** |
+| How far ahead a home visit must be booked (box **Home visit booking rules**) | 24 h | The wizard's Step 2 copy and its picker; **must stay independent of the online 12 h** |
 | Travel buffer | 45 min | A locked therapist's conflict check is padded by this on **both** sides of a new visit; online passes **0** |
-| Full-refund window | 24 h | The home-visit cancel dialog and the refund actually paid |
-| Default package validity | 90 d | A new home-visit purchase's expiry when the package leaves it blank |
-| Bulk scheduling limit | 8 | `Too many slots in one request.` above this |
+| Free cancellation window for a home visit | 24 h | The home-visit cancel dialog and the refund actually paid |
+| **Default validity → Home visits** (under **Programmes**, beside Video sessions - not repeated in the home-visit box) | 90 d | A new home-visit purchase's expiry when the package leaves it blank |
+| **Bulk scheduling limit → Home visits** (under **Programmes**) | 8 | `Too many slots in one request.` above this |
 | Page heading / subheading | (defaults) | The `/home-visit` page's own copy |
 
 #### `ADM-SET-015` - Sign out after inactivity · P2
@@ -224,8 +224,8 @@ Where a case below still says "Settings → Booking Rules", that is correct - it
 | **Therapist lock: pre-pick the programme therapist** | on | On → the first therapist assigned on a programme becomes its therapist, and every later session on it reaches Sessions with no therapist with them **pre-picked** (one tap to assign) - never auto-assigned. Off → no new programme keeps a therapist; each session is picked from scratch |
 | **Where a patient's remaining sessions are counted** (Settings → **Advanced**) | **Running total** | See `ADM-SET-019` |
 | **Therapist-Suggested Sessions** | **on for a fresh database** | Off → `/api/therapist/suggest-session` returns `Suggesting sessions is switched off.` and the control is absent. The column default is now true, but that only applies to a new `site_settings` row - **an existing database keeps its current value until an admin toggles it, or a reset restores defaults.** Check the toggle before running `THR-SUGG-*` rather than assuming |
-| **Default Validity** | 90 d | A new purchase's expiry when the package leaves it blank |
-| **Bulk Scheduler Limit** | 8 | `Too many slots in one request.` above this |
+| **Default validity → Video sessions** | 90 d | A new purchase's expiry when the package leaves it blank. Its **Home visits** row sits under it - each programme rule appears once on this screen, video and home visit side by side |
+| **Bulk scheduling limit → Video sessions** | 8 | `Too many slots in one request.` above this |
 | **Expiry Reminder Lead Time** | 14 d | When the expiry nudge appears on the patient's dashboard |
 
 #### `ADM-SET-022` - Recommendation settings · P0

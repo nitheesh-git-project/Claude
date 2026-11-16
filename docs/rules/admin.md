@@ -10,6 +10,14 @@ The eight sections, scopes and levels, User Access, the Settings information arc
 
 ---
 
+- **A setting appears once, and says what it applies to.** Settings ->
+  Programmes & Home Visits used to repeat "Default programme validity" and
+  "Bulk scheduling limit" in the home-visit box under the programme ones
+  (two settings each, read as one twice). Each now shows once under
+  Programmes with a **Video sessions** row and a **Home visits** row
+  (`NumberSetting`), and the home-visit box keeps only what is particular to
+  a visit, named for it ("How far ahead a home visit must be booked", "Free
+  cancellation window for a home visit").
 - **The admin dashboard's information architecture lives in
   `src/lib/adminNav.ts`** - eight sections (Today, Sessions, Programmes,
   People, Money, Catalog, Logs, Settings), each with its own screens. The sidebar, the URL
