@@ -71,7 +71,15 @@ function hoursPhrase(hours: number): string {
 
 /** The business named as the policy's owner: the legal entity when known. */
 function whoWeAre(ctx: LegalContext, f: LegalFacts): string {
-  const parts = [f.entityName.trim() ? `${ctx.siteName} is operated by ${f.entityName.trim()}` : `${ctx.siteName} is a physiotherapy practice`];
+  // Until the business is registered there is no entity to name, and the
+  // page must read as finished rather than as a form with a gap in it: so
+  // it says what we do, in the words the Terms use, and leaves the legal
+  // name, address and number out entirely until they are supplied.
+  const parts = [
+    f.entityName.trim()
+      ? `${ctx.siteName} is operated by ${f.entityName.trim()}`
+      : `${ctx.siteName} provides personalised physiotherapy, online and, where offered, at your home`,
+  ];
   if (f.registeredAddress.trim()) parts.push(`, registered at ${f.registeredAddress.trim()}`);
   if (f.registrationNumber.trim()) parts.push(` (${f.registrationNumber.trim()})`);
   return `${parts.join("")}. In these pages "we", "us" and "our" mean ${ctx.siteName}.`;
