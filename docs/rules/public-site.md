@@ -538,8 +538,13 @@ Eight pages from one design system, the word budgets, why every photograph carri
      the public popup share one renderer and cannot disagree.
   3. **Old values still read.** Anything that is not a stored document is
      earlier plain text and becomes paragraphs and line breaks as written.
-  The bio now saves through `/api/therapist/update-bio` rather than a browser
-  RLS update, which is also what lets it revalidate `/team`. The formatting
+  The bio saves through `/api/therapist/update-bio` rather than a browser
+  RLS update, and **waits for the clinic's approval** (the owner's call: it
+  is public): the route files a `profile_change_requests` row with
+  `{ bio }` (one pending bio at a time; saving the live text withdraws it),
+  `GATED_PROFILE_FIELDS.therapist` allows `bio`, `validateProfileChanges`
+  re-sanitises it on approval, and approving revalidates `/team`. Until then
+  `/team` shows the previous bio and Edit Profile marks it waiting. The formatting
   set is brand-safe by decision: no colours, fonts or sizes. Guard:
   `e2e/rich-text-profile.spec.ts`.
   **Tables are opt-in, and a public bio does not get them.** An announcement

@@ -1,4 +1,5 @@
 import { isValidStoredPhone } from "@/lib/phoneNumber";
+import { parseRichText, RICH_TEXT_MAX_STORED_LENGTH, serializeRichText } from "@/lib/richText";
 import { specialtyDef, MAX_SPECIALTY_LENGTH } from "@/lib/therapistSpecialties";
 
 /**
@@ -116,6 +117,18 @@ function validateField(
         return { ok: false, error: "The new gender isn't one of the options offered." };
       }
       return { ok: true, value: v };
+    }
+    case "bio": {
+      // The stored rich-text JSON (serializeRichText), re-read and
+      // re-sanitised here so an approved request can only ever write what
+      // the editor could have produced. Null or "" clears the bio.
+      if (raw === null || raw === "") return { ok: true, value: null };
+      if (typeof raw !== "string") return { ok: false, error: "The new bio could not be read." };
+      const value = serializeRichText(parseRichText(raw));
+      if (value && value.length > RICH_TEXT_MAX_STORED_LENGTH) {
+        return { ok: false, error: "The new bio is too long to show on a profile." };
+      }
+      return { ok: true, value };
     }
     default:
       return { ok: false, error: "This request contains fields that can't be applied." };

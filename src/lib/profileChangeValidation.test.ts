@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { validateProfileChanges } from "@/lib/profileChangeValidation";
+import { profileChangeValueText } from "@/lib/profileFieldLabels";
 
 const NOW = Date.parse("2026-10-01T00:00:00Z");
 
@@ -41,5 +42,25 @@ describe("validateProfileChanges", () => {
   it("refuses an unknown field and an unlisted gender", () => {
     expect(validateProfileChanges({ role: "admin" }, NOW).ok).toBe(false);
     expect(validateProfileChanges({ gender: "Robot" }, NOW).ok).toBe(false);
+  });
+
+  it("accepts a bio as stored rich text, re-sanitised, and null to clear it", () => {
+    const stored = JSON.stringify({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Hello" }] }] });
+    const ok = validateProfileChanges({ bio: stored }, NOW);
+    expect(ok.ok && typeof ok.values.bio === "string" && ok.values.bio.includes("Hello")).toBe(true);
+    const cleared = validateProfileChanges({ bio: null }, NOW);
+    expect(cleared.ok && cleared.values.bio).toBe(null);
+    expect(validateProfileChanges({ bio: 42 }, NOW).ok).toBe(false);
+    expect(validateProfileChanges({ bio: "x".repeat(30_000) }, NOW).ok).toBe(false);
+  });
+});
+
+describe("profileChangeValueText", () => {
+  it("shows a bio as its words and other fields as they are", () => {
+    const stored = JSON.stringify({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Desk  posture" }] }] });
+    expect(profileChangeValueText("bio", stored)).toBe("Desk posture");
+    expect(profileChangeValueText("bio", null)).toBe("(no bio)");
+    expect(profileChangeValueText("phone", "+91 99")).toBe("+91 99");
+    expect(profileChangeValueText("phone", "")).toBe("(not set)");
   });
 });

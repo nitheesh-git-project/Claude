@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
@@ -42,14 +41,51 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error }, { status });
   }
 
+  // The bio is public (the Our Team page), so it waits for the clinic like
+  // the credentials beside it: the change becomes a profile_change_requests
+  // row and the live bio stays as approved until an admin approves this one
+  // (approve-profile-change applies it; GATED_PROFILE_FIELDS allows "bio").
+  // One pending bio at a time -- a newer edit replaces the earlier pending
+  // one, and saving the bio that is already live just withdraws it.
   const admin = createAdminClient();
-  const { error } = await admin
+  const { data: live, error: liveError } = await admin
     .from("profiles")
-    .update({ bio: parsed.value })
+    .select("bio")
     .eq("id", user.id)
-    .eq("role", "therapist");
+    .eq("role", "therapist")
+    .maybeSingle();
+  if (liveError) return serverError("therapist/update-bio", liveError);
+  if (!live) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const { data: pending, error: pendingError } = await admin
+    .from("profile_change_requests")
+    .select("id, changes")
+    .eq("user_id", user.id)
+    .eq("status", "pending");
+  if (pendingError) return serverError("therapist/update-bio", pendingError);
+  const earlierBioOnly = (pending ?? [])
+    .filter((r) => {
+      const keys = Object.keys((r.changes ?? {}) as Record<string, unknown>);
+      return keys.length === 1 && keys[0] === "bio";
+    })
+    .map((r) => r.id as string);
+  if (earlierBioOnly.length > 0) {
+    const { error: withdrawError } = await admin
+      .from("profile_change_requests")
+      .delete()
+      .in("id", earlierBioOnly)
+      .eq("status", "pending");
+    if (withdrawError) return serverError("therapist/update-bio", withdrawError);
+  }
+
+  if ((live.bio ?? null) === parsed.value) {
+    return NextResponse.json({ success: true, pending: false });
+  }
+
+  const { error } = await admin
+    .from("profile_change_requests")
+    .insert({ user_id: user.id, changes: { bio: parsed.value }, status: "pending" });
   if (error) return serverError("therapist/update-bio", error);
 
-  revalidatePath("/team");
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, pending: true });
 }

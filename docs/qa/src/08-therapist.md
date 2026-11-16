@@ -117,8 +117,9 @@ The therapist Overview is where a clinician starts every shift: what is on today
 14. Under **Account Security**, tap **Send password reset email**.
 
 **Expected Result.**
-* **Public Details save instantly.** The button reads `Saving...` then `Save`; the values survive the reload at step 5. No admin sees anything.
-* **The bio keeps its formatting everywhere.** The grey saved view, the admin's therapist page and the `/team` popup all show the same two paragraphs with `posture-driven` in bold - never one run-on line. **Cancel** with unsaved changes asks before discarding them.
+* **Languages save instantly.** The button reads `Saving...` then `Save`; the value survives the reload at step 5.
+* **The bio waits for approval.** Its section says the therapist writes it and that it appears on the Our Team page once the clinic approves it. After Save it shows as typed with an amber `Waiting for the clinic's approval` note, and `/team` still shows the previous bio until an admin approves it under **Today → Approvals** (`Bio (Our Team page)`).
+* **The bio keeps its formatting everywhere.** Once approved, the grey saved view, the admin's therapist page and the `/team` popup all show the same two paragraphs with `posture-driven` in bold - never one run-on line. **Cancel** with unsaved changes asks before discarding them.
 * **Credentials do not.** Step 8 shows `Your request has been submitted for admin review.` Each requested field is replaced by its **new** value on a slate panel with an amber `Pending Review` chip and a **Withdraw** link, and **cannot be edited again** until the request is decided. The live public profile still shows the **old** value - `/team` and the patient's therapist card must not change yet.
 * Step 10's **Withdraw** returns the field to an editable control immediately, with the old value.
 * **Specialist In is a dropdown of the eight the clinic recognises.** A therapist whose stored value is free text written before this list existed is offered that value as a ninth option and it is **preselected** - the screen must never show a different specialisation from the one in the database because the stored one had no matching option.

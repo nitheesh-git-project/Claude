@@ -51,7 +51,8 @@ policies (appointments, health profile, Pain Map, report metadata) require
 the caller's `active` flag, read once per statement as an initplan, and
 `profiles_update_own` plus the avatar bucket policies do the same for the
 direct-save profile fields - so a suspended therapist or partner can no
-longer rewrite the bio and photo patients read. Approval is deliberately
+longer rewrite the photo patients read (the bio goes through admin approval
+now, so it cannot be rewritten directly at all). Approval is deliberately
 *not* required there: an applicant must be able to finish their profile.
 `scripts/authorization-checks.mjs` section 5 asserts the read half.
 The helpers in `requireActiveProfile.ts` answer `null` when the read

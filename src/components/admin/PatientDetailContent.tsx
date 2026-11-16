@@ -34,7 +34,7 @@ import {
   programmeLockGrantsClinicalAccess,
 } from "@/lib/clinicalAccess";
 import PayLaterGrantCard from "@/components/admin/PayLaterGrantCard";
-import { PROFILE_FIELD_LABELS } from "@/lib/profileFieldLabels";
+import { PROFILE_FIELD_LABELS, profileChangeValueText } from "@/lib/profileFieldLabels";
 import { CONDITION_STATUS_LABEL, type ConditionProfileStatus } from "@/lib/conditionIntake";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { computeRatingAggregate } from "@/lib/ratingAggregate";
@@ -812,7 +812,7 @@ export default async function PatientDetailContent({ id }: { id: string }) {
                         <span className="text-slate-500">
                           {PROFILE_FIELD_LABELS[field] ?? field}:
                         </span>{" "}
-                        <strong>{value === null ? "(cleared)" : String(value)}</strong>
+                        <strong>{value === null ? "(cleared)" : profileChangeValueText(field, value)}</strong>
                       </li>
                     ))}
                   </ul>

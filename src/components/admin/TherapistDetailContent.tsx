@@ -25,7 +25,7 @@ import DeleteAccountButton from "@/components/admin/DeleteAccountButton";
 import TherapistPayoutButton from "@/components/admin/TherapistPayoutButton";
 import RatingManager from "@/components/admin/RatingManager";
 import ProfileSessionList from "@/components/admin/ProfileSessionList";
-import { PROFILE_FIELD_LABELS } from "@/lib/profileFieldLabels";
+import { PROFILE_FIELD_LABELS, profileChangeValueText } from "@/lib/profileFieldLabels";
 import { computeRatingAggregate } from "@/lib/ratingAggregate";
 import { computeNoShowRate, computeCancellationRate } from "@/lib/adminMetrics";
 import {
@@ -796,7 +796,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
                         <span className="text-slate-500">
                           {PROFILE_FIELD_LABELS[field] ?? field}:
                         </span>{" "}
-                        <strong>{value === null ? "(cleared)" : String(value)}</strong>
+                        <strong>{value === null ? "(cleared)" : profileChangeValueText(field, value)}</strong>
                       </li>
                     ))}
                   </ul>

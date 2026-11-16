@@ -20881,3 +20881,18 @@ revoke all on function public.admin_mark_account_deleted(uuid, text, text, jsonb
 -- ---------------------------------------------------------------------
 grant execute on all functions in schema public to service_role;
 alter default privileges in schema public grant execute on functions to service_role;
+
+-- ---------------------------------------------------------------------
+-- A therapist's bio waits for the clinic's approval (November 2026).
+--
+-- The bio is public -- it is the paragraph patients read on the Our Team
+-- page -- so the owner put it behind admin approval like the credentials
+-- beside it: /api/therapist/update-bio now files a profile_change_requests
+-- row and approve-profile-change applies it (GATED_PROFILE_FIELDS lists
+-- "bio"). The column grant near the top of this file still let any signed-in
+-- account write its own bio straight through PostgREST, which would walk
+-- round the review. Take that one column back; the rest of that grant
+-- (avatar, languages, timezone, emergency contact) is unchanged.
+-- Re-runnable: revoking a privilege that is not held is a no-op.
+-- ---------------------------------------------------------------------
+revoke update (bio) on profiles from authenticated;

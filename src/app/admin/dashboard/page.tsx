@@ -179,7 +179,7 @@ import { formatSlotTime } from "@/lib/formatSlotTime";
 import { formatReferralStatus } from "@/lib/referralStatus";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { hospitalSessionLine } from "@/lib/hospitalEarnings";
-import { PROFILE_FIELD_LABELS } from "@/lib/profileFieldLabels";
+import { PROFILE_FIELD_LABELS, profileChangeValueText } from "@/lib/profileFieldLabels";
 import { mergeSessionCodes } from "@/lib/sessionCode";
 import { mergeMeetLinks } from "@/lib/meetLink";
 import { computeTherapistPayoutSummary } from "@/lib/therapistPayouts";
@@ -2378,13 +2378,18 @@ export default async function AdminDashboardPage({
                             <span className="text-slate-500">
                               {PROFILE_FIELD_LABELS[field] ?? field}:
                             </span>{" "}
-                            <span className="line-through text-slate-500">
-                              {oldValue === null || oldValue === undefined || oldValue === ""
-                                ? "(not set)"
-                                : String(oldValue)}
-                            </span>{" "}
-                            →{" "}
-                            <strong>{value === null ? "(cleared)" : String(value)}</strong>
+                            {/* The bio is not in this page's profile read
+                                (it can run to pages), so only the new
+                                text is shown; the live one is on /team. */}
+                            {field !== "bio" && (
+                              <>
+                                <span className="line-through text-slate-500">
+                                  {profileChangeValueText(field, oldValue)}
+                                </span>{" "}
+                                →{" "}
+                              </>
+                            )}
+                            <strong>{value === null ? "(cleared)" : profileChangeValueText(field, value)}</strong>
                           </li>
                         );
                       })}
