@@ -178,7 +178,7 @@ test("MJ-001: the link opens only inside the join window -- shut before, live du
   }
 });
 
-test("MJ-002: Home puts one full-width Join your video call button on the session in its window", async ({
+test("MJ-002: Home puts one full-width Join your video call button on the session in its window, and copies the name for Meet", async ({
   page,
 }) => {
   test.setTimeout(90_000);
@@ -210,10 +210,16 @@ test("MJ-002: Home puts one full-width Join your video call button on the sessio
   // The session card's own Join is the large size: 48px tall, 16px text.
   await expect(page.getByTestId("join-hero-waiting")).toHaveCount(0);
 
+  // Meet cannot be told a guest's name, so Join copies the app's name for
+  // the "What's your name?" box and the line under the button says so.
+  await expect(page.getByTestId("join-name-hint")).toContainText(`"${patient.name}"`, { timeout: 15_000 });
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin: BASE });
+
   await hero.click();
   await expect
     .poll(() => page.evaluate(() => (window as unknown as { __opened: string[] }).__opened))
     .toEqual([sessions.live!.link]);
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(patient.name);
 });
 
 test("MJ-003: before the window Home says when the join button will appear", async ({ page }) => {

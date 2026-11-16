@@ -90,6 +90,13 @@ A delivery mode rather than a parallel booking system: service areas, the travel
   One admin switch (`site_settings.meet_open_access_enabled`, on by
   default), because an owner whose Google account cannot grant the scope
   needs a way to stop the attempt and its recorded errors.
+- **Meet cannot be told a guest's name, so Join copies it.** Google Meet has
+  no supported way to pre-fill the name a guest types: anyone not signed in
+  to Google gets Meet's own "What's your name?" box. `JoinSessionButton`
+  opens the link first (synchronously, for pop-up blockers), then copies the
+  signed-in person's `full_name` to the clipboard with a toast, and the
+  caption under Join says so in advance. Do not promise the name "fills in
+  by itself". Guard: `patient-meet-join` MJ-002.
 - **"No Meet link" does not mean "broken" -- a home visit never has one.**
   `createMeetEventForConfirmedAppointment` passes `withMeet: false` for a home
   visit on purpose: there is nothing to join, the therapist is coming to the
