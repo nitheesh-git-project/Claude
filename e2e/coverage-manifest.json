@@ -3067,7 +3067,7 @@
     {
       "id": "dashboards.therapist-onboarding",
       "runner": "therapist",
-      "title": "A patient nobody has onboarded: the Home banner, the session card's strip, Start onboarding into the triage, and the How onboarding works guide over every condition type",
+      "title": "A patient nobody has onboarded: the Home banner, the session card's strip, the session card's Fill onboarding in this session into the triage, and the How onboarding works guide over every condition type",
       "required": true,
       "status": "covered",
       "coverage": [

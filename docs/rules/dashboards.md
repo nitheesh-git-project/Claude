@@ -618,9 +618,14 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   (`OnboardingNeededBanner`, three by name with their next session, the rest
   counted), and an amber strip on that patient's session cards
   (`OnboardingStrip` in `TherapistSessionCards.tsx`, not on a cancelled
-  one). Each has **Start onboarding**, which links to the patient's Health
-  Profile with `?start=onboarding` so the triage opens on arrival (consumed
-  once, first fill only), and **How onboarding works**. The list is
+  one). The banner has **no button** -- each row says **Fill in during the
+  first session** (the owner's call: it reads as a first-session job, not a
+  task to start now). The session card's strip has **Fill onboarding in this
+  session**, which links to the patient's Health Profile with
+  `?start=onboarding` so the triage opens on arrival (consumed once, first
+  fill only). Both have **How onboarding works**. The link from a session
+  card and the cockpit to the record reads **Health Profile**, never
+  "Chart". The list is
   `onboardingNeededIds` in `therapistDashboardData.ts` - a patient with no
   answers on file and a non-cancelled session with this therapist - and is
   empty when the record read failed, never "everyone". Guard:
