@@ -138,8 +138,13 @@ The eight sections, scopes and levels, User Access, the Settings information arc
      row points at, tagged **Deleted user** with an (i) showing the reason, the
      note, who and when (`DeletedUserTag`, on the People lists and profiles).
      If the login step fails after the mark, pressing Delete again finishes
-     it. The paragraph below is the outright delete, which still only
-     succeeds with no history at all.
+     it. **A tombstone is not for ever**: once nothing refers to it any more
+     (its records were cleaned up since), Delete removes it for good like any
+     empty account -- before, every later delete re-marked it and it never
+     left User access (AD-DEL-005). A tombstone is also not a Master Admin:
+     the last-full-admin guard counts only `deleted_at is null`. The
+     paragraph below is the outright delete, which still only succeeds with
+     no history at all.
   4. **Suspending is not deleting, and delete is the narrow case.**
      `/api/admin/delete-account` exists on all four roles' screens, and it is
      a delete that can only ever succeed on an account with **no history at

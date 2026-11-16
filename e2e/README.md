@@ -124,7 +124,7 @@ total, which moves with every spec added.
 | `dashboard-tutorial` | 3 | the first-visit tutorial for a patient, therapist and hospital: opens by itself with dummy data, chapter chips jump, Done or a confirmed Skip records it seen and it stays shut, and a page title's or card's (i) replays just that chapter. Clears and restores `onboarding_seen_at` on the QA account it uses |
 | `admin-multi-admin` | 4 | two admins acting at once; an approve and a decline racing on one signup (H-021) |
 | `admin-exposure` | 6 | the back office is not named to anyone outside it |
-| `admin-account-delete` | 4 | an account with no history is deleted outright after a reason; one with history is deleted with its records kept (login moved and banned, `account_deletions` append-only), and the Deleted user (i) shows the reason |
+| `admin-account-delete` | 5 | an account with no history is deleted outright after a reason; one with history is deleted with its records kept (login moved and banned, `account_deletions` append-only), the Deleted user (i) shows the reason, and a tombstone with nothing left behind it is removed for good |
 | `admin-validation` | 10 | input validation |
 | `admin-network` | 7 | network failure |
 | `admin-degraded-schema` | 4 | columns and tables dropped and restored. **Point it at a throwaway project only** |
