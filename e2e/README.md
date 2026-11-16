@@ -98,7 +98,7 @@ total, which moves with every spec added.
 | `refund-attempts` | 7 | the record a refund writes **before** the gateway is called. Drives the **database**, not the routes - every refund writer holds the service-role client, so the only guarantee worth testing is that a rewrite raises from the same client the routes hold |
 | `pay-later` | 7 | the grant, a booking with no payment screen, completion putting money in three places at once, a declaration that settles nothing, a write-off that costs the clinic without moving a money figure |
 | `discounts` | 7 | the four acquisition discounts and what each records |
-| `acquisition-codes` | 18 | a promo code quoting with no amount in the request, a redemption cap, a paused campaign, an invite that cannot be self-claimed, and the free-booking path |
+| `acquisition-codes` | 19 | a promo code quoting with no amount in the request, a redemption cap, a paused campaign, an invite that cannot be self-claimed, and the free-booking path |
 | `unscheduled-purchases` | 3 | a paid purchase nobody ever booked anything against, on Programmes -> All Programmes ("Paid - nothing booked", narrowed to the day-old ones the Money alert counts) |
 | `session-scheduling` | 6 | booking the sessions a patient paid for, none of which assigns itself even on a locked programme |
 | `gateway-payment-capture` | 2 | a session priced by the server, captured at the gateway and verified with a correctly signed callback -- a forged signature, the wrong order or another patient changing nothing, a replay changing nothing (not even `paid_at`), no second checkout; a programme bought the same way granting its credits exactly once. Fake gateway; append-only writes - disposable project only |

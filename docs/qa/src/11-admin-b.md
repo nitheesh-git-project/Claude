@@ -763,6 +763,10 @@ The Logs section is **Master Admin only**. Operations, Finance and Clinical have
 **Steps.** As a full admin open **People -> Therapists ->** a therapist; beside **Specialist in** tap **Change**, pick another, **Save**, then **Keep as it is**; repeat and **Change it**. Open **People -> Patients ->** an onboarded patient; beside **Condition type** do the same. Then sign in as an Operations admin and open both profiles.
 **Expected Result.** Each asks first. The therapist's new specialisation shows on the profile and on `/team`. The patient's Health Profile switches to the new type's sections with every earlier answer still there, and their therapist sees the new type's questions to fill at the next session. Both appear in Logs. A patient not yet onboarded shows no Condition type line. The Operations admin sees neither **Change**.
 
+#### `ADM-MON-041` - Who claimed a promo code · P1
+**Steps.** **Money -> Costs**. Under the promo codes, find **Who claimed a code**. Pick a code in **Filter by code**; change **Filter by payment** to *Any status*, then *Not paid yet*; type a patient's name, then their ID; set a date range; tap a patient ID, close it, then **Open profile**.
+**Expected Result.** It opens on paid claims only, with a count and the total taken off. Each row names the patient, their ID, the code and its campaign note, what it was used on (session, programme or home-visit programme) and when, with the amount off. *Any status* adds unpaid and cancelled claims, each labelled. The ID and **Open profile** both open the patient pop-up from People -> Patients.
+
 #### `ADM-SET-035` - Sign-in & Security · P2
 **Steps.** Open **Settings → Sign-in & Security** and change the admin's own password. Check the screen carries two headed blocks: *Your own sign-in* (the reset button) and *Everybody else's sign-in* (the inactivity timeout and the sign-out message).
 **Expected Result.** The change succeeds and the new password works. Admins are exempt from the idle timeout, so no timeout dialog appears while working here.

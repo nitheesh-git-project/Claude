@@ -135,6 +135,8 @@ import ResetHospitalPasswordButton from "@/components/admin/ResetHospitalPasswor
 import EditRevenueShareForm from "@/components/admin/EditRevenueShareForm";
 import CopyInviteLinkButton from "@/components/admin/CopyInviteLinkButton";
 import TreatmentCategoryManager from "@/components/admin/TreatmentCategoryManager";
+import PromoClaimsList from "@/components/admin/PromoClaimsList";
+import { readPromoClaims } from "@/lib/promoClaimsServer";
 import { resolveThemeMode, type ThemeMode } from "@/lib/deviceTheme";
 import PublicSectionVisibilityToggle from "@/components/admin/PublicSectionVisibilityToggle";
 import { readPublicSectionVisibility } from "@/lib/publicSectionVisibilityServer";
@@ -4080,6 +4082,15 @@ export default async function AdminDashboardPage({
       })()
     : resolveThemeMode(null, adminSettings.followDeviceTheme);
 
+  // Who claimed which promo code, for the list under the codes. Money scope
+  // only -- the screen is a Money one and names patients.
+  const promoClaims = scopeCanOpen(viewerScope, "money")
+    ? await readPromoClaims(
+        admin,
+        promoCodeRows.map((c) => ({ id: c.id, code: c.code, description: c.description ?? null }))
+      ).catch(() => null)
+    : [];
+
   const settingsPublicSiteTab = (
     <div className="space-y-8">
       <SettingsJumpNav
@@ -5904,12 +5915,13 @@ export default async function AdminDashboardPage({
             Summary instead, so an admin following that note arrived at a
             screen with no promo codes on it and no way to tell whether the
             feature existed. */}
-        <div className="mb-8">
+        <div className="mb-8 space-y-6">
           <PromoCodeManager
             codes={promoCodeRows}
             enabled={promoCodesEnabled}
             nowIso={new Date(nowTimestamp()).toISOString()}
           />
+          <PromoClaimsList claims={promoClaims} codes={promoCodeRows.map((c) => ({ id: c.id, code: c.code }))} />
         </div>
         <AdminCostsTab
           discountsGiven={{
