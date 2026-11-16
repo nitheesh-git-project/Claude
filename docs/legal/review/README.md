@@ -54,7 +54,7 @@ also available on request.
    the parent or legal guardian. Is this "verifiable consent" under DPDP s.9,
    or is more needed?
 5. **Data processors.** Supabase (database, Mumbai), Razorpay, Google
-   (Calendar, Meet, Analytics), Resend (email, USA), Meta (WhatsApp). Do we
+   (Calendar, Meet, Analytics), Resend (email, Tokyo), Meta (WhatsApp). Do we
    need anything beyond each supplier's standard DPA?
 6. **Therapists.** Independent-contractor classification, the
    non-solicitation clause, and the data-processing clause (see the notes at
