@@ -16,7 +16,7 @@ import {
   browserCookiesFor,
   cookieHeaderFor,
   waitForSplashToClear,
-  markDashboardTourSeen, TEST_PASSWORD
+  markDashboardTourSeen, TEST_PASSWORD, TERMS_METADATA
 } from "./helpers";
 
 const DISCOUNT_PAISE = 20000;
@@ -68,7 +68,7 @@ test.describe("Finishing payment for an unpaid booking", () => {
       email: patientEmail,
       password: TEST_PASSWORD,
       email_confirm: true,
-      user_metadata: { role: "patient", full_name: `QA Resume ${stamp}` },
+      user_metadata: { ...TERMS_METADATA, role: "patient", full_name: `QA Resume ${stamp}` },
     });
     expect(error, error?.message).toBeNull();
     patientId = created!.user!.id;

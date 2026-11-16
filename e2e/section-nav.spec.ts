@@ -7,7 +7,7 @@
 // than a hardcoded section list, because several sections are conditional on
 // admin-controlled catalog data and simply do not render on an empty project.
 import { test, expect, type Page } from "@playwright/test";
-import { BASE, waitForSplashToClear } from "./helpers";
+import { BASE, answerCookieConsent, waitForSplashToClear } from "./helpers";
 
 const FRONT_PAGES = [
   "/",
@@ -48,6 +48,8 @@ test.describe("Section rail and scroll arrow on the public pages", () => {
   test.beforeEach(async ({ page }) => {
     test.setTimeout(120_000);
     await page.setViewportSize(WIDE);
+    // The cookie card shares the arrow's corner (and hides it while open).
+    await answerCookieConsent(page);
   });
 
   test("SN-001: no section is active while the page sits at the top", async ({ page }) => {

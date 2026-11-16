@@ -14,6 +14,7 @@ import { NO_INVITE_DELIVERY, patientInviteLine, type InviteDelivery } from "@/li
 import ConfirmPasswordField from "./ConfirmPasswordField";
 import EmailField from "./EmailField";
 import PasswordField from "./PasswordField";
+import TermsCheckbox, { TERMS_REQUIRED_MESSAGE } from "@/components/legal/TermsCheckbox";
 
 type Preview = {
   valid: boolean;
@@ -57,6 +58,7 @@ export default function InviteRegisterCard({
   // The fee in the visitor's currency; the server charges its rupee equal.
   const { formatList } = usePricing();
   const [fullName, setFullName] = useState("");
+  const [termsAgreed, setTermsAgreed] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -217,12 +219,17 @@ export default function InviteRegisterCard({
       return;
     }
 
+    if (!termsAgreed) {
+      setError(TERMS_REQUIRED_MESSAGE);
+      return;
+    }
+
     setLoading(true);
 
     const res = await fetch("/api/patient/register-via-referral", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token, fullName, email, password }),
+      body: JSON.stringify({ token, fullName, email, password, acceptedTerms: termsAgreed }),
     });
     const data = await res.json();
 
@@ -364,6 +371,7 @@ export default function InviteRegisterCard({
               value={confirmPassword}
               onChange={setConfirmPassword}
             />
+            <TermsCheckbox id="invite-register-terms" checked={termsAgreed} onChange={setTermsAgreed} />
             <button
               type="submit"
               disabled={loading}

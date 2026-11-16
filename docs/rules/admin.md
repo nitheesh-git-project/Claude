@@ -261,6 +261,16 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   than what it sells -- the test the ledger switch fails on both counts
   elsewhere, since its own help text sends the reader to System Health.
   Settings is `full` scope only, so Advanced needs no further gate.
+  **Cookie consent is a read-only screen under *Your website*.** It counts
+  what visitors chose in the public site's cookie pop-up (`cookie_consents`,
+  written by `/api/consent`) over 7, 30 or 90 days -- accepted all, rejected
+  all (and "closed it"), chose their own, analytics and marketing allowed --
+  and lists the latest 50 choices. It is self-fetching
+  (`CookieConsentStats` -> `GET /api/admin/cookie-consents`,
+  `requireAdminScope("settings")`), shows whether a visitor was signed in but
+  never who, and a failed read says so with a retry rather than showing zeros,
+  which would read as "nobody has chosen anything". The summary stops at the
+  newest 20,000 rows and says so when it does.
   **Developer messages is the one screen under Settings that is not about the
   clinic.** It is the developer's own inbox -- messages left through the
   "Contact me" link in the footer's credit line (`/developer/lets-talk` ->
@@ -1159,3 +1169,32 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   key is what silently kept nearly every abandoned account before (the purge
   caught the error and moved on). A kept account says why on its card
   instead of showing a removal date that would never come.
+
+- **People -> Data requests is the legal queue, with its deadlines on every
+  case.** `DataRequestsTab` (self-fetching: `GET /api/admin/data-requests`,
+  any desk that can open People; `POST /api/admin/data-requests/update`,
+  `requireAdminScope("people")`) lists **account deletion requests** (due 30
+  days from the ask) and **grievances** from the /grievances form (acknowledge
+  within 48 hours, resolve within 30 days -- the E-Commerce Rules), each with
+  a red or amber chip from `deletionDue` / `grievanceDue`, and the last 50
+  "Download my data" exports. Moves only go forward
+  (`allowedDataRequestMoves`, `allowedGrievanceMoves`) and are claimed on the
+  status the screen showed, so two admins cannot both close a case (409).
+  Declining a deletion or resolving a grievance needs a note (the CHECKs in
+  schema.sql hold it too). The deletion itself is not a button here: it is the
+  person's page's existing delete (Master Admin), after which the desk marks
+  the request deleted. The log records `data_request.update` /
+  `grievance.update` with the from/to and the note's length, never its text.
+  A desk that can only read People sees the cases without buttons.
+  **Each step emails the person, best effort.** `src/lib/legalEmails.ts`
+  (pure templates, every typed value escaped) and `emailServer.ts` (Resend,
+  switched on by `RESEND_API_KEY` + `EMAIL_FROM`, never throws, 8-second
+  timeout): a receipt on filing plus an alert to the Grievance Officer
+  (`LEGAL_FACTS.grievanceOfficerEmail`, else the site's contact email); an
+  acknowledgement and a resolution email for a grievance; "deleted" or
+  "declined, because..." for a deletion request. A deletion request keeps
+  `contact_name` / `contact_email` only so the last email can still be sent
+  after the account's own email is cleared; the update route nulls both the
+  moment the case closes. The log records whether the email was `sent`,
+  `skipped` or `failed`, never its text.
+

@@ -1942,3 +1942,50 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   heart and lung reading each carry a calm next step and a 44px Call button
   with the clinic's number (Brand & Contact); an unset or unreadable number
   is said as such (`CallClinicLine`). The clinician's words are unchanged.
+
+## Agreements: the Terms, telehealth consent, and a guardian's consent
+
+- **Every agreement is a row in `policy_acceptances`, append-only, with the
+  database's clock.** `src/lib/policyAcceptance.ts` holds the rules. Three
+  documents: `terms_privacy` (Terms of use + Privacy policy),
+  `telehealth_consent` (the Step 2 box on a video booking) and
+  `guardian_consent` (a booking for someone under 18). The version is the
+  legal pages' effective date (`LEGAL_FACTS.effectiveDate`), so **moving that
+  date asks everybody to agree again** -- move it only for a change of
+  substance. A trigger refuses any edit; a row may only lose its
+  `appointment_id` when a booking is removed, or go with its profile.
+- **A signup records its agreement in the database, not from the browser's
+  word about the time.** Every self-signup form (patient, therapist, the two
+  booking wizards' inline signup, the hospital-referral invite) has a required
+  `TermsCheckbox` and sends `signupTermsMetadata()`; the
+  `on_auth_user_terms_accepted` trigger on `auth.users` writes the row when the
+  account is made (named to sort after `on_auth_user_created`, so the profile
+  exists). `/api/patient/register-via-referral` refuses without
+  `acceptedTerms: true` and sets the version itself.
+- **Anyone without the current version is stopped at the dashboards, never
+  at a failed read.** `TermsGate` wraps the patient, therapist and hospital
+  dashboard layouts and shows `AcceptTermsScreen` ("Before you continue" for
+  a first agreement, "We've updated our Terms" after a change) until
+  `/api/account/accept-terms` records it. That covers accounts made before the
+  tick box and accounts staff created. A failed read lets the person in
+  (`needsTermsAcceptance(undefined)` is false) -- nobody is locked out of
+  their care over a database blink -- and a staff member viewing as the
+  person is never stopped and can never agree for them (the route answers
+  403). Admins are not gated.
+- **A booking for a child needs the parent or guardian box, on the server.**
+  `validateBookingFor` refuses a family booking under `GUARDIAN_AGE` (18)
+  without `guardianConfirmed: true`; the wizard shows the box as soon as the
+  age typed is under 18. `/api/appointments/create` records
+  `telehealth_consent` (when the wizard sends `telehealthConsent: true`) and
+  `guardian_consent` against the new booking, best effort: a failed record is
+  logged, never a failed booking. A resumed booking for a child asks again.
+- **The admin's patient page shows them.** `PolicyAcceptancesCard` lists
+  each agreement with its date and says whether the person has agreed to the
+  current Terms; its own read, so a failure says "could not be loaded" rather
+  than reading as "never agreed".
+- **Tests:** `e2e/terms-acceptance.spec.ts`. Every account a spec creates
+  carries `TERMS_METADATA`, and `global-setup` records the fixed QA accounts
+  as agreed (`ensureTermsAccepted`) -- otherwise every dashboard spec would
+  stop at the gate. A spec that needs an un-agreed account creates one
+  without the metadata, as TA-001 does.
+

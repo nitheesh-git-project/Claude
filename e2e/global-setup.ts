@@ -3,7 +3,7 @@
 // Supabase project or one that already has this data from a previous run.
 // Never run this against a production project: it creates real auth users
 // and (in concurrency.spec.ts) real Razorpay test-mode orders.
-import { adminClient, QA_EMAILS, TEST_PASSWORD } from "./helpers";
+import { adminClient, ensureTermsAccepted, QA_EMAILS, TEST_PASSWORD, TERMS_METADATA } from "./helpers";
 
 const THERAPISTS = [
   { email: QA_EMAILS.therapistA, full_name: "QA Therapist A" },
@@ -28,7 +28,7 @@ async function ensureUser(
       email,
       password: TEST_PASSWORD,
       email_confirm: true,
-      user_metadata: { role, full_name },
+      user_metadata: { ...TERMS_METADATA, role, full_name },
     });
     if (error || !data.user) throw new Error(`could not create ${email}: ${error?.message}`);
     user = data.user;
@@ -37,6 +37,9 @@ async function ensureUser(
     .from("profiles")
     .update({ role, full_name, approved: true, active: true })
     .eq("id", user.id);
+  // The fixed accounts predate the signup tick box; without this every
+  // dashboard spec would stop at "Agree to continue".
+  if (role !== "admin") await ensureTermsAccepted(admin, user.id);
   return user.id;
 }
 

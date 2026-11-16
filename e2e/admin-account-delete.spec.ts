@@ -21,7 +21,7 @@
 // first one only happens inside GoTrue's own cascade, and the second is about
 // which sentence a person reads.
 import { test, expect, type Page } from "@playwright/test";
-import { BASE, browserCookiesFor, cookieHeaderFor, QA_EMAILS, adminClient, TEST_PASSWORD, settleNetwork } from "./helpers";
+import { BASE, browserCookiesFor, cookieHeaderFor, QA_EMAILS, adminClient, TEST_PASSWORD, settleNetwork, TERMS_METADATA } from "./helpers";
 
 const SLOW = 240_000;
 const MARKER = "ZZ QA delete";
@@ -34,7 +34,7 @@ async function makeAccount(admin: Admin, label: string, patch?: Record<string, u
     email,
     password: TEST_PASSWORD,
     email_confirm: true,
-    user_metadata: { full_name: `${MARKER} ${label}` },
+    user_metadata: { ...TERMS_METADATA, full_name: `${MARKER} ${label}` },
   });
   expect(error, `seeding ${label}: ${error?.message ?? ""}`).toBeFalsy();
   const id = data?.user?.id;
