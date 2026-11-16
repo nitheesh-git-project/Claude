@@ -3,7 +3,8 @@
 import { usePricing } from "@/components/pricing/PricingProvider";
 import Link from "@/components/system/ProgressLink";
 import { usePathname } from "next/navigation";
-import { isBookBarRoute } from "@/lib/dashboardShellRoutes";
+import { isAuthCtaHiddenRoute, isAuthCtaSignedOutRoute, isBookBarRoute } from "@/lib/dashboardShellRoutes";
+import { useAccountDestination } from "@/lib/useAccountDestination";
 import { BOOK_CONNECTOR } from "@/lib/marketingNav";
 import { WhatsAppGlyph } from "@/components/visuals/BrandGlyphs";
 import type { PublicContactLinks } from "@/lib/contactLinks";
@@ -34,7 +35,22 @@ export default function PublicBookBar({
   // Off outside India unless an admin allows it (Countries & currency).
   const { homeVisitsOffered } = usePricing();
   const homeVisitEnabled = homeVisitSwitch && homeVisitsOffered;
+  const { signedIn, destination } = useAccountDestination();
   if (!isBookBarRoute(pathname)) return null;
+
+  // A phone's top bar has no room beside the full clinic name (36-68px), so
+  // the way into an account lives here, next to Book. Same rules as the
+  // Navbar: the sign-in pages always show the signed-out choice, and the
+  // registration/holding pages drop it for somebody already signed in.
+  const showSignedOut = isAuthCtaSignedOutRoute(pathname) || signedIn !== true;
+  const accountHidden = isAuthCtaHiddenRoute(pathname) && signedIn === true;
+  const account = accountHidden
+    ? null
+    : showSignedOut
+      ? { href: "/get-started", label: "Get started" }
+      : destination
+        ? { href: destination.href, label: destination.href === "/dashboard" ? "Dashboard" : destination.label }
+        : null;
 
   // On the Home Visit page the question in the visitor's head is "do you come
   // to me?", and the video-session button answers a different one. The bar
@@ -57,12 +73,12 @@ export default function PublicBookBar({
       <div aria-hidden="true" className="h-[calc(4.75rem+env(safe-area-inset-bottom))] lg:hidden" />
       <div
         data-tabbar=""
-        className="fixed inset-x-0 bottom-0 z-30 flex items-center gap-3 border-t border-slate-200 bg-white/95 px-4 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3 backdrop-blur lg:hidden print:hidden"
+        className="fixed inset-x-0 bottom-0 z-30 flex items-center gap-2 border-t sm:gap-3 border-slate-200 bg-white/95 px-4 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3 backdrop-blur lg:hidden print:hidden"
       >
         {/* Under 420px the two lines could only show "Video or a visit a..."
             beside the buttons, so they step aside and the button takes the
             width: a cut-off sentence is worse than none. */}
-        <div className="hidden min-w-0 flex-1 min-[420px]:block">
+        <div className="hidden min-w-0 flex-1 sm:block">
           <p className="truncate text-xs text-slate-600">
             {homeVisitEnabled ? "Video, or a visit at home" : "Over video, wherever you are"}
           </p>
@@ -78,9 +94,17 @@ export default function PublicBookBar({
             {ask.whatsapp ? <WhatsAppGlyph /> : <i aria-hidden="true" className="fa-solid fa-phone text-teal-700" />}
           </a>
         )}
+        {account && (
+          <Link
+            href={account.href}
+            className="inline-flex h-12 shrink-0 items-center justify-center whitespace-nowrap rounded-xl border border-teal-700 bg-white px-3 text-[13px] font-bold text-teal-800 transition hover:bg-teal-50 sm:hidden"
+          >
+            {account.label}
+          </Link>
+        )}
         <Link
           href={action.href}
-          className="inline-flex h-12 flex-1 shrink-0 items-center justify-center rounded-xl bg-teal-700 px-4 text-sm font-bold text-white shadow-sm transition hover:bg-teal-800 min-[420px]:flex-none"
+          className="inline-flex h-12 min-w-0 flex-1 items-center justify-center whitespace-nowrap rounded-xl bg-teal-700 px-3 text-[13px] font-bold text-white shadow-sm transition hover:bg-teal-800 sm:flex-none sm:px-4 sm:text-sm"
         >
           {action.label}
         </Link>

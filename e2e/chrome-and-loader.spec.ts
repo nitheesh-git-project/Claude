@@ -193,3 +193,63 @@ test("CHROME-006: an in-app link that loads slowly shows the loader, not a page 
   await expect(page).toHaveURL(/\/faq/, { timeout: 30_000 });
   await expect(page.getByTestId("navigation-loader")).toHaveCount(0, { timeout: 30_000 });
 });
+
+test("CHROME-007: a way into an account on every width -- tablet bar, phone bottom bar, phone menu", async ({ browser }) => {
+  // Below 1024px the header's Sign In / Book cluster was hidden and the only
+  // way in was the menu. Tablets now carry Sign In and Get started in the
+  // bar; a phone, with no room beside the full name, carries Get started
+  // in the sticky bottom bar next to Book.
+  const tablet = await browser.newContext({ viewport: { width: 820, height: 900 } });
+  const t = await tablet.newPage();
+  await t.goto(`${BASE}/faq`);
+  await waitForSplashToClear(t);
+  const bar = t.getByRole("navigation").first();
+  await expect(bar.getByRole("link", { name: "Sign In" }).filter({ visible: true })).toBeVisible();
+  await expect(bar.getByRole("link", { name: /Get started/ }).filter({ visible: true })).toHaveAttribute("href", "/get-started");
+  await tablet.close();
+
+  const phone = await browser.newContext({ viewport: { width: 360, height: 780 } });
+  const p = await phone.newPage();
+  await p.goto(`${BASE}/faq`);
+  await waitForSplashToClear(p);
+  const bottom = p.locator("[data-tabbar]");
+  await expect(bottom.getByRole("link", { name: "Get started" })).toBeVisible();
+  await expect(bottom.getByRole("link", { name: /Book a video session/ })).toBeVisible();
+  // Nothing in the bottom bar is cut off at 360px.
+  const overflow = await bottom.evaluate((el) =>
+    [...el.querySelectorAll("a")].some((a) => a.scrollWidth > a.clientWidth + 1)
+  );
+  expect(overflow, "a bottom-bar button is truncated").toBe(false);
+  await p.getByRole("button", { name: "Toggle menu" }).click();
+  await expect(p.getByRole("navigation").getByRole("link", { name: "Get started" }).filter({ visible: true })).toBeVisible();
+  await expect(p.getByRole("navigation").getByRole("link", { name: "Sign In" }).filter({ visible: true })).toBeVisible();
+  await phone.close();
+});
+
+test("CHROME-008: register and the holding pages show the home page's bar to a signed-out visitor", async ({ page }) => {
+  // A bare /patient/register (the invite page without its invite) used to say
+  // "Invalid Link" under a bar with no Sign In; it is the patient sign-up now.
+  await page.goto(`${BASE}/patient/register`);
+  await page.waitForURL(/\/patient\/login\?tab=register/);
+  await expect(page.getByRole("button", { name: "Register Account" })).toBeVisible();
+  await expect(page.getByText("Invalid Link")).toHaveCount(0);
+
+  for (const path of ["/pending-approval", "/account-suspended"]) {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(`${BASE}${path}`);
+    await waitForSplashToClear(page);
+    await expect(page.getByRole("navigation").getByRole("link", { name: "Sign In" }).filter({ visible: true })).toBeVisible();
+  }
+  // Nobody is signed in, so the suspended page offers no Sign Out.
+  await page.waitForTimeout(1_000);
+  await expect(page.getByRole("button", { name: /Sign Out/ })).toHaveCount(0);
+});
+
+test("CHROME-009: a signed-in visitor on the suspended page still gets Sign Out", async ({ browser }) => {
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  await ctx.addCookies(await browserCookiesFor(QA_EMAILS.patientB));
+  const page = await ctx.newPage();
+  await page.goto(`${BASE}/account-suspended`);
+  await expect(page.getByRole("button", { name: /Sign Out/ })).toBeVisible({ timeout: 15_000 });
+  await ctx.close();
+});

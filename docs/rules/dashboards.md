@@ -400,7 +400,8 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   server-side and the proxy carries an unapproved or suspended account onward
   from there, so the fallback is always correct and only ever one hop longer.
   `/pending-approval` and `/account-suspended` are in
-  `AUTH_CTA_HIDDEN_ROUTES` so the button never points at the page it is on.
+  `AUTH_CTA_HIDDEN_ROUTES` so, for a signed-in account, the button never
+  points at the page it is on (a signed-out visitor there gets Sign In).
 - **Every dashboard needs a way back to the public site.** All four are in
   `NAV_HIDDEN_ROUTES`, so the public `Navbar` never renders there; without an
   explicit link the only exit is Log Out, which also ends the session. Both

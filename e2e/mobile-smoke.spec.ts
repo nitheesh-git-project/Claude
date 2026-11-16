@@ -96,11 +96,13 @@ test("MOB-003: the phone home page leads with the right things", async ({ page }
     expect(prog!.y).toBeLessThan(how!.y);
   }
 
-  // The menu: Book a video session is the primary button, and the hub is gone.
+  // The menu: Book a video session is the primary button, and it ends with
+  // the way into an account -- Sign In and Get started (the owner asked for
+  // Get started on phones; CHROME-007 covers the bars).
   await page.getByRole("button", { name: "Toggle menu" }).click();
   const nav = page.getByRole("navigation").first();
   await expect(nav.getByRole("link", { name: /Book a video session/ })).toBeVisible();
-  await expect(nav.getByRole("link", { name: "Get Started" })).toHaveCount(0);
+  await expect(nav.getByRole("link", { name: "Get started" }).filter({ visible: true })).toBeVisible();
   await page.getByRole("button", { name: "Toggle menu" }).click();
 
   // Footer links are 44px tall targets.

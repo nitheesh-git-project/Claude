@@ -791,11 +791,14 @@ Eight pages from one design system, the word budgets, why every photograph carri
   shown where `isBookBarRoute` says -- not on `/get-started`, the wizard, an
   auth card or a dashboard). From `lg` the header shows Conditions, How it
   works, Home visit, Team and FAQ with Mission and Hospitals under **More**,
-  then Sign In and the Book button; from `2xl` every page is in the row. There
-  is **no Get Started in the header**: that hub is a switchboard (patient,
-  therapist, hospital sign-ins), so the phone menu's one primary button is
-  Book a video session and the hub's other doors live in the footer under
-  "For clinicians and partners". The brand is the **full name with its tagline at
+  then Sign In and the Book button; from `2xl` every page is in the row.
+  **Below `lg` there is always a way into an account** (the owner called its
+  absence a blocker): from 640px the header carries Sign In and **Get
+  started** (`/get-started`, the hub) beside the menu button; a phone, with
+  only 36-68px free beside the full name, carries Get started in the
+  `PublicBookBar` next to Book, and the menu ends with Sign In and Get
+  started. Signed in, the same spots show the account's destination.
+  Guard: `chrome-and-loader` CHROME-007. The brand is the **full name with its tagline at
   every width**, never the short name and never an ellipsis: on a phone the name
   scales with the screen (15px at 360px), and from 1024 to 1279px it is 16px,
   the bar's gaps tighten and Our team steps into More (`LAPTOP_MORE_KEYS`). Menu rows
@@ -839,8 +842,13 @@ Eight pages from one design system, the word budgets, why every photograph carri
 - **The sign-in pages keep the nav's whole signed-out cluster** - Sign In,
   Get Started, Book - so tapping Sign In does not appear to break the nav.
   `isAuthCtaSignedOutRoute` pins it there whatever the session says, which
-  still stops "Go to Dashboard" flashing mid-login; only registration and
-  the holding pages drop the cluster (`isAuthCtaHiddenRoute`).
+  still stops "Go to Dashboard" flashing mid-login. Registration and the
+  holding pages drop the cluster **only for somebody signed in**
+  (`isAuthCtaHiddenRoute` and a session); a signed-out visitor there sees
+  the home page's bar. A bare `/patient/register` (no `?ref=` invite)
+  redirects to `/patient/login?tab=register` rather than saying "Invalid
+  Link", and `/account-suspended` offers Sign Out only with a session.
+  Guards: CHROME-008, CHROME-009.
 
 - **Home visits are sold only when they can be booked.** The master switch
   alone is not "bookable": switched on with no active service area, or with no

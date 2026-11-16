@@ -60,7 +60,8 @@ export function isDeveloperRoute(pathname: string | null): boolean {
 }
 
 // Routes where the nav keeps its links but drops its auth call-to-action
-// (Sign In / Get Started / Go to Dashboard) entirely.
+// (Sign In / Get Started / Go to Dashboard) -- for a signed-in visitor only.
+// Signed out, these show the home page's bar like any other public page.
 //
 // These are pages a person usually reaches already signed in, mid-way
 // through an account step, where a Sign In button would be wrong and "Go to

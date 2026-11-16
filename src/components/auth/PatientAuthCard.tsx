@@ -11,8 +11,15 @@ import EmailField from "./EmailField";
 import PasswordField from "./PasswordField";
 import PasswordInput from "./PasswordInput";
 
-export default function PatientAuthCard() {
-  const [tab, setTab] = useState<"login" | "register">("login");
+export default function PatientAuthCard({
+  /** `?tab=register` on /patient/login, read by the page: the bare
+   *  /patient/register address (an invite page without its invite) sends
+   *  people to the sign-up side. */
+  initialTab = "login",
+}: {
+  initialTab?: "login" | "register";
+} = {}) {
+  const [tab, setTab] = useState<"login" | "register">(initialTab);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);

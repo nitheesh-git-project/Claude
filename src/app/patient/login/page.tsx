@@ -5,6 +5,13 @@ export const metadata: Metadata = {
   title: "Patient Portal | MoveRestore",
 };
 
-export default function PatientLoginPage() {
-  return <PatientAuthCard />;
+export default async function PatientLoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string | string[] }>;
+}) {
+  // `?tab=register` opens the sign-up side (the bare /patient/register
+  // address redirects here with it).
+  const { tab } = await searchParams;
+  return <PatientAuthCard initialTab={tab === "register" ? "register" : "login"} />;
 }

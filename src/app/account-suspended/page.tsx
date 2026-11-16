@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import SignOutButton from "@/components/auth/SignOutButton";
+import SignOutIfSignedIn from "@/components/auth/SignOutIfSignedIn";
 import { SUPPORT_EMAIL } from "@/lib/siteContact";
 
 export const metadata: Metadata = {
@@ -29,9 +29,7 @@ export default function AccountSuspendedPage() {
         >
           Back to Home
         </Link>
-        <div className="mt-4">
-          <SignOutButton />
-        </div>
+        <SignOutIfSignedIn />
       </div>
     </section>
   );

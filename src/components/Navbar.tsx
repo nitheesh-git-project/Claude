@@ -129,7 +129,10 @@ export default function Navbar({
   // See isAuthCtaHiddenRoute -- on the auth pages themselves the nav shows
   // no Sign In / Get Started / Go to Dashboard at all, so signing in can't
   // flash a dashboard button before the page it belongs to has opened.
-  const authCtaHidden = isAuthCtaHiddenRoute(pathname);
+  // Hidden only for somebody signed in: a signed-out visitor on those pages
+  // (a bare /patient/register, a bookmarked /pending-approval) gets the same
+  // bar as the home page, Sign In and Get started included.
+  const authCtaHidden = isAuthCtaHiddenRoute(pathname) && signedIn === true;
   // The sign-in pages show the signed-out cluster whatever the session says,
   // so the nav looks the same as on every other public page.
   const showSignedOut = isAuthCtaSignedOutRoute(pathname) || signedIn !== true;
@@ -311,6 +314,36 @@ export default function Navbar({
             </motion.div>
           ) : null}
 
+          {/* Tablets (640-1023px) have the room phones lack: Sign In and
+              Get started sit in the bar, as on a laptop. Book is already
+              in the sticky bar at the foot of the screen. A phone carries
+              Get started there too (PublicBookBar). */}
+          {authCtaHidden ? null : showSignedOut ? (
+            <div className="ml-auto hidden items-center gap-1 whitespace-nowrap sm:flex lg:hidden">
+              <Link
+                href="/patient/login"
+                className="flex min-h-11 items-center px-3 text-sm font-semibold text-slate-700 hover:text-teal-700"
+              >
+                Sign In
+              </Link>
+              <Link
+                href="/get-started"
+                className="flex min-h-11 items-center gap-1.5 rounded-xl bg-teal-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-teal-800"
+              >
+                Get started <i aria-hidden="true" className="fa-solid fa-arrow-right text-xs"></i>
+              </Link>
+            </div>
+          ) : destination ? (
+            <Link
+              href={destination.href}
+              onClick={() => setNavigating(true)}
+              aria-disabled={navigating}
+              className="ml-auto hidden min-h-11 items-center whitespace-nowrap rounded-xl bg-teal-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-teal-800 aria-disabled:pointer-events-none aria-disabled:opacity-60 sm:flex lg:hidden"
+            >
+              {navigating ? "Loading..." : destination.label}
+            </Link>
+          ) : null}
+
           <button
             onClick={() => setOpen(!open)}
             className="lg:hidden flex h-11 w-11 shrink-0 items-center justify-center text-slate-700 text-xl"
@@ -356,13 +389,22 @@ export default function Navbar({
                   </Link>
                 ))}
                 {authCtaHidden ? null : showSignedOut ? (
-                  <Link
-                    href="/patient/login"
-                    onClick={() => setOpen(false)}
-                    className="flex min-h-11 items-center font-semibold text-slate-800"
-                  >
-                    Sign In
-                  </Link>
+                  <div className="mt-1 flex gap-2 border-t border-slate-100 pt-3">
+                    <Link
+                      href="/patient/login"
+                      onClick={() => setOpen(false)}
+                      className="flex min-h-11 flex-1 items-center justify-center rounded-xl border border-slate-300 px-4 font-semibold text-slate-800"
+                    >
+                      Sign In
+                    </Link>
+                    <Link
+                      href="/get-started"
+                      onClick={() => setOpen(false)}
+                      className="flex min-h-11 flex-1 items-center justify-center rounded-xl border border-teal-700 px-4 font-semibold text-teal-800"
+                    >
+                      Get started
+                    </Link>
+                  </div>
                 ) : destination ? (
                   <Link
                     href={destination.href}
