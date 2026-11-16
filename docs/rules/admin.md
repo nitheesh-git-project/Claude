@@ -1169,3 +1169,21 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   key is what silently kept nearly every abandoned account before (the purge
   caught the error and moved on). A kept account says why on its card
   instead of showing a removal date that would never come.
+
+- **People -> Data requests is the legal queue, with its deadlines on every
+  case.** `DataRequestsTab` (self-fetching: `GET /api/admin/data-requests`,
+  any desk that can open People; `POST /api/admin/data-requests/update`,
+  `requireAdminScope("people")`) lists **account deletion requests** (due 30
+  days from the ask) and **grievances** from the /grievances form (acknowledge
+  within 48 hours, resolve within 30 days -- the E-Commerce Rules), each with
+  a red or amber chip from `deletionDue` / `grievanceDue`, and the last 50
+  "Download my data" exports. Moves only go forward
+  (`allowedDataRequestMoves`, `allowedGrievanceMoves`) and are claimed on the
+  status the screen showed, so two admins cannot both close a case (409).
+  Declining a deletion or resolving a grievance needs a note (the CHECKs in
+  schema.sql hold it too). The deletion itself is not a button here: it is the
+  person's page's existing delete (Master Admin), after which the desk marks
+  the request deleted. The log records `data_request.update` /
+  `grievance.update` with the from/to and the note's length, never its text.
+  A desk that can only read People sees the cases without buttons.
+

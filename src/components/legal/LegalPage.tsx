@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import { getLayoutSettings } from "@/lib/siteSettingsCache";
 import { parseAdminSettings } from "@/lib/adminSettings";
 import { readOnlineBookingRules } from "@/lib/homeVisitFlag";
@@ -75,7 +76,14 @@ function Block({ block }: { block: LegalBlock }) {
   );
 }
 
-export default async function LegalPage({ slug }: { slug: LegalSlug }) {
+export default async function LegalPage({
+  slug,
+  after,
+}: {
+  slug: LegalSlug;
+  /** Drawn after the last section: the grievance form, on /grievances. */
+  after?: { id: string; heading: string; node: ReactNode };
+}) {
   const doc = await loadDoc(slug);
   const effective = formatEffectiveDate(LEGAL_FACTS.effectiveDate);
   return (
@@ -89,7 +97,7 @@ export default async function LegalPage({ slug }: { slug: LegalSlug }) {
         <nav aria-label="On this page" className="mt-8 rounded-2xl bg-slate-50 p-5">
           <h2 className="text-sm font-semibold text-slate-900">On this page</h2>
           <ol className="mt-2 grid gap-1 text-sm sm:grid-cols-2">
-            {doc.sections.map((s) => (
+            {[...doc.sections, ...(after ? [{ id: after.id, heading: after.heading }] : [])].map((s) => (
               <li key={s.id}>
                 <a href={`#${s.id}`} className="inline-flex min-h-11 items-center text-teal-700 hover:underline">
                   {s.heading}
@@ -107,6 +115,13 @@ export default async function LegalPage({ slug }: { slug: LegalSlug }) {
             ))}
           </section>
         ))}
+
+        {after && (
+          <section id={after.id} className="mt-10 scroll-mt-24">
+            <h2 className="mb-4 font-display text-xl font-semibold text-slate-900">{after.heading}</h2>
+            {after.node}
+          </section>
+        )}
 
         <nav aria-label="Other legal pages" className="mt-14 border-t border-slate-200 pt-6">
           <ul className="flex flex-wrap gap-x-5 text-sm">

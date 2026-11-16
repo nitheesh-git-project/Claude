@@ -1,6 +1,6 @@
 # The end-to-end suite
 
-104 spec files, over 500 cases, one worker. `npm run test:e2e` runs all of them;
+105 spec files, over 500 cases, one worker. `npm run test:e2e` runs all of them;
 `npx playwright test e2e/<name>.spec.ts` runs one.
 
 This file is the **inventory** - what exists and what each file is for. The
@@ -143,6 +143,7 @@ total, which moves with every spec added.
 | --- | --- | --- |
 | `footer-social-links` | 3 | the footer's social icons: only filled-in links drawn, each opening in a new tab, the WhatsApp number too; the save route refusing a non-https or wrong-network link |
 | `accessibility` | 22 | an axe-core WCAG 2.2 A/AA scan (alt text, contrast, labels, landmarks, ARIA) of every public page and sign-in door, a keyboard walk proving Tab shows a visible focus and is never trapped, and the cookie card scanned on its own with each of its buttons reachable by keyboard (that one only with `NEXT_PUBLIC_GA_MEASUREMENT_ID` set); `npm run test:a11y`, run before every merge to staging |
+| `data-requests` | 4 | a person's own data: Download my data returns a PDF and records an `export` request; Delete my account opens one request (a second is a 409), can be taken back while open, and is worked by the People desk (declining needs a reason, a closed case cannot move again); a grievance gets a reference and is acknowledged then resolved with a note; the profile shows Your data and the /grievances form shows its reference. Removes every row it writes |
 | `terms-acceptance` | 4 | agreeing to the Terms: an account that never agreed is stopped at "Before you continue" and let in once it agrees (recorded as `reaccept`); a signup that ticked the box is recorded by the database trigger and goes straight in; a booking for a child is a 400 without the guardian box and records the guardian and telehealth consents with it; the patient signup form refuses without the box. Creates and deletes its own accounts |
 | `legal-pages` | 3 | the six public legal pages render with their title, "Last updated" date and contents list and no placeholder text; the footer's Legal row links to each; `/refunds` quotes the live refund window |
 | `invite-promise` | 1 | a patient is promised a calendar invite only where this deployment sends one: on the gate's Google-less stack the public example chip points at the dashboard instead |

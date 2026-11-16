@@ -200,6 +200,9 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
       // is locked, and is deleted after a few days if it stays that way.
       // Leads worth a call, never an approval decision.
       { key: "abandoned", label: "Abandoned checkouts" },
+      // "Delete my account" requests and grievances from the /grievances
+      // form, each with its legal deadline (src/lib/dataRequests.ts).
+      { key: "data-requests", label: "Data requests" },
     ],
   },
   {

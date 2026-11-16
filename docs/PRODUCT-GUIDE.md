@@ -514,6 +514,14 @@ and a booking for someone under 18 needs and records a parent's or
 guardian's confirmation. The admin's patient page lists them under
 **Agreements**.
 
+**Your data and grievances:** every patient, therapist and hospital profile
+ends with **Your data**: *Download PDF* (`GET /api/account/my-data`, a designed
+copy of everything held about them) and *Ask to delete my account*
+(`POST /api/account/deletion-request`, worked by staff within 30 days). The
+/grievances page has a complaint form (`POST /api/grievances`, no account
+needed) that returns a `GRV-` reference. Both land on **People -> Data
+requests** with their legal deadlines.
+
 **Cookie consent:** the deep-teal card at the bottom of the public pages
 (Customise / Reject / Accept, opening as the splash lifts) records every choice through `POST /api/consent` into
 `cookie_consents` (append-only, no name, contact detail or IP address).

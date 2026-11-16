@@ -10306,7 +10306,10 @@ begin
     promo_codes,
     -- Cookie pop-up choices made while the app was being tested are not a
     -- clinic's consent evidence; launch starts the count from zero.
-    cookie_consents
+    cookie_consents,
+    -- Requests and complaints made while the app was being tested.
+    data_requests,
+    grievances
   cascade;
   -- NOT truncated, and all three for one reason: `faqs`, `testimonials` and
   -- `mission_principles` are the website's own content, written by a person on
@@ -21040,6 +21043,98 @@ drop trigger if exists on_auth_user_terms_accepted on auth.users;
 create trigger on_auth_user_terms_accepted
   after insert on auth.users
   for each row execute function public.record_signup_terms_acceptance();
+
+-- =============================================================================
+-- Data requests and grievances (Phase 3 of the legal work).
+-- =============================================================================
+-- data_requests: a person's request about their own data. Today one kind,
+-- `deletion` -- "Delete my account" on a profile page. It is a request a
+-- person on the People desk works, not an instant delete: clinical, payment
+-- and audit records must be kept, so deleting an account means removing the
+-- login and contact details through the existing admin delete, and a request
+-- may be refused with a reason. The deadline is 30 days (DPDP Act s.12;
+-- src/lib/dataRequests.ts). `kind = 'export'` rows are written, already
+-- completed, each time someone downloads their data, so the clinic can
+-- answer "when did they last receive a copy".
+--
+-- grievances: the form on /grievances. Anyone may file one, signed in or
+-- not; a signed-in filer is linked by the server, never by the form. The
+-- Grievance Officer must acknowledge within 48 hours and resolve within 30
+-- days (Consumer Protection (E-Commerce) Rules 2020, r.4(5)).
+--
+-- Both are written only by the service role (the routes); a person reads
+-- their own rows, the back office reads all. Neither is append-only: a
+-- request moves through its statuses, and each move is in the admin log.
+create table if not exists data_requests (
+  id uuid primary key default gen_random_uuid(),
+  reference text not null unique check (reference ~ '^(DEL|EXP)-[A-Z0-9]{6}$'),
+  user_id uuid references profiles(id) on delete set null,
+  role text not null check (role in ('patient', 'therapist', 'hospital')),
+  kind text not null check (kind in ('deletion', 'export')),
+  status text not null default 'open' check (status in ('open', 'in_progress', 'completed', 'rejected', 'withdrawn')),
+  reason text check (reason is null or char_length(reason) <= 1000),
+  resolution_note text check (resolution_note is null or char_length(resolution_note) <= 1000),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  resolved_at timestamptz,
+  resolved_by uuid references profiles(id) on delete set null,
+  constraint data_requests_rejection_says_why check (status <> 'rejected' or char_length(coalesce(trim(resolution_note), '')) >= 3)
+);
+
+create index if not exists data_requests_open_idx on data_requests (created_at) where status in ('open', 'in_progress');
+create index if not exists data_requests_user_idx on data_requests (user_id, created_at desc) where user_id is not null;
+create index if not exists data_requests_resolved_by_idx on data_requests (resolved_by) where resolved_by is not null;
+-- At most one live deletion request per person: a second tap must not
+-- open a second case.
+create unique index if not exists data_requests_one_open_deletion
+  on data_requests (user_id) where kind = 'deletion' and status in ('open', 'in_progress');
+
+alter table data_requests enable row level security;
+
+drop policy if exists "data_requests_select_own" on data_requests;
+create policy "data_requests_select_own" on data_requests
+  for select using (user_id = (select auth.uid()));
+
+drop policy if exists "data_requests_select_admin" on data_requests;
+create policy "data_requests_select_admin" on data_requests
+  for select using (is_admin());
+
+revoke insert, update, delete on data_requests from anon, authenticated;
+
+create table if not exists grievances (
+  id uuid primary key default gen_random_uuid(),
+  reference text not null unique check (reference ~ '^GRV-[A-Z0-9]{6}$'),
+  user_id uuid references profiles(id) on delete set null,
+  name text not null check (char_length(name) between 1 and 120),
+  email text not null check (char_length(email) between 3 and 254),
+  phone text check (phone is null or char_length(phone) <= 30),
+  category text not null check (category in ('service', 'payment', 'privacy', 'therapist', 'other')),
+  booking_reference text check (booking_reference is null or char_length(booking_reference) <= 60),
+  message text not null check (char_length(message) between 10 and 4000),
+  status text not null default 'new' check (status in ('new', 'acknowledged', 'resolved')),
+  resolution_note text check (resolution_note is null or char_length(resolution_note) <= 2000),
+  created_at timestamptz not null default now(),
+  acknowledged_at timestamptz,
+  resolved_at timestamptz,
+  handled_by uuid references profiles(id) on delete set null,
+  constraint grievances_resolution_says_how check (status <> 'resolved' or char_length(coalesce(trim(resolution_note), '')) >= 3)
+);
+
+create index if not exists grievances_open_idx on grievances (created_at) where status <> 'resolved';
+create index if not exists grievances_user_idx on grievances (user_id) where user_id is not null;
+create index if not exists grievances_handled_by_idx on grievances (handled_by) where handled_by is not null;
+
+alter table grievances enable row level security;
+
+drop policy if exists "grievances_select_own" on grievances;
+create policy "grievances_select_own" on grievances
+  for select using (user_id = (select auth.uid()));
+
+drop policy if exists "grievances_select_admin" on grievances;
+create policy "grievances_select_admin" on grievances
+  for select using (is_admin());
+
+revoke insert, update, delete on grievances from anon, authenticated;
 
 -- ---------------------------------------------------------------------
 -- service_role's EXECUTE, written out rather than inherited.

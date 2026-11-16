@@ -167,6 +167,11 @@ export type AdminActivityAction =
   // Kept so log rows from the single-note era still read; nothing writes it now.
   | "dev_reachout.update_note"
   | "dev_reachout.add_note"
+  // Settings-free People work: a deletion request or a grievance moved on
+  // (src/lib/dataRequests.ts). Details carry the from/to status only, never
+  // the note's text.
+  | "data_request.update"
+  | "grievance.update"
   | "dev_reachout.edit_note"
   | "dev_reachout.delete_note"
   | "referral.set_capacity_note"
@@ -401,6 +406,8 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
   "dev_reachout.update_status": "Moved a developer reachout",
   "dev_reachout.update_note": "Saved a note on a developer reachout",
   "dev_reachout.add_note": "Added a note to a developer reachout",
+  "data_request.update": "Updated a data request",
+  "grievance.update": "Updated a grievance",
   "dev_reachout.edit_note": "Edited a note on a developer reachout",
   "dev_reachout.delete_note": "Deleted a note on a developer reachout",
   "referral.set_capacity_note": "Edited the referral capacity note",

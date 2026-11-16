@@ -12,6 +12,7 @@ rg -i "<the thing you are seeing>" docs/rules/
 ```
 
 ## The admin back office
+- People -> Data requests is the legal queue, with its deadlines on every case
 
 `docs/rules/admin.md` -- 52 rules
 
@@ -131,6 +132,7 @@ rg -i "<the thing you are seeing>" docs/rules/
 - The admin's patient page shows them
 
 ## The four dashboards, and moving between screens
+- Every profile page ends with "Your data", for all three roles
 
 `docs/rules/dashboards.md` -- 40 rules
 

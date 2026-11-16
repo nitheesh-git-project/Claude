@@ -985,6 +985,19 @@
       "integration": "local",
       "destructive": false
     },
+    "data-requests.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "terms-acceptance.spec.ts": {
       "runner": "patient",
       "levels": [
@@ -3651,6 +3664,28 @@
       ],
       "rules": [
         "docs/rules/public-site.md"
+      ]
+    },
+    {
+      "id": "patient.data-requests",
+      "runner": "patient",
+      "title": "A person's own data: Download my data returns a PDF and records it; Delete my account opens one request that can be taken back and is worked by the People desk; a grievance gets a reference and is acknowledged then resolved with a note",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "data-requests.spec.ts",
+          "tests": [
+            "DR-001",
+            "DR-002",
+            "DR-003",
+            "DR-004"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/admin.md"
       ]
     },
     {
