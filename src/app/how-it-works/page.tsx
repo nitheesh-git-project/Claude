@@ -14,6 +14,7 @@ import {
 } from "@/lib/homeVisitFlag";
 import { createPublicClient } from "@/lib/supabase/public";
 import { hoursNoticeLabel, oneToOneLine, refundWindowLine } from "@/lib/sessionLengthCopy";
+import TreatmentGoals from "@/components/marketing/TreatmentGoals";
 import HealthProfileShowcase from "@/components/marketing/HealthProfileShowcase";
 import { enabledShowcaseProfiles } from "@/lib/healthProfileShowcase";
 
@@ -120,8 +121,9 @@ function objectionsFor(homeVisitEnabled: boolean, leadTimeHours: number) {
 
 const SECTION_NAV_ITEMS: SectionNavItem[] = [
   { id: "the-steps", label: "The Four Steps", icon: "fa-route" },
-  { id: "after-the-first", label: "After Session One", icon: "fa-layer-group" },
+  { id: "goals", label: "Treatment Goals", icon: "fa-bullseye" },
   { id: "health-profile", label: "Your Health Profile", icon: "fa-notes-medical" },
+  { id: "after-the-first", label: "After Session One", icon: "fa-layer-group" },
   { id: "common-questions", label: "Common Questions", icon: "fa-circle-question" },
   { id: "explore", label: "Explore the Site", icon: "fa-compass" },
   { id: "book-now", label: "Book Now", icon: "fa-calendar-check" },
@@ -140,12 +142,15 @@ export default async function HowItWorksPage() {
     createPublicClient().from("treatment_categories").select("duration_minutes").eq("active", true),
   ]);
   const showcaseProfiles = enabledShowcaseProfiles(enabledSpecialties);
+  // Bands alternate plain and tint. The health profile band is the one that
+  // can be absent, and without it the two after it swap so no two tints meet.
+  const hasProfile = showcaseProfiles.length > 0;
 
   return (
     <>
       <SectionNav
         items={
-          showcaseProfiles.length > 0
+          hasProfile
             ? SECTION_NAV_ITEMS
             : SECTION_NAV_ITEMS.filter((item) => item.id !== "health-profile")
         }
@@ -174,9 +179,36 @@ export default async function HowItWorksPage() {
         <StepStrip steps={stepsFor(homeVisitEnabled, oneToOneLine(lengthRows.data ?? []))} />
       </Section>
 
+      {/* What the steps lead to, one kind of care at a time: a sweep from
+          the first visit to the goal (TreatmentGoals). It lived on
+          /conditions; it sits here, straight after the four steps, because
+          "what happens" is the question this page answers. */}
+      <Section
+        id="goals"
+        tone="tint"
+        eyebrow="What treatment works towards"
+        title="From your first visit to your goal"
+      >
+        <TreatmentGoals />
+      </Section>
+
+      {/* The profile a patient opens, per kind of care, and what it watches
+          over a course -- shown through the real components with sample
+          data. Only the condition types the clinic offers. */}
+      {hasProfile && (
+        <Section
+          id="health-profile"
+          eyebrow="Your health profile"
+          title="Everything is tracked. All of it is yours to see."
+          lede="A sample profile for each kind of care."
+        >
+          <HealthProfileShowcase profiles={showcaseProfiles} />
+        </Section>
+      )}
+
       <Section
         id="after-the-first"
-        tone="tint"
+        tone={hasProfile ? "tint" : "plain"}
         eyebrow="And after that"
         title="Recovery is a course, not one appointment"
       >
@@ -189,23 +221,9 @@ export default async function HowItWorksPage() {
         </Stagger>
       </Section>
 
-      {/* The profile a patient opens, per kind of care, and what it watches
-          over a course -- shown through the real components with sample
-          data. Only the condition types the clinic offers. */}
-      {showcaseProfiles.length > 0 && (
-        <Section
-          id="health-profile"
-          eyebrow="Your health profile"
-          title="Everything is tracked. All of it is yours to see."
-          lede="A sample profile for each kind of care."
-        >
-          <HealthProfileShowcase profiles={showcaseProfiles} />
-        </Section>
-      )}
-
       <Section
         id="common-questions"
-        tone="tint"
+        tone={hasProfile ? "plain" : "tint"}
         eyebrow="Before you book"
         title="The things people hesitate over"
       >

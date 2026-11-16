@@ -114,16 +114,23 @@ test("CHROME-003: the admin sidebar is the same light sidebar as the other dashb
   }
 });
 
-test("CHROME-004: /conditions lists the programmes before what treatment works towards", async ({ page }) => {
+test("CHROME-004: /how-it-works runs the four steps, the goals, the health profile, then the course", async ({ page }) => {
+  await page.goto(`${BASE}/how-it-works`);
+  const steps = page.locator("#the-steps");
+  const goals = page.locator("#goals");
+  const after = page.locator("#after-the-first");
+  await expect(goals).toBeVisible();
+  const order = [steps, goals];
+  // The health profile band renders only for the kinds of care the clinic
+  // offers; when it does, "Recovery is a course" comes after it.
+  const profile = page.locator("#health-profile");
+  if ((await profile.count()) > 0) order.push(profile);
+  order.push(after);
+  const ys = await Promise.all(order.map(async (l) => (await l.boundingBox())!.y));
+  for (let i = 1; i < ys.length; i++) expect(ys[i - 1]).toBeLessThan(ys[i]);
+  // /conditions no longer carries it.
   await page.goto(`${BASE}/conditions`);
-  const programs = page.locator("#programs");
-  const areas = page.locator("#goals");
-  await expect(areas).toBeVisible();
-  // Programmes only render when the catalog has some; when it does, they lead.
-  if ((await programs.count()) > 0) {
-    const [p, a] = await Promise.all([programs.boundingBox(), areas.boundingBox()]);
-    expect(p!.y).toBeLessThan(a!.y);
-  }
+  await expect(page.locator("#goals")).toHaveCount(0);
 });
 
 test("CHROME-005: every dashboard sends its loading frame before its data, and the page replaces it", async ({

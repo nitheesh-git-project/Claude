@@ -365,7 +365,7 @@ rg -i "<the thing you are seeing>" docs/rules/
 - A hero's figures sit on one line
 - The home page's programme cards are the compact ones
 - The header and the sticky bar never cut a word off
-- "What treatment works towards" replaced "Find what hurts", on `/` and `/conditions`
+- "What treatment works towards" replaced "Find what hurts", on `/` and `/how-it-works`
 - A carousel that moves on its own is a carousel nobody can read
 - A section rail entry must match a section that renders, in DOM order
 - A public page opens at its very top, and the arrow brings you back up
