@@ -99,6 +99,7 @@ total, which moves with every spec added.
 | `pay-later` | 7 | the grant, a booking with no payment screen, completion putting money in three places at once, a declaration that settles nothing, a write-off that costs the clinic without moving a money figure |
 | `discounts` | 7 | the four acquisition discounts and what each records |
 | `acquisition-codes` | 19 | a promo code quoting with no amount in the request, a redemption cap, a paused campaign, an invite that cannot be self-claimed, and the free-booking path |
+| `trusted-codes` | 3 | a trusted-patient code made from Money -> Costs (reason checked, listed as waiting, cancellable); redeemed only by the account it names, once, granting pay later with its reason and grantor; a spent code cannot be cancelled, rewritten or deleted; only a money admin creates one |
 | `unscheduled-purchases` | 3 | a paid purchase nobody ever booked anything against, on Programmes -> All Programmes ("Paid - nothing booked", narrowed to the day-old ones the Money alert counts) |
 | `session-scheduling` | 6 | booking the sessions a patient paid for, none of which assigns itself even on a locked programme |
 | `gateway-payment-capture` | 2 | a session priced by the server, captured at the gateway and verified with a correctly signed callback -- a forged signature, the wrong order or another patient changing nothing, a replay changing nothing (not even `paid_at`), no second checkout; a programme bought the same way granting its credits exactly once. Fake gateway; append-only writes - disposable project only |

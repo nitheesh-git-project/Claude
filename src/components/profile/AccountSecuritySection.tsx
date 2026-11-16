@@ -132,8 +132,8 @@ export default function AccountSecuritySection({ email }: { email: string }) {
 
       <div className="space-y-2">
         <p className="text-slate-600">
-          <span className="font-semibold text-slate-800">Forgot your current password?</span> We&apos;ll email you a
-          link to set a new one - no current password needed.
+          <span className="font-semibold text-slate-800">Forgot your current password?</span>
+          {" We'll email you a link to set a new one - no current password needed."}
         </p>
         {resetError && <p className="text-red-600">{resetError}</p>}
         {sent ? (

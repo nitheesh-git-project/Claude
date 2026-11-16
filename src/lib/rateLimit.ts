@@ -157,6 +157,16 @@ export const RATE_LIMITS = {
     message: "That is several password checks in a row, so this is paused for a moment.",
   },
 
+  /** Redeeming a trusted-patient code: per account, closed on failure --
+   *  the cap is the only bound on guessing a six-character code. */
+  trustedCodeRedeem: {
+    scope: "trusted-code",
+    limit: 6,
+    windowSeconds: 3600,
+    onCheckFailure: "closed",
+    message: "That is several codes tried in a row, so this is paused for a while.",
+  },
+
   devReachout: {
     scope: "dev-reachout",
     limit: 5,

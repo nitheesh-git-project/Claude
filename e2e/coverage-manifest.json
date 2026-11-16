@@ -1854,6 +1854,19 @@
       ],
       "integration": "local",
       "destructive": false
+    },
+    "trusted-codes.spec.ts": {
+      "runner": "money",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
     }
   },
   "flows": [
@@ -4864,6 +4877,27 @@
       "rules": [
         "docs/rules/roster.md",
         "docs/rules/clinical.md"
+      ]
+    },
+    {
+      "id": "money.trusted-codes",
+      "runner": "money",
+      "title": "A trusted-patient code grants pay later to the one account it names, once, with its reason; spent codes cannot be rewritten; only a money admin creates one",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "trusted-codes.spec.ts",
+          "tests": [
+            "TC-001",
+            "TC-002",
+            "TC-003"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/pay-later.md"
       ]
     }
   ],

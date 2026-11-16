@@ -85,7 +85,11 @@ export default function AdminOwingTab({
   manualRefunds = [],
   writtenOff = [],
   canManageMoney = false,
+  trustedCodeByPatient = new Map(),
 }: {
+  /** Patients whose pay later came from a trusted-patient code (Money ->
+   *  Costs), by patient id: the code, said beside their balance. */
+  trustedCodeByPatient?: Map<string, string>;
   appointments: PayLaterAppointment[];
   payments?: PayLaterPaymentRow[];
   patientNameById: Map<string, string>;
@@ -160,12 +164,22 @@ export default function AdminOwingTab({
           }`}
         >
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <Link
-              href={`/admin/dashboard/patients/${b.patientId}`}
-              className="text-sm font-bold text-slate-900 hover:text-teal-700"
-            >
-              {nameOf(b.patientId)}
-            </Link>
+            <span className="flex flex-wrap items-center gap-2">
+              <Link
+                href={`/admin/dashboard/patients/${b.patientId}`}
+                className="text-sm font-bold text-slate-900 hover:text-teal-700"
+              >
+                {nameOf(b.patientId)}
+              </Link>
+              {trustedCodeByPatient.get(b.patientId) && (
+                <span
+                  className="rounded-full bg-teal-50 px-2 py-0.5 text-[10px] font-semibold text-teal-800"
+                  data-testid="owing-trusted-code"
+                >
+                  Pay later from trusted code {trustedCodeByPatient.get(b.patientId)}
+                </span>
+              )}
+            </span>
             <span className="text-base font-bold text-slate-900">{formatInr(b.owedPaise)}</span>
           </div>
           <p className="mt-1 text-xs text-slate-500">
