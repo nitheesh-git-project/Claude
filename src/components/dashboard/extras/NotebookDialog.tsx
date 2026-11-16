@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
+import NotebookTour, { NOTEBOOK_TOUR_STEPS, markNotebookTourSeen, notebookTourSeen, type NotebookTourTarget } from "@/components/dashboard/extras/NotebookTour";
 import { motion } from "motion/react";
 import OverlayPortal from "@/components/system/OverlayPortal";
 import RichTextEditor from "@/components/RichTextEditor";
@@ -145,6 +146,17 @@ export default function NotebookDialog({
   const [stage, setStage] = useState<"cover" | "turning" | "open">(() =>
     prefersReducedMotion() ? "open" : "cover"
   );
+  // The three-step tip (NotebookTour): null when not showing. Started the
+  // first time the book is open; the header's "?" replays it.
+  const [tourStep, setTourStep] = useState<number | null>(null);
+  const [tourChecked, setTourChecked] = useState(false);
+  if (stage === "open" && !tourChecked) {
+    setTourChecked(true);
+    if (typeof window !== "undefined" && !notebookTourSeen()) setTourStep(0);
+  }
+  const tourTarget: NotebookTourTarget | null = tourStep === null ? null : NOTEBOOK_TOUR_STEPS[tourStep].target;
+  const ring = (target: NotebookTourTarget) =>
+    tourTarget === target ? "rounded-xl ring-4 ring-amber-300 ring-offset-2 ring-offset-[#fbf7ec] transition-shadow" : "";
 
   const pending = useRef<{ id: string; json: unknown } | null>(null);
   const timer = useRef<number | null>(null);
@@ -512,12 +524,12 @@ export default function NotebookDialog({
     <div className="shrink-0 pt-1">
       <p
         role="status"
-        className="h-5 text-right text-[13px] font-medium text-[#6b6452]"
+        className={`h-5 text-right text-[13px] font-medium text-[#6b6452] ${ring("save")}`}
         data-testid="notebook-save-state"
       >
-        {saveLabel}
+        {saveLabel || (tourTarget === "save" ? "Saved" : "")}
       </p>
-      <div className="flex items-center justify-between gap-1.5">
+      <div className={`flex items-center justify-between gap-1.5 ${ring("pages")}`}>
         <div className="flex items-center gap-1.5">
           <button
             type="button"
@@ -663,6 +675,15 @@ export default function NotebookDialog({
             >
               {title}
             </h2>
+            <button
+              type="button"
+              onClick={() => setTourStep(0)}
+              aria-label="How the notebook works"
+              data-testid="notebook-tour-replay"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white hover:bg-white/15 lg:order-2 lg:bg-white/90 lg:text-[#1f2a44]"
+            >
+              <i aria-hidden="true" className="fa-solid fa-circle-question text-base"></i>
+            </button>
             <span className="flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-[#115e59] px-3 text-[13px] font-semibold text-white lg:order-first">
               <i aria-hidden="true" className="fa-solid fa-lock text-[11px]"></i>
               <span className="lg:hidden">Only you</span>
@@ -717,7 +738,7 @@ export default function NotebookDialog({
                           on a laptop it is on the left, and this stays. */}
                       {showIndex && <div className="flex min-h-0 flex-1 flex-col lg:hidden">{indexList}</div>}
                       <div className={`min-h-0 flex-1 flex-col ${showIndex ? "hidden lg:flex" : "flex"}`}>
-                        {writing}
+                        <div className={`flex min-h-0 flex-1 flex-col ${ring("writing")}`}>{writing}</div>
                         {controls}
                       </div>
                     </>
@@ -725,6 +746,17 @@ export default function NotebookDialog({
                 </div>
                 <span aria-hidden="true" className="absolute -bottom-6 left-[62%] hidden h-8 w-3.5 bg-[#d97706] lg:block"></span>
               </div>
+
+              {tourStep !== null && stage === "open" && (
+                <NotebookTour
+                  step={tourStep}
+                  onStep={setTourStep}
+                  onDone={() => {
+                    setTourStep(null);
+                    markNotebookTourSeen();
+                  }}
+                />
+              )}
 
               {/* The cover. Scenery only, removed once it has turned: on a
                   phone it lifts on the rings, on a laptop it swings on the

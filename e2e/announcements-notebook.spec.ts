@@ -414,7 +414,7 @@ test.describe("announcements and the notebook", () => {
     await page.context().close();
   });
 
-  test("NB-001: the notebook opens from its button, saves by itself, and keeps what was written", async ({ browser }) => {
+  test("NB-001: the notebook opens from its button with three tips, saves by itself, and keeps what was written", async ({ browser }) => {
     const page = await pageFor(browser, QA_EMAILS.patientA);
     await page.goto(`${BASE}/patient/dashboard`);
     await page.getByTestId("notebook-button").click({ timeout: 60_000 });
@@ -422,6 +422,16 @@ test.describe("announcements and the notebook", () => {
     await expect(notebook).toBeVisible({ timeout: 30_000 });
     await expect(notebook).toHaveAttribute("data-stage", "open", { timeout: 15_000 });
     await expect(notebook.getByText("Only you can read this")).toBeVisible();
+
+    // First time open: three short tips, each ringing the control it names.
+    const tour = page.getByTestId("notebook-tour");
+    await expect(tour).toContainText("Write anything");
+    await tour.getByRole("button", { name: "Next" }).click();
+    await expect(tour).toContainText("Pages, like a real notebook");
+    await tour.getByRole("button", { name: "Next" }).click();
+    await expect(tour).toContainText("It saves itself");
+    await tour.getByRole("button", { name: "Got it" }).click();
+    await expect(tour).toHaveCount(0);
 
     const editor = page.getByTestId("notebook-editor");
     await expect(editor).toBeVisible({ timeout: 30_000 });
@@ -436,6 +446,12 @@ test.describe("announcements and the notebook", () => {
     // One blank page at the end is enough.
     await notebook.getByRole("button", { name: "New page" }).click();
     await expect(page.getByTestId("notebook-page-number")).toHaveText("Page 2 of 2");
+
+    // The tips do not come back on their own; "?" replays them.
+    await page.getByTestId("notebook-tour-replay").click();
+    await expect(tour).toContainText("Write anything");
+    await tour.getByRole("button", { name: "Skip" }).click();
+    await expect(tour).toHaveCount(0);
 
     await page.getByTestId("notebook-close").click();
     await expect(notebook).toHaveCount(0);

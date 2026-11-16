@@ -796,6 +796,13 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
     picture the banner is the title on a brand strip.
   Guard: `e2e/announcements-notebook.spec.ts` ANN-001..006,
   `src/lib/announcements.test.ts`.
+- **The notebook teaches itself in three tips, the first time it opens.**
+  `NotebookTour`: Write anything / Pages, like a real notebook / It saves
+  itself, each ringing the real control it names (the page, the page
+  buttons, the save line), never covering it -- on a phone the tip sits
+  above or below, on a laptop on the free left-hand page. Skip, Next, Got
+  it; remembered in this browser (`mr-notebook-tour-v1`, a per-person
+  convenience), and the header's **?** replays it. Guard: NB-001.
 - **The notebook is private to its owner, and that is enforced in three
   places.** Every patient, therapist and hospital dashboard carries a
   floating notebook (`NotebookLauncher` in `DashboardShell`, `NotebookDialog`
