@@ -3,14 +3,16 @@ import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { rowActivationProps, type RowKeyboardEvent } from "@/lib/rowActivation";
 
-type Row = { id: string };
+// The helper is typed for a real element (`E extends HTMLElement`); these
+// tests only ever compare identity, so a tagged object stands in for one.
+type Row = HTMLElement;
 
 function keyEvent(
   key: string,
   { onRow = true }: { onRow?: boolean } = {}
 ): RowKeyboardEvent<Row> & { prevented: boolean } {
-  const row: Row = { id: "row" };
-  const child: Row = { id: "child" };
+  const row = { id: "row" } as unknown as Row;
+  const child = { id: "child" } as unknown as Row;
   const event = {
     key,
     target: (onRow ? row : child) as unknown as EventTarget,

@@ -178,6 +178,7 @@ export default function DashboardShell({
     const supabase = createClient();
     await supabase.auth.signOut();
     // A hard navigation so the next request carries the cleared cookies.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- a full load on purpose: the auth cookies just changed
     window.location.href = "/?farewell=1";
   }
 
