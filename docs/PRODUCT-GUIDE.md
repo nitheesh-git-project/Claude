@@ -326,7 +326,9 @@ Copy `.env.example` to `.env.local` and fill in:
 | `GOOGLE_CALENDAR_REFRESH_TOKEN` | Obtained once via `node scripts/get-google-refresh-token.mjs` (see that file's header for the one-time setup) |
 | `GOOGLE_CALENDAR_ID` | Calendar the session events are created on; its authorizing account is the meeting organizer, and the account whose Meet permission opens each meeting |
 | `NEXT_PUBLIC_SHOW_DEBUG_NAV` | Optional kill switch for the pre-launch debug bar. The bar is on in every environment; set to exactly `false` to hide it. Its **Test accounts** panel follows the same flag, so set it to `false` on the live site |
-| `NEXT_PUBLIC_GA_MEASUREMENT_ID` | Optional. Google Analytics 4 ID (`G-...`, public by design). Blank switches analytics off: no banner, no script. Loads only after a visitor accepts, only on public pages and the booking widget |
+| `NEXT_PUBLIC_GA_MEASUREMENT_ID` | Optional. Google Analytics 4 ID (`G-...`, public by design). Blank switches analytics off: no Analytics choice, no script. Loads only after a visitor accepts in the cookie pop-up, only on public pages and the booking widget |
+| `RESEND_API_KEY` / `EMAIL_FROM` | Optional, server-only. Email for the legal workflows through Resend: receipts for complaints and deletion requests, the Grievance Officer's alerts, and closing notes. `EMAIL_FROM` must be on a domain verified in Resend. Unset sends nothing; every case is still on People -> Data requests |
+| `NEXT_PUBLIC_MARKETING_CONSENT_ENABLED` | Optional. `"true"` adds a Marketing choice (ad pixels) to the cookie pop-up. Leave blank until an ad pixel is actually added. The pop-up shows only while this or the GA ID is set |
 | `ALLOW_DEBUG_DATA_RESET` | Optional, pre-launch testing only. Exactly `true` arms the bar's "Reset data" button, which deletes every non-admin account and empties the tables testing fills, while keeping everything a person typed: `site_settings` and `risk_rules` are not touched at all, and the conditions catalogue (`treatment_categories` and their packages), `faqs`, `testimonials`, `mission_principles` and `dev_reachouts` (the developer's own inbox) all survive. Never set it on a deployment holding real data |
 | `SUPABASE_MAX_IN_FLIGHT` | Optional. How many HTTP requests this server may have in flight to Supabase at once, per instance. Default 96, measured: at 40 concurrent admin dashboard renders 48 gave a p50 of 130s, 96 gave 15.3s and 192 gave 16.4s. Without a cap, ~3,300 concurrent requests exhausted the connect timeout and the dashboard rendered the lost rows as zeroes. |
 | `SUPABASE_REQUEST_TIMEOUT_MS` | Optional. Deadline on each Supabase request, covering the wait for a slot. Default 20000. undici's own default is five minutes, and a socket stuck that long holds a slot the requests behind it need. |
@@ -496,6 +498,43 @@ admin action.
 **Public marketing:** `/` (home), `/conditions`, `/how-it-works`, `/team`,
 `/mission`, `/hospitals`, `/faq`, `/get-started`, `/book`, `/home-visit`,
 `/book-home-visit`.
+
+**Legal (public):** `/privacy`, `/terms`, `/refunds`, `/cookies`,
+`/medical-disclaimer`, `/grievances` - linked from the footer's Legal row on
+every public page. Content in `src/lib/legal/legalDocs.ts`; the owner-only
+facts (legal entity, Grievance Officer, jurisdiction) in
+`src/lib/legal/legalFacts.ts` must be filled before launch.
+
+**Agreements:** every signup form has a required "I agree to the Terms of use
+and Privacy policy" box, recorded with its version in `policy_acceptances`.
+A patient, therapist or hospital partner who has not agreed to the current
+version (older accounts, staff-created accounts, or after the legal pages'
+date moves) sees "Agree to continue" before their dashboard
+(`POST /api/account/accept-terms`). A booking records the telehealth consent,
+and a booking for someone under 18 needs and records a parent's or
+guardian's confirmation. The admin's patient page lists them under
+**Agreements**.
+
+**Legal documents:** `docs/legal/` holds the internal breach response plan
+(`BREACH-RESPONSE.md`) and the list of suppliers that process personal data
+(`SUBPROCESSORS.md`, kept in step with the Privacy policy).
+`docs/legal/review/` holds the drafts sent for legal review: the website
+pages as published, the Physiotherapist Services Agreement and the Hospital
+Referral Partnership Agreement. Neither agreement is used by the app yet.
+
+**Your data and grievances:** every patient, therapist and hospital profile
+ends with **Your data**: *Download PDF* (`GET /api/account/my-data`, a designed
+copy of everything held about them) and *Ask to delete my account*
+(`POST /api/account/deletion-request`, worked by staff within 30 days). The
+/grievances page has a complaint form (`POST /api/grievances`, no account
+needed) that returns a `GRV-` reference. Both land on **People -> Data
+requests** with their legal deadlines.
+
+**Cookie consent:** the deep-teal card at the bottom of the public pages
+(Customise / Reject / Accept, opening as the splash lifts) records every choice through `POST /api/consent` into
+`cookie_consents` (append-only, no name, contact detail or IP address).
+**Settings -> Cookie consent** shows the acceptance rates over 7, 30 or 90 days
+and the latest choices (`GET /api/admin/cookie-consents`, settings scope).
 
 **Developer credit (public, deliberately not a marketing page):** `/developer`
 ("Say hello!") and `/developer/lets-talk` (the contact form), reached only by

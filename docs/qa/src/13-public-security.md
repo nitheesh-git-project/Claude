@@ -125,9 +125,22 @@ Covered by `PAT-HV-001` and `ADM-SET-013`.
 * Step 6: the credit line is gone and both pages are **404**.
 **Negative:** dropping the connection and submitting shows `Could not reach us just now. Please check your connection and try again.` and keeps what was typed.
 
+#### `PUB-CC-001` - The cookie card · P0
+**Steps.** In a fresh private window open `/faq` and watch as the opening splash lifts. Try each of **Accept**, **Reject**, and **Customise** → switch Analytics → **Save** (clear site data between tries). Open `/book` in a fresh window and wait 5 seconds. Finally sign in as an admin and open **Settings → Cookie consent**.
+**Expected Result.** A deep-teal card titled **Cookie settings** slides up at the bottom **as soon as the splash has gone** (full width on a phone, bottom-right on a laptop). The page behind is not dimmed and can still be scrolled and tapped. **Customise**, **Reject** and **Accept** are the same size; only Accept is filled (mint). Nothing from Google (DevTools → Network, filter `google`) loads before Accept, or ever after Reject. After any choice the card does not return on reload; **Cookie settings** in the footer reopens it with the switches as saved. On `/book` it does not open by itself. If you ignore it and open a new tab it stays away for a day. Settings → Cookie consent shows your choices in **Latest choices** with the right page and "Signed in: No", and the percentages move.
+
+#### `PUB-GRV-001` - The grievance form · P1
+**Steps.** On `/grievances` scroll to **Raise a complaint**. Send it with a bad email, then correctly (no account needed). As an admin open **People → Data requests**.
+**Expected Result.** The bad email is refused with *"Please enter an email address we can reply to."*. A good one shows *"We have your complaint"* with a `GRV-` reference and the 48-hour / 30-day promises. On Data requests the grievance is listed with an amber **Acknowledge: Due in 2 days** chip; **Acknowledge** then **Resolve** (a note is required) closes it, and it leaves the list unless **Show closed** is ticked.
+
 #### `PUB-DEV-002` - The Say hello door resists scripts and floods · P1
 **Steps.** In DevTools → Console on `/developer/lets-talk`, post to `/api/developer/reachout` (a) with a body that is not JSON, (b) with a valid body that also carries `website: "http://spam.example"`, and (c) six valid bodies in a row from one address.
 **Expected Result.** (a) is a **400**, not a 500. (b) answers `{ "success": true }` exactly as a real submission does but **writes nothing** - no row appears on Developer messages. (c) The sixth is refused with **429** and `Retry-After`, in words with no number in them and no blame; the form tells the visitor roughly when to try again. With the credit switched off, every call answers **404**. The table cannot be written from a browser with the publishable key at all - there is no insert policy.
+
+
+#### `PUB-LEG-001` - The legal pages · P0
+**Steps.** On any public page, scroll to the footer's bottom bar and open each link in the **Legal** row: Privacy policy, Terms of use, Refunds & cancellations, Cookie policy, Medical disclaimer, Grievances. Then change **Feature Control → online cancellation refund hours** and reload `/refunds` after five minutes.
+**Expected Result.** Each page opens with its title, a "Last updated" date and an "On this page" list whose links jump to the sections. No page shows a placeholder such as `[Company name]`, `undefined` or `TODO`; a fact the owner has not supplied (legal entity, address, Grievance Officer) is simply absent. `/refunds` and `/terms` quote the refund window and booking notice as set in Feature Control, never a different figure. The Cookie policy's essential cookies match what DevTools → Application → Cookies shows for a signed-out visitor who declined analytics (plus `_ga` cookies only after accepting). Automated: `e2e/legal-pages.spec.ts`.
 
 ---
 

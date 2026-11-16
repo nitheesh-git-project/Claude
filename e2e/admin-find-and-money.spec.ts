@@ -63,7 +63,10 @@ test.describe("finding things in the admin dashboard", () => {
   test("FIND-003 Logs → Signed in as and Money → Refunds open, with their filters", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(`${BASE}/admin/dashboard?section=logs&tab=signed-in-as`);
-    const log = page.getByTestId("impersonation-log");
+    // Scoped to main: while the page streams, Next parks the screen in a
+    // hidden <div id="S:0"> before swapping it in, so for a moment the same
+    // test id exists twice and an unscoped strict locator sees both.
+    const log = page.getByRole("main").getByTestId("impersonation-log");
     await expect(log).toBeVisible({ timeout: 90_000 });
     await expect(log.getByLabel("Name or reason")).toBeVisible();
     await expect(log.getByLabel("Whose dashboard")).toBeVisible();

@@ -360,8 +360,8 @@
   .claude/skills/ui-styling/SKILL.md → package.json
 - `submit()` --indirect_call--> `note()`  [INFERRED]
   src/components/admin/RiskSignalsTab.tsx → src/lib/sessionCreditMirror.ts
-- `Supabase Schema Apply Workflow` --references--> `Dr. Pooja's Physio Application`  [INFERRED]
-  .github/workflows/schema-apply.yml → docs/qa/DrPoojaPhysio-E2E-Test-Plan.md
+- `Supabase Schema Apply Workflow` --references--> `MoveRestore Physiotherapy Application`  [INFERRED]
+  .github/workflows/schema-apply.yml → docs/qa/MoveRestore-E2E-Test-Plan.md
 - `TestShadcnInstaller` --uses--> `ShadcnInstaller`  [INFERRED]
   .claude/skills/ui-styling/scripts/tests/test_shadcn_add.py → .claude/skills/ui-styling/scripts/shadcn_add.py
 - `TestTokenizer` --uses--> `BM25`  [INFERRED]
@@ -371,13 +371,13 @@
 - None detected.
 
 ## Hyperedges (group relationships)
-- **Admin Oversight and Risk Management** — docs_qa_drpoojaphysio_e2e_test_plan_adm_today_001, docs_qa_drpoojaphysio_e2e_test_plan_adm_risk_001, docs_qa_drpoojaphysio_e2e_test_plan_adm_care_004 [EXTRACTED 0.90]
+- **Admin Oversight and Risk Management** — docs_qa_moverestore_e2e_test_plan_adm_today_001, docs_qa_moverestore_e2e_test_plan_adm_risk_001, docs_qa_moverestore_e2e_test_plan_adm_care_004 [EXTRACTED 0.90]
 - **Clinical Data Architecture** — src_lib_sessionnotes, src_lib_painmap, readme_specialty_intake [EXTRACTED 0.90]
-- **Clinical Recommendation & Purchase Flow** — docs_qa_drpoojaphysio_e2e_test_plan_care_plan, docs_qa_drpoojaphysio_e2e_test_plan_booking_wizard, docs_qa_drpoojaphysio_e2e_test_plan_health_profile [EXTRACTED 0.95]
+- **Clinical Recommendation & Purchase Flow** — docs_qa_moverestore_e2e_test_plan_care_plan, docs_qa_moverestore_e2e_test_plan_booking_wizard, docs_qa_moverestore_e2e_test_plan_health_profile [EXTRACTED 0.95]
 - **Graphify Core Operations** — claude_skills_graphify_references_query_md, claude_skills_graphify_references_update_md, claude_skills_graphify_references_transcribe_md [EXTRACTED 0.95]
 - **Design Skill Orchestration** — claude_skills_design_references_design_routing, claude_skills_design_references_cip_design, claude_skills_design_references_logo_design, claude_skills_design_references_icon_design, claude_skills_design_references_slides [EXTRACTED 1.00]
 - **Design Token Hierarchy** — claude_skills_design_system_references_primitive_tokens_md, claude_skills_design_system_references_semantic_tokens_md, claude_skills_design_system_references_component_tokens_md [EXTRACTED 1.00]
-- **Financial Integrity and Split Logic** — docs_qa_drpoojaphysio_e2e_test_plan_thr_earn_001, docs_qa_drpoojaphysio_e2e_test_plan_hos_money_001, docs_qa_drpoojaphysio_e2e_test_plan_fin_sum_001, docs_qa_drpoojaphysio_qa_audit_report_f06 [EXTRACTED 1.00]
+- **Financial Integrity and Split Logic** — docs_qa_moverestore_e2e_test_plan_thr_earn_001, docs_qa_moverestore_e2e_test_plan_hos_money_001, docs_qa_moverestore_e2e_test_plan_fin_sum_001, docs_qa_moverestore_qa_audit_report_f06 [EXTRACTED 1.00]
 - **OFL Licensed Font Collection** — claude_skills_ui_styling_canvas_fonts_boldonse_ofl, claude_skills_ui_styling_canvas_fonts_bricolagegrotesque_ofl, claude_skills_ui_styling_canvas_fonts_crimsonpro_ofl, claude_skills_ui_styling_canvas_fonts_dmmono_ofl, claude_skills_ui_styling_canvas_fonts_ericaone_ofl, claude_skills_ui_styling_canvas_fonts_geistmono_ofl, claude_skills_ui_styling_canvas_fonts_gloock_ofl, claude_skills_ui_styling_canvas_fonts_ibmplexmono_ofl, claude_skills_ui_styling_canvas_fonts_instrumentsans_ofl, claude_skills_ui_styling_canvas_fonts_italiana_ofl, claude_skills_ui_styling_canvas_fonts_jetbrainsmono_ofl, claude_skills_ui_styling_canvas_fonts_jura_ofl, claude_skills_ui_styling_canvas_fonts_librebaskerville_ofl, claude_skills_ui_styling_canvas_fonts_lora_ofl, claude_skills_ui_styling_canvas_fonts_nationalpark_ofl, claude_skills_ui_styling_canvas_fonts_nothingyoucoulddo_ofl, claude_skills_ui_styling_canvas_fonts_outfit_ofl, claude_skills_ui_styling_canvas_fonts_pixelifysans_ofl, claude_skills_ui_styling_canvas_fonts_poiretone_ofl, claude_skills_ui_styling_canvas_fonts_redhatmono_ofl, claude_skills_ui_styling_canvas_fonts_silkscreen_ofl, claude_skills_ui_styling_canvas_fonts_smoochsans_ofl, claude_skills_ui_styling_canvas_fonts_tektur_ofl, claude_skills_ui_styling_canvas_fonts_worksans_ofl, claude_skills_ui_styling_canvas_fonts_youngserif_ofl [EXTRACTED 1.00]
 - **OFL Licensed Font Software Collection** — claude_skills_ui_styling_canvas_fonts_boldonse_ofl, claude_skills_ui_styling_canvas_fonts_bricolagegrotesque_ofl, claude_skills_ui_styling_canvas_fonts_geistmono_ofl, claude_skills_ui_styling_canvas_fonts_ibmplexmono_ofl, claude_skills_ui_styling_canvas_fonts_jetbrainsmono_ofl [EXTRACTED 1.00]
 - **Logo Design Knowledge Base** — claude_skills_design_references_logo_design, claude_skills_design_references_logo_style_guide, claude_skills_design_references_logo_color_psychology, claude_skills_design_references_logo_prompt_engineering [EXTRACTED 1.00]
@@ -385,7 +385,7 @@
 - **UI Styling Core Stack** — shadcn_ui, tailwindcss, claude_skills_ui_styling_references_canvas_design_system [EXTRACTED 1.00]
 - **UI/UX Intelligence Framework** — claude_skills_ui_ux_pro_max_skill, claude_skills_ui_ux_pro_max_references_pro_rules, claude_skills_ui_ux_pro_max_references_quick_reference [EXTRACTED 1.00]
 - **UI/UX Pro Max Design Intelligence System** — claude_skills_ui_ux_pro_max_skill [EXTRACTED 1.00]
-- **Data Privacy & Access Control** — docs_qa_drpoojaphysio_e2e_test_plan_contact_masking, docs_qa_drpoojaphysio_e2e_test_plan_health_profile, docs_qa_drpoojaphysio_e2e_test_plan_data_reset [INFERRED 0.85]
+- **Data Privacy & Access Control** — docs_qa_moverestore_e2e_test_plan_contact_masking, docs_qa_moverestore_e2e_test_plan_health_profile, docs_qa_moverestore_e2e_test_plan_data_reset [INFERRED 0.85]
 - **shadcn/ui Accessibility Foundation** — radix_ui, claude_skills_ui_styling_references_shadcn_accessibility, claude_skills_ui_styling_references_shadcn_components [INFERRED 0.85]
 - **CI/CD Automation & Consistency** — github_workflows_docs_freshness, github_workflows_schema_apply [INFERRED 0.90]
 - **GSAP Skill Ecosystem** — claude_skills_gsap_timeline_skill_md, claude_skills_gsap_scrolltrigger_skill_md, claude_skills_gsap_react_skill_md, claude_skills_gsap_frameworks_skill_md, claude_skills_gsap_plugins_skill_md, claude_skills_gsap_performance_skill_md, claude_skills_gsap_utils_skill_md [INFERRED 0.90]
@@ -1030,7 +1030,7 @@ Nodes (5): formatInr(), PromoCodeField(), check(), copy(), code()
 
 ### Community 164 - "Debug Bar"
 Cohesion: 0.33
-Nodes (6): POST /api/admin/debug-reset, Dr. Pooja's Physio Application, Data Reset (debug_reset_all_data), Debug Bar, Simulated Clock, Supabase Schema Apply Workflow
+Nodes (6): POST /api/admin/debug-reset, MoveRestore Physiotherapy Application, Data Reset (debug_reset_all_data), Debug Bar, Simulated Clock, Supabase Schema Apply Workflow
 
 ### Community 166 - "check-realtime-coverage.mjs"
 Cohesion: 0.33

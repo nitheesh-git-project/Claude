@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { QA_EMAILS, BASE, browserCookiesFor, chooseAnyServiceOnStepOne, settleNetwork } from "./helpers";
+import { QA_EMAILS, BASE, browserCookiesFor, chooseAnyServiceOnStepOne, settleNetwork, tickBookingAgreements } from "./helpers";
 
 /**
  * The payment step's primary button is never dead while a price loads.
@@ -52,7 +52,7 @@ test.describe("the pay button on Step 3", () => {
     await page.getByRole("button", { name: /Continue to your details/i }).click();
     await page.waitForTimeout(1200);
 
-    await page.getByRole("checkbox").first().check();
+    await tickBookingAgreements(page);
     await page.waitForTimeout(300);
 
     await page.getByRole("button", { name: /Review Booking/i }).click();

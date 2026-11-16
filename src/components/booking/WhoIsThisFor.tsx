@@ -1,6 +1,6 @@
 "use client";
 
-import type { SomeoneWithThem } from "@/lib/bookingFor";
+import { GUARDIAN_AGE, type SomeoneWithThem } from "@/lib/bookingFor";
 
 export type WhoIsThisForState = {
   who: "me" | "family";
@@ -9,6 +9,8 @@ export type WhoIsThisForState = {
   age: string;
   relationship: string;
   someoneWithThem: SomeoneWithThem | "";
+  /** Asked only when the age is under GUARDIAN_AGE. */
+  guardianConfirmed: boolean;
 };
 
 export const EMPTY_WHO_IS_THIS_FOR: WhoIsThisForState = {
@@ -17,6 +19,7 @@ export const EMPTY_WHO_IS_THIS_FOR: WhoIsThisForState = {
   age: "",
   relationship: "",
   someoneWithThem: "",
+  guardianConfirmed: false,
 };
 
 const INPUT = "w-full min-h-12 rounded-xl border border-slate-300 p-3 text-base";
@@ -74,6 +77,8 @@ export default function WhoIsThisFor({
   onChange: (next: WhoIsThisForState) => void;
 }) {
   const patch = (p: Partial<WhoIsThisForState>) => onChange({ ...value, ...p });
+  const ageNumber = /^\d{1,3}$/.test(value.age) ? Number(value.age) : null;
+  const minor = ageNumber !== null && ageNumber < GUARDIAN_AGE;
   return (
     <fieldset className="m-0 min-w-0 space-y-3 border-0 p-0" data-testid="who-is-this-for">
       <legend className="mb-1.5 block font-semibold text-slate-900">Who is this for?</legend>
@@ -154,6 +159,21 @@ export default function WhoIsThisFor({
               </Choice>
             </div>
           </fieldset>
+          {minor && (
+            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
+              <input
+                id="bw-for-guardian"
+                type="checkbox"
+                checked={value.guardianConfirmed}
+                onChange={(e) => patch({ guardianConfirmed: e.target.checked })}
+                className="mt-0.5 h-5 w-5 flex-none accent-teal-700"
+              />
+              <span className="text-sm leading-relaxed text-slate-800">
+                I am their parent or legal guardian, and I agree to their information being used
+                for their care.
+              </span>
+            </label>
+          )}
           <p className="text-sm leading-relaxed text-slate-600">
             Your physiotherapist will see this before the call. The booking, the payment and the
             video link stay on your account.

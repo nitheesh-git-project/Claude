@@ -151,6 +151,10 @@ wrong are exactly the things a restore drill finds:
 | `debug_test_accounts` (the debug bar's throwaway logins, passwords included) | Until deleted from the panel | The panel's Delete, or the data reset |
 | `announcements`, `announcement_receipts` | Until an admin deletes the announcement | Settings -> Announcements (a live one must be ended first); receipts cascade with the announcement or the account. Its pictures sit in the public `catalog-images` bucket and are removed with it. |
 | `rate_limit_counters` | One window | The next call for that bucket |
+| `data_requests` (a person's deletion requests, and a row per "Download my data"; an open deletion request also holds the name and email to write to, cleared when it closes) | Indefinitely | Nothing in the app; the pre-launch data reset truncates it. `user_id` is cleared when the account is removed |
+| `grievances` (complaints from the /grievances form: name, email, optional phone, category, message) | Indefinitely | Nothing in the app; the pre-launch data reset truncates it |
+| `policy_acceptances` (who agreed to which version of the Terms, the telehealth consent, or a guardian's consent, and when) | Indefinitely - it is the evidence of consent | Nothing in the app. Append-only by trigger; goes with the profile when an account is removed, and loses only its booking link when a booking is deleted |
+| `cookie_consents` (each cookie pop-up choice: a random browser id, the choices, the button, policy version, page path, country, and the account only if signed in) | Indefinitely - it is the evidence of consent | Nothing in the app. Append-only by trigger; `user_id` is cleared when the account is removed. The pre-launch data reset truncates it, so testing's choices are not counted as patients' |
 
 ### The audit log's archival strategy
 
@@ -223,17 +227,26 @@ action with no undo.
 | `admin_activity_log` rows they wrote | Untouched. The actor id remains, which is why an admin is suspended and not deleted. |
 | Cascading references | Removed with the account. These are the ones that do not refuse. |
 
-### What this policy does *not* provide
+### How a person asks for it (Phase 3)
 
-**There is no "right to erasure" path**, and that is a gap rather than a
-decision. A patient asking for their data to be deleted cannot be served by
-this route: their appointments, payments and clinical records all block it,
-and they are also the records the clinic is obliged to keep. The honest
-answer needs three things this product has not got — a defined clinical
-retention period, an anonymisation path that keeps the financial row and
-removes the person, and a decision about what the audit log keeps. That is a
-legal question before it is an engineering one, and it should be scoped with
-whoever advises the clinic on record-keeping.
+A patient, therapist or hospital partner asks from their own profile
+(**Your data -> Ask to delete my account**). That opens a `data_requests`
+row (`kind = 'deletion'`, reference `DEL-XXXXXX`), at most one open per
+person, which they can take back until the People desk starts on it. The desk
+works it on **People -> Data requests** within **30 days**
+(`DELETION_DEADLINE_DAYS`, DPDP Act s.12): the deletion itself is the delete
+above -- outright when nothing points at the account, otherwise the login and
+contact details removed and the records kept -- and the request is then
+marked deleted, or declined with a reason the person is told. "Download my
+data" on the same card gives them a PDF of what is held
+(`/api/account/my-data`), recorded as a completed `kind = 'export'` row.
+
+### What this still does *not* provide
+
+A defined clinical retention period, after which kept records are anonymised
+rather than held indefinitely. That is a legal question before it is an
+engineering one, and it should be scoped with whoever advises the clinic on
+record-keeping.
 
 ---
 

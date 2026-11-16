@@ -52,6 +52,11 @@ passes `npm run check:merge-ready`, then `-- --e2e --append-only
 hospital, platform, integrity). Fix every red, push once; read a red CI run
 from its failure bundle, never the raw log.
 
+**Before every merge to `staging`, run `npm run test:a11y`** (axe WCAG 2.2
+AA scan plus a keyboard walk over the public pages and sign-in doors,
+`e2e/accessibility.spec.ts`) and fix every red. A new public page joins its
+`PAGES` list in the same change.
+
 ### Secrets
 
 `SUPABASE_SERVICE_ROLE_KEY`, `RAZORPAY_KEY_SECRET` and the Google
