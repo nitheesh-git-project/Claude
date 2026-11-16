@@ -9,7 +9,7 @@
 // click that was not written through ProgressLink or useRouter, so the wait
 // itself was silent.
 import { test, expect } from "@playwright/test";
-import { BASE, browserCookiesFor, markDashboardTourSeen, QA_EMAILS, waitForSplashToClear, settleNetwork } from "./helpers";
+import { BASE, adminClient, browserCookiesFor, markDashboardTourSeen, QA_EMAILS, waitForSplashToClear, settleNetwork } from "./helpers";
 
 test("NAV-001: an admin screen link switches in place, with no server round trip", async ({
   page,
@@ -155,17 +155,38 @@ test("NAV-002: a real navigation draws the bar while it is in flight", async ({
   expect(await page.evaluate(() => sessionStorage.getItem("barSeen"))).toBe("yes");
 });
 
-test("NAV-004: after signing out, the logo goes back to the top of the home page with no loader", async ({ page }) => {
-  // Signing out lands on `/?farewell=1`. The banner used router.replace to
-  // drop the marker, and Next 16.2 never completes a navigation that only
-  // removes the query from the current path -- so the URL kept the marker
-  // and the next tap on the logo sat behind the page loader for its 12s
-  // give-up, with nothing fetched. The marker now goes with replaceState,
-  // and the logo on the home page scrolls up rather than navigating.
+test("NAV-004: the farewell marker lasts as long as the banner, and the logo then goes home with no loader", async ({ page }) => {
+  test.setTimeout(120_000);
+  // Signing out lands on `/?farewell=1`. The owner's rule: the address keeps
+  // the marker while "Sad to see you go!" is on screen and goes back to `/`
+  // the moment it leaves, by its timer or the X. (On Next 16.2 the old
+  // router.replace never completed, so the marker stuck and the next logo
+  // tap hung behind the loader for its 12s give-up.)
   await page.goto(`${BASE}/?farewell=1`);
   await waitForSplashToClear(page);
-  await expect(page.getByText("Sad to see you go!")).toBeVisible();
-  await expect.poll(() => page.evaluate(() => window.location.search), { timeout: 10_000 }).toBe("");
+  const banner = page.getByText("Sad to see you go!");
+  await expect(banner).toBeVisible();
+  await page.waitForTimeout(1_000);
+  expect(await page.evaluate(() => window.location.search), "kept while the banner shows").toBe("?farewell=1");
+  await page.getByRole("button", { name: "Dismiss" }).click();
+  await expect(banner).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => window.location.search), { timeout: 5_000 }).toBe("");
+
+  // Its own timer does the same (Settings -> farewell_banner_seconds; 0 means
+  // "until dismissed", which the X above already covers).
+  const { data: settings } = await adminClient()
+    .from("site_settings")
+    .select("farewell_banner_seconds")
+    .limit(1)
+    .maybeSingle();
+  const seconds = Number(settings?.farewell_banner_seconds ?? 6);
+  if (seconds > 0 && seconds <= 60) {
+    await page.goto(`${BASE}/?farewell=1`);
+    await waitForSplashToClear(page);
+    await expect(banner).toBeVisible();
+    await expect(banner).toHaveCount(0, { timeout: (seconds + 5) * 1000 });
+    await expect.poll(() => page.evaluate(() => window.location.search), { timeout: 5_000 }).toBe("");
+  }
 
   let rscRequests = 0;
   page.on("request", (r) => {

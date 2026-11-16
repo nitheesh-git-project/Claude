@@ -789,11 +789,13 @@ is invisible to any tooling here.
   `e2e/chrome-and-loader.spec.ts` CHROME-006.
 - **Never navigate just to drop the query from the current path.** Next
   16.2 never completes `/x?a=1` -> `/x`: no request, no URL change, and the
-  loader sits for its 12s ceiling (fixed upstream in 16.3). Clearing a
-  marker such as `?farewell=1` is `window.history.replaceState`, which Next
-  keeps `useSearchParams` in step with, and the logo on `/` scrolls to the
-  top instead of navigating. Guard: `e2e/navigation-feedback.spec.ts`
-  NAV-004.
+  loader sits for its 12s ceiling (fixed upstream in 16.3, which this app
+  now runs). Clearing a marker is still `window.history.replaceState`, which
+  Next keeps `useSearchParams` in step with: there is nothing to fetch. The
+  logo on `/` scrolls to the top instead of navigating. `?farewell=1` stays
+  in the address exactly as long as the goodbye banner is on screen and is
+  replaced with `/` when it leaves (its timer or the X) -- the owner's call.
+  Guard: `e2e/navigation-feedback.spec.ts` NAV-004.
 - **A long value in a two-column summary wraps inside its box.** The label
   `shrink-0`, the value `min-w-0 [overflow-wrap:anywhere]`; an email goes on
   its own line under its label on a phone, breakable after the "@".
