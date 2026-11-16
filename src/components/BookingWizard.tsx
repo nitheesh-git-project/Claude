@@ -48,6 +48,8 @@ import ServicePicker from "@/components/booking/ServicePicker";
 import ChosenServiceSummary from "@/components/booking/ChosenServiceSummary";
 import ConsentTermsDialog from "@/components/booking/ConsentTermsDialog";
 import { consentCheckboxText } from "@/lib/consentTerms";
+import TermsCheckbox, { TERMS_REQUIRED_MESSAGE } from "@/components/legal/TermsCheckbox";
+import { signupTermsMetadata } from "@/lib/policyAcceptance";
 import { categoryServiceOption, defaultCategoryId } from "@/lib/serviceOptions";
 import { specialtyLabel } from "@/lib/therapistSpecialties";
 import { formatRupees } from "@/lib/formatMoney";
@@ -379,6 +381,9 @@ export default function BookingWizard({
   );
   const [notes, setNotes] = useState("");
   const [consent, setConsent] = useState(false);
+  // A new patient's agreement to the Terms and Privacy policy, sent with the
+  // signup (signupTermsMetadata) so the database records it.
+  const [termsAgreed, setTermsAgreed] = useState(false);
   // The terms behind the consent checkbox, readable before it is ticked.
   const [consentTermsOpen, setConsentTermsOpen] = useState(false);
 
@@ -695,6 +700,7 @@ export default function BookingWizard({
               // it pays or runs out of tries, and deleted if it does
               // neither (see purge_abandoned_booking_accounts).
               signup_source: "booking",
+              ...signupTermsMetadata(),
             },
           },
         });
@@ -814,12 +820,16 @@ export default function BookingWizard({
     if (whoFor.who === "family") {
       const checked = validateBookingFor(whoFor);
       if (!checked.ok) {
-        failField(checked.error, "bw-for-name");
+        failField(checked.error, /guardian/.test(checked.error) ? "bw-for-guardian" : "bw-for-name");
         return;
       }
     }
     if (!consent) {
       failField("Please agree to the telehealth consent terms to continue.", "bw-consent");
+      return;
+    }
+    if (!isLoggedIn && !termsAgreed) {
+      failField(TERMS_REQUIRED_MESSAGE, "bw-terms");
       return;
     }
     if (isLoggedIn) {
@@ -922,8 +932,12 @@ export default function BookingWizard({
                   age: whoFor.age,
                   relationship: whoFor.relationship,
                   someoneWithThem: whoFor.someoneWithThem,
+                  guardianConfirmed: whoFor.guardianConfirmed,
                 }
               : { who: "me" },
+          // The telehealth consent ticked on Step 2; the server records it
+          // against this booking (policy_acceptances).
+          telehealthConsent: consent,
           preferredTherapistId: preferredTherapistId || null,
           preferredLanguage: language || null,
           // Ask for the new booking's quote in the same response, so the
@@ -1195,6 +1209,7 @@ export default function BookingWizard({
               age: String(split.bookingFor.age),
               relationship: split.bookingFor.relationship,
               someoneWithThem: split.bookingFor.someoneWithThem,
+              guardianConfirmed: false,
             });
           }
         }
@@ -1912,6 +1927,11 @@ export default function BookingWizard({
               {consentCheckboxText(selectedCategory?.title).after}
             </label>
           </div>
+          {!isLoggedIn && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <TermsCheckbox id="bw-terms" checked={termsAgreed} onChange={setTermsAgreed} />
+            </div>
+          )}
           <ConsentTermsDialog
             open={consentTermsOpen}
             onClose={() => setConsentTermsOpen(false)}

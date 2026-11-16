@@ -10,6 +10,7 @@ import PatientDashboardShell from "@/components/patient/PatientDashboardShell";
 import { loadPatientDashboard } from "@/lib/patientDashboardData";
 import { computeFieldStatus } from "@/lib/computeFieldStatus";
 import { LANGUAGE_OPTIONS } from "@/lib/languageOptions";
+import YourDataSection from "@/components/profile/YourDataSection";
 import MyAddresses from "@/components/profile/MyAddresses";
 
 export const metadata: Metadata = {
@@ -168,6 +169,8 @@ export default async function PatientProfilePage() {
           <MyAddresses addresses={savedAddresses ?? []} />
         )}
       </div>
+
+      <YourDataSection userId={user.id} role="patient" />
 
       <div id="account-security" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Account Security</h2>

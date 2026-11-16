@@ -10,6 +10,8 @@ import ConfirmPasswordField from "./ConfirmPasswordField";
 import EmailField from "./EmailField";
 import PasswordField from "./PasswordField";
 import PasswordInput from "./PasswordInput";
+import TermsCheckbox, { TERMS_REQUIRED_MESSAGE } from "@/components/legal/TermsCheckbox";
+import { signupTermsMetadata } from "@/lib/policyAcceptance";
 
 export default function PatientAuthCard() {
   const [tab, setTab] = useState<"login" | "register">("login");
@@ -20,6 +22,7 @@ export default function PatientAuthCard() {
   const [registerPhone, setRegisterPhone] = useState("");
   const [registerPassword, setRegisterPassword] = useState("");
   const [registerConfirmPassword, setRegisterConfirmPassword] = useState("");
+  const [termsAgreed, setTermsAgreed] = useState(false);
   const [referralCheck, setReferralCheck] = useState<ReferralCodeCheck>({
     status: "idle",
   });
@@ -108,6 +111,12 @@ export default function PatientAuthCard() {
       return;
     }
 
+    if (!termsAgreed) {
+      setLoading(false);
+      setError(TERMS_REQUIRED_MESSAGE);
+      return;
+    }
+
     if (referralCheck.status === "invalid") {
       setLoading(false);
       setError(
@@ -125,6 +134,7 @@ export default function PatientAuthCard() {
           full_name: fullName,
           phone,
           referral_code: referralCode || undefined,
+          ...signupTermsMetadata(),
         },
       },
     });
@@ -399,6 +409,7 @@ export default function PatientAuthCard() {
               New accounts are reviewed by our team - you&apos;ll be able to
               sign in and book sessions once an admin approves yours.
             </p>
+            <TermsCheckbox id="patient-register-terms" checked={termsAgreed} onChange={setTermsAgreed} />
             <button
               type="submit"
               disabled={loading}

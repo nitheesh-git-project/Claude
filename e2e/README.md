@@ -1,6 +1,6 @@
 # The end-to-end suite
 
-101 spec files, over 500 cases, one worker. `npm run test:e2e` runs all of them;
+105 spec files, over 500 cases, one worker. `npm run test:e2e` runs all of them;
 `npx playwright test e2e/<name>.spec.ts` runs one.
 
 This file is the **inventory** - what exists and what each file is for. The
@@ -91,7 +91,7 @@ total, which moves with every spec added.
 
 | Spec | Cases | Covers |
 | --- | --- | --- |
-| `analytics-consent` | 10 | the Google Analytics consent gate: nothing reaches Google before a choice, Yes, happy to help loads it, Not now sticks across a reload, the footer link reopens the card and withdrawing switches collection off, and the signed-in route trees never show the card. Browser-only and Supabase-free, but skipped unless `NEXT_PUBLIC_GA_MEASUREMENT_ID` is set on the run (Google is stubbed, so any `G-...` value works) |
+| `analytics-consent` | 15 | the cookie card (deep teal, at the bottom): nothing reaches Google before a choice and Accept loads it and posts the choice; Reject is the same size as Accept and sticks across a reload; it opens as soon as the splash lifts and blocks nothing; an accepted visitor sends page views; Cookie settings reopens it and Customise → Analytics off → Save stops collection; an earlier analytics-only answer is honoured but asked again; an ignored card rests a day in other tabs; it never opens by itself on `/book`; the signed-in route trees never show it. The card half is skipped unless `NEXT_PUBLIC_GA_MEASUREMENT_ID` is set on the run (Google is stubbed, and the card's own POST is answered in the browser). CC-001/CC-002 hit `/api/consent` for real -- a malformed or self-contradicting body is a 400, a valid one is a row, and the row refuses an edit or a delete -- so they write append-only rows and run only with `E2E_ALLOW_APPEND_ONLY_WRITES=1` |
 | `admin-money` | 6 | payout and refund arithmetic, the Money figures, the therapist's own pending payout against what admin owes |
 | `admin-session-drawer-money` | 2 | the Session Details drawer prices a session as the row that opened it does (the service's price, never the global fee), and reads one refund state - a failed cancellation refund after partial refunds names what went back and what is still refundable |
 | `concurrency` | 3 | the CAS-guarded races: refund double-fire, therapist reassignment, referral double-assignment |
@@ -142,6 +142,10 @@ total, which moves with every spec added.
 | Spec | Cases | Covers |
 | --- | --- | --- |
 | `footer-social-links` | 3 | the footer's social icons: only filled-in links drawn, each opening in a new tab, the WhatsApp number too; the save route refusing a non-https or wrong-network link |
+| `accessibility` | 22 | an axe-core WCAG 2.2 A/AA scan (alt text, contrast, labels, landmarks, ARIA) of every public page and sign-in door, a keyboard walk proving Tab shows a visible focus and is never trapped, and the cookie card scanned on its own with each of its buttons reachable by keyboard (that one only with `NEXT_PUBLIC_GA_MEASUREMENT_ID` set); `npm run test:a11y`, run before every merge to staging |
+| `data-requests` | 4 | a person's own data: Download my data returns a PDF and records an `export` request; Delete my account opens one request (a second is a 409), can be taken back while open, and is worked by the People desk (declining needs a reason, a closed case cannot move again); a grievance gets a reference and is acknowledged then resolved with a note; the profile shows Your data and the /grievances form shows its reference. Removes every row it writes |
+| `terms-acceptance` | 4 | agreeing to the Terms: an account that never agreed is stopped at "Before you continue" and let in once it agrees (recorded as `reaccept`); a signup that ticked the box is recorded by the database trigger and goes straight in; a booking for a child is a 400 without the guardian box and records the guardian and telehealth consents with it; the patient signup form refuses without the box. Creates and deletes its own accounts |
+| `legal-pages` | 3 | the six public legal pages render with their title, "Last updated" date and contents list and no placeholder text; the footer's Legal row links to each; `/refunds` quotes the live refund window |
 | `invite-promise` | 1 | a patient is promised a calendar invite only where this deployment sends one: on the gate's Google-less stack the public example chip points at the dashboard instead |
 | `admin-dashboard-ui` | 11 | the dashboard in a real browser |
 | `admin-refresh-badge` | 4 | the badge counting other people's changes, not the admin's own taps |

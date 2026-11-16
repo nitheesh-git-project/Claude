@@ -3,7 +3,7 @@ import { initialsFor, teamInitials } from "./teamInitials";
 
 describe("team avatar initials", () => {
   it("skips honorifics and uses first and last name", () => {
-    expect(initialsFor("Dr. Pooja Sharma")).toBe("PS");
+    expect(initialsFor("Dr. Priya Sharma")).toBe("PS");
     expect(initialsFor("Ravi")).toBe("R");
     expect(initialsFor("  ")).toBe("");
     expect(initialsFor(null)).toBe("");

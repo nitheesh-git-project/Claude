@@ -12,6 +12,7 @@ rg -i "<the thing you are seeing>" docs/rules/
 ```
 
 ## The admin back office
+- People -> Data requests is the legal queue, with its deadlines on every case
 
 `docs/rules/admin.md` -- 52 rules
 
@@ -124,8 +125,14 @@ rg -i "<the thing you are seeing>" docs/rules/
 - What a patient's Health Profile shows is the clinic's choice, per condition kind and per patient, and the safety sections are never hidden
 - A patient withdraws a diary entry by saying it was saved by mistake, and nothing is deleted (E1)
 - The patient's own words on the profile (C1/D2/D3)
+- Every agreement is a row in `policy_acceptances`, append-only, with the database's clock
+- A signup records its agreement in the database, not from the browser's word about the time
+- Anyone without the current version is stopped at the dashboards, never at a failed read
+- A booking for a child needs the parent or guardian box, on the server
+- The admin's patient page shows them
 
 ## The four dashboards, and moving between screens
+- Every profile page ends with "Your data", for all three roles
 
 `docs/rules/dashboards.md` -- 40 rules
 
@@ -404,8 +411,11 @@ rg -i "<the thing you are seeing>" docs/rules/
 - Google Analytics sees the public pages and the booking widget, after consent, and nothing else
 - An event can only carry what its allowlist entry names
 - `purchase` fires only after the server has confirmed the payment
-- The consent card asks once, then rests for 7 days if it is ignored
-- The footer's "Analytics settings" works before the page has hydrated
+- The cookie card sits at the bottom, deep teal, and Reject is as big as Accept
+- It opens as soon as the opening splash lifts, and never by itself inside a booking
+- An ignored pop-up rests for a day; a new policy version asks everybody again
+- Every choice is recorded, append-only, and nothing identifies the visitor
+- The footer's "Cookie settings" works before the page has hydrated
 
 ## Therapists: roster, readiness and assignment
 
