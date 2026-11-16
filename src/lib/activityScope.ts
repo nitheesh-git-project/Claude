@@ -167,6 +167,8 @@ export const ACTION_DOMAIN: Record<string, ActionDomain> = {
   "dev_reachout.edit_note": "settings",
   "dev_reachout.delete_note": "settings",
   "dev_reachout.delete": "settings",
+  "therapist.set_specialty": "people",
+  "patient.set_condition_type": "people",
   "mission_principle.create": "settings",
   "mission_principle.update": "settings",
   "mission_principle.delete": "settings",

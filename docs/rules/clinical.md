@@ -10,6 +10,16 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
 
 ---
 
+- **A Master Admin can change a patient's condition type, and only the
+  type.** People -> Patients -> the profile shows "Condition type" with
+  **Change** to a full-scope admin (`/api/admin/set-patient-condition-type`).
+  The admin has not seen the patient, so nothing is answered for them: every
+  answer on file is kept (they are keyed per type) and the therapist answers
+  the new type's questions at the next session. Refused before onboarding
+  (the therapist chooses the type first), for a type switched off, and while
+  a submission awaits review. Recorded as an approved
+  `condition_change_requests` row (role `admin`) and in the activity log.
+  Guard: `admin-type-changes` ATC-002/003.
 - **Patient Care Intake and Pain Map are two separate data layers**, and
   the intake is **per specialty**. A `patient_condition_profiles` row
   carries `specialty` - `ortho`, `neuro`, `pediatrics`, `geriatric` or

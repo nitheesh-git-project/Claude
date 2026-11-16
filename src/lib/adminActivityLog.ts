@@ -170,6 +170,8 @@ export type AdminActivityAction =
   | "dev_reachout.edit_note"
   | "dev_reachout.delete_note"
   | "dev_reachout.delete"
+  | "therapist.set_specialty"
+  | "patient.set_condition_type"
   | "referral.set_capacity_note"
   // The clinical layer: who let a therapist into a patient's record, who
   // decided a change to it, and who reworded the questions themselves.
@@ -405,6 +407,8 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
   "dev_reachout.edit_note": "Edited a note on a developer reachout",
   "dev_reachout.delete_note": "Deleted a note on a developer reachout",
   "dev_reachout.delete": "Deleted a developer reachout message",
+  "therapist.set_specialty": "Changed a therapist's specialisation",
+  "patient.set_condition_type": "Changed a patient's condition type",
   "referral.set_capacity_note": "Edited the referral capacity note",
   "condition_access.decide": "Decided a therapist's access to a Health Profile",
   "condition_change.decide": "Decided Health Profile answers",

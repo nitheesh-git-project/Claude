@@ -759,6 +759,10 @@ The Logs section is **Master Admin only**. Operations, Finance and Clinical have
 **Steps.** Settings -> **Public Site**. On **What We Promise**, **What We Will Not Do** and **Testimonials** there is a **Show … on the website** switch. Tap it on What We Will Not Do, then **Keep it shown**. Tap it again and **Hide it**. Open `/mission`. Switch it back on (**Show it**). Repeat for What We Promise, opening `/` and `/mission`.
 **Expected Result.** Every tap asks first, in both directions, naming the pages it affects; **Keep it shown** / **Keep it hidden** change nothing. Hidden: the band and its section-rail entry are gone from the pages named (What We Promise also leaves the home page's mission band), and the entries are **still listed here** to edit. Shown again: they return. The toast names the new state.
 
+#### `ADM-PPL-040` - Master Admin changes a specialisation or a condition type · P1
+**Steps.** As a full admin open **People -> Therapists ->** a therapist; beside **Specialist in** tap **Change**, pick another, **Save**, then **Keep as it is**; repeat and **Change it**. Open **People -> Patients ->** an onboarded patient; beside **Condition type** do the same. Then sign in as an Operations admin and open both profiles.
+**Expected Result.** Each asks first. The therapist's new specialisation shows on the profile and on `/team`. The patient's Health Profile switches to the new type's sections with every earlier answer still there, and their therapist sees the new type's questions to fill at the next session. Both appear in Logs. A patient not yet onboarded shows no Condition type line. The Operations admin sees neither **Change**.
+
 #### `ADM-SET-035` - Sign-in & Security · P2
 **Steps.** Open **Settings → Sign-in & Security** and change the admin's own password. Check the screen carries two headed blocks: *Your own sign-in* (the reset button) and *Everybody else's sign-in* (the inactivity timeout and the sign-out message).
 **Expected Result.** The change succeeds and the new password works. Admins are exempt from the idle timeout, so no timeout dialog appears while working here.

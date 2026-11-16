@@ -26,6 +26,7 @@
       "acquisition-codes.spec.ts": 8,
       "activity-timeline.spec.ts": 19,
       "admin-account-delete.spec.ts": 38,
+      "admin-type-changes.spec.ts": 60,
       "admin-all-logs.spec.ts": 13,
       "admin-approve-therapist.spec.ts": 20,
       "admin-authz.spec.ts": 61,

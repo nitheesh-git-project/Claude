@@ -1841,6 +1841,19 @@
       ],
       "integration": "local",
       "destructive": false
+    },
+    "admin-type-changes.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
     }
   },
   "flows": [
@@ -4829,6 +4842,28 @@
       ],
       "rules": [
         "docs/rules/public-site.md"
+      ]
+    },
+    {
+      "id": "admin.type-changes",
+      "runner": "admin",
+      "title": "A Master Admin changes a therapist's specialisation and a patient's condition type from People; a scoped admin is refused and sees no control",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "admin-type-changes.spec.ts",
+          "tests": [
+            "ATC-001",
+            "ATC-002",
+            "ATC-003"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/roster.md",
+        "docs/rules/clinical.md"
       ]
     }
   ],
