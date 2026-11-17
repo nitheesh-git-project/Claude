@@ -21412,3 +21412,12 @@ create policy "appointment_emails_select_admin" on appointment_emails
   for select using (is_admin());
 
 revoke insert, update, delete on appointment_emails from anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Session reminders (src/lib/bookingReminders.ts): appointment_emails also
+-- records the day-before and hour-before reminder, once each. Widens the
+-- event check by name; re-runnable (drop if exists, then add).
+-- ---------------------------------------------------------------------------
+alter table appointment_emails drop constraint if exists appointment_emails_event_check;
+alter table appointment_emails add constraint appointment_emails_event_check
+  check (event in ('received', 'confirmed', 'cancelled', 'reminder_24h', 'reminder_1h'));

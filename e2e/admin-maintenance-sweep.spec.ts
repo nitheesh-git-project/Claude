@@ -24,6 +24,7 @@ const STEPS = [
   "riskSweep",
   "tempPasswordPurge",
   "abandonedBookingAccounts",
+  "bookingReminders",
 ];
 const DAY = 86_400_000;
 // A placeholder, not a credential: the column is only ever cleared now
@@ -36,6 +37,7 @@ test.skip(!SECRET, "CRON_SECRET is not set -- the quality gate generates one per
 const db = adminClient();
 let ctx: APIRequestContext;
 let stale: { id: string } | undefined;
+let reminded: { id: string } | undefined;
 let fresh: { id: string } | undefined;
 let freshSetAt = "";
 let staleSetAt = "";
@@ -49,6 +51,7 @@ test.afterAll(async () => {
   // The notes rows go with their profiles.
   await deleteFixtureAccount(stale?.id);
   await deleteFixtureAccount(fresh?.id);
+  await deleteFixtureAccount(reminded?.id);
 });
 
 test("MS-001: without the shared secret the sweep is refused and nothing about it is said", async () => {
@@ -101,4 +104,45 @@ test("MS-002: the right secret runs every step, and a stale issued credential is
   expect(new Date(byPatient.get(stale.id)?.temp_password_set_at ?? 0).getTime()).toBe(new Date(staleSetAt).getTime());
   // Inside the window: untouched.
   expect(byPatient.get(fresh.id)?.temp_password).toBe(PLACEHOLDER);
+});
+
+test("MS-003: a confirmed session about an hour away gets one hour-before reminder, however many times the sweep runs", async () => {
+  test.setTimeout(90_000);
+  reminded = await createFixtureAccount("sweep reminder");
+  // Unassigned, so no therapist's slot can collide with another spec's.
+  const slot = new Date(Date.now() + 60 * 60_000);
+  slot.setUTCSeconds(0, 0);
+  const { data: appt, error } = await db
+    .from("appointments")
+    .insert({
+      patient_id: reminded.id,
+      category_id: null,
+      concern: "E2E reminder",
+      timezone: "Asia/Kolkata",
+      duration_minutes: 45,
+      status: "confirmed",
+      payment_status: "unpaid",
+      visit_mode: "online",
+      slot_time: slot.toISOString(),
+    })
+    .select("id")
+    .single();
+  expect(error, error?.message).toBeNull();
+
+  for (let run = 0; run < 2; run++) {
+    const swept = await ctx.post(ROUTE, { headers: { Authorization: `Bearer ${SECRET}` } });
+    expect(swept.status()).toBe(200);
+    expect((await swept.json()).steps.bookingReminders).toBe("ok");
+  }
+  const { data: rows } = await db.from("appointment_emails").select("event").eq("appointment_id", appt!.id);
+  expect((rows ?? []).map((r) => r.event)).toEqual(["reminder_1h"]);
+  // A fixture address is never mailed: the attempt is logged as such.
+  const { data: logged } = await db
+    .from("email_log")
+    .select("status, reason")
+    .eq("kind", "reminder")
+    .ilike("subject", "Starting soon:%")
+    .order("created_at", { ascending: false })
+    .limit(1);
+  expect(logged?.[0]).toMatchObject({ status: "skipped", reason: "test_address" });
 });

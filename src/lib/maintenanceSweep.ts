@@ -5,11 +5,12 @@ import { TEMP_PASSWORD_VISIBLE_DAYS } from "@/lib/tempPassword";
 import { expireDuePackagePurchases } from "@/lib/expirePackagePurchases";
 import { expireDueHomeVisitPurchases } from "@/lib/expireHomeVisitPurchases";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
+import { sendDueBookingReminders } from "@/lib/bookingReminders";
 
 /**
  * The housekeeping this deployment runs: programme expiry, Calendar/Meet retries, opening
- * Meet waiting rooms, the risk scan, the credential purge and removing abandoned
- * booking accounts.
+ * Meet waiting rooms, the risk scan, the credential purge, removing abandoned
+ * booking accounts and the session reminder emails.
  *
  * It used to run only from the admin dashboard's `after()`, so a failed
  * Meet link waited for somebody to open the back office -- overnight, at a
@@ -60,6 +61,10 @@ export async function runMaintenanceSweep(
         if (error) throw error;
       },
     ],
+    // The day-before and hour-before reminder emails, once each per session
+    // (bookingReminders.ts); the switches on Settings -> Emails decide
+    // whether they actually go out.
+    ["bookingReminders", () => sendDueBookingReminders(admin)],
   ];
   const result: Record<string, "ok" | "failed"> = {};
   for (const [name, run] of steps) {

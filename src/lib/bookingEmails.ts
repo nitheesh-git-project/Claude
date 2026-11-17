@@ -203,3 +203,58 @@ export function cancelRefundOf(row: AppointmentEmailRow): CancelRefund {
   if (fromProgramme(row)) return { kind: "programme" };
   return { kind: "none_paid" };
 }
+
+// --- Reminders ----------------------------------------------------------------
+
+export type ReminderEvent = "reminder_24h" | "reminder_1h";
+
+const MINUTE = 60_000;
+const HOUR = 60 * MINUTE;
+
+/** The windows the half-hourly maintenance run sends in. Wide on purpose:
+ *  GitHub's scheduler can run late, and a window narrower than the gap
+ *  between two runs would skip a session. Each reminder is still sent once
+ *  (appointment_emails). */
+export const REMINDER_WINDOWS: Record<ReminderEvent, { fromMs: number; toMs: number }> = {
+  // The day before: anywhere from 25 hours to 18 hours ahead.
+  reminder_24h: { fromMs: 18 * HOUR, toMs: 25 * HOUR },
+  // Shortly before: from 90 minutes ahead down to 15 -- later than that a
+  // reminder is noise, not help.
+  reminder_1h: { fromMs: 15 * MINUTE, toMs: 90 * MINUTE },
+};
+
+/** Which reminder (if any) is due for a confirmed session now. A session
+ *  booked inside the day-before window already had its confirmation minutes
+ *  ago, so it gets no day-before reminder. */
+export function dueReminder(input: { slotMs: number; nowMs: number; bookedAtMs: number | null }): ReminderEvent | null {
+  const ahead = input.slotMs - input.nowMs;
+  const w1 = REMINDER_WINDOWS.reminder_1h;
+  if (ahead > w1.fromMs && ahead <= w1.toMs) return "reminder_1h";
+  const w24 = REMINDER_WINDOWS.reminder_24h;
+  if (ahead > w24.fromMs && ahead <= w24.toMs) {
+    const bookedAhead = input.bookedAtMs === null ? Infinity : input.slotMs - input.bookedAtMs;
+    return bookedAhead > w24.toMs ? "reminder_24h" : null;
+  }
+  return null;
+}
+
+export function bookingReminderEmail(brand: EmailBrand, f: BookingFacts, event: ReminderEvent): Email {
+  const soon = event === "reminder_1h";
+  const subject = soon ? `Starting soon: your ${MODE_TEXT[f.mode]} at ${f.when}` : `Tomorrow: your ${MODE_TEXT[f.mode]} on ${f.when}`;
+  const withWhom = f.therapistName ? ` with ${f.therapistName}` : "";
+  const lead = soon ? `${sessionLine(f)}${withWhom} starts in about an hour.` : `A reminder: ${sessionLine(f)}${withWhom} is tomorrow.`;
+  const text = `Hello ${f.name},\n\n${lead}\n\n${howItWorks(f.mode)}\n\nYour dashboard: ${f.dashboardUrl}\n\nCan't make it? Cancel from your dashboard.\n\n${brand.siteName}`;
+  const html = layout(
+    brand,
+    soon ? "Your session starts soon" : "Your session is tomorrow",
+    [
+      `Hello ${escapeHtml(f.name)},`,
+      escapeHtml(lead),
+      escapeHtml(howItWorks(f.mode)),
+      button(f.dashboardUrl, soon && f.mode === "online" ? "Open my dashboard to join" : "Open my dashboard"),
+      "Can't make it? Cancel from your dashboard.",
+    ],
+    FOOTNOTE
+  );
+  return { subject, text, html };
+}
