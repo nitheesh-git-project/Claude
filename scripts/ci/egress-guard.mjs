@@ -14,6 +14,7 @@ import https from "node:https";
 import path from "node:path";
 import { syncBuiltinESMExports } from "node:module";
 import { evaluateDestination, hostFromRequestArgs, stubFor } from "./lib/egress.mjs";
+import { applyKeepAlive } from "./lib/keepAlive.mjs";
 
 const logFile = path.join(process.env.ARTIFACT_DIR || process.env.E2E_ARTIFACT_DIR || "e2e-artifacts", "egress-denied.log");
 
@@ -67,5 +68,8 @@ if (!globalThis.__gateEgressGuard) {
       };
     }
   }
+  // Not an egress rule, but this file is the one thing preloaded into `next dev`:
+  // see lib/keepAlive.mjs for why its idle connections must outlast a test's pauses.
+  applyKeepAlive(http);
   syncBuiltinESMExports();
 }

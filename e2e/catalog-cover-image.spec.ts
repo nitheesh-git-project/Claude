@@ -13,7 +13,7 @@
 // visible from the browser: a scope that must not upload has to be refused at
 // the route, not merely have its button hidden.
 import { test, expect } from "@playwright/test";
-import { adminClient, cookieHeaderFor, BASE, QA_EMAILS, profileIdFor, setQaAdminScope } from "./helpers";
+import { adminClient, cookieHeaderFor, BASE, QA_EMAILS, profileIdFor, setQaAdminScope, waitForSplashToClear } from "./helpers";
 import { FOCAL_DEFAULT } from "../src/lib/catalogImage";
 
 const CATEGORY_TITLE = "QA Cover Category";
@@ -191,6 +191,8 @@ test.describe("Catalog cover images", () => {
   ) {
     if (cookies) await page.context().addCookies(cookies);
     await page.goto(url, { waitUntil: "domcontentloaded" });
+    // Tapped before hydration (the splash) the card opens nothing.
+    await waitForSplashToClear(page);
     const img = page.locator(`img[src*="${categoryId}"]`).first();
     await expect(img).toBeVisible();
     return img.evaluate((el) => getComputedStyle(el).objectPosition);
@@ -205,6 +207,8 @@ test.describe("Catalog cover images", () => {
   test("CI-008 and the detail dialog, which is a different aspect ratio", async ({ page }) => {
     test.setTimeout(120_000);
     await page.goto(`${BASE}/conditions`, { waitUntil: "domcontentloaded" });
+    // Tapped before hydration (the splash) the card opens nothing.
+    await waitForSplashToClear(page);
     await page.getByRole("button", { name: `View full details for ${CATEGORY_TITLE}` }).click();
 
     const dialog = page.getByRole("dialog");
@@ -220,6 +224,8 @@ test.describe("Catalog cover images", () => {
   test("CI-009 nothing is laid over the photograph in the dialog", async ({ page }) => {
     test.setTimeout(120_000);
     await page.goto(`${BASE}/conditions`, { waitUntil: "domcontentloaded" });
+    // Tapped before hydration (the splash) the card opens nothing.
+    await waitForSplashToClear(page);
     await page.getByRole("button", { name: `View full details for ${CATEGORY_TITLE}` }).click();
 
     const dialog = page.getByRole("dialog");
@@ -236,7 +242,7 @@ test.describe("Catalog cover images", () => {
     expect(headingBox!.y).toBeGreaterThanOrEqual(imgBox!.y + imgBox!.height - 1);
   });
 
-  test("CI-010 the patient's booking screen renders the same card, not a text list", async ({
+  test("CI-010 the patient's booking screen renders the same card, and its tap opens the same pop-up", async ({
     page,
   }) => {
     test.setTimeout(120_000);
@@ -262,6 +268,17 @@ test.describe("Catalog cover images", () => {
     await expect(
       page.locator(`a[href="/book?category=${categoryId}"]`).first()
     ).toBeVisible();
+
+    // A tap on the card opens the same detail pop-up a visitor gets on
+    // /conditions (it did nothing on the dashboard), with booking inside it.
+    // Tap until it opens: a tap before the dashboard has hydrated is dropped.
+    const details = page.getByRole("button", { name: /^View full details for/ }).first();
+    const dialog = page.getByRole("dialog").filter({ has: page.locator('a[href^="/book"]') });
+    await expect(async () => {
+      if (!(await dialog.isVisible())) await details.click();
+      await expect(dialog).toBeVisible({ timeout: 3_000 });
+    }).toPass({ timeout: 30_000 });
+    await expect(dialog.locator('a[href^="/book"]').first()).toBeVisible();
   });
 
   test("CI-011 a row with no cover still renders at the same height", async ({ page }) => {
@@ -273,6 +290,8 @@ test.describe("Catalog cover images", () => {
       .eq("id", categoryId);
 
     await page.goto(`${BASE}/conditions`, { waitUntil: "domcontentloaded" });
+    // Tapped before hydration (the splash) the card opens nothing.
+    await waitForSplashToClear(page);
     // The fallback is a designed state, not a broken one: a card with no
     // photograph must look like one whose photo has not been chosen yet.
     const card = page.locator("article").filter({ hasText: CATEGORY_TITLE }).first();

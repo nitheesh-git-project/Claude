@@ -123,7 +123,7 @@ export default async function RootLayout({
     splash: splashRow,
     devContact: devContactRow,
     pricing: pricingRow,
-    followDeviceTheme,
+    themeMode,
   } = layoutSettings;
   // The developer credit under the footer's copyright. On unless an admin
   // switched it off -- and an unreadable row is "could not check", not "off".
@@ -199,9 +199,9 @@ export default async function RootLayout({
     debug: showDebugNav,
   };
   const pricingScript = pricingPendingScript(pricingConfig.internationalEnabled);
-  // Light or dark (Settings -> Public Site -> Appearance). Empty, and so
-  // never dark, while the switch is off.
-  const themeScript = deviceThemeBootScript(followDeviceTheme);
+  // Light, dark, or the device (Settings -> Public Site -> Appearance).
+  // Empty for light, so nothing can paint dark.
+  const themeScript = deviceThemeBootScript(themeMode);
 
   return (
     // suppressHydrationWarning covers this one element's own attributes
@@ -257,7 +257,7 @@ export default async function RootLayout({
           <ToastProvider>
           <MotionProvider>
           <PricingProvider config={pricingConfig}>
-          <DeviceThemeFollower followDevice={followDeviceTheme} />
+          <DeviceThemeFollower mode={themeMode} />
           <RouteProgress />
           {/* The word-roll loader over the content while the next page loads;
               under every nav and sidebar, so they stay in place. */}

@@ -1,4 +1,7 @@
 import Link from "next/link";
+import { CONDITION_SPECIALTIES } from "@/lib/conditionSpecialty";
+import AdminTypeChanger from "@/components/admin/AdminTypeChanger";
+import { loadConditionProfileCore, readEnabledSpecialties } from "@/lib/conditionProfileServer";
 import DeletedUserTag from "@/components/admin/DeletedUserTag";
 import { readAccountDeletions } from "@/lib/accountDeletionsServer";
 import CopyText from "@/components/system/CopyText";
@@ -35,7 +38,7 @@ import {
   programmeLockGrantsClinicalAccess,
 } from "@/lib/clinicalAccess";
 import PayLaterGrantCard from "@/components/admin/PayLaterGrantCard";
-import { PROFILE_FIELD_LABELS } from "@/lib/profileFieldLabels";
+import { PROFILE_FIELD_LABELS, profileChangeValueText } from "@/lib/profileFieldLabels";
 import { CONDITION_STATUS_LABEL, type ConditionProfileStatus } from "@/lib/conditionIntake";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { computeRatingAggregate } from "@/lib/ratingAggregate";
@@ -131,6 +134,15 @@ export default async function PatientDetailContent({ id }: { id: string }) {
       admin.from("patient_condition_profiles").select("status").eq("patient_id", id).maybeSingle(),
     ]);
   const adminSettings = parseAdminSettings(settingsRow);
+
+  // The condition type, for a Master Admin to change (set-patient-condition-
+  // type refuses anyone else, so nobody else gets the read or the control).
+  const conditionType =
+    viewer?.scope === "full"
+      ? await Promise.all([loadConditionProfileCore(admin, id), readEnabledSpecialties(admin)])
+          .then(([core, enabled]) => ({ core, enabled }))
+          .catch(() => null)
+      : null;
 
   if (!patient) {
     notFound();
@@ -450,6 +462,26 @@ export default async function PatientDetailContent({ id }: { id: string }) {
                   Health Profile: {CONDITION_STATUS_LABEL[conditionStatus]}
                 </Link>
               </div>
+              {conditionType?.core.specialtyChosen && (
+                <p className="mt-1 text-xs text-slate-600" data-testid="patient-condition-type">
+                  Condition type:{" "}
+                  <span className="font-semibold">
+                    {CONDITION_SPECIALTIES.find((c) => c.key === conditionType.core.specialty)?.label ??
+                      conditionType.core.specialty}
+                  </span>
+                  <AdminTypeChanger
+                    endpoint="/api/admin/set-patient-condition-type"
+                    idField="patientId"
+                    id={patient.id}
+                    current={conditionType.core.specialty ?? null}
+                    options={CONDITION_SPECIALTIES.filter(
+                      (c) => conditionType.enabled.includes(c.key) || c.key === conditionType.core.specialty
+                    ).map((c) => ({ value: c.key, label: c.label }))}
+                    noun="condition type"
+                    confirmLine="Their Health Profile switches to that type's sections. Every answer on file is kept, and their therapist answers the new type's questions at the next session."
+                  />
+                </p>
+              )}
               <p className="text-xs text-slate-500 mt-1">
                 {/* The date alone answered "roughly when" and not "which of
                     the two accounts this person made on Tuesday" -- which is
@@ -815,7 +847,7 @@ export default async function PatientDetailContent({ id }: { id: string }) {
                         <span className="text-slate-500">
                           {PROFILE_FIELD_LABELS[field] ?? field}:
                         </span>{" "}
-                        <strong>{value === null ? "(cleared)" : String(value)}</strong>
+                        <strong>{value === null ? "(cleared)" : profileChangeValueText(field, value)}</strong>
                       </li>
                     ))}
                   </ul>

@@ -381,7 +381,9 @@ if (!server.child) {
 
 // Warm-up: `next dev` compiles a route on its first request, and on a fresh
 // machine that first request is some spec's first step, inside its timeout.
-// Asking for the main pages once, all at once, moves that compile here.
+// Asking for the main pages once, all at once, moves that compile here. A page
+// a spec visits that is missing from this list is compiled in the middle of
+// the test, which can reload the page under it: add new public pages here.
 // Anonymous requests are enough to compile the public pages, the login pages
 // and the proxy the dashboards sit behind. Nothing here can fail the runner:
 // every error is logged and ignored, and the whole thing stops waiting after
@@ -394,6 +396,19 @@ const WARMUP_PATHS = [
   "/conditions",
   "/home-visit",
   "/how-it-works",
+  "/faq",
+  // The legal pages and the complaint form's API route: a route compiled for
+  // the first time while a test is typing makes `next dev` rebuild and reload
+  // the page under it (DR-004 lost its name, email and category that way: the
+  // trace shows "[Fast Refresh] rebuilding" and a second "HMR connected"
+  // between the fills, and the POST went out with them empty).
+  "/privacy",
+  "/terms",
+  "/refunds",
+  "/cookies",
+  "/medical-disclaimer",
+  "/grievances",
+  "/api/grievances",
   "/patient/login",
   "/therapist/login",
   "/hospital/login",

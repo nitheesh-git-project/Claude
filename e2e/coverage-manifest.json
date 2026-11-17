@@ -1866,6 +1866,70 @@
       ],
       "integration": "local",
       "destructive": false
+    },
+    "password-flows.spec.ts": {
+      "runner": "platform",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "public-section-visibility.spec.ts": {
+      "runner": "platform",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "admin-type-changes.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "trusted-codes.spec.ts": {
+      "runner": "money",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "account-rules.spec.ts": {
+      "runner": "integrity",
+      "levels": [
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
     }
   },
   "flows": [
@@ -3118,7 +3182,7 @@
     {
       "id": "dashboards.therapist-onboarding",
       "runner": "therapist",
-      "title": "A patient nobody has onboarded: the Home banner, the session card's strip, Start onboarding into the triage, and the How onboarding works guide over every condition type",
+      "title": "A patient nobody has onboarded: the Home banner, the session card's strip, the session card's Fill onboarding in this session into the triage, and the How onboarding works guide over every condition type",
       "required": true,
       "status": "covered",
       "coverage": [
@@ -4355,7 +4419,7 @@
     {
       "id": "platform.chrome-and-loader",
       "runner": "platform",
-      "title": "Navigation stays put while a page loads: spine loader, light sidebars, sign-in nav, /conditions order",
+      "title": "Navigation stays put while a page loads: spine loader, light sidebars, sign-in nav, /conditions order; Sign In, Get Started and Book fit the header from 1024px",
       "required": true,
       "status": "covered",
       "coverage": [
@@ -4365,7 +4429,8 @@
             "CHROME-001",
             "CHROME-002",
             "CHROME-003",
-            "CHROME-004"
+            "CHROME-004",
+            "CHROME-007"
           ],
           "level": "browser"
         }
@@ -4765,7 +4830,7 @@
     {
       "id": "platform.analytics-consent",
       "runner": "platform",
-      "title": "The cookie card: nothing optional loads before a yes, Accept and Reject are the same size, a refusal sticks, it opens as the splash lifts but never inside a booking, Cookie settings withdraws it, and each choice is recorded append-only",
+      "title": "The cookie card: nothing optional loads before a yes, Accept and Reject are the same size, a refusal sticks, it opens as the splash lifts but never inside a booking, an answered visitor is not asked again on the way back from a sign-in page or a booking, Cookie settings withdraws it, and each choice is recorded append-only",
       "required": true,
       "status": "covered",
       "coverage": [
@@ -4780,7 +4845,9 @@
             "AC-006",
             "AC-007",
             "AC-008",
-            "AC-009"
+            "AC-009",
+            "AC-010",
+            "AC-011"
           ],
           "level": "browser"
         },
@@ -4907,6 +4974,112 @@
       ],
       "rules": [
         "docs/rules/ops-security.md"
+      ]
+    },
+    {
+      "id": "platform.password-flows",
+      "runner": "platform",
+      "title": "Change password needs the current one; the reset link sets one without it; /reset-password shows its form only to somebody who came through a link",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "password-flows.spec.ts",
+          "tests": [
+            "PW-001",
+            "PW-002",
+            "PW-003",
+            "PW-004"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/ops-security.md"
+      ]
+    },
+    {
+      "id": "platform.public-section-visibility",
+      "runner": "platform",
+      "title": "What We Promise, What We Will Not Do and Testimonials can be hidden from the public site without deleting them, each switch asking first",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "public-section-visibility.spec.ts",
+          "tests": [
+            "PSV-001",
+            "PSV-002"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/public-site.md"
+      ]
+    },
+    {
+      "id": "admin.type-changes",
+      "runner": "admin",
+      "title": "A Master Admin changes a therapist's specialisation and a patient's condition type from People; a scoped admin is refused and sees no control",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "admin-type-changes.spec.ts",
+          "tests": [
+            "ATC-001",
+            "ATC-002",
+            "ATC-003"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/roster.md",
+        "docs/rules/clinical.md"
+      ]
+    },
+    {
+      "id": "money.trusted-codes",
+      "runner": "money",
+      "title": "A trusted-patient code grants pay later to the one account it names, once, with its reason; spent codes cannot be rewritten; only a money admin creates one",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "trusted-codes.spec.ts",
+          "tests": [
+            "TC-001",
+            "TC-002",
+            "TC-003"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/pay-later.md"
+      ]
+    },
+    {
+      "id": "integrity.account-rules",
+      "runner": "integrity",
+      "title": "A locked booking account opens after the configured payment tries; only a Master Admin changes access or creates accounts, never their own",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "account-rules.spec.ts",
+          "tests": [
+            "AR-001",
+            "AR-002"
+          ],
+          "level": "api"
+        }
+      ],
+      "rules": [
+        "docs/rules/payments.md",
+        "docs/rules/admin.md"
       ]
     }
   ],

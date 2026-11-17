@@ -196,27 +196,31 @@ export default function TherapistEarningsTab({
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+        {/* Heading first, filters on their own rows under it. They used to
+            share the heading's row with justify-between, so on anything but
+            a wide screen the controls wrapped into a ragged block pushed to
+            the right. */}
+        <div className="mb-4 space-y-3">
           <h2 className="font-display font-bold text-lg text-slate-800">
             Sessions
             <span className="ml-2 text-xs font-normal text-slate-500">
               {filteredRows.length} session{filteredRows.length === 1 ? "" : "s"}
             </span>
           </h2>
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
             <input
               aria-label="Filter by session ID"
               type="text"
               value={sessionCodeFilter}
               onChange={(e) => setSessionCodeFilter(e.target.value)}
               placeholder="Filter by Session ID"
-              className="p-2 rounded-lg border border-slate-300 text-xs font-mono w-40"
+              className="h-10 w-full rounded-lg border border-slate-300 px-3 text-xs font-mono"
             />
             <select
               aria-label="Filter by patient"
               value={patientFilter}
               onChange={(e) => setPatientFilter(e.target.value)}
-              className="p-2 rounded-lg border border-slate-300 text-xs"
+              className="h-10 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs"
             >
               <option value="all">All Patients</option>
               {patients.map(([id, name]) => (
@@ -229,7 +233,7 @@ export default function TherapistEarningsTab({
               aria-label="Filter by treatment category"
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="p-2 rounded-lg border border-slate-300 text-xs"
+              className="h-10 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs"
             >
               <option value="all">All Categories</option>
               {categories.map(([id, title]) => (
@@ -242,31 +246,28 @@ export default function TherapistEarningsTab({
               aria-label="Filter by session status"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
-              className="p-2 rounded-lg border border-slate-300 text-xs"
+              className="h-10 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs"
             >
               <option value="all">All Statuses</option>
               <option value="paid_out">Paid Out</option>
               <option value="pending">Pending</option>
             </select>
-            <DateField
-              value={fromDate}
-              onChange={setFromDate}
-              ariaLabel="From date"
-              className="w-36"
-            />
-            <span className="text-slate-500 text-xs">to</span>
-            <DateField
-              value={toDate}
-              onChange={setToDate}
-              ariaLabel="To date"
-              className="w-36"
-            />
+          </div>
+          <div className="grid grid-cols-1 items-end gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <p className="mb-1 text-[11px] font-semibold text-slate-600">From</p>
+              <DateField value={fromDate} onChange={setFromDate} ariaLabel="From date" />
+            </div>
+            <div>
+              <p className="mb-1 text-[11px] font-semibold text-slate-600">To</p>
+              <DateField value={toDate} onChange={setToDate} ariaLabel="To date" />
+            </div>
             {hasActiveFilters && (
               <button
                 onClick={clearFilters}
-                className="text-xs text-teal-700 font-semibold hover:underline"
+                className="h-10 justify-self-start text-xs font-semibold text-teal-700 hover:underline lg:col-start-4 lg:justify-self-end"
               >
-                Clear
+                Clear filters
               </button>
             )}
           </div>

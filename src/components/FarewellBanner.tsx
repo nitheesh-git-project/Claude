@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSearchParams, usePathname } from "next/navigation";
-import { useRouter } from "@/lib/useRouter";
+import { useSearchParams } from "next/navigation";
 
 export default function FarewellBanner({
   /** Seconds to stay up before clearing itself. 0 means "until dismissed",
@@ -14,8 +13,6 @@ export default function FarewellBanner({
   autoDismissSeconds: number;
 }) {
   const searchParams = useSearchParams();
-  const router = useRouter();
-  const pathname = usePathname();
   // Read straight from the URL on first render instead of via an effect +
   // setState - avoids the extra cascading render, and this only ever needs
   // to reflect whatever query param the page loaded with.
@@ -33,23 +30,35 @@ export default function FarewellBanner({
   );
   const [dismissed, setDismissed] = useState(false);
 
-  // Strip the marker so a refresh (or a shared link) doesn't say goodbye
-  // again. Reads window.location for the same reason the state above does.
-  useEffect(() => {
+  // The owner's call: the address keeps `?farewell=1` for exactly as long
+  // as the goodbye is on screen, and goes back to the bare page the moment
+  // it leaves -- by its own timer or the X. Not before (a refresh while it
+  // shows says goodbye again, which is honest), and never left behind after
+  // it (a later refresh or shared link would say goodbye to nobody).
+  //
+  // history.replaceState, not router.replace: dropping the marker changes
+  // nothing on the page, so there is nothing to fetch. (Next 16.2 also never
+  // completed that navigation; 16.3 does, but the fetch is still waste.)
+  // Next keeps usePathname/useSearchParams in step with replaceState.
+  function dismiss() {
+    setDismissed(true);
     const params = new URLSearchParams(window.location.search);
     if (params.get("farewell") !== "1") return;
     params.delete("farewell");
     const query = params.toString();
-    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    window.history.replaceState(
+      window.history.state,
+      "",
+      `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`
+    );
+  }
 
   // Only armed once, when the banner is actually on screen. Cleared on
   // unmount so a navigation part-way through the countdown cannot fire a
   // state update into a component that is gone.
   useEffect(() => {
     if (!visible || dismissed || autoDismissSeconds <= 0) return;
-    const timer = window.setTimeout(() => setDismissed(true), autoDismissSeconds * 1000);
+    const timer = window.setTimeout(dismiss, autoDismissSeconds * 1000);
     return () => window.clearTimeout(timer);
   }, [visible, dismissed, autoDismissSeconds]);
 
@@ -64,7 +73,7 @@ export default function FarewellBanner({
           soon.
         </span>
         <button
-          onClick={() => setDismissed(true)}
+          onClick={dismiss}
           aria-label="Dismiss"
           className="text-white/80 hover:text-white shrink-0"
         >

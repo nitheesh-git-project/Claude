@@ -105,6 +105,53 @@ export function autoOpensOn(pathname: string | null | undefined): boolean {
   return !NO_AUTO_OPEN_ROOTS.includes(pathname.split("/")[1] ?? "");
 }
 
+/**
+ * Whether the card should open by itself right now. Asked again on every
+ * route change, because the component lives in the root layout and is not
+ * remounted by a client-side navigation -- so the answer has to come from
+ * the visitor's *current* choice, not from what was true when the page first
+ * loaded. (It used to: a visitor who accepted, opened a login or booking page
+ * and came back to a public page was asked again, because those pages switch
+ * the rule off and the return switched it back on.)
+ */
+export function shouldAutoOpenCard(input: {
+  /** The site collects something optional at all (GA id set, or marketing on). */
+  offered: boolean;
+  /** Read once after hydration: this visit was due a question. */
+  askThisVisit: boolean;
+  consent: CookieConsent | null;
+  trackable: boolean;
+  pathname: string | null | undefined;
+  version?: string;
+}): boolean {
+  return (
+    input.offered &&
+    input.askThisVisit &&
+    !isCurrentConsent(input.consent, input.version) &&
+    input.trackable &&
+    autoOpensOn(input.pathname)
+  );
+}
+
+/**
+ * Whether a card that is open is drawn on this page. Never on the sign-in
+ * pages, the dashboards or the back office (they are not public pages); and
+ * on a booking page only when the visitor asked for it with the footer link,
+ * so an unanswered card that opened elsewhere does not follow someone into a
+ * booking or a payment.
+ */
+export function cardShownOn(input: {
+  open: boolean;
+  offered: boolean;
+  trackable: boolean;
+  pathname: string | null | undefined;
+  /** Opened by the visitor (the footer's Cookie settings), not by itself. */
+  openedByVisitor: boolean;
+}): boolean {
+  if (!input.open || !input.offered || !input.trackable) return false;
+  return input.openedByVisitor || autoOpensOn(input.pathname);
+}
+
 /** What each button stores. */
 export function consentFor(
   action: ConsentAction,

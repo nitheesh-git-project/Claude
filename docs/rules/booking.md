@@ -132,7 +132,9 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
      that opens to show a single card asks somebody to tap twice to confirm
      the only thing on offer. Both wizards open on the service an admin
      switched on as **Default on booking** (Catalog -> Conditions;
-     `treatment_categories.is_default`, `defaultCategoryId`), or on the only
+     `treatment_categories.is_default`, `defaultCategoryId`; the switch
+     **asks first**, naming the service it replaces, because one tap moves
+     every patient's booking page - SP-013), or on the only
      condition when there is one. **One at a time is the database's rule**:
      a partial unique index refuses a second default and
      `set_default_treatment_category()` moves it in one transaction, so the

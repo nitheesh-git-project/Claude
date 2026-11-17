@@ -150,22 +150,39 @@ function DefaultSwitch({
   title,
   isDefault,
   active,
+  currentDefaultTitle,
   onError,
 }: {
   id: string;
   title: string;
   isDefault: boolean;
   active: boolean;
+  /** The service that is the default now, if another one is. */
+  currentDefaultTitle: string | null;
   onError: (message: string | null) => void;
 }) {
+  // A tap changes what every booking page opens on, for every patient, so
+  // it asks first (owner's call: a stray tap here reached real bookings).
+  const { confirm, dialog } = useConfirm();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [optimistic, setOptimistic] = useOptimistic(isDefault);
   const disabled = isPending || (!active && !isDefault);
 
-  function toggle() {
+  async function toggle() {
     if (disabled) return;
     const next = !optimistic;
+    const ok = await confirm(
+      next
+        ? `Make "${title}" the default on booking? The booking pages will open on it${
+            currentDefaultTitle ? ` instead of "${currentDefaultTitle}"` : ""
+          } for every patient.`
+        : `Stop "${title}" being the default on booking? The booking pages will open with no service picked.`,
+      next
+        ? { confirmLabel: "Make it the default", cancelLabel: "Keep as it is" }
+        : { confirmLabel: "Remove the default", cancelLabel: "Keep as it is" }
+    );
+    if (!ok) return;
     onError(null);
     startTransition(async () => {
       setOptimistic(next);
@@ -183,6 +200,7 @@ function DefaultSwitch({
   }
 
   return (
+    <>
     <label
       className="flex items-center gap-2"
       title={
@@ -213,6 +231,10 @@ function DefaultSwitch({
         Default on booking
       </span>
     </label>
+    {/* Outside the <label>: a click inside it would otherwise be forwarded
+        to the switch and flip it again. */}
+    {dialog}
+    </>
   );
 }
 
@@ -421,6 +443,11 @@ export default function TreatmentCategoryManager({
                         title={cat.title}
                         isDefault={defaultServiceId === cat.id}
                         active={cat.active}
+                        currentDefaultTitle={
+                          defaultServiceId && defaultServiceId !== cat.id
+                            ? categories.find((c) => c.id === defaultServiceId)?.title ?? null
+                            : null
+                        }
                         onError={setDefaultError}
                       />
                     )}

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import AdminTypeChanger from "@/components/admin/AdminTypeChanger";
 import DeletedUserTag from "@/components/admin/DeletedUserTag";
 import { readAccountDeletions } from "@/lib/accountDeletionsServer";
 import ActivityTimeline from "@/components/admin/ActivityTimeline";
@@ -25,7 +26,7 @@ import DeleteAccountButton from "@/components/admin/DeleteAccountButton";
 import TherapistPayoutButton from "@/components/admin/TherapistPayoutButton";
 import RatingManager from "@/components/admin/RatingManager";
 import ProfileSessionList from "@/components/admin/ProfileSessionList";
-import { PROFILE_FIELD_LABELS } from "@/lib/profileFieldLabels";
+import { PROFILE_FIELD_LABELS, profileChangeValueText } from "@/lib/profileFieldLabels";
 import { computeRatingAggregate } from "@/lib/ratingAggregate";
 import { computeNoShowRate, computeCancellationRate } from "@/lib/adminMetrics";
 import {
@@ -50,7 +51,7 @@ function nowTimestamp() {
 }
 import SpecialtyChip from "@/components/SpecialtyChip";
 import TherapistReadinessPanel from "@/components/admin/TherapistReadinessPanel";
-import { specialtyLabel } from "@/lib/therapistSpecialties";
+import { specialtyDef, specialtyLabel, THERAPIST_SPECIALTIES } from "@/lib/therapistSpecialties";
 import { formatRupees } from "@/lib/formatMoney";
 
 // Shared body for both the standalone /admin/dashboard/therapists/[id] page
@@ -500,6 +501,17 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
             <p className="font-semibold text-slate-700">Professional Details</p>
             <p className="text-slate-600">
               Specialist in: {specialtyLabel(therapist.specialization) ?? "Not set"}
+              {viewer?.scope === "full" && (
+                <AdminTypeChanger
+                  endpoint="/api/admin/set-therapist-specialty"
+                  idField="therapistId"
+                  id={therapist.id}
+                  current={specialtyDef(therapist.specialization)?.label ?? null}
+                  options={THERAPIST_SPECIALTIES.map((s) => ({ value: s.label, label: s.label }))}
+                  noun="specialisation"
+                  confirmLine="It decides which patients they are matched with and shows on the Our Team page."
+                />
+              )}
             </p>
             <p className="text-slate-600">
               {therapist.years_experience !== null
@@ -796,7 +808,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
                         <span className="text-slate-500">
                           {PROFILE_FIELD_LABELS[field] ?? field}:
                         </span>{" "}
-                        <strong>{value === null ? "(cleared)" : String(value)}</strong>
+                        <strong>{value === null ? "(cleared)" : profileChangeValueText(field, value)}</strong>
                       </li>
                     ))}
                   </ul>

@@ -47,7 +47,7 @@ function OnboardingStrip({
           href={`/therapist/dashboard/health-profile/${a.patient_id}?start=onboarding`}
           className="rounded-lg bg-teal-700 px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-teal-800"
         >
-          Start onboarding
+          Fill onboarding in this session
         </Link>
         <OnboardingGuideButton />
       </div>
@@ -126,7 +126,7 @@ export function renderTherapistNextUp(d: TherapistDashboardData) {
           href={`/therapist/dashboard/health-profile/${a.patient_id}`}
           className="inline-flex min-h-[44px] items-center rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-900 hover:border-teal-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
         >
-          Chart
+          Health Profile
         </Link>
       </div>
     </div>

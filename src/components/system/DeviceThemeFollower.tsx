@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { DARK_QUERY, themeFor } from "@/lib/deviceTheme";
+import { DARK_QUERY, themeFor, type ThemeMode } from "@/lib/deviceTheme";
 
 /**
  * Keeps `<html data-theme>` in step with the device after the first paint.
@@ -9,14 +9,14 @@ import { DARK_QUERY, themeFor } from "@/lib/deviceTheme";
  * follows a change made while the page is open, and clears it if the admin
  * has switched the feature off since this page was rendered.
  */
-export default function DeviceThemeFollower({ followDevice }: { followDevice: boolean }) {
+export default function DeviceThemeFollower({ mode }: { mode: ThemeMode }) {
   useEffect(() => {
     const root = document.documentElement;
     const apply = (deviceIsDark: boolean) => {
-      if (themeFor(followDevice, deviceIsDark) === "dark") root.dataset.theme = "dark";
+      if (themeFor(mode, deviceIsDark) === "dark") root.dataset.theme = "dark";
       else delete root.dataset.theme;
     };
-    if (!followDevice || !window.matchMedia) {
+    if (mode !== "device" || !window.matchMedia) {
       apply(false);
       return;
     }
@@ -25,6 +25,6 @@ export default function DeviceThemeFollower({ followDevice }: { followDevice: bo
     const onChange = (e: MediaQueryListEvent) => apply(e.matches);
     media.addEventListener("change", onChange);
     return () => media.removeEventListener("change", onChange);
-  }, [followDevice]);
+  }, [mode]);
   return null;
 }

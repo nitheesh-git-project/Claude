@@ -14,7 +14,7 @@
 // opens a dialog instead of navigating is exactly the change that can
 // silently drop the `?category=` parameter both booking wizards read.
 import { test, expect, type Page } from "@playwright/test";
-import { adminClient, BASE } from "./helpers";
+import { adminClient, BASE, waitForSplashToClear } from "./helpers";
 
 const CATEGORY_TITLE = "QA Detail Programme";
 const PACKAGE_TITLE = "QA Detail Package";
@@ -139,6 +139,8 @@ test.describe("Catalog detail dialogs", () => {
     // the point: an absence tested against a row that could have appeared.
     for (const path of ["/", "/conditions"]) {
       await page.goto(`${BASE}${path}`);
+      // Tapped before hydration (the splash) the card opens nothing.
+      await waitForSplashToClear(page);
       await expect(page.getByText(PACKAGE_TITLE, { exact: false })).toHaveCount(0);
       // Nor its price, which is the specific thing a visitor was shopping
       // from before this changed.
@@ -151,6 +153,8 @@ test.describe("Catalog detail dialogs", () => {
   }) => {
     for (const path of ["/", "/conditions"]) {
       await page.goto(`${BASE}${path}`);
+      // Tapped before hydration (the splash) the card opens nothing.
+      await waitForSplashToClear(page);
       await assertDialogContract(page, CATEGORY_TITLE, CATEGORY_TITLE);
     }
   });
@@ -164,6 +168,8 @@ test.describe("Catalog detail dialogs", () => {
     // nor the four-visit programme is a card: one is a price, the other a
     // recommendation.
     await page.goto(`${BASE}/home-visit`);
+    // Tapped before hydration (the splash) the card opens nothing.
+    await waitForSplashToClear(page);
     await expect(
       page.getByText("4-Visit Home Recovery Programme", { exact: false })
     ).toHaveCount(0);
@@ -176,6 +182,8 @@ test.describe("Catalog detail dialogs", () => {
     page,
   }) => {
     await page.goto(`${BASE}/`);
+    // Tapped before hydration (the splash) the card opens nothing.
+    await waitForSplashToClear(page);
 
     // The assertion that would catch the consultation-first cutover being
     // partially reverted -- any link to package checkout would take money
@@ -203,6 +211,8 @@ test.describe("Catalog detail dialogs", () => {
     page,
   }) => {
     await page.goto(`${BASE}/home-visit`);
+    // Tapped before hydration (the splash) the card opens nothing.
+    await waitForSplashToClear(page);
     await page.getByText(CATEGORY_TITLE, { exact: false }).first().click();
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
@@ -233,6 +243,8 @@ test.describe("Catalog detail dialogs", () => {
 
   test("CD-006: the dialog carries the detail the card leaves out", async ({ page }) => {
     await page.goto(`${BASE}/`);
+    // Tapped before hydration (the splash) the card opens nothing.
+    await waitForSplashToClear(page);
     await page.getByText(CATEGORY_TITLE, { exact: false }).first().click();
     const dialog = page.getByRole("dialog");
     // The long description and the bullet points exist only in the dialog;
@@ -249,6 +261,8 @@ test.describe("Catalog detail dialogs", () => {
     // card, /book and checkout said the category's own length. Every length
     // on these surfaces is now read from duration_minutes.
     await page.goto(`${BASE}/conditions`);
+    // Tapped before hydration (the splash) the card opens nothing.
+    await waitForSplashToClear(page);
     const card = page.getByText(CATEGORY_TITLE, { exact: false }).first();
     await card.click();
     const dialog = page.getByRole("dialog");
@@ -279,6 +293,8 @@ test.describe("Catalog detail dialogs", () => {
     expect(city, "an active service area").toBeTruthy();
 
     await page.goto(`${BASE}/faq`);
+    // Tapped before hydration (the splash) the card opens nothing.
+    await waitForSplashToClear(page);
     await page.getByRole("searchbox", { name: /Search frequently asked questions/ }).fill(
       "home visits in my area"
     );
@@ -295,6 +311,8 @@ test.describe("Catalog detail dialogs", () => {
 
   test("CD-008: a backdrop click closes the dialog", async ({ page }) => {
     await page.goto(`${BASE}/`);
+    // Tapped before hydration (the splash) the card opens nothing.
+    await waitForSplashToClear(page);
     await page.getByText(CATEGORY_TITLE, { exact: false }).first().click();
     await expect(page.getByRole("dialog")).toBeVisible();
     await page.mouse.click(12, 12);

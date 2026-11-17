@@ -138,6 +138,12 @@ Availability as periods over hour rows, specialisation as a value, what readines
   schedule yet" on All Sessions' programme pick (QA F-20).
   `src/lib/rosterReadsPaged.test.ts` fails on a template read that is neither
   one therapist's (`.eq("therapist_id", …)`) nor paged.
+- **A Master Admin can set a therapist's specialisation directly.** People
+  -> Therapists -> the profile has **Change** beside "Specialist in"
+  (`/api/admin/set-therapist-specialty`, `people` scope and full on top,
+  owner's rule). Only the clinic's own list can be set; it asks first, logs
+  `therapist.set_specialty` with from/to, and revalidates `/team`. The
+  therapist's own change still waits for approval. Guard: `admin-type-changes`.
 - **A specialisation is a value, not a sentence.** `profiles.specialization`
   was free text: one line of prose written on the therapist's own profile
   screen and printed raw on /team. That was enough until an admin needed to

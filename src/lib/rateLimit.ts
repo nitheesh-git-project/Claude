@@ -146,6 +146,27 @@ export const RATE_LIMITS = {
    * a partnership. Tighter than that one, because nothing here is time
    * sensitive and a person writes to a developer once, not repeatedly.
    */
+  /** Changing a password from the profile: the current password is checked
+   *  against the sign-in, so this is what stops a borrowed session guessing
+   *  it. Per account; closed, because failing open removes the only bound. */
+  passwordChange: {
+    scope: "password-change",
+    limit: 8,
+    windowSeconds: 900,
+    onCheckFailure: "closed",
+    message: "That is several password checks in a row, so this is paused for a moment.",
+  },
+
+  /** Redeeming a trusted-patient code: per account, closed on failure --
+   *  the cap is the only bound on guessing a six-character code. */
+  trustedCodeRedeem: {
+    scope: "trusted-code",
+    limit: 6,
+    windowSeconds: 3600,
+    onCheckFailure: "closed",
+    message: "That is several codes tried in a row, so this is paused for a while.",
+  },
+
   devReachout: {
     scope: "dev-reachout",
     limit: 5,

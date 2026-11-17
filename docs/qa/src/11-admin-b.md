@@ -52,7 +52,7 @@ Every setting below is read through one shared settings module with defaults. **
 **Steps.** Set the walkthrough seconds to `2`. Open `/` and watch the "How the process works" widget. Then set it to `0`.
 **Expected Result.** At `2`, each step holds ~2 seconds before the next takes over. At **`0` it does not advance on its own** - the same "0 is off" convention used by the session timeout. Values over 300 are refused (`Keep this to 300 seconds or less.`).
 **Accessibility interaction:** a visitor with **reduced motion** requested must not be subjected to auto-rotation.
-**Do not confuse this widget with "What treatment works towards"**, which **never advances by itself** - a second moving thing while you read the first is worse than either alone. Their `aria-label`s must stay distinct: "How the process works" vs "Goals by kind of care".
+**Do not confuse this widget with "What treatment works towards"**, which loops through its six stories until you tap one, then stays on it. Their `aria-label`s must stay distinct: "How the process works" vs "Goals by kind of care".
 
 #### `ADM-SET-036` - Mission & Vision · P1
 **Steps.** On Settings → Public Site → **Mission & Vision**, replace the mission with `Seen properly, wherever you are.` and save. Open `/` and `/mission` **immediately** - do not wait five minutes. Then clear the mission box entirely and save again.
@@ -186,11 +186,11 @@ Where a case below still says "Settings → Booking Rules", that is correct - it
 | Setting | Default | Dependent feature to verify |
 | --- | --- | --- |
 | Allow cash on visit | on | The cash option on `/book-home-visit` Step 4; `/api/home-visit/book-cash` refuses when off |
-| Booking lead time | 24 h | The wizard's Step 2 copy and its picker; **must stay independent of the online 12 h** |
+| How far ahead a home visit must be booked (box **Home visit booking rules**) | 24 h | The wizard's Step 2 copy and its picker; **must stay independent of the online 12 h** |
 | Travel buffer | 45 min | A locked therapist's conflict check is padded by this on **both** sides of a new visit; online passes **0** |
-| Full-refund window | 24 h | The home-visit cancel dialog and the refund actually paid |
-| Default package validity | 90 d | A new home-visit purchase's expiry when the package leaves it blank |
-| Bulk scheduling limit | 8 | `Too many slots in one request.` above this |
+| Free cancellation window for a home visit | 24 h | The home-visit cancel dialog and the refund actually paid |
+| **Default validity → Home visits** (under **Programmes**, beside Video sessions - not repeated in the home-visit box) | 90 d | A new home-visit purchase's expiry when the package leaves it blank |
+| **Bulk scheduling limit → Home visits** (under **Programmes**) | 8 | `Too many slots in one request.` above this |
 | Page heading / subheading | (defaults) | The `/home-visit` page's own copy |
 
 #### `ADM-SET-015` - Sign out after inactivity · P2
@@ -224,8 +224,8 @@ Where a case below still says "Settings → Booking Rules", that is correct - it
 | **Therapist lock: pre-pick the programme therapist** | on | On → the first therapist assigned on a programme becomes its therapist, and every later session on it reaches Sessions with no therapist with them **pre-picked** (one tap to assign) - never auto-assigned. Off → no new programme keeps a therapist; each session is picked from scratch |
 | **Where a patient's remaining sessions are counted** (Settings → **Advanced**) | **Running total** | See `ADM-SET-019` |
 | **Therapist-Suggested Sessions** | **on for a fresh database** | Off → `/api/therapist/suggest-session` returns `Suggesting sessions is switched off.` and the control is absent. The column default is now true, but that only applies to a new `site_settings` row - **an existing database keeps its current value until an admin toggles it, or a reset restores defaults.** Check the toggle before running `THR-SUGG-*` rather than assuming |
-| **Default Validity** | 90 d | A new purchase's expiry when the package leaves it blank |
-| **Bulk Scheduler Limit** | 8 | `Too many slots in one request.` above this |
+| **Default validity → Video sessions** | 90 d | A new purchase's expiry when the package leaves it blank. Its **Home visits** row sits under it - each programme rule appears once on this screen, video and home visit side by side |
+| **Bulk scheduling limit → Video sessions** | 8 | `Too many slots in one request.` above this |
 | **Expiry Reminder Lead Time** | 14 d | When the expiry nudge appears on the patient's dashboard |
 
 #### `ADM-SET-022` - Recommendation settings · P0
@@ -384,7 +384,7 @@ The screen warns you to turn it on only once System Health has been clean.
 **Feature.** A patient's, therapist's or condition's detail is normally an overlay over the dashboard. Interception only covers client-side navigation, so a reload, a shared link, a new tab and any refresh that misses the router's own state land on the real route. That route has been wrong twice: first a bare panel with a "Back to Dashboard" link, then a frame that reproduced the rail but dropped the badges, the search and the tab state - which read as a different, plainer site rather than as a leaf page. It renders the dashboard itself now, with the same overlay on top.
 
 **Steps**
-1. **People → Therapists → a therapist.** On an **upcoming** session press **Reschedule / Reassign**, change the therapist or the time, and **Save**.
+1. **People → Therapists → a therapist.** On an **upcoming** session press **Change time & reassign**, change the therapist or the time, and **Save**.
 2. Look at what you are on afterwards.
 3. Copy the URL, open it in a **new tab**, and reload it.
 4. Press the overlay's **×**.
@@ -744,14 +744,32 @@ The Logs section is **Master Admin only**. Operations, Finance and Clinical have
 4. In **Show the developer credit and contact page**, tap the switch. Read the dialog, tap **No**. Tap it again and tap **Yes**. Open `/developer`, then switch it back on the same way (dialog again, **No**, then **Yes**).
 5. In **Email shown on the Let's talk page**, type `not an email` and tap **Save**. Then enter a real address and **Save**. Open `/developer/lets-talk`. Clear the box, **Save**, and open it again.
 6. Sign in as each of the three scoped admins and try `?section=settings&tab=reachouts`.
+7. As the full admin, on a test message tap **Delete message**. Tap **Delete message** in the dialog with no reason, then choose **Other (say why)** with no note, then **Keep it**. Open it again, choose **Spam or junk** and delete it.
 
 **Expected Result**
 * Step 1: the badge shows the number of **new** messages and the filter chips read New / Contacted / All. A new message appears without a reload.
 * Step 3: each saved note appears at once **below the previous one** under **Notes**, with its date and time **in the clinic's zone** and the admin's name; the box clears for the next note and the toast reads `Note added for <name>`. **Save note** stays disabled while the box is blank. The edited note keeps its place and time and adds `· edited <date, time>`; **Save** stays disabled until the text changes, and **Cancel** restores it. **No** on the delete dialog keeps the note; **Yes** removes it. The status pill reads **Contacted** with the date and time, then returns to **New**. Moving back clears who and when. Each action appears in Logs → All Activity as *Added a note to* / *Edited a note on* / *Deleted a note on a developer reachout* / *Moved a developer reachout*, and **a note's text is never in the log** - only its length.
 * Step 4: **both** directions open a confirm dialog before anything is saved; **No** leaves the switch exactly where it was and writes nothing. After **Yes** the toast names the new state (`Developer credit is now hidden` / `shown`), the switch reads **Saving…** while in flight, the footer's credit line disappears or returns on a public page, and `/developer` and `/developer/lets-talk` are **404** while it is off. Messages already received are still listed.
 * Step 5: an invalid address is refused with a sentence and nothing is saved. A saved address shows as a `mailto:` link under **Prefer email?**; a blank one **hides that line entirely** while the form still works. No address ships in the code - a fresh database shows the box empty.
-* Step 6: a scoped admin never gets the tab, the rows or the controls, and a direct call to `/api/admin/update-dev-reachout` or `/api/admin/dev-reachout-note` answers **403**.
+* Step 6: a scoped admin never gets the tab, the rows or the controls, and a direct call to `/api/admin/update-dev-reachout`, `/api/admin/dev-reachout-note` or `/api/admin/delete-dev-reachout` answers **403**.
+* Step 7: no reason says `Choose why this message is being deleted.`; Other with no note says `Say why it is being deleted.`; **Keep it** deletes nothing. After the delete the card and its notes are gone, the toast reads `The message from <name> is deleted`, and Logs → All Activity shows *Deleted a developer reachout message* with the reason and the sender's name and email.
 **Negative:** the debug **Reset data** button must **not** remove these messages or their notes, or change either setting - they are the developer's own leads, not test data.
+
+#### `ADM-SET-039` - Hide a public section without deleting it · P1
+**Steps.** Settings -> **Public Site**. On **What We Promise**, **What We Will Not Do** and **Testimonials** there is a **Show … on the website** switch. Tap it on What We Will Not Do, then **Keep it shown**. Tap it again and **Hide it**. Open `/mission`. Switch it back on (**Show it**). Repeat for What We Promise, opening `/` and `/mission`.
+**Expected Result.** Every tap asks first, in both directions, naming the pages it affects; **Keep it shown** / **Keep it hidden** change nothing. Hidden: the band and its section-rail entry are gone from the pages named (What We Promise also leaves the home page's mission band), and the entries are **still listed here** to edit. Shown again: they return. The toast names the new state.
+
+#### `ADM-PPL-040` - Master Admin changes a specialisation or a condition type · P1
+**Steps.** As a full admin open **People -> Therapists ->** a therapist; beside **Specialist in** tap **Change**, pick another, **Save**, then **Keep as it is**; repeat and **Change it**. Open **People -> Patients ->** an onboarded patient; beside **Condition type** do the same. Then sign in as an Operations admin and open both profiles.
+**Expected Result.** Each asks first. The therapist's new specialisation shows on the profile and on `/team`. The patient's Health Profile switches to the new type's sections with every earlier answer still there, and their therapist sees the new type's questions to fill at the next session. Both appear in Logs. A patient not yet onboarded shows no Condition type line. The Operations admin sees neither **Change**.
+
+#### `ADM-MON-041` - Who claimed a promo code · P1
+**Steps.** **Money -> Costs**. Under the promo codes, find **Who claimed a code**. Pick a code in **Filter by code**; change **Filter by payment** to *Any status*, then *Not paid yet*; type a patient's name, then their ID; set a date range; tap a patient ID, close it, then **Open profile**.
+**Expected Result.** It opens on paid claims only, with a count and the total taken off. Each row names the patient, their ID, the code and its campaign note, what it was used on (session, programme or home-visit programme) and when, with the amount off. *Any status* adds unpaid and cancelled claims, each labelled. The ID and **Open profile** both open the patient pop-up from People -> Patients.
+
+#### `ADM-MON-042` - Trusted-patient code · P1
+**Steps.** Turn **Pay later** on (Money -> Owed by Patients). **Money -> Costs -> Tap here to create a trusted-patient code**: name, a reason, a note, and the email of a test patient. Create it and copy the code. Sign in as **another** patient, open **Payments** and enter it. Sign in as the named patient, open **Payments** and enter it in lower case. Back as admin, look at the list and at **Owed by Patients**. Try **Cancel code** on it.
+**Expected Result.** A reason under ten characters, or no email and no phone, is refused. The code reads `TRUST-` and six characters, works **once**, and only for the named account: the other patient sees `That code isn't valid for this account.` and nothing changes. The named patient sees `Pay later is on for your account.`, their profile shows pay later on with the code's reason, and the list shows **Redeemed** with their name and the time. Owed by Patients shows `Pay later from trusted code TRUST-…` beside their balance once they owe anything. A redeemed code has no **Cancel code**; an unused one can be cancelled. Nothing is ever taken off a price.
 
 #### `ADM-SET-035` - Sign-in & Security · P2
 **Steps.** Open **Settings → Sign-in & Security** and change the admin's own password. Check the screen carries two headed blocks: *Your own sign-in* (the reset button) and *Everybody else's sign-in* (the inactivity timeout and the sign-out message).

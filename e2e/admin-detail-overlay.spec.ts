@@ -120,7 +120,7 @@ test.describe("admin person detail", () => {
 
       const reassign = page
         .locator("button:visible")
-        .filter({ hasText: /Reschedule \/ Reassign|Tap to assign/ })
+        .filter({ hasText: /Change time & (re)?assign/ })
         .first();
       await expect(reassign).toBeVisible({ timeout: 60_000 });
       await reassign.scrollIntoViewIfNeeded();

@@ -3,12 +3,14 @@ import {
   COOKIE_POLICY_VERSION,
   CONSENT_REST_MS,
   autoOpensOn,
+  cardShownOn,
   consentFor,
   isCurrentConsent,
   marketingConsentEnabled,
   parseStoredConsent,
   percentOf,
   shouldAskForCookieConsent,
+  shouldAutoOpenCard,
   summariseConsents,
   validateConsentRecord,
   type CookieConsent,
@@ -141,5 +143,60 @@ describe("summariseConsents", () => {
     expect(s).toEqual({ total: 5, acceptAll: 2, rejectAll: 1, custom: 1, dismissed: 1, analyticsOn: 3, marketingOn: 1 });
     expect(percentOf(s.acceptAll, s.total)).toBe(40);
     expect(percentOf(1, 0)).toBe(0);
+  });
+});
+
+describe("shouldAutoOpenCard: asked again on every route change, from the current answer", () => {
+  const base = { offered: true, askThisVisit: true, consent: null, trackable: true, pathname: "/faq" };
+
+  it("opens for someone who has not answered, on a public page", () => {
+    expect(shouldAutoOpenCard(base)).toBe(true);
+  });
+
+  it("never opens for someone who has answered, however the visit started", () => {
+    // askThisVisit was true when the page loaded; the answer came afterwards.
+    expect(shouldAutoOpenCard({ ...base, consent: current })).toBe(false);
+    expect(shouldAutoOpenCard({ ...base, consent: { ...current, analytics: false } })).toBe(false);
+  });
+
+  it("does not reopen on the way back from a login, a dashboard or a booking after answering", () => {
+    // Accept on /faq, then /patient/login (not trackable), /book (no auto-open), then /conditions.
+    const route = (pathname: string, trackable: boolean) =>
+      shouldAutoOpenCard({ ...base, consent: current, pathname, trackable });
+    expect(route("/patient/login", false)).toBe(false);
+    expect(route("/book", true)).toBe(false);
+    expect(route("/conditions", true)).toBe(false);
+  });
+
+  it("opens again under a new policy version, and not on pages that never ask", () => {
+    expect(shouldAutoOpenCard({ ...base, consent: { ...current, version: "2025-01-01" } })).toBe(true);
+    expect(shouldAutoOpenCard({ ...base, pathname: "/book" })).toBe(false);
+    expect(shouldAutoOpenCard({ ...base, trackable: false, pathname: "/patient/dashboard" })).toBe(false);
+    expect(shouldAutoOpenCard({ ...base, offered: false })).toBe(false);
+    expect(shouldAutoOpenCard({ ...base, askThisVisit: false })).toBe(false);
+  });
+});
+
+describe("cardShownOn", () => {
+  const open = { open: true, offered: true, trackable: true, pathname: "/faq", openedByVisitor: false };
+
+  it("draws an open card on a public page", () => {
+    expect(cardShownOn(open)).toBe(true);
+  });
+
+  it("hides it on sign-in pages, dashboards and the back office", () => {
+    expect(cardShownOn({ ...open, trackable: false, pathname: "/patient/login" })).toBe(false);
+    expect(cardShownOn({ ...open, trackable: false, pathname: "/admin/dashboard", openedByVisitor: true })).toBe(false);
+  });
+
+  it("does not carry an unanswered card into a booking, but the footer link still opens it there", () => {
+    expect(cardShownOn({ ...open, pathname: "/book" })).toBe(false);
+    expect(cardShownOn({ ...open, pathname: "/book-home-visit/step" })).toBe(false);
+    expect(cardShownOn({ ...open, pathname: "/book", openedByVisitor: true })).toBe(true);
+  });
+
+  it("draws nothing that is closed or not offered", () => {
+    expect(cardShownOn({ ...open, open: false })).toBe(false);
+    expect(cardShownOn({ ...open, offered: false })).toBe(false);
   });
 });

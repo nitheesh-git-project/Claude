@@ -649,7 +649,7 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
             href={chartHref}
             className="inline-flex min-h-[44px] items-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-900 hover:border-teal-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
           >
-            Chart
+            Health Profile
           </Link>
           {!ended && (
             <button

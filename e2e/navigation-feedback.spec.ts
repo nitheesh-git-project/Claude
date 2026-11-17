@@ -9,7 +9,7 @@
 // click that was not written through ProgressLink or useRouter, so the wait
 // itself was silent.
 import { test, expect } from "@playwright/test";
-import { BASE, browserCookiesFor, markDashboardTourSeen, QA_EMAILS, waitForSplashToClear, settleNetwork } from "./helpers";
+import { BASE, adminClient, browserCookiesFor, markDashboardTourSeen, QA_EMAILS, waitForSplashToClear, settleNetwork } from "./helpers";
 
 test("NAV-001: an admin screen link switches in place, with no server round trip", async ({
   page,
@@ -153,4 +153,58 @@ test("NAV-002: a real navigation draws the bar while it is in flight", async ({
   await page.waitForLoadState("domcontentloaded");
 
   expect(await page.evaluate(() => sessionStorage.getItem("barSeen"))).toBe("yes");
+});
+
+test("NAV-004: the farewell marker lasts as long as the banner, and the logo then goes home with no loader", async ({ page }) => {
+  test.setTimeout(120_000);
+  // Signing out lands on `/?farewell=1`. The owner's rule: the address keeps
+  // the marker while "Sad to see you go!" is on screen and goes back to `/`
+  // the moment it leaves, by its timer or the X. (On Next 16.2 the old
+  // router.replace never completed, so the marker stuck and the next logo
+  // tap hung behind the loader for its 12s give-up.)
+  await page.goto(`${BASE}/?farewell=1`);
+  await waitForSplashToClear(page);
+  const banner = page.getByText("Sad to see you go!");
+  await expect(banner).toBeVisible();
+  await page.waitForTimeout(1_000);
+  expect(await page.evaluate(() => window.location.search), "kept while the banner shows").toBe("?farewell=1");
+  await page.getByRole("button", { name: "Dismiss" }).click();
+  await expect(banner).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => window.location.search), { timeout: 5_000 }).toBe("");
+
+  // Its own timer does the same (Settings -> farewell_banner_seconds; 0 means
+  // "until dismissed", which the X above already covers).
+  const { data: settings } = await adminClient()
+    .from("site_settings")
+    .select("farewell_banner_seconds")
+    .limit(1)
+    .maybeSingle();
+  const seconds = Number(settings?.farewell_banner_seconds ?? 6);
+  if (seconds > 0 && seconds <= 60) {
+    await page.goto(`${BASE}/?farewell=1`);
+    await waitForSplashToClear(page);
+    await expect(banner).toBeVisible();
+    await expect(banner).toHaveCount(0, { timeout: (seconds + 5) * 1000 });
+    await expect.poll(() => page.evaluate(() => window.location.search), { timeout: 5_000 }).toBe("");
+  }
+
+  let rscRequests = 0;
+  page.on("request", (r) => {
+    if (r.url().includes("_rsc=") && !r.headers()["next-router-prefetch"]) rscRequests += 1;
+  });
+  await page.evaluate(() => window.scrollTo(0, 1500));
+  await page.getByRole("navigation").getByRole("link", { name: /MoveRestore/ }).first().click();
+  await expect.poll(() => page.evaluate(() => window.scrollY), { timeout: 5_000 }).toBe(0);
+  await page.waitForTimeout(500);
+  await expect(page.getByTestId("navigation-loader")).toHaveCount(0);
+  expect(rscRequests, "nothing is fetched for a page already on screen").toBe(0);
+
+  // A home URL carrying any other query (a shared link) behaves the same.
+  await page.goto(`${BASE}/?utm_source=x`);
+  await waitForSplashToClear(page);
+  await page.evaluate(() => window.scrollTo(0, 1500));
+  await page.getByRole("navigation").getByRole("link", { name: /MoveRestore/ }).first().click();
+  await expect.poll(() => page.evaluate(() => window.location.search), { timeout: 5_000 }).toBe("");
+  await expect.poll(() => page.evaluate(() => window.scrollY), { timeout: 5_000 }).toBe(0);
+  await expect(page.getByTestId("navigation-loader")).toHaveCount(0);
 });

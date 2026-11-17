@@ -280,4 +280,40 @@ test.describe("deleting an account", () => {
       await cleanUp(admin, id);
     }
   });
+
+  test("AD-DEL-005: an account deleted with records can be removed for good once nothing refers to it", async () => {
+    test.setTimeout(SLOW);
+    // Found on staging: a tombstone (an admin deleted with records, whose
+    // records were later cleaned up) stayed in User access for ever, because
+    // every later delete took the keep-the-records path again. And it still
+    // counted as a Master Admin in the last-admin guard.
+    const admin = adminClient();
+    const id = await makeAccount(admin, "tombstone", { role: "admin", admin_scope: "full" });
+    const noteTherapist = await makeAccount(admin, "tombstone-note", { role: "therapist" });
+    const cookie = await cookieHeaderFor(QA_EMAILS.admin);
+    const del = (body: Record<string, unknown>) =>
+      fetch(`${BASE}/api/admin/delete-account`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Cookie: cookie },
+        body: JSON.stringify({ userId: id, ...body }),
+      });
+    try {
+      await admin.from("therapist_admin_notes").upsert({ therapist_id: noteTherapist, updated_by: id });
+      expect((await del({ reason: "test_account" })).status).toBe(200);
+      const { data: tomb } = await admin.from("profiles").select("deleted_at").eq("id", id).single();
+      expect(tomb?.deleted_at, "kept as a tombstone while the note refers to it").toBeTruthy();
+
+      // The record that held it goes; the preview now says nothing is behind it.
+      await admin.from("therapist_admin_notes").delete().eq("therapist_id", noteTherapist);
+      const preview = await (await del({ preview: true })).json();
+      expect(preview.deletable).toBe(true);
+      expect(preview.alreadyDeleted).toBe(true);
+
+      expect((await del({ reason: "test_account" })).status).toBe(200);
+      expect(await stillExists(admin, id), "removed for good").toBe(false);
+    } finally {
+      await cleanUp(admin, id);
+      await cleanUp(admin, noteTherapist);
+    }
+  });
 });

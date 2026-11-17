@@ -96,21 +96,25 @@ test.describe("Formatted therapist profile copy", () => {
     }
   });
 
-  test("RT-002: a therapist's bio saves its paragraphs and shows them read-only with Edit", async ({
+  test("RT-002: a therapist's bio keeps its paragraphs, waits for approval, then goes live", async ({
     browser,
   }) => {
-    test.setTimeout(120_000);
+    test.setTimeout(150_000);
     const admin = adminClient();
     const therapistId = await profileIdFor(admin, QA_EMAILS.therapistA);
     const { data: before } = await admin.from("profiles").select("bio").eq("id", therapistId).single();
+    const startedAt = new Date().toISOString();
 
     const context = await browser.newContext();
     await context.addCookies(await browserCookiesFor(QA_EMAILS.therapistA));
     const page = await context.newPage();
     try {
       await page.goto(`${BASE}/therapist/dashboard/profile`);
+      // The copy says who writes it and that the clinic approves it.
+      await expect(page.getByText(/Once the clinic approves it, it appears on your profile on the public Our Team page/)).toBeVisible({
+        timeout: 60_000,
+      });
       const field = page.getByTestId("therapist-bio");
-      await expect(field).toBeVisible({ timeout: 60_000 });
       await field.getByRole("button", { name: /^(Edit|Add)$/ }).click();
       await clearAndFocus(page, "therapist-bio-editor");
       await page.keyboard.type("Works with desk-based patients.");
@@ -118,14 +122,42 @@ test.describe("Formatted therapist profile copy", () => {
       await page.keyboard.type("Video and home visits.");
       await field.getByRole("button", { name: "Save" }).click();
 
+      // Saved as a request: the therapist sees their text, marked as waiting,
+      // and the live bio (what /team shows) has not moved.
       const saved = page.getByTestId("therapist-bio-saved");
       await expect(saved.locator("p")).toHaveText(["Works with desk-based patients.", "Video and home visits."], {
         timeout: 30_000,
       });
       await page.reload();
-      await expect(page.getByTestId("therapist-bio-saved").locator("p")).toHaveCount(2, { timeout: 60_000 });
+      await expect(page.getByTestId("therapist-bio-pending")).toBeVisible({ timeout: 60_000 });
+      await expect(page.getByTestId("therapist-bio-saved").locator("p")).toHaveCount(2);
+      const { data: still } = await admin.from("profiles").select("bio").eq("id", therapistId).single();
+      expect(still?.bio ?? null).toBe(before?.bio ?? null);
+
+      const { data: request } = await admin
+        .from("profile_change_requests")
+        .select("id, changes")
+        .eq("user_id", therapistId)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single();
+      expect(Object.keys(request!.changes as object)).toEqual(["bio"]);
+
+      // The admin approves it; now it is the live bio.
+      const res = await fetch(`${BASE}/api/admin/approve-profile-change`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Cookie: await cookieHeaderFor(QA_EMAILS.admin) },
+        body: JSON.stringify({ requestId: request!.id }),
+      });
+      expect(res.status).toBe(200);
+      const { data: after } = await admin.from("profiles").select("bio").eq("id", therapistId).single();
+      expect(after?.bio).toContain("Works with desk-based patients.");
+      await page.reload();
+      await expect(page.getByTestId("therapist-bio-pending")).toHaveCount(0, { timeout: 60_000 });
     } finally {
       await context.close();
+      await admin.from("profile_change_requests").delete().eq("user_id", therapistId).gte("created_at", startedAt);
       await admin.from("profiles").update({ bio: before?.bio ?? null }).eq("id", therapistId);
     }
   });

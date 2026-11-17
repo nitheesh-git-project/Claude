@@ -137,6 +137,12 @@ import ResetHospitalPasswordButton from "@/components/admin/ResetHospitalPasswor
 import EditRevenueShareForm from "@/components/admin/EditRevenueShareForm";
 import CopyInviteLinkButton from "@/components/admin/CopyInviteLinkButton";
 import TreatmentCategoryManager from "@/components/admin/TreatmentCategoryManager";
+import TrustedCodesManager, { type TrustedCodeRow } from "@/components/admin/TrustedCodesManager";
+import PromoClaimsList from "@/components/admin/PromoClaimsList";
+import { readPromoClaims } from "@/lib/promoClaimsServer";
+import { resolveThemeMode, type ThemeMode } from "@/lib/deviceTheme";
+import PublicSectionVisibilityToggle from "@/components/admin/PublicSectionVisibilityToggle";
+import { readPublicSectionVisibility } from "@/lib/publicSectionVisibilityServer";
 import { clinicWideHomeVisitRate, isHomeVisitPriceRow } from "@/lib/homeVisitRates";
 import { formatInr, formatRupees } from "@/lib/formatMoney";
 import TestimonialManager from "@/components/admin/TestimonialManager";
@@ -181,7 +187,7 @@ import { formatSlotTime } from "@/lib/formatSlotTime";
 import { formatReferralStatus } from "@/lib/referralStatus";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { hospitalSessionLine } from "@/lib/hospitalEarnings";
-import { PROFILE_FIELD_LABELS } from "@/lib/profileFieldLabels";
+import { PROFILE_FIELD_LABELS, profileChangeValueText } from "@/lib/profileFieldLabels";
 import { mergeSessionCodes } from "@/lib/sessionCode";
 import { mergeMeetLinks } from "@/lib/meetLink";
 import { computeTherapistPayoutSummary } from "@/lib/therapistPayouts";
@@ -2380,13 +2386,18 @@ export default async function AdminDashboardPage({
                             <span className="text-slate-500">
                               {PROFILE_FIELD_LABELS[field] ?? field}:
                             </span>{" "}
-                            <span className="line-through text-slate-500">
-                              {oldValue === null || oldValue === undefined || oldValue === ""
-                                ? "(not set)"
-                                : String(oldValue)}
-                            </span>{" "}
-                            →{" "}
-                            <strong>{value === null ? "(cleared)" : String(value)}</strong>
+                            {/* The bio is not in this page's profile read
+                                (it can run to pages), so only the new
+                                text is shown; the live one is on /team. */}
+                            {field !== "bio" && (
+                              <>
+                                <span className="line-through text-slate-500">
+                                  {profileChangeValueText(field, oldValue)}
+                                </span>{" "}
+                                →{" "}
+                              </>
+                            )}
+                            <strong>{value === null ? "(cleared)" : profileChangeValueText(field, value)}</strong>
                           </li>
                         );
                       })}
@@ -4059,6 +4070,62 @@ export default async function AdminDashboardPage({
   // Long enough to need a map of itself -- see SettingsJumpNav. The blocks
   // are in the order an owner reads the site: what visitors are shown, then
   // what it says, then what it says about itself, then other people's words.
+  // Three show/hide switches for public sections, in their own isolated read
+  // (new columns: a database without them shows all three and draws them on).
+  const publicSectionsShown = scopeCanOpen(viewerScope, "settings")
+    ? await readPublicSectionVisibility()
+    : null;
+
+  // site_theme in its own read for the same reason: a database a step behind
+  // still shows the old switch's answer (deviceTheme.ts).
+  const themeMode: ThemeMode = scopeCanOpen(viewerScope, "settings")
+    ? await (async () => {
+        const { data, error } = await supabase.from("site_settings").select("site_theme").maybeSingle();
+        return resolveThemeMode(error ? null : (data as { site_theme?: unknown } | null)?.site_theme, adminSettings.followDeviceTheme);
+      })()
+    : resolveThemeMode(null, adminSettings.followDeviceTheme);
+
+  // Who claimed which promo code, for the list under the codes. Money scope
+  // only -- the screen is a Money one and names patients.
+  // Trusted-patient codes, listed under the promo codes. Their own read: a
+  // new table, so a database without it shows "could not be loaded" there
+  // and nothing else changes.
+  const trustedCodes: TrustedCodeRow[] | null = scopeCanOpen(viewerScope, "money")
+    ? await (async () => {
+        const { data, error } = await admin
+          .from("trusted_patient_codes")
+          .select("id, code, patient_name, reason, note, match_email, match_phone, status, created_at, redeemed_at, redeemed_by")
+          .order("created_at", { ascending: false })
+          .limit(200);
+        if (error) return null;
+        const redeemerIds = [...new Set((data ?? []).map((r) => r.redeemed_by).filter((v): v is string => !!v))];
+        const { data: people } = redeemerIds.length
+          ? await admin.from("profiles").select("id, full_name").in("id", redeemerIds)
+          : { data: [] as { id: string; full_name: string | null }[] };
+        const nameOf = new Map((people ?? []).map((p) => [p.id, p.full_name ?? "Patient"]));
+        return (data ?? []).map((r) => ({
+          id: r.id as string,
+          code: r.code as string,
+          patientName: r.patient_name as string,
+          reason: r.reason as string,
+          note: (r.note as string | null) ?? null,
+          matchEmail: (r.match_email as string | null) ?? null,
+          matchPhone: (r.match_phone as string | null) ?? null,
+          status: r.status as TrustedCodeRow["status"],
+          createdAt: r.created_at as string,
+          redeemedAt: (r.redeemed_at as string | null) ?? null,
+          redeemedBy: r.redeemed_by ? { id: r.redeemed_by as string, name: nameOf.get(r.redeemed_by as string) ?? "Patient" } : null,
+        }));
+      })().catch(() => null)
+    : [];
+
+  const promoClaims = scopeCanOpen(viewerScope, "money")
+    ? await readPromoClaims(
+        admin,
+        promoCodeRows.map((c) => ({ id: c.id, code: c.code, description: c.description ?? null }))
+      ).catch(() => null)
+    : [];
+
   const settingsPublicSiteTab = (
     <div className="space-y-8">
       <SettingsJumpNav
@@ -4092,6 +4159,9 @@ export default async function AdminDashboardPage({
       </SettingsSection>
 
       <SettingsSection id="public-promises">
+        {publicSectionsShown && (
+          <PublicSectionVisibilityToggle section="promises" visible={publicSectionsShown.promises} />
+        )}
         <MissionPrincipleManager
           kind="promise"
           rows={missionPrincipleRows ?? []}
@@ -4102,6 +4172,9 @@ export default async function AdminDashboardPage({
       </SettingsSection>
 
       <SettingsSection id="public-limits">
+        {publicSectionsShown && (
+          <PublicSectionVisibilityToggle section="limits" visible={publicSectionsShown.limits} />
+        )}
         <MissionPrincipleManager
           kind="limit"
           rows={missionPrincipleRows ?? []}
@@ -4123,7 +4196,7 @@ export default async function AdminDashboardPage({
       </SettingsSection>
 
       <SettingsSection id="public-appearance">
-        <AppearanceForm enabled={adminSettings.followDeviceTheme} />
+        <AppearanceForm mode={themeMode} />
       </SettingsSection>
 
       <SettingsSection id="public-testimonials">
@@ -4132,6 +4205,9 @@ export default async function AdminDashboardPage({
           <p className="text-xs text-slate-500 mb-4">
             Controls the patient-story band on the Home page and Our Mission.
           </p>
+          {publicSectionsShown && (
+            <PublicSectionVisibilityToggle section="testimonials" visible={publicSectionsShown.testimonials} />
+          )}
           <TestimonialManager
             testimonials={(testimonials ?? []).map((t) => ({
               ...t,
@@ -5865,6 +5941,13 @@ export default async function AdminDashboardPage({
           canManageMoney={scopeCanManage(viewerScope, "money")}
           featureEnabled={payLaterFeatureEnabled}
           canManageSettings={scopeCanManage(viewerScope, "settings")}
+          trustedCodeByPatient={
+            new Map(
+              (trustedCodes ?? [])
+                .filter((c) => c.status === "redeemed" && c.redeemedBy)
+                .map((c) => [c.redeemedBy!.id, c.code])
+            )
+          }
         />
       </div>
     ),
@@ -5877,12 +5960,16 @@ export default async function AdminDashboardPage({
             Summary instead, so an admin following that note arrived at a
             screen with no promo codes on it and no way to tell whether the
             feature existed. */}
-        <div className="mb-8">
+        <div className="mb-8 space-y-6">
           <PromoCodeManager
             codes={promoCodeRows}
             enabled={promoCodesEnabled}
             nowIso={new Date(nowTimestamp()).toISOString()}
           />
+          {scopeCanManage(viewerScope, "money") && (
+            <TrustedCodesManager codes={trustedCodes} payLaterEnabled={payLaterFeatureEnabled} />
+          )}
+          <PromoClaimsList claims={promoClaims} codes={promoCodeRows.map((c) => ({ id: c.id, code: c.code }))} />
         </div>
         <AdminCostsTab
           discountsGiven={{

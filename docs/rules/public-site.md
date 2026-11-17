@@ -251,7 +251,8 @@ Eight pages from one design system, the word budgets, why every photograph carri
   booking bar drops its two lines of text (they could only read "Video or a
   visit a...") and the button takes the width.
 - **"What treatment works towards" replaced "Find what hurts", on `/` and
-  `/conditions`.** `TreatmentGoals` shows one kind of care at a time as a
+  `/how-it-works`** (it moved there from `/conditions`, straight after the
+  four steps; "Recovery is a course" now follows the health profile band). `TreatmentGoals` shows one kind of care at a time as a
   before and after. A divider sweeps across the card: the first visit (grey
   photo, rose figure, three things that are hard today) becomes the goal
   (colour, teal figure, three goals and the goal in the patient's words). The
@@ -262,10 +263,12 @@ Eight pages from one design system, the word budgets, why every photograph carri
      beside it. The headline figures equal the health-profile samples'
      (`treatmentGoals.test.ts`), and the words are tested for promises
      ("cure", "guarantee", "pain-free").
-  2. **It never advances on its own.** The sweep plays once when the band
-     comes into view and again when a kind of care is picked. "Play all six"
-     walks through every one, but only when tapped. Under reduced motion the
-     goal side shows at once.
+  2. **It loops until the visitor chooses, then never takes the choice
+     back** (the owner's call, replacing a "Play all six" button). While the
+     band is on screen it plays all six in turn, each sweeping and holding;
+     it pauses while scrolled away. A tap or arrow key on any kind of care
+     stops the loop on it until the page is reloaded or left and reopened.
+     Under reduced motion nothing advances and the goal side shows at once.
   3. **Its photographs show the care, not a screen**: the one exception to
      the screen rule above, because what changes here is the body. There is
      one photograph per kind of care (`goal-*` in `marketingPhotos.ts`, free
@@ -273,10 +276,27 @@ Eight pages from one design system, the word budgets, why every photograph carri
   4. **Its tablist is "Goals by kind of care"**, distinct from the recovery
      story's "Kinds of care" and the walkthrough's "How the process works".
   Guards: `e2e/treatment-goals.spec.ts` TG-001..003.
-- **A carousel that moves on its own is a carousel nobody can read.**
-  `TreatmentGoals` (and `CareAreaShowcase` before it) never advances by itself: the home page already carries
-  the auto-rotating `JourneySteps`, and a second thing moving while you read
-  the first is worse than either alone. Swipe, the arrow buttons and the
+- **Three public sections can be hidden without being deleted.** Settings ->
+  Public Site has a Shown / Hidden switch on What We Promise, What We Will
+  Not Do and Testimonials (`site_settings.promises_section_visible`,
+  `limits_section_visible`, `testimonials_section_visible`, default on). Each
+  asks in both directions and names where it shows; the home page and Our
+  Mission pass an empty list for a hidden one, which drops the band and its
+  rail entry as an empty table always did. Read in their own query
+  (`readPublicSectionVisibility`), never `SITE_SETTINGS_SELECT`: a missing
+  column or a failed read shows all three. Guard:
+  `e2e/public-section-visibility.spec.ts`.
+- **The patient's Book a session screen uses the public cards.**
+  `PatientBookingHub` renders `ProgramCards` and `HomeVisitConditions`, so a
+  tap on a consultation opens the same detail pop-up as `/conditions` and
+  `/home-visit`; it used to draw the bare cards, and a tap did nothing.
+  Guard: `catalog-cover-image` CI-010.
+- **A carousel that moves on its own must stop the moment someone engages.**
+  `TreatmentGoals` used to never advance by itself, because the home page
+  already carries the auto-rotating `JourneySteps`; the owner chose a loop
+  instead, so it holds each story long enough to read (sweep 1.8s + hold
+  1.6s), stops for good on a pick, pauses off screen, and does not move at
+  all under reduced motion. Swipe, the arrow buttons and the
   picker all go through one `select()` so they cannot disagree about what is
   showing, and the picker is a real tablist with roving focus and arrow keys.
   Its `aria-label` is "Goals by kind of care" and must stay distinct from
@@ -537,8 +557,13 @@ Eight pages from one design system, the word budgets, why every photograph carri
      the public popup share one renderer and cannot disagree.
   3. **Old values still read.** Anything that is not a stored document is
      earlier plain text and becomes paragraphs and line breaks as written.
-  The bio now saves through `/api/therapist/update-bio` rather than a browser
-  RLS update, which is also what lets it revalidate `/team`. The formatting
+  The bio saves through `/api/therapist/update-bio` rather than a browser
+  RLS update, and **waits for the clinic's approval** (the owner's call: it
+  is public): the route files a `profile_change_requests` row with
+  `{ bio }` (one pending bio at a time; saving the live text withdraws it),
+  `GATED_PROFILE_FIELDS.therapist` allows `bio`, `validateProfileChanges`
+  re-sanitises it on approval, and approving revalidates `/team`. Until then
+  `/team` shows the previous bio and Edit Profile marks it waiting. The formatting
   set is brand-safe by decision: no colours, fonts or sizes. Guard:
   `e2e/rich-text-profile.spec.ts`.
   **Tables are opt-in, and a public bio does not get them.** An announcement
@@ -809,14 +834,26 @@ Eight pages from one design system, the word budgets, why every photograph carri
   shown where `isBookBarRoute` says -- not on `/get-started`, the wizard, an
   auth card or a dashboard). From `lg` the header shows Conditions, How it
   works, Home visit, Team and FAQ with Mission and Hospitals under **More**,
-  then Sign In and the Book button; from `2xl` every page is in the row. There
-  is **no Get Started in the header**: that hub is a switchboard (patient,
-  therapist, hospital sign-ins), so the phone menu's one primary button is
-  Book a video session and the hub's other doors live in the footer under
-  "For clinicians and partners". The brand is the **full name with its tagline at
+  then Sign In, **Get Started** and the Book button; from `2xl` every page is
+  in the row. **Get Started stays in the header, beside Book.** Sign In is the
+  patient's door; the hub it opens (patient, therapist, hospital sign-ins) is
+  the only way a therapist or a hospital reaches theirs from the top bar, and
+  without it they cannot find where to sign in. It is the quieter, outlined
+  button; Book is still the one filled primary, and so is the phone menu's top
+  button. The footer repeats the hub's doors under "For clinicians and
+  partners". **Below `lg` there is always a way into an account** (the owner
+  called its absence a blocker): from 640px the header carries Sign In and Get
+  Started beside the menu button; a phone, with only 36-68px free beside the
+  full name, carries Get Started in the `PublicBookBar` next to Book, and the
+  menu has it under Book with Sign In at the foot. Signed in, the same spots
+  show the account's destination. Guard: CHROME-001, CHROME-007 (one row from
+  1024px), CHROME-011 (every width below), and the phone menu in
+  `mobile-smoke`. The brand is the **full name with its tagline at
   every width**, never the short name and never an ellipsis: on a phone the name
   scales with the screen (15px at 360px), and from 1024 to 1279px it is 16px,
-  the bar's gaps tighten and Our team steps into More (`LAPTOP_MORE_KEYS`). Menu rows
+  the bar's gaps tighten and Our team and Home visit step into More
+  (`LAPTOP_MORE_KEYS`) so the three buttons fit on one row with no sideways
+  scroll (CHROME-007). Menu rows
   and footer links are 44px targets. The WhatsApp / Call chip in the menu and
   the icon beside the sticky bar's Book button exist only for numbers an admin
   has filled in (`contactLinks.ts`; the shipped "+91 XXXXX XXXXX" is not one),
@@ -857,8 +894,25 @@ Eight pages from one design system, the word budgets, why every photograph carri
 - **The sign-in pages keep the nav's whole signed-out cluster** - Sign In,
   Get Started, Book - so tapping Sign In does not appear to break the nav.
   `isAuthCtaSignedOutRoute` pins it there whatever the session says, which
-  still stops "Go to Dashboard" flashing mid-login; only registration and
-  the holding pages drop the cluster (`isAuthCtaHiddenRoute`).
+  still stops "Go to Dashboard" flashing mid-login. Registration and the
+  holding pages drop the cluster **only for somebody signed in**
+  (`isAuthCtaHiddenRoute` and a session); a signed-out visitor there sees
+  the home page's bar. A bare `/patient/register` (no `?ref=` invite)
+  redirects to `/patient/login?tab=register` rather than saying "Invalid
+  Link", and `/account-suspended` offers Sign Out only with a session.
+  Guards: CHROME-008, CHROME-009.
+- **The three sign-in doors share one layout, "Calm Clinic".**
+  `AuthSplitLayout` puts a photograph beside the form (side by side from
+  `md`, a 4:3 strip above it on a phone) and the whole door is teal - the
+  therapist door was purple and the hospital one blue, and the owner asked
+  for no purple. The photos are their own set in `src/lib/authPhotos.ts`,
+  chosen by the owner, and are **not** bound by the marketing rules below
+  (a screen and a glad face in every shot): they sit beside a form somebody
+  already came to fill in. Each carries a focal `position` used for both
+  `object-position` and the slow zoom's origin, so the faces or the scan
+  stay in frame at every width; the zoom is 5% (more softens the photo) and
+  stops under reduced motion. The patient and therapist doors swap to a
+  second photo on their register tab. Guard: AUTH-UI-001.
 
 - **Home visits are sold only when they can be booked.** The master switch
   alone is not "bookable": switched on with no active service area, or with no
@@ -970,6 +1024,19 @@ Eight pages from one design system, the word budgets, why every photograph carri
   any change of substance to the Cookie policy and everyone is asked again.
   An answer to the earlier analytics-only banner (`mr_analytics_consent`) is
   honoured until the visitor answers the new pop-up. Guard: AC-006, AC-007.
+- **When it shows, in one rule: only to someone who has not answered, only on
+  a public page, never by itself in a booking.** `Analytics` lives in the root
+  layout and is *not* remounted by a client-side navigation, so the question is
+  asked again on every route change from the visitor's **current** answer
+  (`shouldAutoOpenCard`), never from a value read once at load. It used to be
+  read once: someone who accepted, went to a sign-in page or a booking (which
+  switch the rule off) and came back to a public page was asked again, because
+  the return switched it back on. An answered visitor is never asked again
+  until `COOKIE_POLICY_VERSION` changes; an unanswered card is hidden on the
+  sign-in pages, the dashboards and the back office, and on a booking unless
+  the visitor opened it from the footer (`cardShownOn`), and is there again
+  when they are back on a public page. Guard: AC-010 and AC-011, and the unit
+  tests of both functions.
 - **Every choice is recorded, append-only, and nothing identifies the
   visitor.** `recordCookieConsent` posts to `/api/consent`, which validates
   the body (a Reject all that claims analytics is refused), works out the

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import AuthSplitLayout from "./AuthSplitLayout";
 import { checkReferralCode, type ReferralCodeCheck } from "@/lib/checkReferralCode";
 import { isValidEmail } from "@/lib/validateEmail";
 import { isValidStoredPhone } from "@/lib/phoneNumber";
@@ -13,8 +14,15 @@ import PasswordInput from "./PasswordInput";
 import TermsCheckbox, { TERMS_REQUIRED_MESSAGE } from "@/components/legal/TermsCheckbox";
 import { signupTermsMetadata } from "@/lib/policyAcceptance";
 
-export default function PatientAuthCard() {
-  const [tab, setTab] = useState<"login" | "register">("login");
+export default function PatientAuthCard({
+  /** `?tab=register` on /patient/login, read by the page: the bare
+   *  /patient/register address (an invite page without its invite) sends
+   *  people to the sign-up side. */
+  initialTab = "login",
+}: {
+  initialTab?: "login" | "register";
+} = {}) {
+  const [tab, setTab] = useState<"login" | "register">(initialTab);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -62,6 +70,7 @@ export default function PatientAuthCard() {
     // (not router.push) so the fresh cookies set by signInWithPassword are
     // guaranteed to be sent with the very next request to the proxy - a
     // client-side soft nav can race the cookie write.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- a full load on purpose: the auth cookies just changed
     window.location.href = "/patient/dashboard";
   }
 
@@ -167,12 +176,13 @@ export default function PatientAuthCard() {
     // unapproved and the proxy would bounce them to /pending-approval
     // anyway, so send them there directly. Left in the loading state
     // deliberately -- see handleLogin's comment.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- a full load on purpose: the auth cookies just changed
     window.location.href = "/pending-approval";
   }
 
   return (
-    <section className="py-12 max-w-md mx-auto px-4">
-      <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-lg">
+    <AuthSplitLayout photo={tab === "register" ? "patient-register" : "patient"} kicker="For patients" line="Care that comes to you, at home or on a video call.">
+      <div>
         <h2 className="text-2xl font-bold text-slate-900 text-center">
           Patient Portal Login
         </h2>
@@ -420,6 +430,6 @@ export default function PatientAuthCard() {
           </form>
         )}
       </div>
-    </section>
+    </AuthSplitLayout>
   );
 }

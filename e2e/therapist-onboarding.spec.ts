@@ -1,6 +1,6 @@
 // A patient nobody has onboarded yet, from the therapist's side: the banner
 // at the top of Home, the "Onboarding needed" strip on the session card,
-// "Start onboarding" going straight into the triage, and the "How
+// "Fill onboarding in this session" going straight into the triage, and the "How
 // onboarding works" guide walking every condition type.
 //
 // Fixtures: QA Patient B and QA Therapist A, as in health-profile.spec.ts.
@@ -85,10 +85,10 @@ test("OG-001: Home leads with who needs onboarding, and the guide walks every co
     // The banner names three and counts the rest, so Patient B may be in
     // the count only on a database with many un-onboarded patients.
     if (await row.count()) {
-      await expect(row.getByRole("link", { name: "Start onboarding" })).toHaveAttribute(
-        "href",
-        `/therapist/dashboard/health-profile/${patientId}?start=onboarding`
-      );
+      // No button on Home: the owner wants it read as "do it in the first
+      // session". The session card (OG-002) carries the way in.
+      await expect(row.getByText("Fill in during the first session")).toBeVisible();
+      await expect(row.getByRole("link", { name: /onboarding/i })).toHaveCount(0);
     }
 
     await banner.getByRole("button", { name: "How onboarding works" }).click();
@@ -120,14 +120,14 @@ test("OG-001: Home leads with who needs onboarding, and the guide walks every co
   }
 });
 
-test("OG-002: the session card says onboarding is needed, and Start onboarding opens the triage", async ({ browser }) => {
+test("OG-002: the session card says onboarding is needed, and Fill onboarding in this session opens the triage", async ({ browser }) => {
   const page = await openAs(browser, "/therapist/dashboard/sessions");
   try {
     const card = page.locator("div.rounded-xl", { hasText: MARKER }).first();
     expect(await pageUntilVisible(page, "sessions", card, { timeout: 60_000 })).toBe(true);
     await expect(card.getByText("Onboarding needed")).toBeVisible();
     await expect(card.getByRole("button", { name: "How onboarding works" })).toBeVisible();
-    await card.getByRole("link", { name: "Start onboarding" }).click();
+    await card.getByRole("link", { name: "Fill onboarding in this session" }).click();
     await expect(page.getByRole("dialog", { name: "Which condition type is this?" })).toBeVisible({
       timeout: 60_000,
     });

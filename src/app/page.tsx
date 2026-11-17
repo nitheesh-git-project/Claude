@@ -34,6 +34,7 @@ import { readPublicContact } from "@/lib/publicContact";
 import { conditionChips } from "@/lib/patientConditionLabels";
 import { RealBenefitsList, SubHeading, WhyChooseUsGrid } from "@/components/marketing/WhyChooseUs";
 import { readMissionCopy, readMissionPrinciples } from "@/lib/missionCopy";
+import { readPublicSectionVisibility } from "@/lib/publicSectionVisibilityServer";
 import Testimonials, {
   type PublicTestimonial,
 } from "@/components/marketing/Testimonials";
@@ -110,7 +111,14 @@ export default async function Home() {
 
   // The promise titles the mission band links through with. Same fallback, so
   // a database without the table shows the four this repository ships.
-  const { promises } = await readMissionPrinciples();
+  // An admin can hide What We Promise and Testimonials without deleting them
+  // (Settings -> Public Site); a hidden one is simply an empty list here,
+  // which both bands already draw as nothing.
+  const [{ promises: allPromises }, sectionsShown] = await Promise.all([
+    readMissionPrinciples(),
+    readPublicSectionVisibility(),
+  ]);
+  const promises = sectionsShown.promises ? allPromises : [];
 
   // No programme catalog on the public site. A course of treatment is a
   // clinical recommendation a therapist writes after a session they ran, so
@@ -192,10 +200,12 @@ export default async function Home() {
   // The five rows schema.sql seeds are illustrative copy, never real
   // patients, so they are not shown (testimonialTrust.ts). With only those in
   // the table the Reviews band and its rail entry are not drawn at all.
-  const testimonials: PublicTestimonial[] = publicTestimonials(testimonialRows).map((t) => ({
-    ...t,
-    avatar_url: avatarById.get(t.id) ?? null,
-  }));
+  const testimonials: PublicTestimonial[] = sectionsShown.testimonials
+    ? publicTestimonials(testimonialRows).map((t) => ({
+        ...t,
+        avatar_url: avatarById.get(t.id) ?? null,
+      }))
+    : [];
 
   // Real, aggregated patient rating data (never individual reviews/names -
   // see the schema comment on public_rating_summary for why) surfaced
@@ -275,7 +285,12 @@ export default async function Home() {
                 extracting the page's headline gets. "Or at your home" is only
                 said while a visit can actually be booked. */}
             Physiotherapy for you or your parent &ndash;{" "}
-            <span className="block bg-gradient-to-r from-teal-700 to-emerald-500 bg-clip-text text-transparent">
+            {/* bg-clip-text paints the gradient only inside the span's own
+                box, and the h1's tight leading puts the descenders of "by"
+                and "your" below it -- so they were cut off. The padding
+                gives them room and the matching negative margin keeps the
+                layout where it was. */}
+            <span className="-mb-[0.15em] block bg-gradient-to-r from-teal-700 to-emerald-500 bg-clip-text pb-[0.15em] leading-[1.12] text-transparent">
               {homeVisitEnabled ? "by video, or at your home" : "by video, wherever you are"}
             </span>
           </>

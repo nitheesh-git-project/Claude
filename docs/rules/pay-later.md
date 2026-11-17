@@ -10,6 +10,25 @@ A trusted patient treated first and settling afterwards: the grant, the booking 
 
 ---
 
+- **A trusted-patient code is the same grant, made ahead of time.** Money
+  -> Costs -> **Tap here to create a trusted-patient code** (money scope,
+  refused while `pay_later_enabled` is off) takes a name, a reason of at
+  least ten characters (the grant's own rule), an optional note, and the
+  email and/or phone it is locked to, and gives back a one-time
+  `TRUST-XXXXXX`. The patient enters it on Payments
+  (`/api/patient/redeem-trusted-code`, rate-limited per account, closed on
+  failure): only the account whose email or phone matches; never a
+  hospital-referred patient (rule 6 below); one answer for "no such code",
+  "used", "cancelled" and "not yours", so probing learns nothing. Redeeming
+  writes exactly what `set-patient-pay-later` writes -- reason ("Trusted-patient
+  code X: ..."), the admin who made the code as grantor -- plus
+  `profiles.pay_later_code_id`, which Owed by Patients shows beside the
+  balance. Profile first, code second; a code spent by someone else in
+  between puts the profile back, so a code is never spent on a grant that
+  did not happen. **It is never a discount** and moves no money.
+  `trusted_patient_codes` is append-only by trigger (active -> redeemed or
+  revoked; a redeemed one cannot be cancelled -- stop terms on the profile).
+  Guard: `e2e/trusted-codes.spec.ts`.
 - **Pay later: a trusted patient is treated first and settles afterwards.**
   `appointments.payment_terms` (`prepaid` | `pay_later`) is the new axis, and
   it exists because `payment_status = 'unpaid'` already means *"somebody

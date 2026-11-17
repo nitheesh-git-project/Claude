@@ -21,9 +21,10 @@ import type { PublicContactLinks } from "@/lib/contactLinks";
 // reads before booking. Mission and Hospitals (the latter written for a
 // different audience) go under More until 2xl.
 const PRIMARY_KEYS = new Set<MarketingPageKey>(["conditions", "how-it-works", "home-visit", "team", "faq"]);
-// Below xl (1024-1279px) the bar keeps the brand's full name, so one primary
-// link steps into More to make room; it is back in the bar from xl.
-const LAPTOP_MORE_KEYS = new Set<MarketingPageKey>(["team"]);
+// Below xl (1024-1279px) the bar keeps the brand's full name and three
+// buttons (Sign In, Get Started, Book), so two primary links step into More
+// to make room; they are back in the bar from xl.
+const LAPTOP_MORE_KEYS = new Set<MarketingPageKey>(["team", "home-visit"]);
 
 export default function Navbar({
   offsetTop = false,
@@ -129,7 +130,10 @@ export default function Navbar({
   // See isAuthCtaHiddenRoute -- on the auth pages themselves the nav shows
   // no Sign In / Get Started / Go to Dashboard at all, so signing in can't
   // flash a dashboard button before the page it belongs to has opened.
-  const authCtaHidden = isAuthCtaHiddenRoute(pathname);
+  // Hidden only for somebody signed in: a signed-out visitor on those pages
+  // (a bare /patient/register, a bookmarked /pending-approval) gets the same
+  // bar as the home page, Sign In and Get started included.
+  const authCtaHidden = isAuthCtaHiddenRoute(pathname) && signedIn === true;
   // The sign-in pages show the signed-out cluster whatever the session says,
   // so the nav looks the same as on every other public page.
   const showSignedOut = isAuthCtaSignedOutRoute(pathname) || signedIn !== true;
@@ -146,11 +150,29 @@ export default function Navbar({
         <div className="flex justify-between gap-3 h-16 items-center xl:gap-6">
           {/* Shrinks rather than shoving the menu button off a 360px phone:
               the name scales with the screen instead of being shortened. The
-              link keeps the
-              full name as its accessible name either way. */}
+              link's accessible name is that visible text -- the full name and
+              the tagline -- with no aria-label over it: WCAG 2.5.3 (label in
+              name) wants what a voice-control user sees to be what they say. */}
           <Link
             href="/"
-            aria-label={siteName}
+            // Already on the home page there is nothing to load: the logo
+            // goes back to the top instead. That includes `/?something` (a
+            // shared link, a campaign tag): the home page reads no query, and
+            // Next 16.2 never completes a navigation that only drops the
+            // query from the current path -- the tap sat behind the page
+            // loader for its full 12s give-up. A modified click (new tab)
+            // is left alone.
+            // LinkProgress listens in the capture phase, before this
+            // onClick, and would start the loader for `/?x` -> `/`.
+            data-no-loader={pathname === "/" ? "" : undefined}
+            onClick={(event) => {
+              if (pathname !== "/" || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+              event.preventDefault();
+              if (window.location.search || window.location.hash) {
+                window.history.replaceState(window.history.state, "", "/");
+              }
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
             className="flex min-w-0 shrink-0 items-center gap-2.5 group sm:gap-3"
           >
             <motion.div
@@ -168,13 +190,11 @@ export default function Navbar({
                 gaps tighten instead. */}
             <div className="min-w-0">
               <span
-                aria-hidden="true"
                 className="font-display block whitespace-nowrap text-[clamp(15px,4.2vw,18px)] font-bold leading-tight tracking-tight text-slate-800 lg:text-base xl:text-lg"
               >
                 {siteName}
               </span>
               <span
-                aria-hidden="true"
                 className="block whitespace-nowrap text-[9px] font-semibold uppercase tracking-wider text-teal-700 sm:text-[10px] sm:tracking-widest"
               >
                 {siteTagline}
@@ -262,6 +282,15 @@ export default function Navbar({
               >
                 Sign In
               </Link>
+              {/* The way in for a therapist or a hospital: Sign In above is the
+                  patient's door, and this hub holds the other two (and the
+                  patient's too). Quieter than Book, which stays the primary. */}
+              <Link
+                href="/get-started"
+                className="rounded-xl border border-teal-700/40 px-3.5 py-2 text-sm font-semibold text-teal-800 transition-colors hover:border-teal-700 hover:bg-teal-50 xl:px-4"
+              >
+                Get Started
+              </Link>
               <motion.div
                 whileHover={{ scale: 1.04 }}
                 whileTap={{ scale: 0.96 }}
@@ -293,6 +322,36 @@ export default function Navbar({
             </motion.div>
           ) : null}
 
+          {/* Tablets (640-1023px) have the room phones lack: Sign In and
+              Get Started sit in the bar, as on a laptop. Book is already
+              in the sticky bar at the foot of the screen. A phone carries
+              Get started there too (PublicBookBar). */}
+          {authCtaHidden ? null : showSignedOut ? (
+            <div className="ml-auto hidden items-center gap-1 whitespace-nowrap sm:flex lg:hidden">
+              <Link
+                href="/patient/login"
+                className="flex min-h-11 items-center px-3 text-sm font-semibold text-slate-700 hover:text-teal-700"
+              >
+                Sign In
+              </Link>
+              <Link
+                href="/get-started"
+                className="flex min-h-11 items-center gap-1.5 rounded-xl bg-teal-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-teal-800"
+              >
+                Get Started <i aria-hidden="true" className="fa-solid fa-arrow-right text-xs"></i>
+              </Link>
+            </div>
+          ) : destination ? (
+            <Link
+              href={destination.href}
+              onClick={() => setNavigating(true)}
+              aria-disabled={navigating}
+              className="ml-auto hidden min-h-11 items-center whitespace-nowrap rounded-xl bg-teal-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-teal-800 aria-disabled:pointer-events-none aria-disabled:opacity-60 sm:flex lg:hidden"
+            >
+              {navigating ? "Loading..." : destination.label}
+            </Link>
+          ) : null}
+
           <button
             onClick={() => setOpen(!open)}
             className="lg:hidden flex h-11 w-11 shrink-0 items-center justify-center text-slate-700 text-xl"
@@ -312,9 +371,9 @@ export default function Navbar({
               className="lg:hidden overflow-hidden"
             >
               {/* Every row is a 44px target (the phone menu is thumb-driven)
-                  and the one primary button is the mode-named Book, not the
-                  /get-started hub: that hub is a switchboard for clinicians
-                  and partners, now reached from the footer. */}
+                  and the one primary button is the mode-named Book. Get Started,
+                  the hub where a therapist or a hospital finds their own sign-in,
+                  sits under it as the quieter one (and in the footer too). */}
               <div className="pb-4 flex flex-col space-y-1 text-base font-medium text-slate-700">
                 {authCtaHidden ? null : (
                   <Link
@@ -324,6 +383,15 @@ export default function Navbar({
                   >
                     {BOOK_CONNECTOR.label}
                     <i aria-hidden="true" className="fa-solid fa-arrow-right text-xs"></i>
+                  </Link>
+                )}
+                {authCtaHidden || !showSignedOut ? null : (
+                  <Link
+                    href="/get-started"
+                    onClick={() => setOpen(false)}
+                    className="mb-2 flex min-h-12 items-center justify-center rounded-xl border border-teal-700/40 px-4 text-center font-semibold text-teal-800 hover:bg-teal-50"
+                  >
+                    Get Started
                   </Link>
                 )}
                 {links.map((link) => (
@@ -338,13 +406,15 @@ export default function Navbar({
                   </Link>
                 ))}
                 {authCtaHidden ? null : showSignedOut ? (
-                  <Link
-                    href="/patient/login"
-                    onClick={() => setOpen(false)}
-                    className="flex min-h-11 items-center font-semibold text-slate-800"
-                  >
-                    Sign In
-                  </Link>
+                  <div className="mt-1 border-t border-slate-100 pt-3">
+                    <Link
+                      href="/patient/login"
+                      onClick={() => setOpen(false)}
+                      className="flex min-h-11 items-center justify-center rounded-xl border border-slate-300 px-4 font-semibold text-slate-800"
+                    >
+                      Sign In
+                    </Link>
+                  </div>
                 ) : destination ? (
                   <Link
                     href={destination.href}
@@ -367,7 +437,7 @@ export default function Navbar({
                         href={contact.whatsapp}
                         target="_blank"
                         rel="noopener noreferrer"
-                        aria-label="Chat on WhatsApp (opens in a new tab)"
+                        aria-label="WhatsApp us (opens in a new tab)"
                         className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-sm font-semibold text-emerald-900"
                       >
                         <WhatsAppGlyph /> WhatsApp us

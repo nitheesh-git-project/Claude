@@ -61,12 +61,13 @@ export default function OnboardingNeededBanner({ patients }: { patients: Onboard
                 {p.nextSlot ? ` · next session ${formatClinicDateTime(p.nextSlot)}` : " · no session booked yet"}
               </span>
             </span>
-            <Link
-              href={`/therapist/dashboard/health-profile/${p.id}?start=onboarding`}
-              className="rounded-lg bg-teal-700 px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-teal-800"
-            >
-              Start onboarding
-            </Link>
+            {/* Not a button: the owner wants this read as "do it in the
+                first session", not as a task to start now. The session's
+                own card carries the way in when it is time. */}
+            <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-900">
+              <i className="fa-solid fa-calendar-check text-[10px]" aria-hidden="true" />
+              Fill in during the first session
+            </span>
           </li>
         ))}
       </ul>

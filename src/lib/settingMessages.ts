@@ -319,6 +319,30 @@ export const SETTING_MESSAGES: Record<string, SettingMessage> = {
       },
     ])
   ),
+  promises_section_visible: {
+    kind: "boolean",
+    on: "What We Promise is shown again on the home page and Our Mission.",
+    off: "What We Promise is hidden from the home page and Our Mission. The promises are kept here.",
+  },
+  limits_section_visible: {
+    kind: "boolean",
+    on: "What We Will Not Do is shown again on Our Mission.",
+    off: "What We Will Not Do is hidden from Our Mission. Its entries are kept here.",
+  },
+  testimonials_section_visible: {
+    kind: "boolean",
+    on: "Testimonials are shown again on the home page and Our Mission.",
+    off: "Testimonials are hidden from the home page and Our Mission. The stories are kept here.",
+  },
+  site_theme: {
+    kind: "text",
+    describe: (v) =>
+      v === "dark"
+        ? "The whole app is now dark for every visitor."
+        : v === "device"
+          ? "The app now follows each visitor's device: dark on a dark device, light on a light one."
+          : "The whole app is now light for every visitor.",
+  },
   dev_contact_enabled: {
     kind: "boolean",
     on: "Developer credit is now shown. The footer line and the contact pages are live.",

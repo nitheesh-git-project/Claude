@@ -157,6 +157,10 @@ test("LAYOUT: the chosen-service summary keeps its title readable on a phone", a
 
     const summary = page.getByTestId("chosen-service-summary");
     await expect(summary, `${width}px: the summary renders on step 2`).toBeVisible();
+    // Measure once the web fonts have arrived: on a cold server the title was
+    // measured in the fallback face, the display font then reflowed it a line
+    // taller, and Change (measured after) read as beside the title's old box.
+    await page.evaluate(() => document.fonts.ready.then(() => undefined));
     const box = await summary.boundingBox();
     const title = await summary.locator("h3").boundingBox();
     const change = await summary.getByRole("button", { name: "Change" }).boundingBox();

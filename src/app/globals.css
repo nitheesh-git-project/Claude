@@ -738,3 +738,20 @@ input::-ms-clear {
 @media (prefers-reduced-motion: reduce) {
   .mr-cookie, .mr-cookie-step, .mr-consent-toast { animation-duration: 0.01s; animation-delay: 0s; }
 }
+
+/* Sign-in doors (AuthSplitLayout): the photo drifts in very slowly -- 5%,
+   so it never softens -- and the form and the line over the photo rise in
+   once. Both stop for anyone who asks for less motion. */
+@keyframes auth-kenburns {
+  from { transform: scale(1); }
+  to { transform: scale(1.05); }
+}
+@keyframes auth-rise {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+.auth-photo { animation: auth-kenburns 14s ease-in-out infinite alternate; }
+.auth-rise { animation: auth-rise 0.55s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+@media (prefers-reduced-motion: reduce) {
+  .auth-photo, .auth-rise { animation: none; }
+}

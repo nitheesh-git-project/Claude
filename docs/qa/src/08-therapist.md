@@ -114,11 +114,12 @@ The therapist Overview is where a clinician starts every shift: what is on today
 11. Repeat steps 7–8 for **Specialist In** only. Leave it pending.
 12. Sign in as a full admin and open **Today → Approvals**. Decline **both** requested fields with the note `Send the council registration number first.`
 13. Sign back in as the therapist and reopen **Edit Profile**.
-14. Under **Account Security**, tap **Send password reset email**.
+14. Under **Account Security**, tap **Email me a reset link** (the **Change password** form above it is covered by `PW-001`: it needs the current password).
 
 **Expected Result.**
-* **Public Details save instantly.** The button reads `Saving...` then `Save`; the values survive the reload at step 5. No admin sees anything.
-* **The bio keeps its formatting everywhere.** The grey saved view, the admin's therapist page and the `/team` popup all show the same two paragraphs with `posture-driven` in bold - never one run-on line. **Cancel** with unsaved changes asks before discarding them.
+* **Languages save instantly.** The button reads `Saving...` then `Save`; the value survives the reload at step 5.
+* **The bio waits for approval.** Its section says the therapist writes it and that it appears on the Our Team page once the clinic approves it. After Save it shows as typed with an amber `Waiting for the clinic's approval` note, and `/team` still shows the previous bio until an admin approves it under **Today → Approvals** (`Bio (Our Team page)`).
+* **The bio keeps its formatting everywhere.** Once approved, the grey saved view, the admin's therapist page and the `/team` popup all show the same two paragraphs with `posture-driven` in bold - never one run-on line. **Cancel** with unsaved changes asks before discarding them.
 * **Credentials do not.** Step 8 shows `Your request has been submitted for admin review.` Each requested field is replaced by its **new** value on a slate panel with an amber `Pending Review` chip and a **Withdraw** link, and **cannot be edited again** until the request is decided. The live public profile still shows the **old** value - `/team` and the patient's therapist card must not change yet.
 * Step 10's **Withdraw** returns the field to an editable control immediately, with the old value.
 * **Specialist In is a dropdown of the eight the clinic recognises.** A therapist whose stored value is free text written before this list existed is offered that value as a ninth option and it is **preselected** - the screen must never show a different specialisation from the one in the database because the stored one had no matching option.
@@ -359,12 +360,12 @@ A second attempt returns `This visit's payment has already been recorded.`
 1. Open `/therapist/dashboard` (Home).
 2. Open **Sessions** and find Patient A's session card.
 3. Tap **How onboarding works** (on the banner or the card) and step through it with **Next**.
-4. Tap **Start onboarding** on the card.
+4. Tap **Fill onboarding in this session** on the card.
 5. Fill and save the first record (THR-HP-001/002), then reopen Home and Sessions.
 
 **Expected Result**
-* Step 1: an amber banner above the greeting - `<Patient> needs onboarding` (or `N patients need onboarding`), each row with the next session's date and time and **Start onboarding**, and **How onboarding works**. More than three patients: three by name and `And N more - see them on Health Profiles.` The Home feed row `Onboarding needed - <Patient>` is still there too.
-* Step 2: the card carries an amber strip - **Onboarding needed**, `<First name>'s Health Profile is locked until you fill it - do it with them in this session.`, **Start onboarding** and **How onboarding works**. A cancelled session's card has no strip.
+* Step 1: an amber banner above the greeting - `<Patient> needs onboarding` (or `N patients need onboarding`), each row with the next session's date and time and the note **Fill in during the first session** (no button), and **How onboarding works**. More than three patients: three by name and `And N more - see them on Health Profiles.` The Home feed row `Onboarding needed - <Patient>` is still there too.
+* Step 2: the card carries an amber strip - **Onboarding needed**, `<First name>'s Health Profile is locked until you fill it - do it with them in this session.`, **Fill onboarding in this session**, **Health Profile** and **How onboarding works**. A cancelled session's card has no strip.
 * Step 3: an eight-step guide with dummy data, not part of the first-visit tour: *What onboarding is*, *Before the session*, *Step 1 - four questions decide the condition type* (it plays three dummy patients, one landing on each of Orthopaedic, Neurological and Paediatric with the reason), *Orthopaedic*, *Neurological* and *Paediatric* (each walks that type's real questions with the help line to read aloud, required ones marked), *Save - it's live straight away*, and *If the case turns out to be something else*.
 * Step 4: the patient's Health Profile opens with **Which condition type is this?** already open, and the address bar no longer carries `?start=onboarding` (a reload does not reopen it).
 * Step 5: the banner row and the card strip are gone.

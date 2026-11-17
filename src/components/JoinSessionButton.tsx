@@ -5,6 +5,33 @@ import { debugNow } from "@/lib/debugNow";
 import { useJoinWindow } from "@/lib/joinWindowContext";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 import { formatClinicDate, formatClinicDateShort, formatClinicTime } from "@/lib/formatDateTime";
+import { createClient } from "@/lib/supabase/client";
+import { useToast } from "@/lib/toast";
+
+/**
+ * The signed-in person's name, as this app has it. Google Meet gives no
+ * supported way to pre-fill a guest's name from a link -- somebody not
+ * signed in to Google always meets Meet's own "What's your name?" box -- so
+ * Join copies this to the clipboard and says so, and the box is one paste.
+ */
+function useJoinName(): string | null {
+  const [name, setName] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    const supabase = createClient();
+    void (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user || !active) return;
+      const { data } = await supabase.from("profiles").select("full_name").eq("id", session.user.id).maybeSingle();
+      const full = typeof data?.full_name === "string" ? data.full_name.trim() : "";
+      if (active && full) setName(full);
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+  return name;
+}
 
 export default function JoinSessionButton({
   meetLink,
@@ -42,6 +69,22 @@ export default function JoinSessionButton({
   alwaysActive?: boolean;
 }) {
   const { beforeMinutes, afterMinutes, completedAfterMinutes } = useJoinWindow();
+  const joinName = useJoinName();
+  const { show } = useToast();
+
+  // Opened first and synchronously, so no pop-up blocker sees it as
+  // unprompted; the copy follows.
+  function openMeet(link: string) {
+    window.open(link, "_blank", "noopener,noreferrer");
+    if (!joinName || !navigator.clipboard?.writeText) return;
+    navigator.clipboard.writeText(joinName).then(
+      () => show(`"${joinName}" is copied. If Google Meet asks your name, paste it.`),
+      () => {}
+    );
+  }
+  const nameLine = joinName
+    ? `If Google Meet asks your name, paste it - we copy "${joinName}" when you join.`
+    : "Sign in to Google if asked.";
   const beforeMs = beforeMinutes * 60 * 1000;
   const afterMs = afterMinutes * 60 * 1000;
   const completedAfterMs = completedAfterMinutes * 60 * 1000;
@@ -186,7 +229,7 @@ export default function JoinSessionButton({
         <button
           type="button"
           data-testid="join-hero"
-          onClick={() => window.open(meetLink, "_blank", "noopener,noreferrer")}
+          onClick={() => openMeet(meetLink)}
           className="flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 text-lg font-bold text-white transition hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
         >
           <i className="fa-solid fa-video" aria-hidden="true" />
@@ -195,8 +238,8 @@ export default function JoinSessionButton({
         {heroDetail && (
           <span className="mt-2 block text-center text-base font-semibold text-slate-700">{heroDetail}</span>
         )}
-        <span className="mt-1 block text-center text-sm text-slate-600">
-          Opens straight into the call - sign in to Google if asked.
+        <span className="mt-1 block text-center text-sm text-slate-600" data-testid="join-name-hint">
+          Opens straight into the call. {nameLine}
         </span>
       </span>
     );
@@ -266,7 +309,7 @@ export default function JoinSessionButton({
   const caption = alwaysActive || cancelled || completed
     ? null
     : isJoinable
-      ? "Opens straight into the call - sign in to Google if asked."
+      ? `Opens straight into the call. ${nameLine}`
       : beforeMinutes > 0
         ? `Opens at ${opensAt} - ${beforeMinutes} minutes before the session.`
         : `Opens at ${opensAt}, the session time.`;
@@ -276,7 +319,7 @@ export default function JoinSessionButton({
       <button
         type="button"
         disabled={disabled}
-        onClick={() => window.open(meetLink, "_blank", "noopener,noreferrer")}
+        onClick={() => openMeet(meetLink)}
         className={
           large
             ? "min-h-12 bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white text-base font-semibold px-5 py-2.5 rounded-lg transition"

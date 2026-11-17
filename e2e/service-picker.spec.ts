@@ -493,4 +493,45 @@ test.describe("Public booking service picker", () => {
       await adminContext.close();
     }
   });
+
+  test("SP-013: Default on booking asks before it changes anything", async ({ browser }) => {
+    test.setTimeout(150_000);
+    // A stray tap on the switch changed what every booking page opens on, at
+    // once. It now asks; No leaves the database exactly as it was.
+    const db = adminClient();
+    const before = await db.from("treatment_categories").select("id").eq("is_default", true);
+    const previous = (before.data?.[0]?.id as string | undefined) ?? null;
+    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    await ctx.addCookies(await browserCookiesFor(QA_EMAILS.admin));
+    const page = await ctx.newPage();
+    try {
+      await page.goto(`${BASE}/admin/dashboard?section=catalog&tab=conditions`);
+      const off = page.getByTestId("default-on-booking").filter({ visible: true }).and(page.locator('[aria-checked="false"]:not([disabled])')).first();
+      await expect(off).toBeVisible({ timeout: 60_000 });
+      await off.click();
+      const ask = page.getByRole("alertdialog");
+      await expect(ask).toContainText("the default on booking");
+      await ask.getByRole("button", { name: "Keep as it is" }).click();
+      await expect(ask).toHaveCount(0);
+      await page.waitForTimeout(1_000);
+      const unchanged = await db.from("treatment_categories").select("id").eq("is_default", true);
+      expect(unchanged.data?.[0]?.id ?? null).toBe(previous);
+
+      await off.click();
+      await page.getByRole("alertdialog").getByRole("button", { name: "Make it the default" }).click();
+      // Moves to the service tapped, and stays one at a time.
+      await expect
+        .poll(
+          async () => {
+            const rows = (await db.from("treatment_categories").select("id").eq("is_default", true)).data ?? [];
+            return rows.length === 1 && rows[0].id !== previous;
+          },
+          { timeout: 15_000 }
+        )
+        .toBe(true);
+    } finally {
+      await ctx.request.post(`${BASE}/api/admin/set-default-treatment-category`, { data: { id: previous } });
+      await ctx.close();
+    }
+  });
 });

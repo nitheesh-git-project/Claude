@@ -71,6 +71,13 @@ export default async function TherapistProfilePage() {
   // send the same change twice. See ProfileLoadFailed.
   const profileUnreadable = !!profileError || !!changeRequestsError;
 
+  // The bio waits for the clinic (update-bio files a change request): the
+  // newest request that touched it says whether one is pending or was
+  // turned down. An approved one is simply the live bio.
+  const bioRequest = (changeRequests ?? []).find((r) =>
+    Object.prototype.hasOwnProperty.call((r.changes ?? {}) as object, "bio")
+  );
+
   // The eight the clinic recognises, plus whatever this therapist already
   // has if it is not one of them. Without that second half a legacy
   // free-text value would have no matching <option>, the browser would show
@@ -135,13 +142,34 @@ export default async function TherapistProfilePage() {
           }}
         />
         <div className="mt-5 pt-5 border-t border-slate-100">
-          <h3 className="text-xs font-semibold text-slate-800 mb-1">Bio</h3>
+          <h3 className="text-xs font-semibold text-slate-800 mb-1">Your bio</h3>
           <p className="text-[11px] text-slate-500 mb-2">
-            Shown to patients on your profile on the Our Team page.
+            Write it yourself: a few lines on your experience, what you treat and how you work.
+            Once the clinic approves it, it appears on your profile on the public Our Team page.
           </p>
+          {bioRequest?.status === "pending" && (
+            <p
+              data-testid="therapist-bio-pending"
+              className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900"
+            >
+              <i className="fa-solid fa-hourglass-half mr-1.5" aria-hidden="true" />
+              Waiting for the clinic&apos;s approval. Until then the Our Team page shows{" "}
+              {profile?.bio ? "your previous bio" : "no bio"}.
+            </p>
+          )}
+          {bioRequest?.status === "declined" && (
+            <p className="mb-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[11px] text-red-800">
+              Your last bio wasn&apos;t approved
+              {bioRequest.admin_notes ? `: ${bioRequest.admin_notes}` : "."} Edit it and save to send it again.
+            </p>
+          )}
           <RichTextField
             label="Bio"
-            storedValue={profile?.bio ?? null}
+            storedValue={
+              bioRequest?.status === "pending"
+                ? ((bioRequest.changes as Record<string, string | null>).bio ?? null)
+                : profile?.bio ?? null
+            }
             endpoint="/api/therapist/update-bio"
             body={{}}
             emptyText="No bio yet. Tell patients about your experience and how you work."
