@@ -43,7 +43,7 @@
     "google-auth-library": "10.5.0",
     "googleapis": "^174.0.0",
     "libphonenumber-js": "^1.13.16",
-    "motion": "^13.5.1",
+    "motion": "^14.14.0",
     "next": "16.4.6",
     "pdf-lib": "^1.17.1",
     "razorpay": "^2.9.8",
