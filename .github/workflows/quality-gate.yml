@@ -59,7 +59,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  NODE_VERSION: "22"
+  NODE_VERSION: "24"
   SUPABASE_CLI_VERSION: "2.54.11"
   NEXT_TELEMETRY_DISABLED: "1"
   # Any "G-..." value: the analytics-consent spec stubs Google, so nothing

@@ -50,7 +50,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
       # Checked here rather than left to the script, because the script's own
       # error names .env.local -- correct on a laptop, meaningless on a

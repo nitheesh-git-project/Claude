@@ -71,7 +71,7 @@ Recovery is won by turning up. MoveRestore keeps a patient with **the same physi
 
 ## Quick start
 
-**Requirements:** Node.js 20+, a Supabase project, Razorpay **test** keys, and (optionally) Google Calendar OAuth credentials for Meet links.
+**Requirements:** Node.js 24 (the LTS that CI and production run), a Supabase project, Razorpay **test** keys, and (optionally) Google Calendar OAuth credentials for Meet links.
 
 ```bash
 npm install

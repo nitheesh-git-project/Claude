@@ -24,7 +24,7 @@ function adminRoutePaths(): string[] {
   return readdirSync(ADMIN_ROUTES_DIR, { withFileTypes: true, recursive: true })
     .filter((e) => e.isFile() && e.name === "route.ts")
     .map((e) => {
-      const rel = path.relative(ADMIN_ROUTES_DIR, path.join(e.parentPath ?? e.path, e.name));
+      const rel = path.relative(ADMIN_ROUTES_DIR, path.join(e.parentPath, e.name));
       return `/api/admin/${path.dirname(rel)}`;
     })
     .sort();
