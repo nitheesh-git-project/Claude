@@ -169,7 +169,7 @@ function privacy(ctx: LegalContext, f: LegalFacts): LegalDoc {
               ["Razorpay", "Taking payments and refunds"],
               ["Google", "Calendar invites and Meet links for video sessions; website analytics only with your consent"],
               ["Resend", "Sending emails about your bookings, cancellations and refunds, and about your requests and complaints"],
-              ["WhatsApp (Meta)", "Only when you choose to message us there"],
+              ["WhatsApp (Meta)", "When you choose to message us there, and messages about your sessions if you say yes to them on your profile"],
             ],
           } },
           "We disclose data to authorities only when the law requires it.",

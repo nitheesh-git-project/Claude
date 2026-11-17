@@ -345,6 +345,19 @@
       "integration": "local",
       "destructive": false
     },
+    "whatsapp.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "admin-settings-ia.spec.ts": {
       "runner": "admin",
       "levels": [
@@ -3303,6 +3316,29 @@
         }
       ],
       "limitation": "Never sends a real email: every address in the spec is a test address, which the rules refuse. The delivery decision itself (redirects, the unreadable fallback, legal versus the master switch) is unit-tested in src/lib/emailControls.test.ts.",
+      "rules": [
+        "docs/rules/admin.md"
+      ]
+    },
+    {
+      "id": "admin.whatsapp",
+      "runner": "admin",
+      "title": "WhatsApp, built and switched off: a patient's append-only yes/no (yes needs a number), the webhook's verify token and HMAC signature, a STOP reply withdrawing consent, Settings -> WhatsApp starting off and saving its switches, and an account deletion taking the consent rows",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "whatsapp.spec.ts",
+          "tests": [
+            "WA-001",
+            "WA-002",
+            "WA-003",
+            "WA-004"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "Never reaches Meta: the gate sets the webhook's values but not WHATSAPP_ACCESS_TOKEN, and the fixtures are test accounts. Who is messaged and when (consent, test accounts, switches, test mode) and the template wording are unit-tested in src/lib/whatsappRules.test.ts.",
       "rules": [
         "docs/rules/admin.md"
       ]

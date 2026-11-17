@@ -57,7 +57,9 @@ off), so testing never emails a real person. Test addresses such as
 `@example.test` are never mailed on either. The email package's tables
 (`email_controls`, `email_log`, `appointment_emails`) can also be applied on
 their own with `scripts/email-package-2026-11.sql`, the same statements as the
-end of `schema.sql`, short enough for the SQL editor.
+end of `schema.sql`, short enough for the SQL editor. WhatsApp's tables are in
+`scripts/whatsapp-2026-11.sql` the same way; WhatsApp starts switched off and
+sends nothing until the steps in `docs/whatsapp/TEMPLATES.md` are done.
 
 ## A new Supabase project needs table grants, which the schema does not carry
 

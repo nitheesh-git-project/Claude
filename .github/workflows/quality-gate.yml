@@ -79,6 +79,12 @@ env:
   # password above: it guards only this run's loopback app, and the
   # maintenance.yml schedule's real secret is never involved.
   CRON_SECRET: "Gate-${{ github.run_id }}-${{ github.run_attempt }}-cron"
+  # The two webhook values /api/whatsapp/webhook checks (Meta's verify token
+  # and app secret), for the app and e2e/whatsapp.spec.ts alike. Generated per
+  # run; no real Meta app is involved. WHATSAPP_ACCESS_TOKEN is deliberately
+  # NOT set, so the gate's app has WhatsApp "not set up" and sends nothing.
+  WHATSAPP_APP_SECRET: "Gate-${{ github.run_id }}-${{ github.run_attempt }}-wa"
+  WHATSAPP_VERIFY_TOKEN: "Gate-${{ github.run_id }}-${{ github.run_attempt }}-wa-verify"
 
 jobs:
   context-budget:

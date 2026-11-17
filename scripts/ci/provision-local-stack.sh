@@ -99,13 +99,40 @@ start_once() {
   return "${PIPESTATUS[0]}"
 }
 
+# The stack listens on 54320-54324 (supabase/config.toml), which sits inside
+# Linux's ephemeral port range (32768-60999): the ports the kernel hands out
+# for OUTGOING connections. This start runs in the background while npm ci,
+# the image pulls and the caches open hundreds of those, so now and then one
+# of them is given 54322 first and Docker cannot bind the database ("address
+# already in use") -- three runner jobs on 2026-11-17 alone, each a red job
+# with no test run. Reserving the block takes it out of the kernel's choice
+# for outgoing connections (an explicit bind, like Docker's, still works).
+# Best effort: without passwordless sudo (a developer's machine) it skips.
+STACK_PORTS="54320-54329"
+reserve_stack_ports() {
+  sudo -n sysctl -q -w "net.ipv4.ip_local_reserved_ports=$STACK_PORTS" > /dev/null 2>&1 || true
+}
+
+# Before the retry: a connection already holding the port when it was
+# reserved keeps it until it closes, so wait (up to 60s) for the database
+# port to be free rather than retrying straight into the same collision.
+wait_for_db_port() {
+  local waited=0
+  while command -v ss > /dev/null 2>&1 && ss -Htan "sport = :54322" 2>/dev/null | grep -q . && [ "$waited" -lt 60 ]; do
+    sleep 2
+    waited=$((waited + 2))
+  done
+}
+
 # One retry, from nothing: Docker has failed to bind a container's port on
 # a fresh runner, and a half-started stack does not recover by itself.
 start_stack() {
+  reserve_stack_ports
   prepull
   if start_once; then return 0; fi
   echo "::warning title=supabase start failed::stopping what started and trying once more"
   supabase stop --no-backup > /dev/null 2>&1 || true
+  wait_for_db_port
   start_once
 }
 

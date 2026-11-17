@@ -4,7 +4,7 @@
 // Both used to be printed into a plain <p>, so every Enter collapsed into one
 // long line on the live page. Rules: src/lib/richText.ts.
 import { test, expect, type Page } from "@playwright/test";
-import { BASE, QA_EMAILS, adminClient, browserCookiesFor, cookieHeaderFor, profileIdFor } from "./helpers";
+import { BASE, QA_EMAILS, adminClient, browserCookiesFor, cookieHeaderFor, profileIdFor, waitForSplashToClear } from "./helpers";
 
 async function clearAndFocus(page: Page, testId: string) {
   const editor = page.getByTestId(testId);
@@ -77,9 +77,14 @@ test.describe("Formatted therapist profile copy", () => {
       const visitor = await browser.newContext();
       const pub = await visitor.newPage();
       await pub.goto(`${BASE}/team`);
-      await pub.getByRole("button", { name: new RegExp(before!.full_name!) }).first().click();
-      const note = pub.getByTestId("team-display-note");
-      await expect(note).toBeVisible({ timeout: 30_000 });
+      await waitForSplashToClear(pub);
+      // Click until the popup opens: a click before the card has hydrated is
+      // dropped (CI admin-6of6 on PR #133), and opening it twice is harmless.
+      const note = pub.getByTestId("team-display-note").filter({ visible: true });
+      await expect(async () => {
+        await pub.getByRole("button", { name: new RegExp(before!.full_name!) }).first().click();
+        await expect(note).toBeVisible({ timeout: 3_000 });
+      }).toPass({ timeout: 30_000 });
       await expect(note.locator("strong")).toHaveText("Back pain specialist");
       await expect(note.locator(":scope > p")).toHaveCount(2);
       await expect(note.locator("li")).toHaveCount(2);

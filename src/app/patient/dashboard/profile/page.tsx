@@ -11,6 +11,7 @@ import { loadPatientDashboard } from "@/lib/patientDashboardData";
 import { computeFieldStatus } from "@/lib/computeFieldStatus";
 import { LANGUAGE_OPTIONS } from "@/lib/languageOptions";
 import YourDataSection from "@/components/profile/YourDataSection";
+import WhatsAppConsentSection from "@/components/profile/WhatsAppConsentSection";
 import MyAddresses from "@/components/profile/MyAddresses";
 
 export const metadata: Metadata = {
@@ -169,6 +170,9 @@ export default async function PatientProfilePage() {
           <MyAddresses addresses={savedAddresses ?? []} />
         )}
       </div>
+
+      {/* Only once WhatsApp is set up on the server (whatsappServer.ts). */}
+      <WhatsAppConsentSection userId={user.id} phone={profile?.phone ?? null} />
 
       <YourDataSection userId={user.id} role="patient" />
 
