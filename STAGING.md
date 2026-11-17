@@ -46,6 +46,16 @@ that project's own `SUPABASE_ACCESS_TOKEN` and `NEXT_PUBLIC_SUPABASE_URL`, and
 a trigger naming it. That is a credentials decision rather than a code one, so
 it is left to a person; the manual step is the honest default until then.
 
+## Emails on staging go to one inbox
+
+Staging and production are separate databases, so each has its own
+**Settings -> Emails** switches (`email_controls`). The schema creates them
+"on, no test inbox" -- right for production, where complaint and deletion
+receipts must go out. **After applying the schema to staging, open Settings
+-> Emails there and set Test mode to your own inbox** (or switch Send emails
+off), so testing never emails a real person. Test addresses such as
+`@example.test` are never mailed on either.
+
 ## A new Supabase project needs table grants, which the schema does not carry
 
 Applying `supabase/schema.sql` to a fresh project (staging or production) is

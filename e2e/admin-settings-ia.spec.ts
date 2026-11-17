@@ -100,6 +100,7 @@ test.describe("CFG -- Settings information architecture", () => {
       "User Access",
       "Sign-in & Security",
       "System Health",
+      "Emails",
       "Advanced",
       "Developer messages",
     ]) {

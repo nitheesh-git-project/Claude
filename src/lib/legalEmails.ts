@@ -165,3 +165,24 @@ export function officerAlertEmail(
   ], "Sent to the Grievance Officer.");
   return { subject, text, html };
 }
+
+// --- Settings -> Emails ------------------------------------------------------
+
+/** "Send me a test email": proves the sender, the domain and the inbox work,
+ *  in the same layout as every real email. Carries no personal data. */
+export function testEmail(brand: EmailBrand): Email {
+  const subject = `Test email from ${brand.siteName}`;
+  const text =
+    `This is a test from Settings -> Emails on ${brand.siteUrl}.\n\n` +
+    `If you can read this, the clinic's emails are reaching this inbox. Check it did not land in spam.\n\n${brand.siteName}`;
+  const html = layout(
+    brand,
+    "Your emails are working",
+    [
+      `This is a test from <strong>Settings &rarr; Emails</strong> on ${escapeHtml(brand.siteUrl)}.`,
+      "If you can read this, the clinic's emails are reaching this inbox. Check it did not land in spam.",
+    ],
+    "You are receiving this because you pressed \"Send me a test email\"."
+  );
+  return { subject, text, html };
+}

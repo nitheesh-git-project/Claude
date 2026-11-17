@@ -61,8 +61,8 @@ export async function POST(request: NextRequest) {
       const { brand, officerEmail } = await legalEmailContext(request);
       const v = checked.value;
       await Promise.allSettled([
-        sendEmail(v.email, grievanceReceivedEmail(brand, { name: v.name, reference, category: v.category }), { replyTo: officerEmail }),
-        sendEmail(officerEmail, officerAlertEmail(brand, { kind: "grievance", reference, name: v.name, email: v.email, category: v.category, message: v.message }), { replyTo: v.email }),
+        sendEmail(v.email, grievanceReceivedEmail(brand, { name: v.name, reference, category: v.category }), { kind: "legal", replyTo: officerEmail }),
+        sendEmail(officerEmail, officerAlertEmail(brand, { kind: "grievance", reference, name: v.name, email: v.email, category: v.category, message: v.message }), { kind: "legal", replyTo: v.email }),
       ]);
       return NextResponse.json({ reference });
     }

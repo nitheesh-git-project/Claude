@@ -332,6 +332,19 @@
       "integration": "local",
       "destructive": false
     },
+    "admin-email-controls.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "admin-settings-ia.spec.ts": {
       "runner": "admin",
       "levels": [
@@ -3269,6 +3282,29 @@
       "rules": [
         "docs/rules/admin.md",
         "docs/rules/ops-security.md"
+      ]
+    },
+    {
+      "id": "admin.email-controls",
+      "runner": "admin",
+      "title": "Settings -> Emails: the master switch, test mode (every email to one inbox), the per-kind switches with a warning before the legal receipts stop, Send me a test email to the admin's own address, and the send log; a test address is never mailed",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "admin-email-controls.spec.ts",
+          "tests": [
+            "EML-001",
+            "EML-002",
+            "EML-003",
+            "EML-004"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "Never sends a real email: every address in the spec is a test address, which the rules refuse. The delivery decision itself (redirects, the unreadable fallback, legal versus the master switch) is unit-tested in src/lib/emailControls.test.ts.",
+      "rules": [
+        "docs/rules/admin.md"
       ]
     },
     {

@@ -147,7 +147,7 @@ Where a case below still says "Settings → Booking Rules", that is correct - it
 
 #### `ADM-SET-009` - Every Settings screen says what it is · P2
 
-**Steps.** Open each of the eleven Settings screens in turn, in sidebar order and under their four captions - *Your website:* Brand & Contact, Public Site; *How the clinic runs:* Booking Rules, Offers & Discounts, Programmes & Home Visits, Clinical Questions; *Who gets in:* User Access, Sign-in & Security; *Technical:* System Health, Advanced, Developer messages. Then open both Logs screens: All Activity and Archive & Clear.
+**Steps.** Open each of the Settings screens in turn, in sidebar order and under their four captions - *Your website:* Brand & Contact, Public Site, Cookie consent; *How the clinic runs:* Booking Rules, Offers & Discounts, Programmes & Home Visits, Clinical Questions, Health Profile layout, Announcements; *Who gets in:* User Access, Sign-in & Security; *Technical:* System Health, Emails, Advanced, Developer messages. Then open both Logs screens: All Activity and Archive & Clear.
 
 **Expected Result.** Under the page heading, each one shows **two lines**: one plain sentence saying what the screen is, and a second beginning **"For example:"** with one concrete thing you would come there to do. The sentences differ per screen - none of them says "How the product behaves", which is the section's line and is what every one of these screens used to show. No jargon, no database column names, no feature names.
 
@@ -748,6 +748,23 @@ The Logs section is **Master Admin only**. Operations, Finance and Clinical have
 * Step 2: each lands on a screen their scope can open - never a heading over nothing, and never the log.
 * Step 3: Settings has **eleven** screens under four captions, and Activity Log is **not** among them; it moved to the Logs section, which is the whole of it in one place.
 * Step 4: the matrix carries a **Logs** group with a read row and a clear row, ticked for Master Admin and blank for the other three - derived from the same module the routes enforce with, so it cannot claim access nobody has.
+
+#### `ADM-SET-039` - Emails: switches, test mode, test email and the log · P0 **[UI] [API]**
+**Preconditions.** Master Admin. Resend set up on the server (`RESEND_API_KEY`, `EMAIL_FROM`) for step 5; the rest works without it.
+**Steps.**
+1. Open **Settings → Emails** (`?section=settings&tab=emails`). Switch **Send emails** off.
+2. As a patient with a real inbox, file a complaint on `/grievances`. Then submit one from a QA account (`@example.test`).
+3. Back on Emails, set **Test inbox** to your own address and save. File another complaint from the real patient.
+4. Switch **Complaints and data requests** off; read the warning; choose **Keep sending**.
+5. Press **Send me a test email**. Turn test mode off and **Send emails** back on.
+6. Post `{ testInbox: "x@example.test" }` to `/api/admin/email/settings`; post anything to both email routes as a patient.
+**Expected Result.**
+* Step 1: the line under the switch says nothing is sent except complaint and data-request receipts and your test email.
+* Step 2: the real patient still gets the receipt (legal emails are not stopped by the main switch). The QA account's row in **Last 100 emails** reads *Not sent · Test address - never sent*; the recipient is masked (`qa***@example.test`).
+* Step 3: the receipt arrives in **your** inbox with *[Test, for ...]* and the patient's address in the subject; the row says *test inbox*.
+* Step 4: a confirm naming the legal duty; nothing changes on *Keep sending*.
+* Step 5: the test email arrives (check spam); the result line says where it went. Without Resend set up it says *Email isn't set up on this server*.
+* Step 6: 400 *never receives mail*; 403 for the patient. Each change is an `email_controls.set` row in the log with from and to.
 
 #### `ADM-SET-038` - Developer messages · P1
 **Feature.** The developer credit under the footer's copyright ("Contact me") leads to `/developer` and `/developer/lets-talk`. Whatever a visitor sends lands on **Settings → Developer messages**, which is **Master Admin only** and also holds the two switches that publish the page. See `PUB-DEV-001` for the visitor's side.

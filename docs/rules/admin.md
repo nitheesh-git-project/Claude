@@ -1238,3 +1238,27 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   moment the case closes. The log records whether the email was `sent`,
   `skipped` or `failed`, never its text.
 
+- **Every email goes through Settings -> Emails, and a test address is never
+  mailed.** `sendEmail(to, email, { kind })` (`emailServer.ts`) asks
+  `decideDelivery()` (`src/lib/emailControls.ts`, pure and unit-tested)
+  before every send, in this order: a test address (`example.test`,
+  `example.com/.net/.org`, `.invalid`, `.localhost`...) is skipped whatever
+  is set, because the QA accounts use them and bounces hurt the domain;
+  "Send me a test email" ignores the switches but not that rule; a **legal**
+  email (complaint and data-request receipts) is a duty with a deadline, so
+  the master switch does not stop it -- only its own switch, which asks
+  first; a kind switched off, or the master switch off, skips the rest; test
+  mode sends everything to one inbox with the real recipient in the subject.
+  An unreadable switch sends a legal email and skips anything else. Every
+  attempt is a row in `email_log` (kind, a **masked** recipient, subject,
+  sent/skipped/failed and why), shown as the last 100 on the screen. The
+  switches are the single-row `email_controls` table, read on its own and
+  never through `SITE_SETTINGS_SELECT`, so a database without it only
+  affects email and falls back to "on, no test inbox". Routes:
+  `POST /api/admin/email/settings` (one change per call) and
+  `POST /api/admin/email/test` (to the signed-in admin's own address, from
+  the session), both `requireAdminScope("settings")`, audited as
+  `email_controls.set` / `email.test_send`. A new kind of email joins
+  `EMAIL_KINDS` with its own switch. Tests: `emailControls.test.ts`;
+  `e2e/admin-email-controls.spec.ts`.
+
