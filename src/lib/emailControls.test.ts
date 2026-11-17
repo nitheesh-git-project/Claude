@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_EMAIL_CONTROLS,
@@ -115,5 +116,15 @@ describe("applyKindSwitch", () => {
     expect(applyKindSwitch([], "legal", false)).toEqual(["legal"]);
     expect(applyKindSwitch(["legal"], "legal", false)).toEqual(["legal"]);
     expect(applyKindSwitch(["legal"], "legal", true)).toEqual([]);
+  });
+});
+
+describe("the test email button", () => {
+  it("goes to the test inbox when test mode is on, never to an address from the request", () => {
+    const route = readFileSync("src/app/api/admin/email/test/route.ts", "utf8");
+    expect(route).toContain("controls.controls.testInbox");
+    expect(route).toContain("const to = testInbox ?? adminUser.email;");
+    // The request body is parsed (so a malformed one is a 400) and ignored.
+    expect(route).not.toMatch(/body\.(to|email|address)/);
   });
 });

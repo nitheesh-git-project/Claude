@@ -763,7 +763,7 @@ The Logs section is **Master Admin only**. Operations, Finance and Clinical have
 * Step 2: the real patient still gets the receipt (legal emails are not stopped by the main switch). The QA account's row in **Last 100 emails** reads *Not sent · Test address - never sent*; the recipient is masked (`qa***@example.test`).
 * Step 3: the receipt arrives in **your** inbox with *[Test, for ...]* and the patient's address in the subject; the row says *test inbox*.
 * Step 4: a confirm naming the legal duty; nothing changes on *Keep sending*.
-* Step 5: the test email arrives (check spam); the result line says where it went. Without Resend set up it says *Email isn't set up on this server*.
+* Step 5: the test email arrives (check spam), in the **test inbox** while test mode is on and otherwise at your own address; the result line says where it went. Without Resend set up it says *Email isn't set up on this server*.
 * Step 6: 400 *never receives mail*; 403 for the patient. Each change is an `email_controls.set` row in the log with from and to.
 
 #### `ADM-SET-040` - Booking and cancellation emails · P1 **[UI]**
