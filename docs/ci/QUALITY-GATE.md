@@ -146,7 +146,12 @@ admin runner's tests 32. Now:
 - **Warm-up**: once `next dev` answers, the runner requests the main public,
   login and dashboard pages once, in parallel (at most
   `GATE_WARMUP_SECONDS`, default 90), so their first compile is not charged
-  to a spec's timeout. It never fails the runner.
+  to a spec's timeout. It never fails the runner. The list is `WARMUP_PATHS`
+  in `scripts/ci/run-runner.mjs`, and **a new public page a spec visits joins
+  it**: a route compiled for the first time while a test is typing makes
+  `next dev` rebuild and reload the page under it, and the typed fields come
+  back empty (DR-004 on `/grievances`: the trace shows "[Fast Refresh]
+  rebuilding" and a second "HMR connected" between the fills).
 - **Concurrency**: 19 runner jobs plus `verify` fit GitHub's 20. That is
   also why `ci.yml` no longer runs on pull requests.
 
