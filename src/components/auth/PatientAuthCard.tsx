@@ -70,7 +70,6 @@ export default function PatientAuthCard({
     // (not router.push) so the fresh cookies set by signInWithPassword are
     // guaranteed to be sent with the very next request to the proxy - a
     // client-side soft nav can race the cookie write.
-    // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- a full load on purpose: the auth cookies just changed
     window.location.href = "/patient/dashboard";
   }
 
@@ -176,7 +175,6 @@ export default function PatientAuthCard({
     // unapproved and the proxy would bounce them to /pending-approval
     // anyway, so send them there directly. Left in the loading state
     // deliberately -- see handleLogin's comment.
-    // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- a full load on purpose: the auth cookies just changed
     window.location.href = "/pending-approval";
   }
 

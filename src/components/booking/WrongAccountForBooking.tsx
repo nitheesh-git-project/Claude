@@ -94,7 +94,6 @@ export default function WrongAccountForBooking({
     // A hard navigation so the browser sends a fresh request guaranteed to
     // carry the now-cleared auth cookies -- the same reasoning as
     // DashboardShell's own sign-out.
-    // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- a full load on purpose: the auth cookies just changed
     window.location.href = "/book";
   }
 

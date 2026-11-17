@@ -387,7 +387,6 @@ export default function AdminShell({
     // carry the now-cleared auth cookies -- see SignOutButton for the same
     // reasoning, duplicated here since this sign-out control needs the
     // sidebar's dark styling rather than that component's light one.
-    // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- a full load on purpose: the auth cookies just changed
     window.location.href = "/?farewell=1";
   }
 

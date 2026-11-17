@@ -13,7 +13,6 @@ export default function SignOutButton() {
         // request that's guaranteed to carry the now-cleared auth cookies -
         // a client-side soft nav can race the cookie write and briefly show
         // stale logged-in state.
-        // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- a full load on purpose: the auth cookies just changed
         window.location.href = "/?farewell=1";
       }}
       className="text-xs font-semibold text-slate-500 hover:text-red-600 transition flex items-center gap-1.5"
