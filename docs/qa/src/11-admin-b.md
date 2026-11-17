@@ -806,6 +806,23 @@ The Logs section is **Master Admin only**. Operations, Finance and Clinical have
 * Step 5: the message has the time, type, physiotherapist and price, and no condition, concern or Meet link.
 * Step 6: the patient's choice turns to no (`stop_reply`); nothing more is sent to them; emails continue.
 
+#### `ADM-SET-043` - Phone sign-in: off by default; never for admins · P0 **[UI] [API]**
+**Preconditions.** Steps 3-6 need an SMS provider on the Supabase project (`docs/auth/PHONE-SIGN-IN.md`); without one, steps 1-2 only.
+**Steps.**
+1. Open `/patient/login`, `/therapist/login`, `/hospital/login`, `/admin/login`.
+2. **Settings → Sign-in & Security → Phone sign-in**: read the line; switch on and cancel at the confirm.
+3. Switch on. As a patient with a real email, **Profile → Sign in with your phone → Link my number**: enter your mobile, type the texted code.
+4. Sign out; on `/patient/login` tap **Sign in with a phone code instead**, enter the number, then the code.
+5. Sign out; **Forgot password? → Text me a code instead**; enter the code; set a new password.
+6. Ask for a code for a number with no account, and for an admin's number.
+**Expected Result.**
+* Step 1: no phone option anywhere while off; **never** on `/admin/login`.
+* Step 2: the confirm warns about the SMS provider and cost; a `phone_login.set` log row on switching.
+* Step 3: the profile reads *Linked: +91...*.
+* Step 4: lands on the patient dashboard.
+* Step 5: the new password works with email sign-in.
+* Step 6: the same *If this number is linked to an account...* answer as step 4, and no text arrives.
+
 #### `ADM-SET-038` - Developer messages · P1
 **Feature.** The developer credit under the footer's copyright ("Contact me") leads to `/developer` and `/developer/lets-talk`. Whatever a visitor sends lands on **Settings → Developer messages**, which is **Master Admin only** and also holds the two switches that publish the page. See `PUB-DEV-001` for the visitor's side.
 

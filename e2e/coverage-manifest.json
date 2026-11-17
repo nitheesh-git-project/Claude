@@ -358,6 +358,19 @@
       "integration": "local",
       "destructive": false
     },
+    "phone-login.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "admin-settings-ia.spec.ts": {
       "runner": "admin",
       "levels": [
@@ -3341,6 +3354,28 @@
       "limitation": "Never reaches Meta: the gate sets the webhook's values but not WHATSAPP_ACCESS_TOKEN, and the fixtures are test accounts. Who is messaged and when (consent, test accounts, switches, test mode) and the template wording are unit-tested in src/lib/whatsappRules.test.ts.",
       "rules": [
         "docs/rules/admin.md"
+      ]
+    },
+    {
+      "id": "admin.phone-login",
+      "runner": "admin",
+      "title": "Phone sign-in, built and switched off: nothing offered and the routes refuse while off; a patient with a linked number signs in with a code; an unknown number gets the same answer; an admin is never sent a code and a code-started admin session is refused by the admin routes",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "phone-login.spec.ts",
+          "tests": [
+            "PL-001",
+            "PL-002",
+            "PL-003"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "Never texts anyone: the local stack answers three fictional numbers with a fixed code (supabase/config.toml). Linking a number from the profile and the reset-by-code path are covered in the QA plan (ADM-SET-043); the rules are unit-tested in src/lib/phoneLogin.test.ts.",
+      "rules": [
+        "docs/rules/ops-security.md"
       ]
     },
     {

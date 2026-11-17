@@ -1,14 +1,18 @@
 "use client";
 
 import { useState } from "react";
+import PhoneCodeSignIn from "@/components/auth/PhoneCodeSignIn";
 import { createClient } from "@/lib/supabase/client";
 import AuthSplitLayout from "./AuthSplitLayout";
 import PasswordInput from "./PasswordInput";
 
-export default function HospitalLoginCard() {
+export default function HospitalLoginCard({ phoneEnabled = false }: { phoneEnabled?: boolean } = {}) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [forgotMode, setForgotMode] = useState(false);
+  // Phone code sign-in / reset (PhoneCodeSignIn), offered only while an
+  // admin has it switched on (the page reads that on the server).
+  const [phoneMode, setPhoneMode] = useState<"signin" | "reset" | null>(null);
   const [forgotSubmitting, setForgotSubmitting] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
   const supabase = createClient();
@@ -70,7 +74,9 @@ export default function HospitalLoginCard() {
           </div>
         )}
 
-        {forgotMode ? (
+        {phoneMode ? (
+          <PhoneCodeSignIn purpose={phoneMode} onCancel={() => setPhoneMode(null)} />
+        ) : forgotMode ? (
           forgotSent ? (
             <div className="text-xs space-y-4 mt-6">
               <div className="bg-teal-50 border border-teal-200 rounded-lg p-3 text-teal-800">
@@ -111,6 +117,18 @@ export default function HospitalLoginCard() {
               >
                 {forgotSubmitting ? "Sending..." : "Send Reset Link"}
               </button>
+              {phoneEnabled && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setForgotMode(false);
+                    setPhoneMode("reset");
+                  }}
+                  className="w-full min-h-[44px] text-teal-700 font-semibold hover:underline"
+                >
+                  Text me a code instead
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setForgotMode(false)}
@@ -160,6 +178,15 @@ export default function HospitalLoginCard() {
               >
                 {loading ? "Signing in..." : "Sign In"}
               </button>
+            {phoneEnabled && (
+              <button
+                type="button"
+                onClick={() => setPhoneMode("signin")}
+                className="w-full min-h-[44px] text-teal-700 font-semibold hover:underline"
+              >
+                Sign in with a phone code instead
+              </button>
+            )}
             </form>
 
             <p className="text-[11px] text-slate-500 text-center mt-4">

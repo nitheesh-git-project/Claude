@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import PhoneCodeSignIn from "@/components/auth/PhoneCodeSignIn";
 import { createClient } from "@/lib/supabase/client";
 import AuthSplitLayout from "./AuthSplitLayout";
 import { checkReferralCode, type ReferralCodeCheck } from "@/lib/checkReferralCode";
@@ -19,8 +20,11 @@ export default function PatientAuthCard({
    *  /patient/register address (an invite page without its invite) sends
    *  people to the sign-up side. */
   initialTab = "login",
+  /** Whether Settings -> Sign-in & Security has phone sign-in on. */
+  phoneEnabled = false,
 }: {
   initialTab?: "login" | "register";
+  phoneEnabled?: boolean;
 } = {}) {
   const [tab, setTab] = useState<"login" | "register">(initialTab);
   const [loading, setLoading] = useState(false);
@@ -35,6 +39,9 @@ export default function PatientAuthCard({
     status: "idle",
   });
   const [forgotMode, setForgotMode] = useState(false);
+  // Phone code sign-in / reset (PhoneCodeSignIn), offered only while an
+  // admin has it switched on (the page reads that on the server).
+  const [phoneMode, setPhoneMode] = useState<"signin" | "reset" | null>(null);
   const [forgotSubmitting, setForgotSubmitting] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
   const supabase = createClient();
@@ -238,7 +245,9 @@ export default function PatientAuthCard({
           </div>
         )}
 
-        {tab === "login" && forgotMode ? (
+        {tab === "login" && phoneMode ? (
+          <PhoneCodeSignIn purpose={phoneMode} onCancel={() => setPhoneMode(null)} />
+        ) : tab === "login" && forgotMode ? (
           forgotSent ? (
             <div className="text-xs space-y-4">
               <div className="bg-teal-50 border border-teal-200 rounded-lg p-3 text-teal-800">
@@ -292,6 +301,18 @@ export default function PatientAuthCard({
               >
                 {forgotSubmitting ? "Sending..." : "Send Reset Link"}
               </button>
+              {phoneEnabled && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setForgotMode(false);
+                    setPhoneMode("reset");
+                  }}
+                  className="w-full min-h-[44px] text-teal-700 font-semibold hover:underline"
+                >
+                  Text me a code instead
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setForgotMode(false)}
@@ -353,6 +374,15 @@ export default function PatientAuthCard({
             >
               {loading ? "Signing in..." : "Sign In"}
             </button>
+            {phoneEnabled && (
+              <button
+                type="button"
+                onClick={() => setPhoneMode("signin")}
+                className="w-full min-h-[44px] text-teal-700 font-semibold hover:underline"
+              >
+                Sign in with a phone code instead
+              </button>
+            )}
           </form>
         ) : (
           <form onSubmit={handleRegister} className="space-y-3 text-xs">

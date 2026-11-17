@@ -164,6 +164,7 @@ export const ACTION_DOMAIN: Record<string, ActionDomain> = {
   "email_controls.set": "settings",
   "email.test_send": "settings",
   "whatsapp_controls.set": "settings",
+  "phone_login.set": "settings",
   "dev_reachout.update_status": "settings",
   "dev_reachout.update_note": "settings",
   "dev_reachout.add_note": "settings",
