@@ -1143,7 +1143,8 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   direction is better). `profileWidgetGuide.test.ts` fails if any option
   is left without one. Guard: `admin-dashboard-ui` K-HPL.
 - **Settings -> Health Profile layout chooses what every patient of a
-  condition kind sees; the patient's record chooses for one patient.** The
+  condition kind sees; one patient's own choice is made on their record or
+  from the same screen.** The
   Settings screen (`ProfileWidgetSettings`, self-fetching) lists every
   section of each kind's profile with a switch and the live count ("12 of 15
   sections shown"); locked sections show a lock and why. It writes through
@@ -1155,9 +1156,14 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   (`requireAdminScope("people")` -- a clinical-record capability, like
   care-status -- audit `profile_widgets.set_patient`, the patient's kind read
   on the server); its switches render only under `scopeCanManage(scope,
-  "people")`. Both routes refuse an unknown section and hiding a locked one
-  (400), and an unreadable setting is "we couldn't check" on the screen,
-  never a row of switches. Rules: `clinical.md`.
+  "people")`. The same panel is also at the bottom of the Settings screen,
+  **Sections for one patient** (`PatientLayoutFinder`): search by name or
+  patient ID, open a patient, change their sections with an optional reason,
+  and a list of the patients with their own layout. It reads through `GET
+  /api/admin/profile-widgets/patient` (same `people` scope) and renders only
+  when the viewer can manage People. Both routes refuse an unknown section
+  and hiding a locked one (400), and an unreadable setting is "we couldn't
+  check" on the screen, never a row of switches. Rules: `clinical.md`.
 - **Announcements is a Settings screen, so only a Master Admin posts one.**
   Settings -> Announcements (`AnnouncementSettings`, self-fetching like the
   Health Profile layout; `AdminAnnouncementsManager`) lists what is live,

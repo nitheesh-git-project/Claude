@@ -6036,7 +6036,7 @@ export default async function AdminDashboardPage({
     "settings:clinical": settingsClinicalTab,
     // Self-fetching; Settings is Master Admin only and its route is
     // requireAdminScope("settings").
-    "settings:profile-layout": <ProfileWidgetSettings />,
+    "settings:profile-layout": <ProfileWidgetSettings canManagePeople={canManagePeople} />,
     // Self-fetching, for the same reason; its routes are
     // requireAdminScope("settings") too.
     "settings:announcements": <AnnouncementSettings />,

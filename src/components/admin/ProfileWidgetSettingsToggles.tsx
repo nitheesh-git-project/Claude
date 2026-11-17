@@ -5,7 +5,7 @@ import WidgetGuidePanel from "@/components/admin/WidgetGuidePanel";
 import { widgetGuide } from "@/lib/profileWidgetGuide";
 import { useRouter } from "@/lib/useRouter";
 import { useToast } from "@/lib/toast";
-import type { WidgetGroup, WidgetSource } from "@/lib/profileWidgets";
+import { OVERRIDE_REASON_MAX, type WidgetGroup, type WidgetSource } from "@/lib/profileWidgets";
 
 /** One widget as the admin screens draw it (plain data from the server). */
 export type WidgetRow = {
@@ -22,6 +22,8 @@ export type WidgetRow = {
    *  code's default on the condition screen). */
   inherited: boolean;
   source: WidgetSource;
+  /** Why this patient's override was set, when it was set with one. */
+  reason?: string | null;
 };
 
 const GROUP_TITLE: Record<WidgetGroup, string> = {
@@ -165,7 +167,7 @@ export function ProfileWidgetKindEditor({
         </div>
         <p className="mt-1 text-sm text-slate-600">
           What every patient of this type sees on their own Health Profile. Their physiotherapist still sees every section (hidden ones
-          behind a &ldquo;hidden for this patient&rdquo; line), and you can change it for one patient on their record.
+          behind a &ldquo;hidden for this patient&rdquo; line), and you can change it for one patient below, or on their record.
         </p>
         {!current.readable ? (
           <p role="status" className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -258,24 +260,33 @@ export function ProfileWidgetPatientPanel({
   canManage,
   kindUnreadable,
   patientUnreadable,
+  defaultOpen = false,
 }: {
   patientId: string;
   rows: WidgetRow[];
   canManage: boolean;
   kindUnreadable: boolean;
   patientUnreadable: boolean;
+  /** Open the list straight away (Settings, where the admin came to change it). */
+  defaultOpen?: boolean;
 }) {
   const router = useRouter();
   const { show } = useToast();
-  const [local, setLocal] = useState<Record<string, boolean | null>>({});
+  const [local, setLocal] = useState<Record<string, { visible: boolean | null; reason: string | null }>>({});
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
+  const [reason, setReason] = useState("");
 
   const view = rows.map((r) => {
     const o = local[r.key];
     if (o === undefined || r.locked) return r;
-    return { ...r, visible: o === null ? r.inherited : o, source: (o === null ? "kind" : "patient") as WidgetSource };
+    return {
+      ...r,
+      visible: o.visible === null ? r.inherited : o.visible,
+      source: (o.visible === null ? "kind" : "patient") as WidgetSource,
+      reason: o.visible === null ? null : o.reason,
+    };
   });
   const sections = view.filter((r) => r.group !== "graph_line");
   const hidden = sections.filter((r) => !r.visible).length;
@@ -283,8 +294,9 @@ export function ProfileWidgetPatientPanel({
   async function change(row: WidgetRow, visible: boolean | null) {
     setError(null);
     setPending(row.key);
-    setLocal((o) => ({ ...o, [row.key]: visible }));
-    const failed = await post("/api/admin/profile-widgets/patient", { patientId, widgetKey: row.key, visible });
+    const why = visible === null ? null : reason.trim() || null;
+    setLocal((o) => ({ ...o, [row.key]: { visible, reason: why } }));
+    const failed = await post("/api/admin/profile-widgets/patient", { patientId, widgetKey: row.key, visible, ...(why ? { reason: why } : {}) });
     setPending(null);
     if (failed) {
       setLocal((o) => {
@@ -324,6 +336,22 @@ export function ProfileWidgetPatientPanel({
             : "We couldn't check the condition type's layout just now, so \"inherited\" below means the standard layout. Refresh to try again."}
         </p>
       )}
+      {open && canManage && !patientUnreadable && (
+        <div className="mt-3">
+          <label htmlFor={`widget-reason-${patientId}`} className="text-sm font-semibold text-slate-800">
+            Why <span className="font-normal text-slate-600">(optional, saved with the next change you make)</span>
+          </label>
+          <input
+            id={`widget-reason-${patientId}`}
+            type="text"
+            value={reason}
+            maxLength={OVERRIDE_REASON_MAX}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="e.g. Physiotherapist: neck not involved"
+            className="mt-1 w-full min-h-[44px] rounded-xl border border-slate-300 px-3 text-sm"
+          />
+        </div>
+      )}
       {open && (
         <ul className="mt-3 divide-y divide-slate-100">
           {view.map((r) => (
@@ -333,7 +361,9 @@ export function ProfileWidgetPatientPanel({
                   {r.group === "graph_line" ? `Graph line: ${r.label}` : r.label}
                 </p>
                 <p className="text-xs text-slate-600">
-                  {r.locked ? r.lockedReason : `${SOURCE_TEXT[r.source]} · ${r.visible ? "On" : "Off"}`}
+                  {r.locked
+                    ? r.lockedReason
+                    : `${SOURCE_TEXT[r.source]} · ${r.visible ? "On" : "Off"}${r.source === "patient" && r.reason ? ` · ${r.reason}` : ""}`}
                 </p>
               </div>
               {r.locked ? (

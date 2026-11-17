@@ -5,7 +5,97 @@ import { parseJsonBody } from "@/lib/parseJsonBody";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { serverError } from "@/lib/apiError";
 import { loadPatientProfileKind } from "@/lib/outcomeServer";
-import { cleanOverrideReason, validateWidgetChoice } from "@/lib/profileWidgets";
+import { PROFILE_KIND_LABELS } from "@/lib/outcomeMeasures";
+import { cleanOverrideReason, cleanPatientSearch, resolveProfileWidgets, validateWidgetChoice, widgetRows } from "@/lib/profileWidgets";
+import { loadKindChoices, loadPatientOverrides, widgetChoicesFromRead } from "@/lib/profileWidgetsServer";
+
+// GET is the same panel reached from Settings -> Health Profile layout ->
+// "Sections for one patient" instead of from the patient's record. Same
+// "people" scope as the write, so the screen can only find a patient it is
+// allowed to change.
+//
+//   ?q=<name or patient ID>  -> 200 { patients: [{ id, name, code }] } (at
+//                               most 10), 400 too short, 503 unreadable.
+//   ?patientId=<uuid>        -> 200 { patient, kind, kindLabel, rows,
+//                               kindUnreadable, patientUnreadable }; each row
+//                               carries the reason saved with its override.
+//                               404 no such patient, 409 no Health Profile
+//                               yet ({ code: "no_condition_profile" }), 503.
+export async function GET(request: NextRequest) {
+  const adminUser = await requireAdminScope("people");
+  if (!adminUser) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const params = request.nextUrl.searchParams;
+  const admin = createAdminClient();
+  const patientId = (params.get("patientId") ?? "").trim();
+  if (patientId) return patientLayout(admin, patientId);
+
+  const search = cleanPatientSearch(params.get("q"));
+  if (!search.ok) return NextResponse.json({ error: search.error }, { status: 400 });
+  const pattern = `%${search.query}%`;
+  const byName = () =>
+    admin.from("profiles").select("id, full_name").eq("role", "patient").ilike("full_name", pattern).order("full_name").limit(10);
+  const withCode = await admin
+    .from("profiles")
+    .select("id, full_name, patient_code")
+    .eq("role", "patient")
+    // Quoted so a space in a full name stays part of the value.
+    .or(`full_name.ilike."${pattern}",patient_code.ilike."${pattern}"`)
+    .order("full_name")
+    .limit(10);
+  // patient_code arrived by migration; a database without it still finds by name.
+  const { data, error } = withCode.error?.code === "42703" ? await byName() : withCode;
+  if (error) {
+    return NextResponse.json({ error: "We couldn't search the patients just now. Please try again." }, { status: 503 });
+  }
+  return NextResponse.json({
+    patients: (data ?? []).map((p: { id: string; full_name: string | null; patient_code?: string | null }) => ({
+      id: p.id,
+      name: p.full_name ?? "Unnamed patient",
+      code: p.patient_code ?? null,
+    })),
+  });
+}
+
+async function patientLayout(admin: ReturnType<typeof createAdminClient>, patientId: string) {
+  const { data: patient, error: patientError } = await admin
+    .from("profiles")
+    .select("id, full_name")
+    .eq("id", patientId)
+    .eq("role", "patient")
+    .maybeSingle();
+  if (patientError && patientError.code !== "22P02") {
+    return NextResponse.json({ error: "We couldn't check this patient just now. Please try again." }, { status: 503 });
+  }
+  if (!patient) return NextResponse.json({ error: "No such patient." }, { status: 404 });
+
+  const kind = await loadPatientProfileKind(admin, patientId);
+  if (kind.status === "unreadable") {
+    return NextResponse.json({ error: "We couldn't check this patient's condition type just now. Please try again." }, { status: 503 });
+  }
+  if (kind.status === "no_profile") {
+    return NextResponse.json(
+      { error: "This patient has no Health Profile yet, so there are no sections to choose.", code: "no_condition_profile" },
+      { status: 409 }
+    );
+  }
+
+  const [kindRead, patientRead] = await Promise.all([loadKindChoices(admin, kind.profileKind), loadPatientOverrides(admin, patientId)]);
+  const layout = resolveProfileWidgets({
+    kind: kind.profileKind,
+    kindChoices: widgetChoicesFromRead(kindRead),
+    patientChoices: widgetChoicesFromRead(patientRead),
+  });
+  const reasons = new Map(patientRead.status === "ok" ? patientRead.rows.map((r) => [r.widgetKey, r.reason]) : []);
+  return NextResponse.json({
+    patient: { id: patient.id, name: patient.full_name ?? "Unnamed patient" },
+    kind: kind.profileKind,
+    kindLabel: PROFILE_KIND_LABELS[kind.profileKind].label,
+    rows: widgetRows(layout).map((r) => ({ ...r, reason: r.source === "patient" ? (reasons.get(r.key) ?? null) : null })),
+    kindUnreadable: layout.kindUnreadable,
+    patientUnreadable: layout.patientUnreadable,
+  });
+}
 
 // The admin patient record -> "Sections for this patient": whether one
 // section of THIS patient's Health Profile is shown, beating the condition

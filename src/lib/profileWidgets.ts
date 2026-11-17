@@ -516,6 +516,28 @@ export function cleanOverrideReason(raw: unknown): { ok: true; reason: string | 
   return { ok: true, reason: text || null };
 }
 
+/** Settings -> Health Profile layout -> "Sections for one patient": what the
+ *  admin typed to find a patient by name or patient ID (PT0012), cleaned so
+ *  it is safe inside a PostgREST `or(...)` filter. Only letters, digits,
+ *  spaces, apostrophes and hyphens survive -- a comma, bracket, dot, percent
+ *  or asterisk would change the filter rather than the search. Two
+ *  characters at least, so one letter does not list every patient. */
+export const PATIENT_SEARCH_MIN = 2;
+export const PATIENT_SEARCH_MAX = 60;
+
+export function cleanPatientSearch(raw: unknown): { ok: true; query: string } | { ok: false; error: string } {
+  if (typeof raw !== "string") return { ok: false, error: "Type a name or a patient ID to search." };
+  const query = raw
+    .normalize("NFC")
+    .replace(/[^\p{L}\p{M}\p{N}' -]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, PATIENT_SEARCH_MAX)
+    .trim();
+  if (query.length < PATIENT_SEARCH_MIN) return { ok: false, error: `Type at least ${PATIENT_SEARCH_MIN} letters of a name, or a patient ID.` };
+  return { ok: true, query };
+}
+
 /** The body of the two admin routes, checked against the registry: a key
  *  this kind does not have, or hiding a locked one, is a 400 with a sentence. */
 export function validateWidgetChoice(
