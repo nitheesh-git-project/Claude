@@ -9,7 +9,7 @@
 //
 // Every column this touches is put back in afterAll, whatever the outcome.
 import { test, expect, request, type APIRequestContext } from "@playwright/test";
-import { BASE, QA_EMAILS, adminClient, cookieHeaderFor } from "./helpers";
+import { BASE, QA_EMAILS, adminClient, cookieHeaderFor, waitForSplashToClear } from "./helpers";
 
 const db = adminClient();
 const COLUMNS = [
@@ -98,6 +98,8 @@ test("SOC-002: the footer draws only the filled-in links, and each opens in a ne
   });
 
   await page.goto(`${BASE}/`);
+  // A click sent before hydration (the splash) opened no tab.
+  await waitForSplashToClear(page);
   const footer = page.locator("footer");
   const row = footer.getByRole("list", { name: /on social media/i });
   await expect(row).toBeVisible();
@@ -112,7 +114,7 @@ test("SOC-002: the footer draws only the filled-in links, and each opens in a ne
   await expect(row.getByRole("link", { name: /Facebook|LinkedIn|WhatsApp/ })).toHaveCount(0);
 
   // The contact number used to replace the page with wa.me.
-  const whatsapp = footer.getByRole("link", { name: "Chat on WhatsApp (opens in a new tab)" });
+  const whatsapp = footer.getByRole("link", { name: /Chat on WhatsApp \(opens in a new tab\)$/ });
   await expect(whatsapp).toHaveAttribute("href", "https://wa.me/919876543210");
   await expect(whatsapp).toHaveAttribute("target", "_blank");
   await expect(whatsapp).toHaveAttribute("rel", /noopener/);
@@ -140,6 +142,8 @@ test("SOC-003: no links filled in draws no row at all", async ({ page }) => {
     social_whatsapp_url: null,
   });
   await page.goto(`${BASE}/`);
+  // A click sent before hydration (the splash) opened no tab.
+  await waitForSplashToClear(page);
   await expect(page.locator("footer")).toBeVisible();
   await expect(page.locator("footer").getByRole("list", { name: /on social media/i })).toHaveCount(0);
 });

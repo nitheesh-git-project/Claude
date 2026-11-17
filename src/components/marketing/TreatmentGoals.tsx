@@ -134,17 +134,23 @@ export default function TreatmentGoals() {
             id={`${baseId}-tab-${g.key}`}
             aria-selected={i === active}
             aria-controls={`${baseId}-panel`}
-            aria-label={g.label}
             tabIndex={i === active ? 0 : -1}
             onClick={() => pick(i)}
             onKeyDown={(e) => onTabKey(e, i)}
-            className={`inline-flex min-h-11 shrink-0 items-center whitespace-nowrap rounded-full border px-4 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 ${
+            className={`relative inline-flex min-h-11 shrink-0 items-center whitespace-nowrap rounded-full border px-4 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 ${
               i === active
                 ? "border-slate-900 bg-slate-900 text-white"
                 : "border-slate-200 bg-white text-slate-700 hover:border-teal-300 hover:text-teal-800"
             }`}
           >
             {g.short}
+            {/* The full phrase for a screen reader, after the visible word so
+                the name still starts with what is shown (WCAG 2.5.3). */}
+            <span className="sr-only">
+              {g.label.toLowerCase().startsWith(g.short.toLowerCase())
+                ? g.label.slice(g.short.length)
+                : `: ${g.label}`}
+            </span>
           </button>
         ))}
       </div>
