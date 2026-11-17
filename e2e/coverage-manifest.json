@@ -4355,7 +4355,7 @@
     {
       "id": "platform.chrome-and-loader",
       "runner": "platform",
-      "title": "Navigation stays put while a page loads: spine loader, light sidebars, sign-in nav, /conditions order",
+      "title": "Navigation stays put while a page loads: spine loader, light sidebars, sign-in nav, /conditions order; Sign In, Get Started and Book fit the header from 1024px",
       "required": true,
       "status": "covered",
       "coverage": [
@@ -4365,7 +4365,8 @@
             "CHROME-001",
             "CHROME-002",
             "CHROME-003",
-            "CHROME-004"
+            "CHROME-004",
+            "CHROME-007"
           ],
           "level": "browser"
         }
@@ -4765,7 +4766,7 @@
     {
       "id": "platform.analytics-consent",
       "runner": "platform",
-      "title": "The cookie card: nothing optional loads before a yes, Accept and Reject are the same size, a refusal sticks, it opens as the splash lifts but never inside a booking, Cookie settings withdraws it, and each choice is recorded append-only",
+      "title": "The cookie card: nothing optional loads before a yes, Accept and Reject are the same size, a refusal sticks, it opens as the splash lifts but never inside a booking, an answered visitor is not asked again on the way back from a sign-in page or a booking, Cookie settings withdraws it, and each choice is recorded append-only",
       "required": true,
       "status": "covered",
       "coverage": [
@@ -4780,7 +4781,9 @@
             "AC-006",
             "AC-007",
             "AC-008",
-            "AC-009"
+            "AC-009",
+            "AC-010",
+            "AC-011"
           ],
           "level": "browser"
         },
