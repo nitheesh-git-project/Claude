@@ -84,17 +84,27 @@ test("EML-002: the master switch and test mode save from the screen and are logg
 
 test("EML-003: switching off the legal receipts asks first, and Keep sending changes nothing", async ({ page }) => {
   const screen = await openEmails(page);
-  await screen.locator('[data-email-kind="legal"]').getByRole("switch").click();
-  const dialog = page.getByRole("dialog");
-  await expect(dialog).toContainText("the law expects one", SEEN);
+  // ConfirmDialog is an alertdialog. Click until it opens: a click before
+  // the screen has hydrated is dropped.
+  const dialog = page.getByRole("alertdialog");
+  await expect(async () => {
+    await screen.locator('[data-email-kind="legal"]').getByRole("switch").click();
+    await expect(dialog).toBeVisible({ timeout: 2_000 });
+  }).toPass(SEEN);
+  await expect(dialog).toContainText("the law expects one");
   await dialog.getByRole("button", { name: "Keep sending" }).click();
   expect((await controls()).disabled_kinds).toEqual([]);
 });
 
 test("EML-004: Send me a test email never mails a test address, and the log shows why", async ({ page }) => {
   const screen = await openEmails(page);
-  await screen.getByRole("button", { name: "Send me a test email" }).click();
-  await expect(screen.getByTestId("email-test-result")).toContainText("Test address - never sent", SEEN);
+  // Click until the result shows (a click before hydration is dropped; a
+  // second test email to a test address is skipped all the same).
+  await expect(async () => {
+    await screen.getByRole("button", { name: "Send me a test email" }).click();
+    await expect(screen.getByTestId("email-test-result")).toBeVisible({ timeout: 5_000 });
+  }).toPass(SEEN);
+  await expect(screen.getByTestId("email-test-result")).toContainText("Test address - never sent");
   await page.reload();
   const again = page.getByTestId("email-controls").filter({ visible: true });
   const row = again.getByTestId("email-log").locator("tr", { hasText: "Test email from" }).first();
