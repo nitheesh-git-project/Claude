@@ -64,7 +64,7 @@ rg -i "<the thing you are seeing>" docs/rules/
 - Countries & currency lives under Catalog, because it decides what a patient is charged
 - Appearance (Settings -> Public Site) is three choices: Light, Dark, or Based on the visitor's device
 - Every Health Profile layout option explains itself
-- Settings -> Health Profile layout chooses what every patient of a condition kind sees; the patient's record chooses for one patient
+- Settings -> Health Profile layout chooses what every patient of a condition kind sees; one patient's own choice is made on their record or from the same screen
 - Announcements is a Settings screen, so only a Master Admin posts one
 - The top search finds screens as well as people
 - Logs -> Signed in as is the record of every session swap

@@ -4808,7 +4808,7 @@
     {
       "id": "therapist.health-profile-layout",
       "runner": "therapist",
-      "title": "The clinic chooses which Health Profile sections a patient sees (per condition type and per patient, locked safety sections never hidden); the patient's page follows the patient's order with closed blocks; the therapist and admin still see hidden sections; a fall saved by mistake is withdrawn without deleting anything",
+      "title": "The clinic chooses which Health Profile sections a patient sees (per condition type and per patient, locked safety sections never hidden); the patient's page follows the patient's order with closed blocks; the therapist and admin still see hidden sections; Settings finds one patient by name or ID and changes their own layout with a reason; a fall saved by mistake is withdrawn without deleting anything",
       "required": true,
       "status": "covered",
       "coverage": [
@@ -4820,7 +4820,8 @@
             "HPL-003",
             "HPL-004",
             "HPL-005",
-            "HPL-006"
+            "HPL-006",
+            "HPL-007"
           ],
           "level": "browser"
         }

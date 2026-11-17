@@ -1923,7 +1923,16 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   out, `exportPlan`), the therapist's chart draws the hidden sections behind a
   collapsed "N sections hidden for this patient - show" (hidden graph lines
   stay on the clinician's graph and are named), and the admin's record draws
-  everything with the hidden ones named. A senior physiotherapist should
+  everything with the hidden ones named. One patient's own layout is set
+  from either door with the same panel and route: their record (People) or
+  **Settings -> Health Profile layout -> Sections for one patient**, which
+  finds a patient by name or patient ID (`GET
+  /api/admin/profile-widgets/patient?q=`, the text through
+  `cleanPatientSearch()` before it reaches a filter), lists only their own
+  condition type's sections, saves an optional reason with the change, and
+  lists the patients with their own layout. Both reads and the write are
+  `requireAdminScope("people")`, and the Settings section renders only for a
+  scope that manages People. A senior physiotherapist should
   confirm the locked list. Tests: `src/lib/profileWidgets.test.ts`;
   `e2e/health-profile-layout.spec.ts`.
 - **A patient withdraws a diary entry by saying it was saved by mistake,

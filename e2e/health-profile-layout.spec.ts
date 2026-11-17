@@ -166,6 +166,52 @@ test("HPL-004: a condition-kind choice applies to every patient of the kind, and
   expect((await post(request, "/api/admin/profile-widgets/kind", QA_EMAILS.admin, { profileKind: "ortho", widgetKey: "care_plan_history", visible: null })).status()).toBe(200);
 });
 
+test("HPL-007: Settings finds one patient by name, changes their own layout with a reason, and lists them", async ({ browser, request }) => {
+  // The read behind the finder has the write's scope: no patient or therapist.
+  for (const email of [QA_EMAILS.patientA, QA_EMAILS.therapistA]) {
+    const res = await request.get(`${BASE}/api/admin/profile-widgets/patient?q=Layout`, { headers: { cookie: await cookieHeaderFor(email) } });
+    expect(res.status()).toBe(403);
+  }
+  const short = await request.get(`${BASE}/api/admin/profile-widgets/patient?q=a`, { headers: { cookie: await cookieHeaderFor(QA_EMAILS.admin) } });
+  expect(short.status()).toBe(400);
+
+  const { page, context } = await pageAs(browser, QA_EMAILS.admin, "/admin/dashboard?section=settings&tab=profile-layout");
+  const finder = page.getByTestId("patient-layout-finder");
+  await expect(finder).toBeVisible(SEEN);
+  await finder.getByLabel("Find a patient").fill(ortho!.name);
+  await finder.getByRole("button", { name: "Search" }).click();
+  await finder.getByTestId("patient-layout-results").getByRole("button", { name: new RegExp(ortho!.name) }).click();
+
+  // Only the patient's own condition type's sections, opened straight away.
+  const panel = finder.getByTestId("profile-widget-patient-panel");
+  await expect(panel).toBeVisible(SEEN);
+  await expect(panel.locator('[data-widget="reports_scans"]')).toBeVisible(SEEN);
+  await expect(panel.locator('[data-widget="fall_risk"]')).toHaveCount(0);
+  await finder.getByLabel(/^Why/).fill("E2E: physiotherapist says not needed");
+  await panel.locator('[data-widget="reports_scans"]').getByRole("switch").click();
+  await expect(panel.locator('[data-widget="reports_scans"]')).toContainText("E2E: physiotherapist says not needed", SEEN);
+  await context.close();
+
+  const { data: row } = await db
+    .from("patient_profile_widget_overrides")
+    .select("visible, reason")
+    .eq("patient_id", ortho!.id)
+    .eq("widget_key", "reports_scans")
+    .maybeSingle();
+  expect(row).toEqual({ visible: false, reason: "E2E: physiotherapist says not needed" });
+
+  const own = await pageAs(browser, ortho!.email, "/patient/dashboard/health-profile");
+  await expect(own.page.getByTestId("ortho-profile")).toBeVisible(SEEN);
+  await expect(own.page.getByTestId("details-reports")).toHaveCount(0);
+  await own.context.close();
+
+  const again = await pageAs(browser, QA_EMAILS.admin, "/admin/dashboard?section=settings&tab=profile-layout");
+  await expect(again.page.getByTestId("patient-layout-customised")).toContainText(ortho!.name, SEEN);
+  await again.context.close();
+
+  expect((await post(request, "/api/admin/profile-widgets/patient", QA_EMAILS.admin, { patientId: ortho!.id, widgetKey: "reports_scans", visible: null })).status()).toBe(200);
+});
+
 test("HPL-005: a fall saved by mistake is withdrawn, kept, and no longer counted", async ({ browser, request }) => {
   const added = await post(request, "/api/patient/diary/add", neuro!.email, {
     kind: "fall",

@@ -114,6 +114,21 @@ Check the Logs section afterwards: an added, edited, removed or reordered row ea
 * Step 3: each row reads *Inherited from the condition type · Off/On* or *Set for this patient*; a `profile_widgets.set_patient` row with the section, from, to.
 * Step 4: the patient sees *Your measures* with the table, and no *Reports and scans* block. The chart shows the same, with *1 section hidden for this patient - show* opening to name it (reports still listed on the chart). The admin record names *Hidden for the patient: Reports and scans* above the chart and still draws everything. The PDF has no reports section and a line *Left out because the clinic does not show them on this patient's own profile: Reports and scans...*.
 * Step 5: both back to inherited. A desk that cannot manage People sees the list read-only (no switches); a Settings screen is never shown to a limited desk. A failed read says *We couldn't check...* rather than drawing switches.
+
+#### `ADM-HPL-002` - Health Profile layout: sections for one patient, from Settings · P1 **[UI] [API]**
+**Preconditions.** A Master Admin; the orthopaedic patient from ADM-HPL-001, with a patient ID (PT....).
+**Steps.**
+1. Open **Settings → Health Profile layout** and scroll to **Sections for one patient**. Search for one letter, then for the patient's first name, then for their patient ID.
+2. Open the patient from the results. Type a reason in **Why** (e.g. *Physiotherapist: neck not involved*) and switch **Reports and scans** off.
+3. Tap **Choose another patient**; look at **Patients with their own layout**, and tap **Open** on the patient.
+4. As the patient open My progress. Then back on Settings tap **Reset to condition default** on the section.
+5. Call `GET /api/admin/profile-widgets/patient?q=...` as a patient and as a therapist.
+**Expected Result.**
+* Step 1: one letter asks for at least two; the name and the ID both find the patient (name and ID shown).
+* Step 2: only the sections of the patient's own condition type are listed (no fall-risk on an orthopaedic patient), opened straight away; safety sections carry a lock. The row reads *Set for this patient · Off · Physiotherapist: neck not involved*; a `profile_widgets.set_patient` log row carries the reason.
+* Step 3: the patient is listed with *1 change*; **Open** brings back the same panel.
+* Step 4: no *Reports and scans* block for the patient; after the reset it is back and the patient leaves the list.
+* Step 5: both 403. The same patient's record (People) shows the same choice, since both screens use one panel and one route.
 ---
 
 ### 15.3 Settings → Booking Rules, Offers & Discounts, Programmes & Home Visits

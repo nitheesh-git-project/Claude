@@ -129,8 +129,12 @@ test.describe("Formatted therapist profile copy", () => {
         timeout: 30_000,
       });
       await page.reload();
-      await expect(page.getByTestId("therapist-bio-pending")).toBeVisible({ timeout: 60_000 });
-      await expect(page.getByTestId("therapist-bio-saved").locator("p")).toHaveCount(2);
+      // Scoped to <main>: while the page streams in after a reload, Next can
+      // hold a hidden copy of the same content (<div id="S:0">) before
+      // swapping it in, so a page-wide test id briefly matches twice.
+      const main = page.getByRole("main");
+      await expect(main.getByTestId("therapist-bio-pending")).toBeVisible({ timeout: 60_000 });
+      await expect(main.getByTestId("therapist-bio-saved").locator("p")).toHaveCount(2);
       const { data: still } = await admin.from("profiles").select("bio").eq("id", therapistId).single();
       expect(still?.bio ?? null).toBe(before?.bio ?? null);
 
@@ -154,7 +158,7 @@ test.describe("Formatted therapist profile copy", () => {
       const { data: after } = await admin.from("profiles").select("bio").eq("id", therapistId).single();
       expect(after?.bio).toContain("Works with desk-based patients.");
       await page.reload();
-      await expect(page.getByTestId("therapist-bio-pending")).toHaveCount(0, { timeout: 60_000 });
+      await expect(main.getByTestId("therapist-bio-pending")).toHaveCount(0, { timeout: 60_000 });
     } finally {
       await context.close();
       await admin.from("profile_change_requests").delete().eq("user_id", therapistId).gte("created_at", startedAt);
