@@ -54,7 +54,10 @@ Staging and production are separate databases, so each has its own
 receipts must go out. **After applying the schema to staging, open Settings
 -> Emails there and set Test mode to your own inbox** (or switch Send emails
 off), so testing never emails a real person. Test addresses such as
-`@example.test` are never mailed on either.
+`@example.test` are never mailed on either. The email package's tables
+(`email_controls`, `email_log`, `appointment_emails`) can also be applied on
+their own with `scripts/email-package-2026-11.sql`, the same statements as the
+end of `schema.sql`, short enough for the SQL editor.
 
 ## A new Supabase project needs table grants, which the schema does not carry
 

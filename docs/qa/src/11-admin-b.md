@@ -779,6 +779,17 @@ The Logs section is **Master Admin only**. Operations, Finance and Clinical have
 * Step 3: *Cancelled: ...*: *You cancelled ...* with *A refund of ₹... is on its way*; *The clinic has cancelled ...* for the second.
 * Step 4: nothing arrives; **Last 100 emails** lists it as *This kind is switched off*.
 
+#### `ADM-SET-041` - Session reminders · P1 **[UI]**
+**Preconditions.** As ADM-SET-040. The maintenance schedule running (`.github/workflows/maintenance.yml`), or open the admin dashboard to run the sweep by hand.
+**Steps.**
+1. Book a confirmed video session for about 1 hour from now, and another for about 22 hours from now (booked at least a day ahead, or by an admin for a patient booked earlier).
+2. Wait for a sweep (up to 30 minutes), then open the admin dashboard twice more.
+3. Cancel a third confirmed session that is about an hour away before the sweep runs.
+**Expected Result.**
+* Step 2: one *Starting soon: your video session at ...* for the first and one *Tomorrow: ...* for the second; opening the dashboard again sends no second copy.
+* Step 3: no reminder for the cancelled session.
+* With **Session reminders** switched off on Settings → Emails, the attempts are listed as *This kind is switched off*.
+
 #### `ADM-SET-038` - Developer messages · P1
 **Feature.** The developer credit under the footer's copyright ("Contact me") leads to `/developer` and `/developer/lets-talk`. Whatever a visitor sends lands on **Settings → Developer messages**, which is **Master Admin only** and also holds the two switches that publish the page. See `PUB-DEV-001` for the visitor's side.
 

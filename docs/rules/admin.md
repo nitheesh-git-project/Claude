@@ -1281,3 +1281,17 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   condition, concern, note or Meet link**. Tests: `bookingEmails.test.ts`;
   `e2e/gateway-cancellation-refund.spec.ts` CR-001.
 
+- **A confirmed session gets a day-before and an hour-before reminder, once
+  each, from the maintenance sweep.** Kind `reminder` (its own switch).
+  `sendDueBookingReminders` (`src/lib/bookingReminders.ts`) is the
+  `bookingReminders` step of `runMaintenanceSweep`, so it runs every 30
+  minutes (`.github/workflows/maintenance.yml`) and after an admin dashboard
+  load; `appointment_emails` (events `reminder_24h`, `reminder_1h`) makes a
+  repeat run a no-op. The windows are wide because GitHub's schedule runs
+  late: the day-before reminder between 25 and 18 hours ahead (skipped for a
+  session booked inside that window, which just had its confirmation), the
+  hour-before between 90 and 15 minutes ahead (later is noise). Only a
+  session that is still `confirmed` is reminded; at most 100 a run, soonest
+  first. Rules: `dueReminder()`, unit-tested in `bookingEmails.test.ts`;
+  `e2e/admin-maintenance-sweep.spec.ts` MS-003.
+

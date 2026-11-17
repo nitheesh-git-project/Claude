@@ -11,13 +11,16 @@ import {
   bookingConfirmedEmail,
   bookingPaymentOf,
   bookingReceivedEmail,
+  bookingReminderEmail,
   cancelRefundOf,
   cancellationIsWorthEmailing,
   sessionModeOf,
   type AppointmentEmailRow,
+  type ReminderEvent,
 } from "@/lib/bookingEmails";
 
-// Sends the booking emails (bookingEmails.ts) for one appointment, ONCE each.
+// Sends the booking emails (bookingEmails.ts) for one appointment, ONCE each:
+// received, confirmed, cancelled, and the two reminders (bookingReminders.ts).
 //
 // Once: the payment callback and Razorpay's webhook can both confirm the
 // same booking, and both claims succeed (the claim accepts `confirmed`), so
@@ -31,7 +34,7 @@ import {
 // so a slow mail provider never holds up a payment or a cancellation. Outside
 // a request (a script, a test) it runs inline instead. Never throws.
 
-export type AppointmentEmailEvent = "received" | "confirmed" | "cancelled";
+export type AppointmentEmailEvent = "received" | "confirmed" | "cancelled" | ReminderEvent;
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -91,7 +94,9 @@ export async function sendAppointmentEmailOnce(
   };
 
   if (event === "cancelled" && !cancellationIsWorthEmailing(appointment)) return;
-  if (event === "confirmed" && appointment.status !== "confirmed") return;
+  // A confirmation or a reminder is only for a session that is (still)
+  // confirmed: a reminder for one cancelled since would be wrong.
+  if (event !== "received" && event !== "cancelled" && appointment.status !== "confirmed") return;
   if (!(await claimOnce(admin, appointmentId, event))) return;
 
   const ids = [appointment.patient_id, ...(appointment.therapist_id ? [appointment.therapist_id] : [])];
@@ -128,6 +133,10 @@ export async function sendAppointmentEmailOnce(
     payment: bookingPaymentOf(appointment),
     dashboardUrl,
   };
+  if (event === "reminder_24h" || event === "reminder_1h") {
+    await deliverEmail(patient.email as string, bookingReminderEmail(site, facts, event), { kind: "reminder" });
+    return;
+  }
   const email = event === "confirmed" ? bookingConfirmedEmail(site, facts) : bookingReceivedEmail(site, facts);
   await deliverEmail(patient.email as string, email, { kind: "booking" });
 }

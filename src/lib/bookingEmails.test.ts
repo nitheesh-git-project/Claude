@@ -5,6 +5,8 @@ import {
   bookingConfirmedEmail,
   bookingPaymentOf,
   bookingReceivedEmail,
+  bookingReminderEmail,
+  dueReminder,
   cancelRefundOf,
   cancellationIsWorthEmailing,
   sessionModeOf,
@@ -94,5 +96,42 @@ describe("from the appointment row", () => {
   it("reads the mode", () => {
     expect(sessionModeOf({ visit_mode: "home_visit" })).toBe("home_visit");
     expect(sessionModeOf({ visit_mode: null })).toBe("online");
+  });
+});
+
+describe("reminders", () => {
+  const H = 3_600_000;
+  const now = Date.UTC(2026, 10, 20, 6, 0);
+  const at = (hoursAhead: number) => now + hoursAhead * H;
+
+  it("sends the day-before reminder between 25 and 18 hours ahead, for a session booked earlier", () => {
+    const bookedAtMs = now - 3 * 24 * H;
+    expect(dueReminder({ slotMs: at(24), nowMs: now, bookedAtMs })).toBe("reminder_24h");
+    expect(dueReminder({ slotMs: at(25), nowMs: now, bookedAtMs })).toBe("reminder_24h");
+    expect(dueReminder({ slotMs: at(18.5), nowMs: now, bookedAtMs })).toBe("reminder_24h");
+    expect(dueReminder({ slotMs: at(26), nowMs: now, bookedAtMs })).toBeNull();
+    expect(dueReminder({ slotMs: at(17), nowMs: now, bookedAtMs })).toBeNull();
+  });
+
+  it("skips the day-before reminder for a session booked inside that window", () => {
+    expect(dueReminder({ slotMs: at(20), nowMs: now, bookedAtMs: now - H })).toBeNull();
+  });
+
+  it("sends the hour-before reminder between 90 and 15 minutes ahead, and nothing later", () => {
+    expect(dueReminder({ slotMs: at(1), nowMs: now, bookedAtMs: null })).toBe("reminder_1h");
+    expect(dueReminder({ slotMs: at(1.5), nowMs: now, bookedAtMs: null })).toBe("reminder_1h");
+    expect(dueReminder({ slotMs: at(0.25), nowMs: now, bookedAtMs: null })).toBeNull();
+    expect(dueReminder({ slotMs: at(-1), nowMs: now, bookedAtMs: null })).toBeNull();
+    expect(dueReminder({ slotMs: at(3), nowMs: now, bookedAtMs: null })).toBeNull();
+  });
+
+  it("words each reminder for its moment, with no health details", () => {
+    const tomorrow = bookingReminderEmail(brand, facts, "reminder_24h");
+    expect(tomorrow.subject).toBe("Tomorrow: your video session on 24 Nov 2026, 6:00 pm IST");
+    expect(tomorrow.text).toContain("is tomorrow");
+    const soon = bookingReminderEmail(brand, { ...facts, mode: "home_visit" }, "reminder_1h");
+    expect(soon.subject).toBe("Starting soon: your home visit at 24 Nov 2026, 6:00 pm IST");
+    expect(soon.text).toContain("starts in about an hour");
+    expect(soon.text).toContain("come to the address you gave");
   });
 });

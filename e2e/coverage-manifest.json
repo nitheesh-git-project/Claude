@@ -3461,7 +3461,7 @@
     {
       "id": "admin.maintenance-sweeps",
       "runner": "admin",
-      "title": "The scheduled maintenance sweeps (risk, retention, balance verification) run on a cron",
+      "title": "The scheduled maintenance sweeps (risk, retention, balance verification, session reminder emails once each) run on a cron",
       "required": false,
       "status": "covered",
       "coverage": [
@@ -3469,7 +3469,8 @@
           "spec": "admin-maintenance-sweep.spec.ts",
           "tests": [
             "MS-001",
-            "MS-002"
+            "MS-002",
+            "MS-003"
           ],
           "level": "api"
         }
