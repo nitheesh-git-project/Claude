@@ -131,8 +131,9 @@ A delivery mode rather than a parallel booking system: service areas, the travel
   stands in for it when the browser never comes back, and
   `/api/admin/mark-paid-by-cash`. All three produced the same wrong event for
   a home visit -- a Meet link for a session nobody joins, and **no street
-  address and no access notes** on an invite that is the only outbound
-  message this platform sends, so the therapist was handed a video call
+  address and no access notes** on an invite that was then the only outbound
+  message this platform sent (the clinic's booking email, admin.md, can be
+  switched off), so the therapist was handed a video call
   instead of somewhere to drive to. The helper resolves it from
   `appointments.visit_mode` and the `visit_*` columns when the caller says
   nothing, in its own isolated call falling back to online -- same place and
@@ -164,7 +165,8 @@ A delivery mode rather than a parallel booking system: service areas, the travel
   counter. A home visit still gets a
   calendar event even when `google_meet_enabled` is off - that toggle only
   gates the Meet conferencing, not event creation, since the invite email is
-  the only outbound notification this platform sends.
+  the one notification that cannot be switched off (the clinic's own booking
+  email, admin.md, can be).
 - **Never tell anyone an invite went out unless Google said so.**
   `createMeetEventForConfirmedAppointment` returns a `CalendarInviteOutcome`
   (`src/lib/calendarInviteOutcome.ts`: sent, already sent, switched off,
