@@ -888,10 +888,10 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
   const { data: conditionSpecialtyRow } = await conditionSpecialtyEarly;
   const intakeSpecialty = parseConditionSpecialty(conditionSpecialtyRow?.specialty);
   const intakeQuestions = questionsForSpecialty(intakeSpecialty);
-  const intakeAnswers = ((conditionProfile?.draft_data ?? conditionProfile?.data ?? {}) as Record<
+  const intakeAnswers = (conditionProfile?.draft_data ?? conditionProfile?.data ?? {}) as Record<
     string,
     string
-  >) ?? {};
+  >;
   const intakeAnswered = countAnswered(intakeQuestions, intakeAnswers);
   // Over the questions these answers ask, the same rule as the answered
   // count beside it: the raw key count included the paediatric caregiver
