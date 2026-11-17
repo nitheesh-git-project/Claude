@@ -75,9 +75,20 @@ async function clearOpenPlans() {
     .in("status", ["active", "pending_review"]);
 }
 
+// The two API contexts below live for the whole file, so the first request a
+// test makes on one reuses a socket the previous test left idle. Node's
+// server closes an idle socket after 5 s; a request sent in that instant
+// meets "read ECONNRESET" after a few milliseconds, before the server has
+// read a byte (PC-003 failed this way on two pull requests in a row, 187 ms
+// in, straight after PC-002 and with the server healthy). Playwright retries
+// exactly that error when asked, and a reset at that point means nothing was
+// processed, so asking is safe.
+const RETRY_RESET = { maxRetries: 2 } as const;
+
 async function recommendAndApprove(sessionCount: number) {
   await clearOpenPlans();
   const res = await therapist.post(`${BASE}/api/therapist/care-plan/submit`, {
+    ...RETRY_RESET,
     data: {
       patientId,
       appointmentId,
@@ -92,6 +103,7 @@ async function recommendAndApprove(sessionCount: number) {
   expect(res.status(), await res.text()).toBe(200);
   const created = await res.json();
   const review = await adminCtx.post(`${BASE}/api/admin/review-care-plan`, {
+    ...RETRY_RESET,
     data: { carePlanId: created.carePlanId, decision: "approved" },
   });
   expect(review.status(), await review.text()).toBe(200);
