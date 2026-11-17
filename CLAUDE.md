@@ -231,9 +231,8 @@ public/photos/           the public pages' photography (licence-free stock)
 ```
 
 Most `src/lib/` modules are named for the question they answer
-(`refundState.ts`, `clinicalAccess.ts`, `checkoutQuote.ts`), so
-`ls src/lib/` is a usable index and the relevant `docs/rules/` file names
-the ones that matter for that area.
+(`refundState.ts`, `checkoutQuote.ts`), so `ls src/lib/` is a usable
+index; each `docs/rules/` file names the ones that matter.
 
 ---
 
@@ -256,12 +255,10 @@ npm run clean:e2e            # clear fixture rows earlier e2e runs left behind
 
 **Two gears, and the whole suite is the slower one.** A change gets
 `npm run verify` plus the two or three specs covering what moved. The whole
-suite runs **once before the merge**, on the branch as it will land: it is
-`workers: 1` against one project by design, so running all of it per fix
-spends minutes re-proving cases the change could not have touched, and it is
-how a red run becomes routine. **Updating the suite is part of the change**,
-though - a fix that alters what a person sees, a rule, a route or a row
-writes or amends its spec in the same commit. Details, and the nine cases
+suite runs **once before the merge**, on the branch as it will land (why:
+`docs/rules/testing.md`). **Updating the suite is part of the change**,
+though: a fix that changes what a person sees, a rule, a route or a row
+amends its spec in the same commit. Details, and the nine cases
 that cannot pass without browser egress, are in `docs/rules/testing.md` and
 `e2e/README.md`.
 
