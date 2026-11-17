@@ -291,14 +291,17 @@ test("RC-006: every other patient screen carries a short link to the recommendat
   for (const path of ["/patient/dashboard", "/patient/dashboard/sessions", "/patient/dashboard/payments"]) {
     await page.goto(`${BASE}${path}`);
     await waitForSplashToClear(page);
-    const teaser = page.getByTestId("suggested-teaser");
+    // Visible only: while a page streams in, Next can hold a hidden copy of
+    // the same content (<div hidden id="S:0">), so the test id briefly
+    // matches twice (CI money-1of2 on PR #133; the RT-002 / ANN-002 race).
+    const teaser = page.getByTestId("suggested-teaser").filter({ visible: true });
     await expect(teaser, path).toBeVisible();
     await expect(teaser).toContainText(`${CONDITION} - 4 sessions`);
     // The Suggested entry stays in the sidebar on every screen too.
     await expect(page.getByRole("link", { name: /Suggested/ }).first()).toBeVisible();
   }
   await page.screenshot({ path: "test-results/recommendation-teaser.png" });
-  await page.getByTestId("suggested-teaser").click();
+  await page.getByTestId("suggested-teaser").filter({ visible: true }).click();
   await page.waitForURL(/\/patient\/dashboard\/suggested/);
   await expect(page.getByTestId("suggested-teaser")).toHaveCount(0);
   await expect(page.locator("#recommendation")).toBeVisible({ timeout: 30_000 });
