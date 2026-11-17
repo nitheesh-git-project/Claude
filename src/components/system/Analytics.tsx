@@ -16,7 +16,7 @@ import {
   COOKIE_CONSENT_EVENT,
   COOKIE_CONSENT_KEY,
   LEGACY_ANALYTICS_CONSENT_KEY,
-  autoOpensOn,
+  cardShownOn,
   consentFor,
   isCurrentConsent,
   marketingConsentEnabled,
@@ -25,6 +25,7 @@ import {
   readConsentAskState,
   recordCookieConsent,
   shouldAskForCookieConsent,
+  shouldAutoOpenCard,
   writeCookieConsent,
   type ConsentAction,
 } from "@/lib/cookieConsent";
@@ -139,6 +140,8 @@ export default function Analytics() {
   const [analyticsOn, setAnalyticsOn] = useState(false);
   const [marketingOn, setMarketingOn] = useState(false);
   const [thanks, setThanks] = useState<string | null>(null);
+  // Opened with the footer's Cookie settings rather than by itself.
+  const [openedByVisitor, setOpenedByVisitor] = useState(false);
   // Whether this visit asks at all: read once on the client, after
   // hydration, so the server's render and the first client render agree.
   const [askThisVisit, setAskThisVisit] = useState(false);
@@ -235,7 +238,9 @@ export default function Analytics() {
 
   // When it opens by itself: as soon as the opening splash has lifted (on a
   // page with no splash, straight after hydration). Never inside a booking.
-  const autoOpen = offered && askThisVisit && trackable && autoOpensOn(pathname);
+  // Decided from the visitor's *current* answer on every route change: see
+  // shouldAutoOpenCard for why a value read once at load is not enough.
+  const autoOpen = shouldAutoOpenCard({ offered, askThisVisit, consent, trackable, pathname });
   useEffect(() => {
     if (!autoOpen) return;
     let tries = 0;
@@ -266,6 +271,7 @@ export default function Analytics() {
     const reopen = () => {
       setLeaving(false);
       setStep(1);
+      setOpenedByVisitor(true);
       setOpen(true);
     };
     // A tap that landed before hydration left the hash instead of the event.
@@ -319,12 +325,13 @@ export default function Analytics() {
       setOpen(false);
       setLeaving(false);
       setStep(1);
+      setOpenedByVisitor(false);
     }, 250);
     setThanks(action === "accept_all" ? "Thanks, that really helps" : "Saved");
     window.setTimeout(() => setThanks(null), 2600);
   }
 
-  const visible = open && offered && !pending;
+  const visible = !pending && cardShownOn({ open, offered, trackable, pathname, openedByVisitor });
 
   if (pending) return null;
 

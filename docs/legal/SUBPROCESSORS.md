@@ -12,7 +12,7 @@ adding any new service.
 | **Razorpay** | Takes payments and refunds | Name, email, phone, amount, card/UPI/bank details (held by Razorpay, never by us) | India | Razorpay Terms of Use and Privacy Policy; PCI-DSS certificate | Nitheesh M |
 | **Google (Calendar / Meet)** | Calendar invites and Meet links for video sessions | Patient and therapist email addresses, session time, the session's title | Google's global infrastructure | Google Workspace / Cloud Data Processing Addendum | Nitheesh M |
 | **Google Analytics** | Website analytics, only after consent | Pseudonymous device identifiers, pages visited, booking-funnel events (no names, contacts or health data -- see the allowlist in `src/lib/analytics.ts`) | Google's global infrastructure | Google Ads Data Processing Terms (accept in GA admin) | Nitheesh M |
-| **Resend** | Emails for complaints and deletion requests | Name, email address, complaint text, reference numbers | USA | Resend DPA (resend.com/legal/dpa) | Nitheesh M |
+| **Resend** | Emails for complaints and deletion requests | Name, email address, complaint text, reference numbers | Tokyo, Japan (ap-northeast-1; the closest region Resend offers to India) | Resend DPA (resend.com/legal/dpa) | Nitheesh M |
 | **WhatsApp (Meta)** | Only when a person chooses to message the clinic | Whatever they send | Meta's global infrastructure | WhatsApp Business Terms | Nitheesh M |
 | **Vercel** (hosting) | Runs the website and API | Request data passing through; server logs (IP addresses) | USA, with a global edge network | Vercel DPA | Nitheesh M |
 

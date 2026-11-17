@@ -47,7 +47,7 @@ export default function PublicBookBar({
   const account = accountHidden
     ? null
     : showSignedOut
-      ? { href: "/get-started", label: "Get started" }
+      ? { href: "/get-started", label: "Get Started" }
       : destination
         ? { href: destination.href, label: destination.href === "/dashboard" ? "Dashboard" : destination.label }
         : null;

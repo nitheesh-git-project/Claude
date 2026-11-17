@@ -63,8 +63,17 @@ describe("legal pages", () => {
     for (const { slug } of LEGAL_PAGES) {
       const text = textOf(slug, ctx(BLANK));
       expect(text).not.toMatch(/undefined|null|\[[A-Z][a-z]+ ?[a-z]*\]|TODO|TBD/);
+      // Wording that announces a gap to a visitor reads as unfinished.
+      expect(text).not.toMatch(/to fill in|fill in|add (the |your )?(data|details|name|address)|coming soon|to be (added|confirmed|announced)|not yet registered|once registered|pending registration/i);
       expect(text).not.toContain("Example Health");
     }
+  });
+
+  it("says what the business does, not that a detail is missing, before it is registered", () => {
+    const text = textOf("privacy", ctx(BLANK));
+    expect(text).toContain("provides personalised physiotherapy");
+    expect(text).not.toContain("is a physiotherapy practice");
+    expect(textOf("terms", ctx(BLANK))).toContain("provides personalised physiotherapy");
   });
 
   it("names the entity, officer and courts once they are supplied", () => {

@@ -21,9 +21,10 @@ import type { PublicContactLinks } from "@/lib/contactLinks";
 // reads before booking. Mission and Hospitals (the latter written for a
 // different audience) go under More until 2xl.
 const PRIMARY_KEYS = new Set<MarketingPageKey>(["conditions", "how-it-works", "home-visit", "team", "faq"]);
-// Below xl (1024-1279px) the bar keeps the brand's full name, so one primary
-// link steps into More to make room; it is back in the bar from xl.
-const LAPTOP_MORE_KEYS = new Set<MarketingPageKey>(["team"]);
+// Below xl (1024-1279px) the bar keeps the brand's full name and three
+// buttons (Sign In, Get Started, Book), so two primary links step into More
+// to make room; they are back in the bar from xl.
+const LAPTOP_MORE_KEYS = new Set<MarketingPageKey>(["team", "home-visit"]);
 
 export default function Navbar({
   offsetTop = false,
@@ -283,6 +284,15 @@ export default function Navbar({
               >
                 Sign In
               </Link>
+              {/* The way in for a therapist or a hospital: Sign In above is the
+                  patient's door, and this hub holds the other two (and the
+                  patient's too). Quieter than Book, which stays the primary. */}
+              <Link
+                href="/get-started"
+                className="rounded-xl border border-teal-700/40 px-3.5 py-2 text-sm font-semibold text-teal-800 transition-colors hover:border-teal-700 hover:bg-teal-50 xl:px-4"
+              >
+                Get Started
+              </Link>
               <motion.div
                 whileHover={{ scale: 1.04 }}
                 whileTap={{ scale: 0.96 }}
@@ -315,7 +325,7 @@ export default function Navbar({
           ) : null}
 
           {/* Tablets (640-1023px) have the room phones lack: Sign In and
-              Get started sit in the bar, as on a laptop. Book is already
+              Get Started sit in the bar, as on a laptop. Book is already
               in the sticky bar at the foot of the screen. A phone carries
               Get started there too (PublicBookBar). */}
           {authCtaHidden ? null : showSignedOut ? (
@@ -330,7 +340,7 @@ export default function Navbar({
                 href="/get-started"
                 className="flex min-h-11 items-center gap-1.5 rounded-xl bg-teal-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-teal-800"
               >
-                Get started <i aria-hidden="true" className="fa-solid fa-arrow-right text-xs"></i>
+                Get Started <i aria-hidden="true" className="fa-solid fa-arrow-right text-xs"></i>
               </Link>
             </div>
           ) : destination ? (
@@ -363,9 +373,9 @@ export default function Navbar({
               className="lg:hidden overflow-hidden"
             >
               {/* Every row is a 44px target (the phone menu is thumb-driven)
-                  and the one primary button is the mode-named Book, not the
-                  /get-started hub: that hub is a switchboard for clinicians
-                  and partners, now reached from the footer. */}
+                  and the one primary button is the mode-named Book. Get Started,
+                  the hub where a therapist or a hospital finds their own sign-in,
+                  sits under it as the quieter one (and in the footer too). */}
               <div className="pb-4 flex flex-col space-y-1 text-base font-medium text-slate-700">
                 {authCtaHidden ? null : (
                   <Link
@@ -375,6 +385,15 @@ export default function Navbar({
                   >
                     {BOOK_CONNECTOR.label}
                     <i aria-hidden="true" className="fa-solid fa-arrow-right text-xs"></i>
+                  </Link>
+                )}
+                {authCtaHidden || !showSignedOut ? null : (
+                  <Link
+                    href="/get-started"
+                    onClick={() => setOpen(false)}
+                    className="mb-2 flex min-h-12 items-center justify-center rounded-xl border border-teal-700/40 px-4 text-center font-semibold text-teal-800 hover:bg-teal-50"
+                  >
+                    Get Started
                   </Link>
                 )}
                 {links.map((link) => (
@@ -389,20 +408,13 @@ export default function Navbar({
                   </Link>
                 ))}
                 {authCtaHidden ? null : showSignedOut ? (
-                  <div className="mt-1 flex gap-2 border-t border-slate-100 pt-3">
+                  <div className="mt-1 border-t border-slate-100 pt-3">
                     <Link
                       href="/patient/login"
                       onClick={() => setOpen(false)}
-                      className="flex min-h-11 flex-1 items-center justify-center rounded-xl border border-slate-300 px-4 font-semibold text-slate-800"
+                      className="flex min-h-11 items-center justify-center rounded-xl border border-slate-300 px-4 font-semibold text-slate-800"
                     >
                       Sign In
-                    </Link>
-                    <Link
-                      href="/get-started"
-                      onClick={() => setOpen(false)}
-                      className="flex min-h-11 flex-1 items-center justify-center rounded-xl border border-teal-700 px-4 font-semibold text-teal-800"
-                    >
-                      Get started
                     </Link>
                   </div>
                 ) : destination ? (

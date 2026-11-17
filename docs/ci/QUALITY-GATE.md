@@ -146,7 +146,12 @@ admin runner's tests 32. Now:
 - **Warm-up**: once `next dev` answers, the runner requests the main public,
   login and dashboard pages once, in parallel (at most
   `GATE_WARMUP_SECONDS`, default 90), so their first compile is not charged
-  to a spec's timeout. It never fails the runner.
+  to a spec's timeout. It never fails the runner. The list is `WARMUP_PATHS`
+  in `scripts/ci/run-runner.mjs`, and **a new public page a spec visits joins
+  it**: a route compiled for the first time while a test is typing makes
+  `next dev` rebuild and reload the page under it, and the typed fields come
+  back empty (DR-004 on `/grievances`: the trace shows "[Fast Refresh]
+  rebuilding" and a second "HMR connected" between the fills).
 - **Concurrency**: 19 runner jobs plus `verify` fit GitHub's 20. That is
   also why `ci.yml` no longer runs on pull requests.
 
@@ -193,6 +198,18 @@ fresh connection every time: a reused keep-alive socket once failed with
 restart waits for the old process group and the port to be gone (SIGKILL
 after 20 s) before it starts the next server, because two dev servers
 sharing `.next/dev` answered existing routes with 404s.
+
+`next dev` also keeps an idle connection for 120 s instead of Node's 5 s
+(plus a 1 s buffer): `scripts/ci/egress-guard.mjs`, which is already
+preloaded into it, applies `scripts/ci/lib/keepAlive.mjs`. A spec's API
+contexts (`request.newContext`) live for the whole file and pool their
+sockets, so a request sent as the server closed an idle one failed with
+`apiRequestContext.post: read ECONNRESET` a few milliseconds in, on a
+healthy server, whenever the client was busy across that moment (PC-003
+and SS-018, on three pull requests in a row, in specs the change had not
+touched). Reproduced outside CI and fixed on the server side, so specs
+need no retry of their own; an `ECONNRESET` after this is a different
+problem.
 
 `scripts/debug-reset-sql-checks.sql` is never run: it takes
 `AccessExclusiveLock` on every table, and `ALLOW_DEBUG_DATA_RESET` stays

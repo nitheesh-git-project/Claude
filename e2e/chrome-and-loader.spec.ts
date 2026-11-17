@@ -2,8 +2,9 @@
 // wears the same light sidebar.
 //
 // Four complaints, each something only a browser shows:
-//  - tapping Sign In removed Sign In / Book from the nav (Get Started is no
-//    longer in the header: the hub's doors live in the footer);
+//  - tapping Sign In removed Sign In / Get Started / Book from the nav
+//    (Get Started stays in the header: it is how a therapist or a hospital
+//    finds their own sign-in);
 //  - tapping a dashboard tab flashed a dark sidebar (the old loading
 //    skeleton) until the page arrived;
 //  - the admin dashboard still had the dark blue sidebar;
@@ -13,17 +14,23 @@ import { BASE, QA_EMAILS, browserCookiesFor, markDashboardTourSeen, waitForSplas
 
 const SHOT = "/tmp/claude-0/-home-user-Claude/92352852-44c7-581f-b775-ee8d1b4f4c9d/scratchpad/shots";
 
-test("CHROME-001: the sign-in page keeps Sign In and Book in the nav, and Get Started is gone", async ({ page }) => {
+test("CHROME-001: the sign-in page keeps Sign In, Get Started and Book in the nav, and Get Started leads to the therapist and hospital doors", async ({ page }) => {
   await page.setViewportSize({ width: 1600, height: 900 });
   await page.goto(`${BASE}/conditions`);
   await waitForSplashToClear(page);
   const nav = page.getByRole("navigation").filter({ has: page.getByRole("link", { name: "Sign In" }) }).first();
   await nav.getByRole("link", { name: "Sign In" }).click();
   await expect(page).toHaveURL(/\/patient\/login/);
-  for (const name of ["Sign In", /Book a video session/]) {
+  for (const name of ["Sign In", "Get Started", /Book a video session/]) {
     await expect(nav.getByRole("link", { name })).toBeVisible();
   }
-  await expect(nav.getByRole("link", { name: "Get Started" })).toHaveCount(0);
+  // Without it a therapist or a hospital has no way to their own sign-in from
+  // the top bar: Sign In above is the patient's.
+  await nav.getByRole("link", { name: "Get Started" }).click();
+  await expect(page).toHaveURL(/\/get-started$/);
+  await expect(page.getByRole("link", { name: /Therapist Login/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Partner Login/ })).toBeVisible();
+  await page.goBack();
   // The therapist and partner doors moved to the footer, under their own heading.
   const footer = page.getByRole("contentinfo");
   await expect(footer.getByRole("heading", { name: "For clinicians and partners" })).toBeVisible();
@@ -194,10 +201,10 @@ test("CHROME-006: an in-app link that loads slowly shows the loader, not a page 
   await expect(page.getByTestId("navigation-loader")).toHaveCount(0, { timeout: 30_000 });
 });
 
-test("CHROME-007: a way into an account on every width -- tablet bar, phone bottom bar, phone menu", async ({ browser }) => {
+test("CHROME-011: a way into an account on every width -- tablet bar, phone bottom bar, phone menu", async ({ browser }) => {
   // Below 1024px the header's Sign In / Book cluster was hidden and the only
-  // way in was the menu. Tablets now carry Sign In and Get started in the
-  // bar; a phone, with no room beside the full name, carries Get started
+  // way in was the menu. Tablets now carry Sign In and Get Started in the
+  // bar; a phone, with no room beside the full name, carries Get Started
   // in the sticky bottom bar next to Book.
   const tablet = await browser.newContext({ viewport: { width: 820, height: 900 } });
   const t = await tablet.newPage();
@@ -205,7 +212,7 @@ test("CHROME-007: a way into an account on every width -- tablet bar, phone bott
   await waitForSplashToClear(t);
   const bar = t.getByRole("navigation").first();
   await expect(bar.getByRole("link", { name: "Sign In" }).filter({ visible: true })).toBeVisible();
-  await expect(bar.getByRole("link", { name: /Get started/ }).filter({ visible: true })).toHaveAttribute("href", "/get-started");
+  await expect(bar.getByRole("link", { name: /Get Started/ }).filter({ visible: true })).toHaveAttribute("href", "/get-started");
   await tablet.close();
 
   const phone = await browser.newContext({ viewport: { width: 360, height: 780 } });
@@ -213,7 +220,7 @@ test("CHROME-007: a way into an account on every width -- tablet bar, phone bott
   await p.goto(`${BASE}/faq`);
   await waitForSplashToClear(p);
   const bottom = p.locator("[data-tabbar]");
-  await expect(bottom.getByRole("link", { name: "Get started" })).toBeVisible();
+  await expect(bottom.getByRole("link", { name: "Get Started" })).toBeVisible();
   await expect(bottom.getByRole("link", { name: /Book a video session/ })).toBeVisible();
   // Nothing in the bottom bar is cut off at 360px.
   const overflow = await bottom.evaluate((el) =>
@@ -221,7 +228,7 @@ test("CHROME-007: a way into an account on every width -- tablet bar, phone bott
   );
   expect(overflow, "a bottom-bar button is truncated").toBe(false);
   await p.getByRole("button", { name: "Toggle menu" }).click();
-  await expect(p.getByRole("navigation").getByRole("link", { name: "Get started" }).filter({ visible: true })).toBeVisible();
+  await expect(p.getByRole("navigation").getByRole("link", { name: "Get Started" }).filter({ visible: true })).toBeVisible();
   await expect(p.getByRole("navigation").getByRole("link", { name: "Sign In" }).filter({ visible: true })).toBeVisible();
   await phone.close();
 });
@@ -276,4 +283,37 @@ test("CHROME-010: an empty phone field starts on the visitor's country, not the 
     await expect(page.getByRole("combobox", { name: "Country code" }).first()).toHaveValue("IN", { timeout: 15_000 });
   }
   await ctx.close();
+});
+
+test("CHROME-007: Sign In, Get Started and Book fit the header on one row from 1024px, with no sideways scroll", async ({ page }) => {
+  // Three buttons beside the brand's full name is tight at the smallest laptop
+  // width: Our team and Home visit step into More below xl to make room.
+  for (const width of [1024, 1100, 1280, 1536]) {
+    await page.setViewportSize({ width, height: 800 });
+    await page.addInitScript(() =>
+      localStorage.setItem("mr_cookie_consent", JSON.stringify({ version: "2026-11-12", analytics: false, marketing: false, at: Date.now() }))
+    );
+    await page.goto(`${BASE}/`);
+    await waitForSplashToClear(page);
+    const nav = page.getByRole("navigation").filter({ has: page.getByRole("link", { name: "Sign In" }) }).first();
+    const boxes = [];
+    for (const name of ["Sign In", "Get Started", /Book a video session/] as const) {
+      const link = nav.getByRole("link", { name });
+      await expect(link, `${width}px`).toBeVisible();
+      boxes.push((await link.boundingBox())!);
+    }
+    // One row, left to right, and the last one inside the window.
+    expect(Math.abs(boxes[0].y - boxes[1].y), `${width}px: Sign In and Get Started share a row`).toBeLessThan(6);
+    expect(Math.abs(boxes[1].y - boxes[2].y), `${width}px: Get Started and Book share a row`).toBeLessThan(6);
+    expect(boxes[0].x + boxes[0].width, `${width}px`).toBeLessThanOrEqual(boxes[1].x + 1);
+    expect(boxes[1].x + boxes[1].width, `${width}px`).toBeLessThanOrEqual(boxes[2].x + 1);
+    expect(boxes[2].x + boxes[2].width, `${width}px: Book is inside the window`).toBeLessThanOrEqual(width);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth), `${width}px: sideways scroll`).toBe(false);
+  }
+  // Home visit is not lost below xl: it is under More.
+  await page.setViewportSize({ width: 1024, height: 800 });
+  await page.goto(`${BASE}/`);
+  await waitForSplashToClear(page);
+  await page.getByRole("button", { name: /^More/ }).click();
+  await expect(page.getByRole("link", { name: "Home visit" }).first()).toBeVisible();
 });

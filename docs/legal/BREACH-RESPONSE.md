@@ -99,9 +99,9 @@ the lawyer to send the 6-hour CERT-In report.
 | Role | Who | How |
 | --- | --- | --- |
 | Grievance Officer / decision maker | Nitheesh M | grievance@moverestorephysio.com, +91 82772 04388 |
-| Lawyer | *to fill in* | |
+| Lawyer | None retained at present; engage one before notifying the Board | |
 | CERT-In | | incident@cert-in.org.in |
-| Data Protection Board of India | | *portal address to fill in once published* |
+| Data Protection Board of India | | The reporting channel the Board publishes under the DPDP Rules |
 | Supabase support | | supabase.com/support |
 | Razorpay support | | razorpay.com/support |
 
