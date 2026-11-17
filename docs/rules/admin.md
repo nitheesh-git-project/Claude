@@ -1256,8 +1256,9 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   never through `SITE_SETTINGS_SELECT`, so a database without it only
   affects email and falls back to "on, no test inbox". Routes:
   `POST /api/admin/email/settings` (one change per call) and
-  `POST /api/admin/email/test` (to the signed-in admin's own address, from
-  the session), both `requireAdminScope("settings")`, audited as
+  `POST /api/admin/email/test` (to the test inbox when test mode is on,
+  else the signed-in admin's own address from the session; never from the
+  body), both `requireAdminScope("settings")`, audited as
   `email_controls.set` / `email.test_send`. A new kind of email joins
   `EMAIL_KINDS` with its own switch. Tests: `emailControls.test.ts`;
   `e2e/admin-email-controls.spec.ts`.
