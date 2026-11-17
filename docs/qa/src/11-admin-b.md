@@ -766,6 +766,19 @@ The Logs section is **Master Admin only**. Operations, Finance and Clinical have
 * Step 5: the test email arrives (check spam); the result line says where it went. Without Resend set up it says *Email isn't set up on this server*.
 * Step 6: 400 *never receives mail*; 403 for the patient. Each change is an `email_controls.set` row in the log with from and to.
 
+#### `ADM-SET-040` - Booking and cancellation emails · P1 **[UI]**
+**Preconditions.** Settings → Emails with **Test mode** set to your own inbox (ADM-SET-039); Resend set up on the server.
+**Steps.**
+1. As a patient, book and pay for a video session where one therapist is free (auto-assigned). Then book one where nobody is free.
+2. As the admin, assign a therapist to the second session.
+3. As the patient, cancel the first session outside the refund window; as the admin, cancel the second.
+4. Switch **Booking confirmations** off and book again.
+**Expected Result.**
+* Step 1: one *Booked: your video session on ...* email for the first (time in IST, length, physiotherapist, *Paid: ₹...*); one *We have your booking for ...* for the second. **No** condition, concern or Meet link in either. Paying twice-confirmed (callback and webhook) still sends one email.
+* Step 2: one *Booked: ...* email naming the physiotherapist.
+* Step 3: *Cancelled: ...*: *You cancelled ...* with *A refund of ₹... is on its way*; *The clinic has cancelled ...* for the second.
+* Step 4: nothing arrives; **Last 100 emails** lists it as *This kind is switched off*.
+
 #### `ADM-SET-038` - Developer messages · P1
 **Feature.** The developer credit under the footer's copyright ("Contact me") leads to `/developer` and `/developer/lets-talk`. Whatever a visitor sends lands on **Settings → Developer messages**, which is **Master Admin only** and also holds the two switches that publish the page. See `PUB-DEV-001` for the visitor's side.
 

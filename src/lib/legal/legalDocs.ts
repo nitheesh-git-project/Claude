@@ -168,7 +168,7 @@ function privacy(ctx: LegalContext, f: LegalFacts): LegalDoc {
               ["Vercel", "Running our website and its servers"],
               ["Razorpay", "Taking payments and refunds"],
               ["Google", "Calendar invites and Meet links for video sessions; website analytics only with your consent"],
-              ["Resend", "Sending emails about your requests and complaints"],
+              ["Resend", "Sending emails about your bookings, cancellations and refunds, and about your requests and complaints"],
               ["WhatsApp (Meta)", "Only when you choose to message us there"],
             ],
           } },

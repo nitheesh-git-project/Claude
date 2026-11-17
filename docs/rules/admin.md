@@ -1262,3 +1262,22 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   `EMAIL_KINDS` with its own switch. Tests: `emailControls.test.ts`;
   `e2e/admin-email-controls.spec.ts`.
 
+- **A patient is emailed about their booking once per event, after the
+  response, and never about their health.** Kinds `booking` and
+  `cancellation` (`src/lib/bookingEmails.ts`, pure templates;
+  `appointmentEmailServer.ts` sends): *received* when a paid, free or
+  pay-later booking is claimed with nobody assigned yet, *confirmed* when it
+  is confirmed (at payment by `confirmPaidAppointment`, or later by
+  `/api/admin/assign-appointment`), *cancelled* from both cancel routes,
+  saying who cancelled and what happens to the money as
+  `cancelAppointmentAndRefund` wrote it (refunded, pending, not eligible, a
+  programme session). An unpaid checkout that is cancelled gets nothing. The
+  payment callback and the webhook can both claim one booking, so the guard
+  is the `appointment_emails` row (appointment, event): the insert is the
+  claim and only its winner sends; a skipped send keeps its row, so turning
+  emails back on never mails old bookings. Sent with `after()`, so a slow
+  provider never holds up a payment. The email carries the time, type,
+  length, physiotherapist and price, a link to the dashboard, and **no
+  condition, concern, note or Meet link**. Tests: `bookingEmails.test.ts`;
+  `e2e/gateway-cancellation-refund.spec.ts` CR-001.
+

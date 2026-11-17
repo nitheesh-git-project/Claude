@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { queueAppointmentEmail } from "@/lib/appointmentEmailServer";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordUserActivity } from "@/lib/userActivityLog";
@@ -116,6 +117,7 @@ export async function POST(request: NextRequest) {
     },
     dedupeKey: `cancelled:${appointmentId}`,
   });
+  queueAppointmentEmail(appointmentId, "cancelled", { byClinic: false });
   return NextResponse.json({
     success: true,
     refunded: result.refunded,

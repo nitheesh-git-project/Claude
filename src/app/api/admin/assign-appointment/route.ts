@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync";
+import { queueAppointmentEmail } from "@/lib/appointmentEmailServer";
 import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
 import { formatAddressOneLine, visitAddressFromAppointment } from "@/lib/formatAddress";
 import {
@@ -311,9 +312,9 @@ export async function POST(request: NextRequest) {
       durationMinutes: appointment.duration_minutes,
       timezone: appointment.timezone,
       // A home visit's event carries the street address and no Meet link.
-      // It is not optional: Calendar's invite email is the only outbound
-      // message this platform sends, so skipping it would leave the patient
-      // with no confirmation that someone is coming to their home.
+      // It is not optional: the clinic's own confirmation email can be
+      // switched off (Settings -> Emails), so Calendar's invite may be the
+      // only confirmation the patient gets that someone is coming home.
       visitMode: isHomeVisit ? "home_visit" : "online",
       location: isHomeVisit && visit ? formatAddressOneLine(visitAddressFromAppointment(visit)) : null,
       description:
@@ -322,6 +323,10 @@ export async function POST(request: NextRequest) {
           : null,
     });
   }
+
+  // The patient hears it is confirmed, once (a "received" email may have
+  // gone out at payment, while nobody was assigned).
+  if (shouldConfirm) queueAppointmentEmail(appointmentId, "confirmed");
 
   await recordAdminActivity(admin, adminUser.id, {
     action: "session.assign",

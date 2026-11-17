@@ -28,7 +28,7 @@ export function escapeHtml(value: string): string {
 /** One branded, mobile-friendly layout for every email: a teal header with
  *  the clinic's name, a white card, a quiet footer. Inline styles only --
  *  email clients ignore stylesheets. */
-function layout(brand: EmailBrand, heading: string, paragraphs: string[], footnote?: string): string {
+export function layout(brand: EmailBrand, heading: string, paragraphs: string[], footnote?: string): string {
   const body = paragraphs.map((p) => `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;color:#334155">${p}</p>`).join("");
   return `<!doctype html><html><body style="margin:0;background:#f1f5f9;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:24px 12px"><tr><td align="center">

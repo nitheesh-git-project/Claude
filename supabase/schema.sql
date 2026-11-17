@@ -10247,6 +10247,8 @@ begin
     patient_profile_widget_overrides,
     -- The email send log (end of this file); the email switches are settings and stay.
     email_log,
+    -- Which booking emails were sent once (end of this file).
+    appointment_emails,
     -- Who closed or has seen which announcement, and everybody's private
     -- notebook (both at the end of this file). The announcements themselves
     -- are the admin's own writing, like the FAQs, and stay.
@@ -21383,3 +21385,30 @@ create policy "email_log_select_admin" on email_log
   for select using (is_admin());
 
 revoke insert, update, delete on email_log from anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Booking emails, once each (src/lib/appointmentEmailServer.ts).
+--
+-- One row per (appointment, event) the patient was emailed about: received,
+-- confirmed, cancelled. The INSERT is the claim -- the payment callback and
+-- Razorpay's webhook can both confirm one booking, and only the request
+-- whose insert lands sends. What happened to the email itself is in
+-- email_log. The appointment cascades, so scripts/clean-e2e-residue.mjs has
+-- nothing to learn; the data reset truncates it with the appointments
+-- (newest debug_reset_all_data()). Admin read only; written by the service
+-- role.
+-- ---------------------------------------------------------------------------
+create table if not exists appointment_emails (
+  appointment_id uuid not null references appointments(id) on delete cascade,
+  event text not null check (event in ('received', 'confirmed', 'cancelled')),
+  created_at timestamptz not null default now(),
+  primary key (appointment_id, event)
+);
+
+alter table appointment_emails enable row level security;
+
+drop policy if exists "appointment_emails_select_admin" on appointment_emails;
+create policy "appointment_emails_select_admin" on appointment_emails
+  for select using (is_admin());
+
+revoke insert, update, delete on appointment_emails from anon, authenticated;

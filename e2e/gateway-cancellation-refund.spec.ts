@@ -117,6 +117,27 @@ test("CR-001: cancelled outside the window, the whole charge is refunded at the 
   expect(again.status).toBeGreaterThanOrEqual(400);
   expect((await gateway.callsSince(sinceAgain)).filter((c) => c.path.endsWith("/refund"))).toHaveLength(0);
   expect(await gateway.refundsFor(paid.payment.id)).toHaveLength(1);
+
+  // The patient's emails (appointmentEmailServer.ts), sent after the
+  // response: one booking email at payment and one cancellation, each
+  // claimed once in appointment_emails. The QA patient is @example.test, so
+  // each is logged as never sent -- a test address is never mailed.
+  const emailEvents = async () => {
+    const { data } = await db.from("appointment_emails").select("event").eq("appointment_id", appointmentId);
+    return (data ?? []).map((r) => r.event as string);
+  };
+  await expect.poll(emailEvents, { timeout: 30_000 }).toContain("cancelled");
+  const events = await emailEvents();
+  expect(events).toHaveLength(2);
+  expect(events.filter((e) => e === "received" || e === "confirmed")).toHaveLength(1);
+  const { data: logged } = await db
+    .from("email_log")
+    .select("kind, status, reason, subject")
+    .eq("kind", "cancellation")
+    .ilike("subject", "Cancelled:%")
+    .order("created_at", { ascending: false })
+    .limit(1);
+  expect(logged?.[0]).toMatchObject({ status: "skipped", reason: "test_address" });
 });
 
 test("CR-002: cancelled inside the window, nothing reaches the gateway and the session says why", async () => {

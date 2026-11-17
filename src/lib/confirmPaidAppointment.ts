@@ -22,6 +22,7 @@ import {
 } from "@/lib/autoAssignTherapist";
 import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync";
 import { claimTherapistSlot } from "@/lib/claimTherapistSlot";
+import { queueAppointmentEmail } from "@/lib/appointmentEmailServer";
 
 type AdminClient = SupabaseClient;
 
@@ -189,6 +190,13 @@ async function runConfirmation(
       timezone: appointment.timezone,
     });
   }
+
+  // The patient's email, after the response and once per booking
+  // (appointmentEmailServer.ts). Only on the transition this call made: a
+  // second caller for an already-confirmed booking (the webhook after the
+  // browser's callback) arrives with status "confirmed" and sends nothing.
+  if (shouldAutoConfirm) queueAppointmentEmail(appointment.id, "confirmed");
+  else if (appointment.status === "requested") queueAppointmentEmail(appointment.id, "received");
 
   return {
     claimed: true,

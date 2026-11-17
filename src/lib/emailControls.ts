@@ -25,7 +25,7 @@
 //   5. Test mode sends everything to one inbox instead, naming the real
 //      recipient in the subject.
 
-export type EmailKind = "legal" | "test";
+export type EmailKind = "legal" | "booking" | "cancellation" | "test";
 
 export type EmailKindInfo = {
   key: EmailKind;
@@ -44,6 +44,21 @@ export const EMAIL_KINDS: readonly EmailKindInfo[] = [
     description:
       "The receipt and the outcome of a complaint, a data download or an account deletion. The law expects a reply within set times, so the main switch does not stop these.",
     legal: true,
+    switchable: true,
+  },
+  {
+    key: "booking",
+    label: "Booking confirmations",
+    description:
+      "To the patient when a session is booked: what was booked, when, with whom, and what was paid. Sent once per session.",
+    legal: false,
+    switchable: true,
+  },
+  {
+    key: "cancellation",
+    label: "Cancellations and refunds",
+    description: "To the patient when a booked session is cancelled, by them or by the clinic, saying whether money is coming back.",
+    legal: false,
     switchable: true,
   },
   {
