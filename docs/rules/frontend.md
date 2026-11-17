@@ -398,6 +398,16 @@ Dates in the clinic's zone, voice, no browser default ever speaking to a person,
   debug bar (`data-debug-bar`) is skipped by the keyboard walk only: it is a
   developer tool, off in production. Signed-in dashboards are not scanned
   yet.
+- **An accessible name starts with the words the control shows** (WCAG
+  2.5.3, label in name; axe 4.14 enforces it). A voice-control user says what
+  they see, so an `aria-label` that renames visible text breaks them: the
+  logo link said only the clinic's name over the name *and* tagline, the
+  footer's WhatsApp line was "Chat on WhatsApp" over a phone number, and the
+  goal tabs read "Desk and posture care" over "Desk & posture". Prefer no
+  `aria-label` over visible text; when more context helps, lead with the
+  visible words (`"+91 ... - Chat on WhatsApp"`) or add it after them as
+  `sr-only` text. An `sr-only` span is absolutely positioned, so its parent
+  gets `relative`, or inside a scroll box it widens the page.
 - **Every control carries an accessible name, and an icon-only one carries it
   explicitly.** A visible label is associated with `htmlFor` + `useId` (not
   by sitting next to the input), a control with no visible label at all --

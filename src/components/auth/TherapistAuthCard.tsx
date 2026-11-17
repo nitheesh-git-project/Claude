@@ -50,6 +50,7 @@ export default function TherapistAuthCard() {
     // back to "Sign In" for however long that navigation takes. Hard nav so
     // the fresh cookies set by signInWithPassword are guaranteed to be sent
     // with the very next request to the proxy.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- a full load on purpose: the auth cookies just changed
     window.location.href = "/therapist/dashboard";
   }
 
@@ -162,6 +163,7 @@ export default function TherapistAuthCard() {
     }
 
     // Left in the loading state deliberately -- see handleLogin's comment.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- a full load on purpose: the auth cookies just changed
     window.location.href = "/pending-approval";
   }
 

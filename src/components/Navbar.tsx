@@ -150,11 +150,11 @@ export default function Navbar({
         <div className="flex justify-between gap-3 h-16 items-center xl:gap-6">
           {/* Shrinks rather than shoving the menu button off a 360px phone:
               the name scales with the screen instead of being shortened. The
-              link keeps the
-              full name as its accessible name either way. */}
+              link's accessible name is that visible text -- the full name and
+              the tagline -- with no aria-label over it: WCAG 2.5.3 (label in
+              name) wants what a voice-control user sees to be what they say. */}
           <Link
             href="/"
-            aria-label={siteName}
             // Already on the home page there is nothing to load: the logo
             // goes back to the top instead. That includes `/?something` (a
             // shared link, a campaign tag): the home page reads no query, and
@@ -190,13 +190,11 @@ export default function Navbar({
                 gaps tighten instead. */}
             <div className="min-w-0">
               <span
-                aria-hidden="true"
                 className="font-display block whitespace-nowrap text-[clamp(15px,4.2vw,18px)] font-bold leading-tight tracking-tight text-slate-800 lg:text-base xl:text-lg"
               >
                 {siteName}
               </span>
               <span
-                aria-hidden="true"
                 className="block whitespace-nowrap text-[9px] font-semibold uppercase tracking-wider text-teal-700 sm:text-[10px] sm:tracking-widest"
               >
                 {siteTagline}
@@ -439,7 +437,7 @@ export default function Navbar({
                         href={contact.whatsapp}
                         target="_blank"
                         rel="noopener noreferrer"
-                        aria-label="Chat on WhatsApp (opens in a new tab)"
+                        aria-label="WhatsApp us (opens in a new tab)"
                         className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-sm font-semibold text-emerald-900"
                       >
                         <WhatsAppGlyph /> WhatsApp us

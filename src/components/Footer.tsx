@@ -272,7 +272,9 @@ function ContactLine({
           copy out by hand, on the device most likely to be used to ring it. */}
       <a
         href={href}
-        aria-label={label}
+        // The visible value leads the name (WCAG 2.5.3, label in name): a
+        // label alone named the WhatsApp line without the number it shows.
+        aria-label={label ? `${value} - ${label}` : undefined}
         {...(newTab ? { target: "_blank", rel: "noopener noreferrer" } : {})}
         // A real address is longer than a footer column at the md
         // breakpoint (~164px at 800px wide): unbroken, it pushed the whole

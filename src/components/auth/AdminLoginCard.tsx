@@ -37,6 +37,7 @@ export default function AdminLoginCard() {
     // cookies, so the proxy's next check reads a stale session and bounces
     // back to /admin/login without ever showing an error, leaving the
     // button looking like it silently failed.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- a full load on purpose: the auth cookies just changed
     window.location.href = "/admin/dashboard";
   }
 

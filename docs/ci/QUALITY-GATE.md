@@ -432,6 +432,17 @@ supabase stop --no-backup                         # throw the stack away
 `eafnosupport`. GitHub's runners have IPv6. A sandbox needs a locally
 patched Realtime image, which is not part of this repository.
 
+## Node version and install scripts
+
+Every workflow and `package.json` `engines` say **Node 24** (the LTS that
+Vercel also builds on: it reads `engines`). Change them together, or the
+gate tests a runtime production does not run. Node 24's npm (11) runs a
+package's install script only when `package.json` `allowScripts` names it:
+`esbuild`, `sharp` and `unrs-resolver` are approved by name, so a version
+bump keeps them working. A new dependency whose binary comes from an install
+script needs adding there (`npm install-scripts ls` lists what is waiting);
+without it `npm ci` succeeds and the package fails later.
+
 ## Changing the gate
 
 - **A new spec** must be added to `e2e/coverage-manifest.json` (`specs` and
