@@ -209,16 +209,16 @@ GitHub Actions (maintenance cron) ───────────────�
 
 | Layer | Technology |
 | --- | --- |
-| **Framework** | Next.js 16.3 (App Router, Server Components, Turbopack), React 19.2 |
-| **Language** | TypeScript 5 |
-| **Styling & motion** | Tailwind CSS v4, Motion (Framer Motion) 13, Font Awesome 7 |
+| **Framework** | Next.js 16.4 (App Router, Server Components, Turbopack), React 19.3, on Node.js 24 |
+| **Language** | TypeScript 6 |
+| **Styling & motion** | Tailwind CSS v4, Motion (Framer Motion) 14, Font Awesome 7 |
 | **Data & auth** | Supabase - Postgres, Auth, Storage, Realtime (`@supabase/ssr`, `@supabase/supabase-js`) |
 | **Payments** | Razorpay (orders, webhooks, refunds) |
 | **Video & calendar** | Google Calendar API + Google Meet (`googleapis`, `google-auth-library`) |
 | **Rich text** | Tiptap 3 (allow-listed JSON, rendered as React elements - no HTML); tables where a surface opts in (announcements, the notebook) |
 | **Documents** | `pdf-lib` for PDF exports and receipts |
 | **Phone numbers** | `libphonenumber-js` |
-| **Testing** | Vitest (unit), Playwright (end to end, desktop + mobile, layout audit at 17 viewports) |
+| **Testing** | Vitest 5 (unit), Playwright (end to end, desktop + mobile, layout audit at 17 viewports) |
 | **CI/CD** | GitHub Actions (quality gate on disposable Supabase stacks, schema apply, maintenance cron, docs freshness), Vercel hosting |
 
 * * *
