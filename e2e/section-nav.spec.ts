@@ -106,6 +106,9 @@ test.describe("Section rail and scroll arrow on the public pages", () => {
     page,
   }) => {
     await page.goto(`${BASE}/`);
+    // A click before hydration (the splash) lands on a pill with no handler
+    // yet and scrolls nothing -- the same wait SN-003 and SN-008 make.
+    await waitForSplashToClear(page);
     const last = rail(page).last();
     const label = (await last.textContent())?.trim() ?? "";
     await last.click();

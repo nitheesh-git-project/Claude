@@ -196,6 +196,10 @@ export type AdminActivityAction =
   // patient (People). Details carry the section, from and to.
   | "profile_widgets.set_kind"
   | "profile_widgets.set_patient"
+  // Settings -> Emails: a switch moved (details: field, from, to), and the
+  // "Send me a test email" button (details: result and reason).
+  | "email_controls.set"
+  | "email.test_send"
   | "clinical_questions.update_intake"
   | "clinical_questions.update_pain_map"
   | "risk.review"
@@ -434,6 +438,8 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
   "care_status.set": "Set a patient's phase, overruled their status or wrote where things stand",
   "profile_widgets.set_kind": "Changed which Health Profile sections a condition type shows",
   "profile_widgets.set_patient": "Changed which Health Profile sections one patient sees",
+  "email_controls.set": "Changed an email switch",
+  "email.test_send": "Sent a test email",
   "clinical_questions.update_intake": "Reworded an intake question",
   "clinical_questions.update_pain_map": "Reworded a Pain Map question",
   "risk.review": "Reviewed a risk signal",

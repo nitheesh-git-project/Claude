@@ -503,6 +503,17 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
         blurb: "Warnings when something behind the scenes has failed. Nothing here is set by you \u2014 it is the app reporting on itself.",
         example: "Find a booked session whose Google Meet link was never created, and try again.",
       },
+      // What the clinic emails: the master switch, test mode (every email to
+      // one inbox), a switch per kind, a test button and the last 100
+      // attempts. Technical, beside System Health, because it is about the
+      // plumbing, not what the clinic sells; the rules are emailControls.ts.
+      {
+        key: "emails",
+        label: "Emails",
+        group: "Technical",
+        blurb: "What the clinic emails: switch emails off or send them all to one inbox while testing, and see what was sent.",
+        example: "Send every email to your own inbox on staging, then press Send me a test email.",
+      },
       // The quarantine. One switch today, and the point of the screen is that
       // it is the only place a switch like it may live: a data-migration
       // cutover whose own help text sends you to System Health to decide it

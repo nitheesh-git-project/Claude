@@ -92,8 +92,8 @@ export async function POST(request: NextRequest) {
       if (contactEmail) {
         const { brand, officerEmail } = await legalEmailContext(request);
         await Promise.allSettled([
-          sendEmail(contactEmail, deletionRequestedEmail(brand, { name: contactName, reference }), { replyTo: officerEmail }),
-          sendEmail(officerEmail, officerAlertEmail(brand, { kind: "deletion", reference, name: contactName, email: contactEmail, role: profile!.role, reason: reason.value }), { replyTo: contactEmail }),
+          sendEmail(contactEmail, deletionRequestedEmail(brand, { name: contactName, reference }), { kind: "legal", replyTo: officerEmail }),
+          sendEmail(officerEmail, officerAlertEmail(brand, { kind: "deletion", reference, name: contactName, email: contactEmail, role: profile!.role, reason: reason.value }), { kind: "legal", replyTo: contactEmail }),
         ]);
       }
       return NextResponse.json({ reference });

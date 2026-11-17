@@ -112,6 +112,7 @@ Every route below is covered by at least one test. The rightmost column names th
 | Settings | `health` | System Health | `ADM-SET-030` |
 | Settings | `security` | Sign-in & Security | `ADM-SET-035` |
 | Settings | `advanced` | Advanced | `ADM-SET-019` |
+| Settings | `emails` | Emails: switches, test mode, test email, send log (Master Admin only) | `ADM-SET-039` |
 | Settings | `reachouts` | Developer messages (Master Admin only) | `ADM-SET-038` |
 
 Detail routes (open as an overlay from the dashboard, and as a full page on direct navigation):

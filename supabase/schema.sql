@@ -10245,6 +10245,8 @@ begin
     -- What the clinic chose to show on one patient's Health Profile (end of
     -- this file); the condition-kind settings are settings and stay.
     patient_profile_widget_overrides,
+    -- The email send log (end of this file); the email switches are settings and stay.
+    email_log,
     -- Who closed or has seen which announcement, and everybody's private
     -- notebook (both at the end of this file). The announcements themselves
     -- are the admin's own writing, like the FAQs, and stay.
@@ -21322,3 +21324,62 @@ begin
   alter publication supabase_realtime add table trusted_patient_codes;
 exception when duplicate_object then null;
 end $$;
+
+-- ---------------------------------------------------------------------------
+-- Email controls and the send log (Settings -> Emails; src/lib/emailControls.ts
+-- has the rules, src/lib/emailServer.ts applies them).
+--
+-- email_controls is ONE row (id = 1): the master switch, the test-mode
+-- inbox and the kinds switched off one by one. It is read on its own, never
+-- through SITE_SETTINGS_SELECT, so a database without it only affects email
+-- and falls back to "on, no test inbox" -- how email behaved before. Staging
+-- is expected to be switched to test mode by a person after this is applied;
+-- the default stays "on" so production's complaint and deletion receipts
+-- keep going out.
+--
+-- email_log is one row per email the app tried to send: the kind, a MASKED
+-- recipient (as***@gmail.com), the subject, sent / skipped / failed and why.
+-- Not evidence (the case itself is the record), so no append-only guard; the
+-- data reset truncates it (newest debug_reset_all_data()). No foreign keys,
+-- so scripts/clean-e2e-residue.mjs has nothing to learn.
+-- Both are read by admins only; every write is the service role's.
+-- ---------------------------------------------------------------------------
+create table if not exists email_controls (
+  id smallint primary key default 1 check (id = 1),
+  sending_enabled boolean not null default true,
+  test_inbox text check (test_inbox is null or (length(test_inbox) <= 254 and test_inbox ~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$')),
+  disabled_kinds text[] not null default '{}',
+  updated_by uuid references profiles(id) on delete set null,
+  updated_at timestamptz not null default now()
+);
+
+insert into email_controls (id) values (1) on conflict (id) do nothing;
+
+alter table email_controls enable row level security;
+
+drop policy if exists "email_controls_select_admin" on email_controls;
+create policy "email_controls_select_admin" on email_controls
+  for select using (is_admin());
+
+revoke insert, update, delete on email_controls from anon, authenticated;
+
+create table if not exists email_log (
+  id bigint generated always as identity primary key,
+  created_at timestamptz not null default now(),
+  kind text not null check (kind ~ '^[a-z0-9_]{1,40}$'),
+  recipient text not null check (length(recipient) <= 254),
+  subject text not null check (length(subject) <= 300),
+  status text not null check (status in ('sent', 'skipped', 'failed')),
+  reason text check (reason is null or reason ~ '^[a-z0-9_]{1,40}$'),
+  redirected boolean not null default false
+);
+
+create index if not exists email_log_created_at_idx on email_log (created_at desc);
+
+alter table email_log enable row level security;
+
+drop policy if exists "email_log_select_admin" on email_log;
+create policy "email_log_select_admin" on email_log
+  for select using (is_admin());
+
+revoke insert, update, delete on email_log from anon, authenticated;
