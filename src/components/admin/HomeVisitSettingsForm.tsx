@@ -83,7 +83,7 @@ function Toggle({
   );
 }
 
-function NumberSetting({
+export function NumberSetting({
   label,
   hint,
   value,
@@ -293,10 +293,18 @@ export default function HomeVisitSettingsForm({
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h3 className="font-bold text-sm text-slate-800 mb-1">Booking rules</h3>
+        <h3 className="font-bold text-sm text-slate-800 mb-1">Home visit booking rules</h3>
+        {/* Only what is particular to a visit. A home-visit programme's
+            validity and bulk-scheduling limit sit beside the video ones
+            under Programmes above, so no rule is shown twice (owner's
+            report: this box read as a repeat of the settings above it). */}
+        <p className="text-[11px] text-slate-500">
+          Rules that apply only to visits at a patient&apos;s home. Video sessions have their own under Booking
+          Rules; programme rules for both are under Programmes.
+        </p>
         <div className="divide-y divide-slate-100">
           <NumberSetting
-            label="Booking lead time"
+            label="How far ahead a home visit must be booked"
             hint="How far ahead a home visit must be booked. Longer than the 12 hours online sessions use, because a therapist has to physically reach the address."
             value={settings.homeVisitLeadTimeHours}
             settingKey="home_visit_lead_time_hours"
@@ -311,27 +319,11 @@ export default function HomeVisitSettingsForm({
             unit="minutes"
           />
           <NumberSetting
-            label="Full-refund window"
+            label="Free cancellation window for a home visit"
             hint="Cancel at least this long before the visit for a full refund. Inside it, none."
             value={settings.homeVisitCancellationRefundHours}
             settingKey="home_visit_cancellation_refund_hours"
             unit="hours"
-          />
-          <NumberSetting
-            label="Default programme validity"
-            hint="How long a patient has to book the visits they bought. Patients only see it when it is close."
-            value={settings.homeVisitDefaultValidityDays}
-            settingKey="home_visit_default_validity_days"
-            min={1}
-            unit="days"
-          />
-          <NumberSetting
-            label="Bulk scheduling limit"
-            hint="Most visits a patient can schedule in one go from their dashboard."
-            value={settings.homeVisitBulkScheduleMax}
-            settingKey="home_visit_bulk_schedule_max"
-            min={1}
-            unit="visits"
           />
         </div>
       </div>

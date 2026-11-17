@@ -435,7 +435,7 @@ const THERAPIST: TutorialChapter[] = [
         id: "profile",
         scene: "therapist-profile",
         title: "What patients see about you",
-        body: "Your photo, languages and bio show on the Our Team page and save straight away. Your name, qualifications and specialisation need the clinic's approval - patients rely on them.",
+        body: "Your photo and languages show on the Our Team page and save straight away. Your bio, name, qualifications and specialisation need the clinic's approval first - patients rely on them.",
       },
     ],
   },

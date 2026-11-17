@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { rateLimitNotice } from "@/lib/rateLimit";
 import { payForAppointment } from "@/lib/razorpay";
@@ -54,6 +54,10 @@ export default function InviteRegisterCard({
   const [preview, setPreview] = useState<Preview | null>(null);
   const [linkState, setLinkState] = useState<LinkState>(token ? "checking" : "invalid");
   const [retryNotice, setRetryNotice] = useState<string | null>(null);
+  const router = useRouter();
+  useEffect(() => {
+    if (!token) router.replace("/patient/login?tab=register");
+  }, [token, router]);
   const [recheckCount, setRecheckCount] = useState(0);
   // The fee in the visitor's currency; the server charges its rupee equal.
   const { formatList } = usePricing();
@@ -150,13 +154,11 @@ export default function InviteRegisterCard({
       <section className="py-16 max-w-md mx-auto px-4 text-center">
         <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-lg">
           {!token ? (
-            <>
-              <h1 className="text-xl font-bold text-slate-900">Invalid Link</h1>
-              <p className="text-xs text-slate-500 mt-2">
-                This registration link is missing or malformed. Please check
-                the link you were sent, or contact us.
-              </p>
-            </>
+            // No invite in the URL: somebody typed or bookmarked the bare
+            // address to make an account. That is the patient sign-up on
+            // /patient/login, so the effect above sends them there rather
+            // than telling them their link is broken.
+            <p className="text-sm text-slate-500">Taking you to sign up...</p>
           ) : (
             <p className="text-sm text-slate-500">Checking your registration link...</p>
           )}

@@ -4,12 +4,13 @@ import { BASE, waitForSplashToClear } from "./helpers";
 /**
  * "What treatment works towards" (TreatmentGoals): on the home page and
  * /how-it-works, one kind of care at a time, swept from the first visit to the
- * goal. Read-only: nothing here writes a row.
+ * goal, looping through all six until a visitor picks one. Read-only:
+ * nothing here writes a row.
  */
 test.describe("what treatment works towards", () => {
   test.setTimeout(120_000);
 
-  test("TG-001 the band sweeps from the first visit to the goal, and a picked kind of care stays picked", async ({ page }) => {
+  test("TG-001 the band loops through all six, and a picked kind of care stops it there", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto(`${BASE}/`);
     await waitForSplashToClear(page);
@@ -24,19 +25,25 @@ test.describe("what treatment works towards", () => {
     await expect(band).toContainText("Sample patient Riya");
     await expect(band).toContainText("results vary");
 
+    // Left alone it plays all six in a loop: the second story comes up by
+    // itself (sweep 1.8s + hold 1.6s, after a 0.45s lead-in).
+    await expect(band.getByRole("tab", { name: "Orthopaedic care" })).toHaveAttribute("aria-selected", "true");
+    await expect(band.getByRole("tab").nth(1)).toHaveAttribute("aria-selected", "true", { timeout: 10_000 });
+    // No play button any more: the loop replaced it.
+    await expect(band.getByRole("button", { name: /Play all six/ })).toHaveCount(0);
+
+    // A tap stops the loop on that story, for as long as the page is open.
     await band.getByRole("tab", { name: "Heart and lung rehabilitation" }).click();
     await expect(panel).toContainText("372 m");
     await expect(panel).toContainText("285 m");
-    // Nothing advances by itself.
-    await page.waitForTimeout(6_000);
+    await page.waitForTimeout(9_000);
     await expect(band.getByRole("tab", { name: "Heart and lung rehabilitation" })).toHaveAttribute("aria-selected", "true");
-
-    // Play all six walks through, starting from the first.
-    await band.getByRole("button", { name: "Play all six" }).click();
-    await expect(band.getByRole("tab", { name: "Orthopaedic care" })).toHaveAttribute("aria-selected", "true");
-    await expect(band.getByRole("tab", { name: "Desk and posture care" })).toHaveAttribute("aria-selected", "true", {
-      timeout: 10_000,
-    });
+    // Scrolling away and back does not restart it either.
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.waitForTimeout(1_000);
+    await band.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(5_000);
+    await expect(band.getByRole("tab", { name: "Heart and lung rehabilitation" })).toHaveAttribute("aria-selected", "true");
   });
 
   test("TG-002 it sits on /how-it-works, without the old areas-of-practice picker, and fits a phone", async ({ page }) => {
@@ -51,7 +58,7 @@ test.describe("what treatment works towards", () => {
     expect(overflow, "the page scrolls sideways").toBe(false);
   });
 
-  test("TG-003 under reduced motion the goal shows at once", async ({ browser }) => {
+  test("TG-003 under reduced motion the goal shows at once and nothing advances", async ({ browser }) => {
     const context = await browser.newContext({ reducedMotion: "reduce", viewport: { width: 1280, height: 800 } });
     const page = await context.newPage();
     await page.goto(`${BASE}/`);
@@ -67,6 +74,9 @@ test.describe("what treatment works towards", () => {
         })
       )
       .toMatch(/inset\(0(px)? 0(\.00)?%? 0(px)? 0(px)?\)|inset\(0px\)|inset\(0 0\.00% 0 0\)/);
+    // And nothing advances on its own under reduced motion.
+    await page.waitForTimeout(6_000);
+    await expect(band.getByRole("tab").first()).toHaveAttribute("aria-selected", "true");
     await context.close();
   });
 });

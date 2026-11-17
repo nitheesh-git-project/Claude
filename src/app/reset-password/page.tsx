@@ -12,9 +12,18 @@ const ROLE_LOGIN_HREF: Record<string, string> = {
   hospital: "/hospital/login",
 };
 
+// Set in this tab once a reset link has been exchanged here, so a refresh
+// mid-form keeps the form (the link itself is single-use and spent).
+const RECOVERY_MARK = "mr-recovery-for";
+
 export default function ResetPasswordPage() {
   const [checking, setChecking] = useState(true);
   const [hasSession, setHasSession] = useState(false);
+  // The form is for somebody who arrived through a reset link. A signed-in
+  // person typing this address got it too, and could set a new password
+  // without ever giving the current one -- that is Change password on the
+  // profile, which asks for it.
+  const [fromLink, setFromLink] = useState(false);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -36,17 +45,32 @@ export default function ResetPasswordPage() {
       // recovery token itself; the patient-initiated "forgot password" email
       // carries a PKCE code. Either opens the same session.
       const tokenHash = url.searchParams.get("token_hash");
+      // The implicit flow's fragment says what kind of link it was.
+      const hashSaysRecovery = /(^|[#&])type=recovery(&|$)/.test(window.location.hash);
+      let exchanged = false;
       if (tokenHash) {
-        await supabase.auth.verifyOtp({ type: "recovery", token_hash: tokenHash });
-        // The token is single-use; keep it out of history and screenshots.
-        window.history.replaceState(null, "", url.pathname);
+        const { error } = await supabase.auth.verifyOtp({ type: "recovery", token_hash: tokenHash });
+        exchanged = !error;
       } else if (code) {
-        await supabase.auth.exchangeCodeForSession(code);
+        const { error } = await supabase.auth.exchangeCodeForSession(code);
+        exchanged = !error;
+      }
+      if (tokenHash || code || hashSaysRecovery) {
+        // Single-use either way; keep it out of history and screenshots.
+        window.history.replaceState(null, "", url.pathname);
       }
       const {
         data: { user },
       } = await supabase.auth.getUser();
+      let marked = false;
+      try {
+        if (user && (exchanged || hashSaysRecovery)) window.sessionStorage.setItem(RECOVERY_MARK, user.id);
+        marked = !!user && window.sessionStorage.getItem(RECOVERY_MARK) === user.id;
+      } catch {
+        marked = !!user && (exchanged || hashSaysRecovery);
+      }
       setHasSession(!!user);
+      setFromLink(marked);
       setChecking(false);
     }
     establishSession();
@@ -89,6 +113,11 @@ export default function ResetPasswordPage() {
     await fetch("/api/clear-temp-password", { method: "POST" }).catch(() => {});
 
     setLoginHref(ROLE_LOGIN_HREF[role] ?? "/patient/login");
+    try {
+      window.sessionStorage.removeItem(RECOVERY_MARK);
+    } catch {
+      // Storage unavailable: nothing was kept.
+    }
     setSubmitting(false);
     setDone(true);
     await supabase.auth.signOut();
@@ -115,12 +144,32 @@ export default function ResetPasswordPage() {
               Go to Sign In
             </a>
           </div>
+        ) : hasSession && !fromLink ? (
+          <div className="mt-6 text-xs space-y-3" data-testid="reset-not-from-link">
+            <p className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-slate-700">
+              You are signed in. To change your password, use <strong>Change password</strong> on your profile -
+              it asks for your current one. Forgotten it? The same section emails you a reset link.
+            </p>
+            <a
+              href="/dashboard"
+              className="block w-full text-center bg-teal-700 hover:bg-teal-800 text-white font-bold py-3 rounded-xl transition"
+            >
+              Go to my dashboard
+            </a>
+          </div>
         ) : !hasSession ? (
-          <div className="mt-6 text-xs space-y-3">
-            <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700">
-              This reset link is invalid or has expired. Please request a new
-              one from the sign-in page.
+          <div className="mt-6 text-xs space-y-3" data-testid="reset-not-from-link">
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-slate-700">
+              This page opens from the link in a password reset email. If you followed one, it has expired or was
+              already used - ask for a new one with <strong>Forgot password?</strong> on the sign-in page.
             </div>
+            {/* The hub, not one portal: this page serves all four roles. */}
+            <a
+              href="/get-started"
+              className="block w-full text-center bg-teal-700 hover:bg-teal-800 text-white font-bold py-3 rounded-xl transition"
+            >
+              Go to sign in
+            </a>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4 text-xs mt-6">

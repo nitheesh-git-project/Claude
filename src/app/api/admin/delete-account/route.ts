@@ -202,13 +202,18 @@ export async function POST(request: NextRequest) {
   // The same guard suspension carries, for the same reason: with the last
   // Master Admin gone there is nobody left who could widen anyone's access
   // again, and this one has no undo at all.
-  if (target.role === "admin" && (target.admin_scope ?? "full") === "full") {
+  // A deleted account (a tombstone kept for its records) is not a Master
+  // Admin anyone can sign in as: it neither needs the guard nor counts
+  // towards it -- counting it let the real last one be deleted while a
+  // tombstone "remained".
+  if (target.role === "admin" && (target.admin_scope ?? "full") === "full" && !target.deleted_at) {
     const { count } = await admin
       .from("profiles")
       .select("id", { count: "exact", head: true })
       .eq("role", "admin")
       .eq("admin_scope", "full")
-      .neq("active", false);
+      .neq("active", false)
+      .is("deleted_at", null);
     if ((count ?? 0) <= 1) {
       return NextResponse.json({ error: CANNOT_DELETE_LAST_ADMIN }, { status: 409 });
     }
@@ -265,8 +270,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: why.error }, { status: 400 });
   }
 
-  // Records behind it: the person goes, the records stay.
-  if (blockers || target.deleted_at) {
+  // Records behind it: the person goes, the records stay. An account
+  // deleted earlier *with* records is a tombstone; once nothing refers to it
+  // any more (those records were removed since), it is removed for good like
+  // any empty account -- before, a tombstone could never leave User access.
+  if (blockers) {
     return deleteKeepingRecords(admin, context.id, target, refs, why.reason, why.note);
   }
 

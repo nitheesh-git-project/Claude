@@ -10,7 +10,7 @@
 // visitor is not asked again on the way back from a sign-in page or a booking,
 // and the signed-in trees never show it.
 import { test, expect, type Page } from "@playwright/test";
-import { BASE, adminClient } from "./helpers";
+import { BASE, adminClient, waitForSplashToClear } from "./helpers";
 
 const GA = !!process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
 const GOOGLE = /googletagmanager\.com|google-analytics\.com/;
@@ -132,6 +132,8 @@ test.describe("cookie consent pop-up", () => {
       )
     );
     await page.goto(`${BASE}/faq`);
+    // A tap before hydration (the splash) opens nothing.
+    await waitForSplashToClear(page);
     await page.getByRole("link", { name: "Cookie settings" }).click();
     await expect(popup(page)).toBeVisible();
     await popup(page).getByRole("button", { name: "Customise" }).click();

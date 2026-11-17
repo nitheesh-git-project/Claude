@@ -4,6 +4,7 @@ import { useOptimistic, useState, useTransition } from "react";
 import { useSaveSetting } from "@/lib/useSaveSetting";
 import { useRouter } from "@/lib/useRouter";
 import type { AdminSettings } from "@/lib/adminSettings";
+import { NumberSetting } from "@/components/admin/HomeVisitSettingsForm";
 
 // The package-wide controls that used to live scattered between Site
 // Content (the PackageManager list itself, moved to the Catalog section of
@@ -223,12 +224,14 @@ export default function PackageSettingsForm({
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h3 className="font-bold text-sm text-slate-800">Default Validity</h3>
+        <h3 className="font-bold text-sm text-slate-800">Default validity</h3>
         <p className="text-xs text-slate-500 mt-1 max-w-md">
-          How long a purchase has to use all its sessions when the package itself doesn&apos;t
-          set its own validity. Editing this never changes packages already sold.
+          How long a purchase has to use all its sessions when the programme itself doesn&apos;t
+          set its own validity - one value for video sessions, one for home visits. Editing this
+          never changes programmes already sold.
         </p>
         <div className="flex items-center gap-2 mt-3">
+          <span className="w-28 text-xs font-semibold text-slate-700">Video sessions</span>
           <input
             type="number"
             min={1}
@@ -247,15 +250,26 @@ export default function PackageSettingsForm({
           {validitySaved && <span className="text-[11px] text-teal-700 font-semibold">Saved.</span>}
         </div>
         {validityError && <p className="text-[11px] text-red-600 mt-2">{validityError}</p>}
+        <div className="mt-2 border-t border-slate-100">
+          <NumberSetting
+            label="Home visits"
+            hint="How long a patient has to book the visits they bought. Patients only see it when it is close."
+            value={settings.homeVisitDefaultValidityDays}
+            settingKey="home_visit_default_validity_days"
+            min={1}
+            unit="days"
+          />
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-        <h3 className="font-bold text-sm text-slate-800">Bulk Scheduler Limit</h3>
+        <h3 className="font-bold text-sm text-slate-800">Bulk scheduling limit</h3>
         <p className="text-xs text-slate-500 mt-1 max-w-md">
-          The most dates a patient can select in one go on the &quot;Schedule sessions&quot;
-          calendar in their package widget.
+          The most dates a patient can pick in one go when scheduling the sessions of a programme
+          from their dashboard - one value for video sessions, one for home visits.
         </p>
         <div className="flex items-center gap-2 mt-3">
+          <span className="w-28 text-xs font-semibold text-slate-700">Video sessions</span>
           <input
             type="number"
             min={1}
@@ -274,6 +288,16 @@ export default function PackageSettingsForm({
           {bulkMaxSaved && <span className="text-[11px] text-teal-700 font-semibold">Saved.</span>}
         </div>
         {bulkMaxError && <p className="text-[11px] text-red-600 mt-2">{bulkMaxError}</p>}
+        <div className="mt-2 border-t border-slate-100">
+          <NumberSetting
+            label="Home visits"
+            hint="Most visits a patient can schedule in one go from their dashboard."
+            value={settings.homeVisitBulkScheduleMax}
+            settingKey="home_visit_bulk_schedule_max"
+            min={1}
+            unit="visits"
+          />
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">

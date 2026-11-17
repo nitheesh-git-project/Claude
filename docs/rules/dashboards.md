@@ -163,11 +163,13 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   action an admin most often needs had no name on screen. Where a therapist
   is missing, every surface now says **Tap to assign**: the All Sessions and
   Calendar rows carry it as a chip (the row click already opens the drawer,
-  where the work is done), `EditBookingForm`'s trigger swaps its label on
-  `currentTherapistId`, and `SessionDetailDrawer` leads with
+  where the work is done), `SessionDetailDrawer` leads with
   `AssignTherapistForm` - one tap, honouring `preferred_therapist_id`, the
   therapist the patient asked for - with the reschedule form kept below for
-  when the time has to move too.
+  when the time has to move too. That form's trigger is named for the time,
+  never for assigning alone (two "assign" buttons read as one control
+  twice): **Change time & reassign**, or **Change time & assign** while
+  nobody is assigned (`currentTherapistId`).
 - **A session is listed once - on every dashboard, not only the admin's.**
   The patient's and therapist's video sessions and home visits were
   separate sidebar entries over the same `appointments` rows, so "what is
@@ -400,7 +402,8 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   server-side and the proxy carries an unapproved or suspended account onward
   from there, so the fallback is always correct and only ever one hop longer.
   `/pending-approval` and `/account-suspended` are in
-  `AUTH_CTA_HIDDEN_ROUTES` so the button never points at the page it is on.
+  `AUTH_CTA_HIDDEN_ROUTES` so, for a signed-in account, the button never
+  points at the page it is on (a signed-out visitor there gets Sign In).
 - **Every dashboard needs a way back to the public site.** All four are in
   `NAV_HIDDEN_ROUTES`, so the public `Navbar` never renders there; without an
   explicit link the only exit is Log Out, which also ends the session. Both
@@ -617,9 +620,14 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   (`OnboardingNeededBanner`, three by name with their next session, the rest
   counted), and an amber strip on that patient's session cards
   (`OnboardingStrip` in `TherapistSessionCards.tsx`, not on a cancelled
-  one). Each has **Start onboarding**, which links to the patient's Health
-  Profile with `?start=onboarding` so the triage opens on arrival (consumed
-  once, first fill only), and **How onboarding works**. The list is
+  one). The banner has **no button** -- each row says **Fill in during the
+  first session** (the owner's call: it reads as a first-session job, not a
+  task to start now). The session card's strip has **Fill onboarding in this
+  session**, which links to the patient's Health Profile with
+  `?start=onboarding` so the triage opens on arrival (consumed once, first
+  fill only). Both have **How onboarding works**. The link from a session
+  card and the cockpit to the record reads **Health Profile**, never
+  "Chart". The list is
   `onboardingNeededIds` in `therapistDashboardData.ts` - a patient with no
   answers on file and a non-cancelled session with this therapist - and is
   empty when the record read failed, never "everyone". Guard:
@@ -788,6 +796,13 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
     picture the banner is the title on a brand strip.
   Guard: `e2e/announcements-notebook.spec.ts` ANN-001..006,
   `src/lib/announcements.test.ts`.
+- **The notebook teaches itself in three tips, the first time it opens.**
+  `NotebookTour`: Write anything / Pages, like a real notebook / It saves
+  itself, each ringing the real control it names (the page, the page
+  buttons, the save line), never covering it -- on a phone the tip sits
+  above or below, on a laptop on the free left-hand page. Skip, Next, Got
+  it; remembered in this browser (`mr-notebook-tour-v1`, a per-person
+  convenience), and the header's **?** replays it. Guard: NB-001.
 - **The notebook is private to its owner, and that is enforced in three
   places.** Every patient, therapist and hospital dashboard carries a
   floating notebook (`NotebookLauncher` in `DashboardShell`, `NotebookDialog`

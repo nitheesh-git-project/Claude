@@ -1079,7 +1079,11 @@ columns, sanitised against an allow-list (`src/lib/richText.ts`) by the route
 that writes them (`/api/therapist/update-bio`,
 `/api/admin/update-therapist-display-content`) and again when rendered, and
 rendered as React elements, never HTML. Older plain-text values still read,
-with their paragraphs and line breaks kept. Both routes revalidate `/team`.
+with their paragraphs and line breaks kept. **A bio waits for the clinic's
+approval** before it reaches `/team`: saving files it as a profile change
+request (Today → Approvals shows its text), Edit Profile marks it "Waiting for
+the clinic's approval", and approving it revalidates `/team`. The admin's
+display content saves straight away.
 
 **Years of experience is asked beside it, at both of those doors.**
 `profiles.years_experience` has existed since the first therapist shipped and
@@ -2989,7 +2993,7 @@ having its own layout:
 | `IconCard` | One fact: tinted icon, short title, one line. |
 | `ExploreGrid` / `ExploreSection` | The site's index as photographs. |
 | `CatalogImage` | The cover slot on a programme or package card - the admin's photo when set, one shared tinted placeholder when not. |
-| `TreatmentGoals` | What treatment works towards, for six kinds of care, one at a time: a sweep from the first visit to the goal (sample patients, "results vary"). Tabs, or Play all six; never advances by itself. Replaced `CareAreaShowcase`; never moves on its own. |
+| `TreatmentGoals` | What treatment works towards, for six kinds of care, one at a time: a sweep from the first visit to the goal (sample patients, "results vary"). Loops through all six while on screen; a tapped kind of care stops it there until the page is reloaded; still under reduced motion. Replaced `CareAreaShowcase`. |
 | `Testimonials` | Patient quotes with portraits, shared by Home and `/mission`. |
 | `ClosingCta` | Every page ends the same way: one sentence, one action. |
 

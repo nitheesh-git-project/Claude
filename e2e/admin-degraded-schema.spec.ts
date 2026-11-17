@@ -194,7 +194,7 @@ test.describe("Suite J: degraded schema", () => {
       await expect(page.getByText("How far ahead a session must be booked")).toBeVisible({
         timeout: 30_000,
       });
-      await expect(page.getByText("Free cancellation window")).toBeVisible();
+      await expect(page.getByText("Free cancellation window", { exact: true })).toBeVisible();
       await expect(page.getByText("Auto-Create Meet Links")).toBeVisible();
     } finally {
       restoreSchema();

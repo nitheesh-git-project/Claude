@@ -313,6 +313,60 @@ test.describe("DEV -- the developer credit and its reachouts", () => {
     }
   });
 
+  test("DEV-005: a message is deleted with a reason, and the log keeps who and why", async ({ page, context }) => {
+    test.setTimeout(240_000);
+    await deleteFixtures();
+    const db = adminClient();
+    const { data: seeded, error: seedError } = await db
+      .from("dev_reachouts")
+      .insert({ name: `${NAME} Junk`, email: "junk@example.com", message: "Buy followers now." })
+      .select("id")
+      .single();
+    expect(seedError).toBeNull();
+    const id = seeded!.id as string;
+    await db.from("dev_reachout_notes").insert({ reachout_id: id, body: "Looks like spam." });
+
+    try {
+      await context.addCookies(await browserCookiesFor(QA_EMAILS.admin));
+      await page.goto(SCREEN, { waitUntil: "domcontentloaded" });
+      const card = page.locator("li").filter({ hasText: `${NAME} Junk` }).filter({ visible: true });
+      await expect(card).toBeVisible({ timeout: 60_000 });
+      await card.getByRole("button", { name: "Delete message" }).click();
+      const dialog = page.getByTestId("delete-reachout-confirm");
+      await expect(dialog).toBeVisible();
+
+      // A reason first; Other needs a note.
+      await dialog.getByRole("button", { name: "Delete message" }).click();
+      await expect(dialog.getByRole("alert")).toContainText("Choose why");
+      await dialog.getByLabel(/Why is it being deleted/).selectOption("other");
+      await dialog.getByRole("button", { name: "Delete message" }).click();
+      await expect(dialog.getByRole("alert")).toContainText("Say why");
+      // Keep it changes nothing.
+      await dialog.getByRole("button", { name: "Keep it" }).click();
+      const { data: still } = await db.from("dev_reachouts").select("id").eq("id", id).maybeSingle();
+      expect(still).toBeTruthy();
+
+      await card.getByRole("button", { name: "Delete message" }).click();
+      await page.getByTestId("delete-reachout-confirm").getByLabel(/Why is it being deleted/).selectOption("spam");
+      await page.getByTestId("delete-reachout-confirm").getByRole("button", { name: "Delete message" }).click();
+      await expect(card).toHaveCount(0, { timeout: 60_000 });
+
+      const { data: gone } = await db.from("dev_reachouts").select("id").eq("id", id).maybeSingle();
+      expect(gone).toBeNull();
+      const { data: notes } = await db.from("dev_reachout_notes").select("id").eq("reachout_id", id);
+      expect(notes ?? []).toHaveLength(0);
+      const { data: log } = await db
+        .from("admin_activity_log")
+        .select("details")
+        .eq("action", "dev_reachout.delete")
+        .eq("target_id", id)
+        .single();
+      expect(log?.details).toMatchObject({ reason: "spam", senderName: `${NAME} Junk`, senderEmail: "junk@example.com" });
+    } finally {
+      await db.from("dev_reachouts").delete().eq("id", id);
+    }
+  });
+
   test("DEV-004: the switch asks on both directions, and the credit follows it", async ({
     page,
     context,

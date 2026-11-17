@@ -13,7 +13,7 @@
 // session, and every admin route behind these is scope-guarded.
 import { test, expect, request as playwrightRequest } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { BASE, QA_EMAILS, adminClient, cookieHeaderFor, profileIdFor } from "./helpers";
+import { BASE, QA_EMAILS, adminClient, browserCookiesFor, cookieHeaderFor, profileIdFor } from "./helpers";
 
 const CATEGORY_TITLE = "QA Promo Condition";
 const CATEGORY_PRICE_PAISE = 120000; // ₹1,200
@@ -296,6 +296,48 @@ test.describe("Promo codes and invites", () => {
       .update({ payment_status: "unpaid", promo_code_id: null, promo_claimed_at: null })
       .eq("id", first);
     await admin.from("promo_codes").delete().eq("id", id);
+  });
+
+  test("PRC-008: Money -> Costs lists who claimed a code, paid ones first, each opening the patient", async ({ browser }) => {
+    test.setTimeout(180_000);
+    const { id: codeId, code } = await seedCode("CLAIMS", { description: "QA claims campaign" });
+    const paid = await freshBooking(patientId);
+    const unpaid = await freshBooking(patientBId);
+    const claimedAt = new Date().toISOString();
+    for (const [id, payment_status] of [
+      [paid, "paid"],
+      [unpaid, "unpaid"],
+    ] as const) {
+      const { error } = await admin
+        .from("appointments")
+        .update({ promo_code_id: codeId, promo_claimed_at: claimedAt, discount_paise: 20000, discount_source: "promo_code", payment_status })
+        .eq("id", id);
+      expect(error).toBeNull();
+    }
+
+    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    await ctx.addCookies(await browserCookiesFor(QA_EMAILS.admin));
+    const page = await ctx.newPage();
+    await page.goto(`${BASE}/admin/dashboard?section=money&tab=costs`);
+    const list = page.getByTestId("promo-claims");
+    await expect(list).toBeVisible({ timeout: 60_000 });
+    await list.getByLabel("Filter by code").selectOption(codeId);
+    const rows = list.getByTestId("promo-claim-row");
+    // Paid (successful) is the default: one row, with the campaign and the amount.
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first()).toContainText(code);
+    await expect(rows.first()).toContainText("QA claims campaign");
+    await expect(rows.first()).toContainText("₹200");
+    await expect(rows.first().getByRole("link", { name: "Open profile" })).toHaveAttribute(
+      "href",
+      `/admin/dashboard/patients/${patientId}`
+    );
+    await list.getByLabel("Filter by payment").selectOption("all");
+    await expect(rows).toHaveCount(2);
+    await list.getByLabel("Filter by payment").selectOption("unpaid");
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first()).toContainText("Not paid yet");
+    await ctx.close();
   });
 
   test("PRC-006: with codes switched off there is nothing to claim", async () => {

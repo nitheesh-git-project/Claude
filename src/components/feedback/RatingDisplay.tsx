@@ -64,7 +64,10 @@ export function RatingChip({
   const hasNote = !!feedback?.trim();
   return (
     <span
-      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-bold ${tone}`}
+      // `relative` anchors the sr-only "out of 5" to the chip: absolutely
+      // positioned, it otherwise escapes a table's overflow-x-auto box and
+      // widens the whole page (LAYOUT audit, admin All Sessions at 800px).
+      className={`relative inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-bold ${tone}`}
       title={hasNote ? feedback ?? undefined : excluded ? "Excluded from the average" : undefined}
     >
       <span aria-hidden="true">★</span>

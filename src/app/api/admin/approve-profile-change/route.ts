@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
@@ -160,6 +161,9 @@ export async function POST(request: NextRequest) {
     targetId: requestId,
     details: { userId: changeRequest.user_id },
   });
+
+  // A therapist's name, credentials and bio are on the Our Team page.
+  if (profile.role === "therapist") revalidatePath("/team");
 
   return NextResponse.json({ success: true });
 }

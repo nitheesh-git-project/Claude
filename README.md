@@ -209,7 +209,7 @@ GitHub Actions (maintenance cron) ───────────────�
 
 | Layer | Technology |
 | --- | --- |
-| **Framework** | Next.js 16.2 (App Router, Server Components, Turbopack), React 19.2 |
+| **Framework** | Next.js 16.3 (App Router, Server Components, Turbopack), React 19.2 |
 | **Language** | TypeScript 5 |
 | **Styling & motion** | Tailwind CSS v4, Motion (Framer Motion) 13, Font Awesome 7 |
 | **Data & auth** | Supabase - Postgres, Auth, Storage, Realtime (`@supabase/ssr`, `@supabase/supabase-js`) |

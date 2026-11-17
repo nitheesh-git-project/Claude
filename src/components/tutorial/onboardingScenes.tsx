@@ -83,7 +83,7 @@ export function OnboardPrepareScene() {
             <Chip tone="warn" icon="fa-clipboard-question">Onboarding needed</Chip>
           </p>
           <div className="mt-2 flex flex-wrap gap-1.5">
-            <TapButton tapping={phase === 0} icon="fa-file-medical">Start onboarding</TapButton>
+            <TapButton tapping={phase === 0} icon="fa-file-medical">Fill onboarding in this session</TapButton>
             <TapButton variant="ghost" icon="fa-circle-question">How onboarding works</TapButton>
           </div>
         </div>

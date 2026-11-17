@@ -10,6 +10,16 @@ The four acquisition discounts, promo codes, patient invites, and the one module
 
 ---
 
+- **Money -> Costs lists who claimed a code, under the codes.**
+  `PromoClaimsList` (loaded by `readPromoClaims`, shaped and filtered in
+  `src/lib/promoClaims.ts`) shows every row carrying a `promo_code_id` --
+  appointments, programme purchases and home-visit programme purchases --
+  with the patient and their ID, the code and its campaign note, what it was
+  used on, when, and how much it took off. It opens on **paid** (the
+  successful claims); filters widen it to unpaid and cancelled, by code, by
+  what, by date and by name or ID. The ID and **Open profile** open the same
+  patient pop-up as People -> Patients. A failed read says so, never "nobody
+  has claimed one". Money scope only. Guard: `acquisition-codes` PRC-008.
 - **A discount is a rule an admin configured, never a number a browser
   sent.** The same reasoning that keeps a therapist picking a package rather
   than a price: an amount that can be posted is an amount that can be posted

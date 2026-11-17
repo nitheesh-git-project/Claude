@@ -297,4 +297,30 @@ test.describe("Suites A/B/C/K: the admin dashboard in a browser", () => {
       ).toBe(`${target.get("section")}/${target.get("tab")}`);
     }
   });
+
+  test("K-HPL:  every option on Settings -> Health Profile layout explains itself with a sample preview", async ({ browser }) => {
+    test.setTimeout(120_000);
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    await ctx.addCookies(await browserCookiesFor(QA_EMAILS.admin));
+    const page = await ctx.newPage();
+    await page.goto(`${BASE}/admin/dashboard?section=settings&tab=profile-layout`);
+    const open = page.getByRole("button", { name: "What is this? See a preview" });
+    await expect(open.first()).toBeVisible({ timeout: 60_000 });
+    // One per option on the kind shown, locked ones included.
+    const rows = await page.locator("li[data-widget]").count();
+    expect(await open.count()).toBe(rows);
+    await open.first().click();
+    const guide = page.getByTestId("widget-guide");
+    await expect(guide).toHaveCount(1);
+    await expect(guide).toContainText("What it is");
+    await expect(guide).toContainText("Why it helps");
+    await expect(guide).toContainText("How it gets filled in");
+    await expect(guide).toContainText("What the patient sees · sample");
+    // One at a time: opening another closes the first.
+    await open.nth(1).click();
+    await expect(guide).toHaveCount(1);
+    await page.getByRole("button", { name: "Hide the explanation" }).click();
+    await expect(guide).toHaveCount(0);
+    await ctx.close();
+  });
 });

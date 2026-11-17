@@ -10,6 +10,20 @@ The eight sections, scopes and levels, User Access, the Settings information arc
 
 ---
 
+- **Settings' groups are titles, never shaped like what they title.** In
+  the sidebar a group name ("Your website", "How the clinic runs") is a
+  dark heading with a rule running to the edge, no hover; in the pill strip
+  below `2xl` it is plain text between the pills with a divider before each
+  new group. The old grey caps in the sidebar, and no group at all in the
+  strip, read as more screens (owner's report).
+- **A setting appears once, and says what it applies to.** Settings ->
+  Programmes & Home Visits used to repeat "Default programme validity" and
+  "Bulk scheduling limit" in the home-visit box under the programme ones
+  (two settings each, read as one twice). Each now shows once under
+  Programmes with a **Video sessions** row and a **Home visits** row
+  (`NumberSetting`), and the home-visit box keeps only what is particular to
+  a visit, named for it ("How far ahead a home visit must be booked", "Free
+  cancellation window for a home visit").
 - **The admin dashboard's information architecture lives in
   `src/lib/adminNav.ts`** - eight sections (Today, Sessions, Programmes,
   People, Money, Catalog, Logs, Settings), each with its own screens. The sidebar, the URL
@@ -138,8 +152,13 @@ The eight sections, scopes and levels, User Access, the Settings information arc
      row points at, tagged **Deleted user** with an (i) showing the reason, the
      note, who and when (`DeletedUserTag`, on the People lists and profiles).
      If the login step fails after the mark, pressing Delete again finishes
-     it. The paragraph below is the outright delete, which still only
-     succeeds with no history at all.
+     it. **A tombstone is not for ever**: once nothing refers to it any more
+     (its records were cleaned up since), Delete removes it for good like any
+     empty account -- before, every later delete re-marked it and it never
+     left User access (AD-DEL-005). A tombstone is also not a Master Admin:
+     the last-full-admin guard counts only `deleted_at is null`. The
+     paragraph below is the outright delete, which still only succeeds with
+     no history at all.
   4. **Suspending is not deleting, and delete is the narrow case.**
      `/api/admin/delete-account` exists on all four roles' screens, and it is
      a delete that can only ever succeed on an account with **no history at
@@ -280,8 +299,12 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   `people` scope the clinic's own lead pipelines use: a scoped admin must not
   receive a stranger's name, email and number, so the dashboard reads the
   table only when `scopeCanOpen(viewerScope, "settings")` and
-  `/api/admin/update-dev-reachout` (status) and `/api/admin/dev-reachout-note`
-  (add / edit / delete a note) are `requireAdminScope("settings")`. Notes are
+  `/api/admin/update-dev-reachout` (status), `/api/admin/dev-reachout-note`
+  (add / edit / delete a note) and `/api/admin/delete-dev-reachout` are
+  `requireAdminScope("settings")`. **Deleting a message needs a reason**
+  (`DEV_REACHOUT_DELETE_REASONS`; Other needs a note): the message and its
+  notes go, and the `dev_reachout.delete` log row keeps who, why and the
+  sender's name and email (never the message) - DEV-005. Notes are
   a dated thread, one `dev_reachout_notes` row each, oldest first, with author
   and an `edited_at` that stays null until a note changes; the old single
   `dev_reachouts.admin_note` was carried into it and is no longer read. The
@@ -1103,11 +1126,22 @@ The eight sections, scopes and levels, User Access, the Settings information arc
     on, a visitor abroad can choose India and pay the Indian price. Turning
     the picker off leaves location alone in charge.
 
-- **Appearance (Settings -> Public Site) is one switch: follow the device's
-  light/dark setting.** Off, the default, is the app exactly as it has
-  always looked. On, every page follows each visitor's device, live. Saved
-  through `update-setting` (`follow_device_theme`), which revalidates the
-  root layout because the decision is made by a script in `<head>`.
+- **Appearance (Settings -> Public Site) is three choices: Light, Dark, or
+  Based on the visitor's device**, each a card with its own preview (Device
+  is the page split light and dark). Saved through `update-setting`
+  (`site_theme`), which revalidates the root layout because the decision is
+  made by a script in `<head>`, and keeps the older `follow_device_theme`
+  meaning the same thing (device -> true). Null `site_theme` (nobody has
+  picked yet) falls back to that old switch, so the column changed nothing
+  on its own. Guard: `dark-mode` DARK-001..005.
+- **Every Health Profile layout option explains itself.** Each row has
+  "What is this? See a preview": what it is, why it helps, how its data gets
+  in (who fills it and where), and a small preview with sample data drawn as
+  the patient's page draws it, labelled as a sample (`WidgetGuidePanel`).
+  The words live in `src/lib/profileWidgetGuide.ts`: one entry per section,
+  and graph lines built from the measure registry (plain name, unit, which
+  direction is better). `profileWidgetGuide.test.ts` fails if any option
+  is left without one. Guard: `admin-dashboard-ui` K-HPL.
 - **Settings -> Health Profile layout chooses what every patient of a
   condition kind sees; the patient's record chooses for one patient.** The
   Settings screen (`ProfileWidgetSettings`, self-fetching) lists every

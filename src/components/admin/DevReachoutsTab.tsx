@@ -2,12 +2,15 @@
 
 import { useId, useOptimistic, useRef, useState, useTransition } from "react";
 import PagedList from "@/components/dashboard/PagedList";
+import Modal from "@/components/admin/Modal";
 import { useConfirm } from "@/lib/useConfirm";
 import { useRouter } from "@/lib/useRouter";
 import { useSaveSetting } from "@/lib/useSaveSetting";
 import { useToast } from "@/lib/toast";
 import { formatClinicDateTime } from "@/lib/formatDateTime";
 import {
+  DEV_REACHOUT_DELETE_REASONS,
+  MAX_DEV_REACHOUT_DELETE_NOTE_LENGTH,
   EMAIL_RE,
   MAX_DEV_REACHOUT_EMAIL_LENGTH,
   MAX_DEV_REACHOUT_NOTE_LENGTH,
@@ -307,8 +310,139 @@ function ReachoutCard({ row }: { row: DevReachoutRow }) {
           {isStatusPending ? "Saving…" : contacted ? "Move back to new" : "Mark as contacted"}
         </button>
         {statusError && <span className="text-[11px] text-red-600">{statusError}</span>}
+        <DeleteReachoutButton id={row.id} name={row.name} />
       </div>
     </div>
+  );
+}
+
+/**
+ * Delete, with a reason. The message and its notes go; the activity log
+ * keeps who deleted it, why, and who had sent it.
+ */
+function DeleteReachoutButton({ id, name }: { id: string; name: string }) {
+  const router = useRouter();
+  const { show } = useToast();
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const [note, setNote] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const reasonId = useId();
+  const noteId = useId();
+
+  function close() {
+    if (busy) return;
+    setOpen(false);
+    setReason("");
+    setNote("");
+    setError(null);
+  }
+
+  async function handleDelete() {
+    if (!reason) {
+      setError("Choose why this message is being deleted.");
+      return;
+    }
+    if (reason === "other" && !note.trim()) {
+      setError("Say why it is being deleted.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/delete-dev-reachout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, reason, note }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error ?? "Could not delete it. Please try again.");
+        setBusy(false);
+        return;
+      }
+      setBusy(false);
+      setOpen(false);
+      show(`The message from ${name} is deleted`);
+      router.refresh();
+    } catch {
+      setError("Could not reach the server. Nothing was deleted.");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="ml-auto rounded-lg border border-red-200 px-3 py-2 font-semibold text-red-700 transition hover:bg-red-50"
+      >
+        Delete message
+      </button>
+      {open && (
+        <Modal title={`Delete the message from ${name}?`} subtitle="This cannot be undone." onClose={close}>
+          <div className="space-y-3 text-xs text-slate-700" data-testid="delete-reachout-confirm">
+            <p>The message and its notes are removed. The activity log keeps who deleted it, why, and who sent it.</p>
+            <div>
+              <label htmlFor={reasonId} className="mb-1 block font-semibold text-slate-800">
+                Why is it being deleted? <span className="text-red-600">*</span>
+              </label>
+              <select
+                id={reasonId}
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 bg-white p-2"
+              >
+                <option value="">Choose a reason</option>
+                {DEV_REACHOUT_DELETE_REASONS.map((r) => (
+                  <option key={r.key} value={r.key}>
+                    {r.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor={noteId} className="mb-1 block font-semibold text-slate-800">
+                Note {reason === "other" ? <span className="text-red-600">*</span> : <span className="font-normal text-slate-500">(optional)</span>}
+              </label>
+              <textarea
+                id={noteId}
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                maxLength={MAX_DEV_REACHOUT_DELETE_NOTE_LENGTH}
+                rows={2}
+                className="w-full rounded-lg border border-slate-300 p-2"
+              />
+            </div>
+            {error && (
+              <p role="alert" className="text-red-600">
+                {error}
+              </p>
+            )}
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={close}
+                disabled={busy}
+                className="rounded-xl bg-slate-200 px-4 py-2 font-semibold text-slate-800 hover:bg-slate-300 disabled:opacity-60"
+              >
+                Keep it
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleDelete()}
+                disabled={busy}
+                className="rounded-xl bg-red-600 px-4 py-2 font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+              >
+                {busy ? "Deleting…" : "Delete message"}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </>
   );
 }
 

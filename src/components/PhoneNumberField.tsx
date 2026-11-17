@@ -2,6 +2,7 @@
 
 import { useId, useState } from "react";
 import { isValidPhoneNumber } from "libphonenumber-js/min";
+import { usePricing } from "@/components/pricing/PricingProvider";
 import {
   COUNTRY_OPTIONS,
   composePhone,
@@ -33,6 +34,20 @@ export default function PhoneNumberField({
   const [country, setCountry] = useState<CountryCode>(() => splitStoredPhone(value).country);
   const [national, setNational] = useState(() => splitStoredPhone(value).national);
   const [touched, setTouched] = useState(false);
+
+  // An empty field's country is the visitor's own: the browser's guess
+  // first (time zone, then language -- an "English (US)" phone in India
+  // guessed US), then the country the site resolved from where they are
+  // (the one prices use) as soon as it is known. Never over a stored number,
+  // and never once the visitor has picked a country themselves.
+  const { country: siteCountry, ready } = usePricing();
+  const [pickedByHand, setPickedByHand] = useState(false);
+  const [followedSite, setFollowedSite] = useState<string | null>(null);
+  const known = COUNTRY_OPTIONS.some((c) => c.code === siteCountry);
+  if (ready && known && !pickedByHand && !value && followedSite !== siteCountry) {
+    setFollowedSite(siteCountry);
+    if (country !== siteCountry) setCountry(siteCountry as CountryCode);
+  }
   const inputId = useId();
   const errorId = `${inputId}-error`;
 
@@ -50,6 +65,7 @@ export default function PhoneNumberField({
           value={country}
           onChange={(e) => {
             const next = e.target.value as CountryCode;
+            setPickedByHand(true);
             setCountry(next);
             onChange(composePhone(next, national));
           }}

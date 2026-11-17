@@ -21173,3 +21173,152 @@ alter table data_requests add column if not exists contact_email text
 -- ---------------------------------------------------------------------
 grant execute on all functions in schema public to service_role;
 alter default privileges in schema public grant execute on functions to service_role;
+
+-- ---------------------------------------------------------------------
+-- A therapist's bio waits for the clinic's approval (November 2026).
+--
+-- The bio is public -- it is the paragraph patients read on the Our Team
+-- page -- so the owner put it behind admin approval like the credentials
+-- beside it: /api/therapist/update-bio now files a profile_change_requests
+-- row and approve-profile-change applies it (GATED_PROFILE_FIELDS lists
+-- "bio"). The column grant near the top of this file still let any signed-in
+-- account write its own bio straight through PostgREST, which would walk
+-- round the review. Take that one column back; the rest of that grant
+-- (avatar, languages, timezone, emergency contact) is unchanged.
+-- Re-runnable: revoking a privilege that is not held is a no-op.
+-- ---------------------------------------------------------------------
+revoke update (bio) on profiles from authenticated;
+
+-- ---------------------------------------------------------------------
+-- Show or hide three public sections (November 2026).
+--
+-- Settings -> Public Site can switch off What We Promise, What We Will Not
+-- Do and Testimonials without deleting what is in them (each asks first).
+-- On by default, so a database that runs this changes nothing a visitor
+-- sees. The pages read them in their own query and treat a missing column
+-- or a failed read as "shown" (src/lib/publicSectionVisibility.ts).
+-- site_settings is already readable by anyone (site_settings_select_public)
+-- and written only through /api/admin/update-setting with the service role.
+-- ---------------------------------------------------------------------
+alter table site_settings add column if not exists promises_section_visible boolean not null default true;
+alter table site_settings add column if not exists limits_section_visible boolean not null default true;
+alter table site_settings add column if not exists testimonials_section_visible boolean not null default true;
+
+-- ---------------------------------------------------------------------
+-- Appearance: light, dark, or the visitor's device (November 2026).
+--
+-- follow_device_theme was one switch (device or light). The owner asked
+-- for three choices: always light, always dark, or follow each visitor's
+-- device. site_theme holds the choice; null means nobody has picked yet and
+-- the old switch still decides (on -> device, off -> light), so adding the
+-- column changes nothing anyone sees (src/lib/deviceTheme.ts). Saving a
+-- choice keeps follow_device_theme in step for anything still reading it.
+-- ---------------------------------------------------------------------
+alter table site_settings add column if not exists site_theme text;
+do $$
+begin
+  alter table site_settings add constraint site_settings_site_theme_check
+    check (site_theme is null or site_theme in ('light', 'dark', 'device'));
+exception when duplicate_object then null;
+end $$;
+
+-- ---------------------------------------------------------------------
+-- Trusted-patient codes (November 2026).
+--
+-- Pay later is granted by an admin on the patient's profile
+-- (/api/admin/set-patient-pay-later). A trusted-patient code lets an admin
+-- grant it *before* the patient's account exists or before their first
+-- payment: Money -> Costs creates a one-time code naming the person, why,
+-- and the email and/or phone it is locked to; the patient redeems it from
+-- their dashboard and the same grant is made (same reason rule, same
+-- hospital-referral refusal, same master switch). The code is never a
+-- discount: it moves no money, it only allows deferring it.
+--
+-- A code is spent once and its record cannot be rewritten afterwards -- who
+-- redeemed it and when is the evidence for an extension of credit -- so the
+-- guard is a trigger, not RLS (every write here goes through the service
+-- role): active -> redeemed or active -> revoked, nothing else, and no
+-- delete. profiles.pay_later_code_id remembers which code granted terms, so
+-- Money -> Owed by Patients can say so.
+-- ---------------------------------------------------------------------
+create table if not exists trusted_patient_codes (
+  id uuid primary key default gen_random_uuid(),
+  code text not null unique check (code ~ '^TRUST-[A-Z0-9]{6}$'),
+  patient_name text not null check (char_length(btrim(patient_name)) between 1 and 120),
+  reason text not null check (char_length(btrim(reason)) between 10 and 500),
+  note text check (note is null or char_length(note) <= 1000),
+  match_email text check (match_email is null or char_length(match_email) <= 254),
+  match_phone text check (match_phone is null or char_length(match_phone) <= 40),
+  status text not null default 'active' check (status in ('active', 'redeemed', 'revoked')),
+  created_by uuid references profiles(id) on delete set null,
+  created_at timestamptz not null default now(),
+  redeemed_by uuid references profiles(id) on delete set null,
+  redeemed_at timestamptz,
+  revoked_by uuid references profiles(id) on delete set null,
+  revoked_at timestamptz,
+  constraint trusted_patient_codes_locked_to_someone check (match_email is not null or match_phone is not null),
+  constraint trusted_patient_codes_redeemed_shape check (
+    (status = 'redeemed') = (redeemed_at is not null)
+  )
+);
+
+alter table trusted_patient_codes enable row level security;
+
+-- Admins read them (the list on Money -> Costs); nobody writes through
+-- PostgREST -- the routes use the service role.
+drop policy if exists trusted_patient_codes_select_admin on trusted_patient_codes;
+create policy trusted_patient_codes_select_admin on trusted_patient_codes
+  for select using (is_admin());
+revoke insert, update, delete on trusted_patient_codes from anon, authenticated;
+
+create or replace function public.trusted_patient_codes_guard()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if tg_op = 'DELETE' then
+    raise exception 'trusted_patient_codes is append-only: a code is revoked, never deleted';
+  end if;
+  if old.status <> 'active' then
+    -- The one change a spent code allows: an account it names being deleted
+    -- (on delete set null). Everything else about it is fixed.
+    if new.status = old.status
+       and new.redeemed_at is not distinct from old.redeemed_at
+       and new.revoked_at is not distinct from old.revoked_at
+       and (new.redeemed_by is not distinct from old.redeemed_by or new.redeemed_by is null)
+       and (new.revoked_by is not distinct from old.revoked_by or new.revoked_by is null)
+       and (new.created_by is not distinct from old.created_by or new.created_by is null)
+       and new.code = old.code and new.reason = old.reason and new.patient_name = old.patient_name
+       and new.note is not distinct from old.note and new.match_email is not distinct from old.match_email
+       and new.match_phone is not distinct from old.match_phone and new.created_at = old.created_at then
+      return new;
+    end if;
+    raise exception 'trusted_patient_codes is append-only: a % code cannot change', old.status;
+  end if;
+  if new.code <> old.code or new.patient_name <> old.patient_name or new.reason <> old.reason
+     or new.note is distinct from old.note or new.match_email is distinct from old.match_email
+     or new.match_phone is distinct from old.match_phone or new.created_by is distinct from old.created_by
+     or new.created_at <> old.created_at then
+    raise exception 'trusted_patient_codes is append-only: only its status may move';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_trusted_patient_codes_guard on trusted_patient_codes;
+create trigger trg_trusted_patient_codes_guard
+  before update or delete on trusted_patient_codes
+  for each row execute function public.trusted_patient_codes_guard();
+
+alter table profiles add column if not exists pay_later_code_id uuid references trusted_patient_codes(id) on delete set null;
+
+-- ---------------------------------------------------------------------------
+-- Trusted-patient codes reach the admin dashboard live: a patient redeeming
+-- one turns it to Redeemed on Money -> Costs without a manual refresh
+-- (ADMIN_REALTIME_TABLES, guarded by H-006).
+do $$
+begin
+  alter publication supabase_realtime add table trusted_patient_codes;
+exception when duplicate_object then null;
+end $$;

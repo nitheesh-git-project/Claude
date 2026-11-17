@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import AuthSplitLayout from "./AuthSplitLayout";
 import { checkReferralCode, type ReferralCodeCheck } from "@/lib/checkReferralCode";
 import { isValidEmail } from "@/lib/validateEmail";
 import { isValidStoredPhone } from "@/lib/phoneNumber";
@@ -13,8 +14,15 @@ import PasswordInput from "./PasswordInput";
 import TermsCheckbox, { TERMS_REQUIRED_MESSAGE } from "@/components/legal/TermsCheckbox";
 import { signupTermsMetadata } from "@/lib/policyAcceptance";
 
-export default function PatientAuthCard() {
-  const [tab, setTab] = useState<"login" | "register">("login");
+export default function PatientAuthCard({
+  /** `?tab=register` on /patient/login, read by the page: the bare
+   *  /patient/register address (an invite page without its invite) sends
+   *  people to the sign-up side. */
+  initialTab = "login",
+}: {
+  initialTab?: "login" | "register";
+} = {}) {
+  const [tab, setTab] = useState<"login" | "register">(initialTab);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -171,8 +179,8 @@ export default function PatientAuthCard() {
   }
 
   return (
-    <section className="py-12 max-w-md mx-auto px-4">
-      <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-lg">
+    <AuthSplitLayout photo={tab === "register" ? "patient-register" : "patient"} kicker="For patients" line="Care that comes to you, at home or on a video call.">
+      <div>
         <h2 className="text-2xl font-bold text-slate-900 text-center">
           Patient Portal Login
         </h2>
@@ -420,6 +428,6 @@ export default function PatientAuthCard() {
           </form>
         )}
       </div>
-    </section>
+    </AuthSplitLayout>
   );
 }

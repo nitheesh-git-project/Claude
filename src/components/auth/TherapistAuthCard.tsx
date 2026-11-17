@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import AuthSplitLayout from "./AuthSplitLayout";
 import { isValidEmail } from "@/lib/validateEmail";
 import { isValidStoredPhone } from "@/lib/phoneNumber";
 import PhoneNumberField from "@/components/PhoneNumberField";
@@ -165,8 +166,8 @@ export default function TherapistAuthCard() {
   }
 
   return (
-    <section className="py-12 max-w-md mx-auto px-4">
-      <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-lg">
+    <AuthSplitLayout photo={tab === "register" ? "therapist-register" : "therapist"} kicker="For therapists" line="Your day, your patients and your earnings, in one place.">
+      <div>
         <h2 className="text-2xl font-bold text-slate-900 text-center">
           Therapist Portal
         </h2>
@@ -186,7 +187,7 @@ export default function TherapistAuthCard() {
             }}
             className={`flex-1 pb-2 font-bold text-xs ${
               tab === "login"
-                ? "text-purple-700 border-b-2 border-purple-700"
+                ? "text-teal-700 border-b-2 border-teal-700"
                 : "text-slate-500"
             }`}
           >
@@ -203,7 +204,7 @@ export default function TherapistAuthCard() {
             }}
             className={`flex-1 pb-2 font-bold text-xs ${
               tab === "register"
-                ? "text-purple-700 border-b-2 border-purple-700"
+                ? "text-teal-700 border-b-2 border-teal-700"
                 : "text-slate-500"
             }`}
           >
@@ -217,7 +218,7 @@ export default function TherapistAuthCard() {
           </div>
         )}
         {info && (
-          <div className="mb-4 text-xs text-purple-800 bg-purple-50 border border-purple-200 rounded-lg p-3">
+          <div className="mb-4 text-xs text-teal-800 bg-teal-50 border border-teal-200 rounded-lg p-3">
             {info}
           </div>
         )}
@@ -225,7 +226,7 @@ export default function TherapistAuthCard() {
         {tab === "login" && forgotMode ? (
           forgotSent ? (
             <div className="text-xs space-y-4">
-              <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 text-purple-800">
+              <div className="bg-teal-50 border border-teal-200 rounded-lg p-3 text-teal-800">
                 If an account exists for that email, we&apos;ve sent a
                 password reset link. Check your inbox (and spam folder).
               </div>
@@ -234,7 +235,7 @@ export default function TherapistAuthCard() {
                   setForgotMode(false);
                   setForgotSent(false);
                 }}
-                className="text-purple-700 font-semibold hover:underline"
+                className="text-teal-700 font-semibold hover:underline"
               >
                 ← Back to Sign In
               </button>
@@ -246,7 +247,7 @@ export default function TherapistAuthCard() {
                     setForgotMode(false);
                     setForgotSent(false);
                   }}
-                  className="text-purple-700 font-semibold hover:underline"
+                  className="text-teal-700 font-semibold hover:underline"
                 >
                   Apply to Join
                 </button>
@@ -272,7 +273,7 @@ export default function TherapistAuthCard() {
               <button
                 type="submit"
                 disabled={forgotSubmitting}
-                className="w-full bg-purple-700 hover:bg-purple-800 disabled:opacity-60 text-white font-bold py-3 rounded-xl transition"
+                className="w-full bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white font-bold py-3 rounded-xl transition"
               >
                 {forgotSubmitting ? "Sending..." : "Send Reset Link"}
               </button>
@@ -291,7 +292,7 @@ export default function TherapistAuthCard() {
                     setTab("register");
                     setForgotMode(false);
                   }}
-                  className="text-purple-700 font-semibold hover:underline"
+                  className="text-teal-700 font-semibold hover:underline"
                 >
                   Apply to Join
                 </button>
@@ -325,7 +326,7 @@ export default function TherapistAuthCard() {
               <button
                 type="button"
                 onClick={() => setForgotMode(true)}
-                className="text-purple-700 font-semibold mt-1.5 hover:underline"
+                className="text-teal-700 font-semibold mt-1.5 hover:underline"
               >
                 Forgot password?
               </button>
@@ -333,7 +334,7 @@ export default function TherapistAuthCard() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-purple-700 hover:bg-purple-800 disabled:opacity-60 text-white font-bold py-3 rounded-xl transition"
+              className="w-full bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white font-bold py-3 rounded-xl transition"
             >
               {loading ? "Signing in..." : "Sign In"}
             </button>
@@ -426,13 +427,13 @@ export default function TherapistAuthCard() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-purple-700 hover:bg-purple-800 disabled:opacity-60 text-white font-bold py-3 rounded-xl transition"
+              className="w-full bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white font-bold py-3 rounded-xl transition"
             >
               {loading ? "Submitting..." : "Submit Application"}
             </button>
           </form>
         )}
       </div>
-    </section>
+    </AuthSplitLayout>
   );
 }

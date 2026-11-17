@@ -16,6 +16,7 @@ import { publicTestimonials } from "@/lib/testimonialTrust";
 import { readPublicTeam } from "@/lib/publicTeam";
 import { oneToOneLine } from "@/lib/sessionLengthCopy";
 import { readMissionCopy, readMissionPrinciples } from "@/lib/missionCopy";
+import { readPublicSectionVisibility } from "@/lib/publicSectionVisibilityServer";
 
 export const metadata: Metadata = {
   title: "Our Mission | MoveRestore",
@@ -50,7 +51,7 @@ export default async function MissionPage() {
   // The five rows schema.sql seeds are illustrative copy, never real
   // patients, and they are not shown -- see testimonialTrust.ts. With only
   // those in the table the band (and its rail entry) is simply not drawn.
-  const testimonials: PublicTestimonial[] = publicTestimonials(testimonialRows).map((t) => ({
+  const allTestimonials: PublicTestimonial[] = publicTestimonials(testimonialRows).map((t) => ({
     ...t,
     avatar_url: avatarById.get(t.id) ?? null,
   }));
@@ -84,7 +85,16 @@ export default async function MissionPage() {
   // The promises and the limits, as an admin may have rewritten them. Falls
   // back to the arrays in mission.ts when the table is empty, so this page
   // never renders a heading with nothing under it.
-  const { promises, limits } = await readMissionPrinciples();
+  // Any of the three admin-managed bands can be hidden without deleting it
+  // (Settings -> Public Site): a hidden one is an empty list, which drops
+  // the band and its rail entry together, as an empty table always did.
+  const [principles, sectionsShown] = await Promise.all([
+    readMissionPrinciples(),
+    readPublicSectionVisibility(),
+  ]);
+  const promises = sectionsShown.promises ? principles.promises : [];
+  const limits = sectionsShown.limits ? principles.limits : [];
+  const testimonials = sectionsShown.testimonials ? allTestimonials : [];
 
   // Only sections that render: the testimonial band is admin-controlled, so
   // its rail entry is conditional. Order matches the DOM.

@@ -759,10 +759,10 @@ is invisible to any tooling here.
 
 - **Dark mode is a palette, not a second set of classes - write colours as
   you always have.** Settings -> Public Site -> Appearance
-  (`site_settings.follow_device_theme`, off by default) lets the app follow
-  the device. When it is on and the device is dark, a head script
-  (`src/lib/deviceTheme.ts`) sets `<html data-theme="dark">` before first
-  paint, and `DeviceThemeFollower` keeps it in step if the device changes.
+  (`site_settings.site_theme`: light, dark or device; see `deviceTheme.ts`)
+  decides. For dark, or device on a dark device, a head script sets
+  `<html data-theme="dark">` before first paint, and `DeviceThemeFollower`
+  keeps a device-following page in step if the device changes.
   `src/app/dark-theme.css` - **generated** by `node scripts/build-dark-theme.mjs`,
   so edit the script, never the CSS - declares Tailwind 4's per-utility
   namespaces (`--background-color-*`, `--border-color-*`, `--ring-color-*`)
@@ -801,11 +801,20 @@ is invisible to any tooling here.
   `e2e/chrome-and-loader.spec.ts` CHROME-006.
 - **Never navigate just to drop the query from the current path.** Next
   16.2 never completes `/x?a=1` -> `/x`: no request, no URL change, and the
-  loader sits for its 12s ceiling (fixed upstream in 16.3). Clearing a
-  marker such as `?farewell=1` is `window.history.replaceState`, which Next
-  keeps `useSearchParams` in step with, and the logo on `/` scrolls to the
-  top instead of navigating. Guard: `e2e/navigation-feedback.spec.ts`
-  NAV-004.
+  loader sits for its 12s ceiling (fixed upstream in 16.3, which this app
+  now runs). Clearing a marker is still `window.history.replaceState`, which
+  Next keeps `useSearchParams` in step with: there is nothing to fetch. The
+  logo on `/` scrolls to the top instead of navigating. `?farewell=1` stays
+  in the address exactly as long as the goodbye banner is on screen and is
+  replaced with `/` when it leaves (its timer or the X) -- the owner's call.
+  Guard: `e2e/navigation-feedback.spec.ts` NAV-004.
+- **An empty phone field opens on the visitor's country.** `PhoneNumberField`
+  seeds from the browser (time zone, then language), then follows the
+  country the site resolved from where the visitor is (`usePricing().country`,
+  the one prices use) once it is known: an "English (US)" phone in India
+  guessed United States on every form (/hospitals, /developer/lets-talk,
+  sign-up). It never overrides a stored number or a country the visitor
+  picked by hand. Guard: `chrome-and-loader` CHROME-010.
 - **A long value in a two-column summary wraps inside its box.** The label
   `shrink-0`, the value `min-w-0 [overflow-wrap:anywhere]`; an email goes on
   its own line under its label on a phone, breakable after the "@".

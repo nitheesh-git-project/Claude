@@ -140,7 +140,9 @@ export default function DeleteAccountButton({
     else router.refresh();
   }
 
-  const keeps = preview ? !preview.deletable || preview.alreadyDeleted : false;
+  // An earlier delete kept this account for its records; with none left it
+  // is removed for good like any empty account.
+  const keeps = preview ? !preview.deletable : false;
 
   return (
     <>

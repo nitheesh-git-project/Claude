@@ -3,7 +3,10 @@
 // the approve route - never trust the field list a client sends.
 export const GATED_PROFILE_FIELDS: Record<string, string[]> = {
   patient: ["full_name", "date_of_birth", "gender", "phone"],
-  therapist: ["full_name", "credentials", "specialization", "years_experience", "phone"],
+  // bio: shown to the public on the Our Team page, so it waits for the
+  // clinic like the credentials beside it (owner's call). It arrives through
+  // /api/therapist/update-bio, not the gated-fields form.
+  therapist: ["full_name", "credentials", "specialization", "years_experience", "phone", "bio"],
   // A partner's organisation name is shown to the patients they refer, so
   // it is a trust claim in exactly the way a therapist's credentials are --
   // it goes through review rather than being directly writable.

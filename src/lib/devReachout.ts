@@ -206,3 +206,31 @@ export function groupDevReachoutNotes(
   }
   return byReachout;
 }
+
+/** Why an admin deleted a message: required, and written to the activity log
+ *  with who sent it, since the message itself is gone afterwards. */
+export const DEV_REACHOUT_DELETE_REASONS = [
+  { key: "spam", label: "Spam or junk" },
+  { key: "duplicate", label: "Duplicate of another message" },
+  { key: "test", label: "Test message" },
+  { key: "handled", label: "Handled, no longer needed" },
+  { key: "other", label: "Other (say why)" },
+] as const;
+export type DevReachoutDeleteReason = (typeof DEV_REACHOUT_DELETE_REASONS)[number]["key"];
+export const MAX_DEV_REACHOUT_DELETE_NOTE_LENGTH = 500;
+
+/** A reason from the list; "other" needs a note. The note is trimmed, capped
+ *  and null when blank. */
+export function validateDevReachoutDelete(
+  reason: unknown,
+  note: unknown
+): { ok: true; reason: DevReachoutDeleteReason; note: string | null } | { ok: false; error: string } {
+  const key = DEV_REACHOUT_DELETE_REASONS.find((r) => r.key === reason)?.key;
+  if (!key) return { ok: false, error: "Choose why this message is being deleted." };
+  const trimmed = typeof note === "string" ? note.trim() : "";
+  if (trimmed.length > MAX_DEV_REACHOUT_DELETE_NOTE_LENGTH) {
+    return { ok: false, error: `Keep the note under ${MAX_DEV_REACHOUT_DELETE_NOTE_LENGTH} characters.` };
+  }
+  if (key === "other" && !trimmed) return { ok: false, error: "Say why it is being deleted." };
+  return { ok: true, reason: key, note: trimmed || null };
+}

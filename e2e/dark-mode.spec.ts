@@ -1,9 +1,9 @@
-// DARK: the app follows the device's light/dark setting -- only when an
-// admin has switched it on (Settings -> Public Site -> Appearance).
+// DARK: Settings -> Public Site -> Appearance -- always light, always dark,
+// or each visitor's device (site_settings.site_theme, deviceTheme.ts).
 //
-// The switch is flipped through /api/admin/update-setting, not straight in
-// the database: that route revalidates the root layout, which is where the
-// head script that decides light or dark is rendered.
+// The mode is set through /api/admin/update-setting, not straight in the
+// database: that route revalidates the root layout, which is where the head
+// script that decides light or dark is rendered.
 import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
 import { BASE, QA_EMAILS, adminClient, browserCookiesFor, cookieHeaderFor } from "./helpers";
 
@@ -11,12 +11,17 @@ const SHOT = "/tmp/claude-0/-home-user-Claude/92352852-44c7-581f-b775-ee8d1b4f4c
 const LIGHT_PAGE = "rgb(248, 250, 252)";
 const DARK_PAGE = "rgb(11, 18, 32)";
 
-async function setFollow(request: APIRequestContext, value: boolean) {
+async function setMode(request: APIRequestContext, value: "light" | "dark" | "device") {
   const res = await request.post(`${BASE}/api/admin/update-setting`, {
     headers: { cookie: await cookieHeaderFor(QA_EMAILS.admin), "content-type": "application/json" },
-    data: { key: "follow_device_theme", value },
+    data: { key: "site_theme", value },
   });
   expect(res.status(), await res.text()).toBe(200);
+}
+
+async function readTheme() {
+  const { data } = await adminClient().from("site_settings").select("site_theme, follow_device_theme").maybeSingle();
+  return data as { site_theme: string | null; follow_device_theme: boolean } | null;
 }
 
 async function looks(page: Page) {
@@ -35,18 +40,23 @@ async function looks(page: Page) {
 
 test.describe.configure({ mode: "serial" });
 
-test.describe("dark mode follows the device", () => {
-  let before = false;
+test.describe("appearance: light, dark, or the device", () => {
+  let before: { site_theme: string | null; follow_device_theme: boolean } | null = null;
   test.beforeAll(async () => {
-    const { data } = await adminClient().from("site_settings").select("follow_device_theme").maybeSingle();
-    before = (data as { follow_device_theme?: boolean } | null)?.follow_device_theme === true;
+    before = await readTheme();
   });
   test.afterAll(async ({ request }) => {
-    await setFollow(request, before);
+    const restore = (before?.site_theme ?? (before?.follow_device_theme ? "device" : "light")) as "light" | "dark" | "device";
+    await setMode(request, restore);
+    // Exactly as found, including "nobody has picked yet" (null).
+    await adminClient()
+      .from("site_settings")
+      .update({ site_theme: before?.site_theme ?? null, follow_device_theme: before?.follow_device_theme ?? false })
+      .eq("id", true);
   });
 
-  test("DARK-001: with the switch off, a dark device still gets the light app", async ({ browser, request }) => {
-    await setFollow(request, false);
+  test("DARK-001: Light is light even on a dark device", async ({ browser, request }) => {
+    await setMode(request, "light");
     const ctx = await browser.newContext({ colorScheme: "dark" });
     const page = await ctx.newPage();
     await page.goto(`${BASE}/patient/login`);
@@ -57,11 +67,11 @@ test.describe("dark mode follows the device", () => {
     await ctx.close();
   });
 
-  test("DARK-002: with the switch on, the app is dark on a dark device and light on a light one", async ({
+  test("DARK-002: Based on the device, the app is dark on a dark device and light on a light one", async ({
     browser,
     request,
   }) => {
-    await setFollow(request, true);
+    await setMode(request, "device");
 
     const dark = await browser.newContext({ colorScheme: "dark" });
     const page = await dark.newPage();
@@ -88,8 +98,8 @@ test.describe("dark mode follows the device", () => {
     expect(d.buttonText).toBe("rgb(255, 255, 255)");
   });
 
-  test("DARK-003: it follows the device live, and printing stays light", async ({ browser, request }) => {
-    await setFollow(request, true);
+  test("DARK-003: Based on the device, it follows the device live, and printing stays light", async ({ browser, request }) => {
+    await setMode(request, "device");
     const ctx = await browser.newContext({ colorScheme: "light" });
     const page = await ctx.newPage();
     await page.goto(`${BASE}/patient/login`);
@@ -108,23 +118,45 @@ test.describe("dark mode follows the device", () => {
     await ctx.close();
   });
 
-  test("DARK-004: the admin switch lives on Settings -> Public Site and saves", async ({ browser, request }) => {
+  test("DARK-005: Dark is dark even on a light device, from the first paint", async ({ browser, request }) => {
+    await setMode(request, "dark");
+    const ctx = await browser.newContext({ colorScheme: "light" });
+    const page = await ctx.newPage();
+    await page.goto(`${BASE}/patient/login`);
+    const d = await looks(page);
+    expect(d.theme).toBe("dark");
+    expect(d.page).toBe(DARK_PAGE);
+    // The device changing changes nothing.
+    await page.emulateMedia({ colorScheme: "light" });
+    await page.waitForTimeout(500);
+    expect((await looks(page)).page).toBe(DARK_PAGE);
+    await ctx.close();
+  });
+
+  test("DARK-004: Settings -> Public Site offers the three, each with a preview, and saves the one picked", async ({
+    browser,
+    request,
+  }) => {
     test.setTimeout(180_000);
-    await setFollow(request, false);
+    await setMode(request, "light");
     const ctx = await browser.newContext();
     await ctx.addCookies(await browserCookiesFor(QA_EMAILS.admin));
     const page = await ctx.newPage();
     await page.goto(`${BASE}/admin/dashboard?section=settings&tab=public`);
-    const toggle = page.getByRole("switch", { name: "Follow the device's light/dark setting" });
-    await toggle.scrollIntoViewIfNeeded();
-    await expect(toggle).toHaveAttribute("aria-checked", "false");
-    await toggle.click();
-    await expect(page.getByText("Following the device: dark for dark devices, light for light ones.")).toBeVisible();
-    await expect.poll(async () => {
-      const { data } = await adminClient().from("site_settings").select("follow_device_theme").maybeSingle();
-      return (data as { follow_device_theme?: boolean } | null)?.follow_device_theme;
-    }).toBe(true);
-    await page.getByRole("switch", { name: "Follow the device's light/dark setting" }).screenshot({ path: `${SHOT}/dark-switch.png` }).catch(() => {});
+    const group = page.getByRole("radiogroup", { name: "Appearance" });
+    await group.scrollIntoViewIfNeeded();
+    await expect(group.getByRole("radio")).toHaveCount(3);
+    await expect(group.getByRole("radio", { name: /Light/ })).toHaveAttribute("aria-checked", "true");
+
+    await group.getByRole("radio", { name: /^Dark/ }).click();
+    await expect.poll(async () => (await readTheme())?.site_theme).toBe("dark");
+    expect((await readTheme())?.follow_device_theme).toBe(false);
+
+    await group.getByRole("radio", { name: /visitor's device/ }).click();
+    await expect.poll(async () => (await readTheme())?.site_theme).toBe("device");
+    // The old switch is kept meaning the same thing.
+    expect((await readTheme())?.follow_device_theme).toBe(true);
+    await group.screenshot({ path: `${SHOT}/appearance-three.png` }).catch(() => {});
     await ctx.close();
   });
 });
