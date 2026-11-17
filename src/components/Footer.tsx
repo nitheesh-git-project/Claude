@@ -83,7 +83,7 @@ export default function Footer({
 
   return (
     <footer className="bg-slate-900 text-slate-300">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 grid sm:grid-cols-2 md:grid-cols-4 gap-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-8">
         <div>
           <div className="flex items-center space-x-3 mb-3">
             <BrandMark size={36} />
@@ -197,35 +197,35 @@ export default function Footer({
             />
           </ul>
         </div>
-      </div>
-      <div className="border-t border-slate-800 py-4 text-center text-[11px] text-slate-400">
+
         {/* The legal pages, on every public page: Razorpay, the IT Rules and
-            the E-Commerce Rules all expect them one tap from anywhere. */}
+            the E-Commerce Rules all expect them one tap from anywhere. A
+            column like the others rather than a small line under them, so
+            they read as links rather than as fine print. */}
         <nav aria-label="Legal">
-          <ul className="flex flex-wrap justify-center gap-x-4 px-4">
+          <h4 className="text-white text-sm font-semibold mb-2">Legal</h4>
+          <ul className="text-sm">
             {LEGAL_PAGES.map((page) => (
               <li key={page.slug}>
-                <Link
-                  href={page.href}
-                  className="inline-flex min-h-11 items-center hover:text-teal-400 transition"
-                >
+                <Link href={page.href} className={FOOTER_LINK}>
                   {page.label}
                 </Link>
               </li>
             ))}
           </ul>
         </nav>
+      </div>
+      <div className="border-t border-slate-800 py-4 text-center text-[11px] text-slate-400">
         <p>
           {/* The year is the reader's, and the cached HTML's can be last
               year's (ISR) or UTC's (the server) on New Year's morning in
               India -- deliberately client-specific, so this one node only. */}
           © <span suppressHydrationWarning>{new Date().getFullYear()}</span> {footerCopyrightText}
-          {/* On the copyright's own line: a line of its own made the footer
-              taller, which pushed the last section clear of the viewport's
-              centre at the bottom of the page and left the section rail with
-              nothing active (SN-003). */}
-          <AnalyticsSettingsLink />
         </p>
+        {/* Below the copyright, on its own line. The legal row that used to
+            sit above the copyright moved into the Legal column, so this line
+            does not make the bottom strip any taller than it was (SN-003). */}
+        <AnalyticsSettingsLink />
         <CountryPicker />
         {devCreditEnabled && (
           <p className="mt-1 px-4">

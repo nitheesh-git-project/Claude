@@ -682,7 +682,10 @@ export default function AdminShell({
           <p className="truncate text-sm font-bold text-slate-900">{adminName}</p>
           {/* No scope pill here: the brand and the page header both name
               the dashboard already. */}
-          <p className="truncate text-xs text-slate-500">{adminEmail}</p>
+          {/* In full, wrapping where it must: cut to "..." it could not be
+              read, and the email is how an admin tells their own login apart
+              from a colleague's. */}
+          <p className="text-xs leading-snug text-slate-600 [overflow-wrap:anywhere]">{adminEmail}</p>
         </div>
       </div>
     );

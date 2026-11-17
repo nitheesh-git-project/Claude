@@ -413,8 +413,11 @@ export default function DashboardShell({
         <AvatarThumbnail url={userAvatarUrl} name={userName} size={size} />
         <div className="min-w-0">
           <p className="truncate text-sm font-bold text-slate-900">{userName}</p>
-          <p className="truncate text-sm text-slate-600">{userEmail}</p>
-          {userCode && <p className="truncate font-mono text-[13px] font-semibold text-slate-600">{userCode}</p>}
+          {/* The email and ID in full, wrapping where they must: cut to "..."
+              they could not be read back to support, which is what they are
+              shown for. */}
+          <p className="text-sm leading-snug text-slate-600 [overflow-wrap:anywhere]">{userEmail}</p>
+          {userCode && <p className="font-mono text-[13px] font-semibold text-slate-700 [overflow-wrap:anywhere]">{userCode}</p>}
         </div>
       </div>
     );
