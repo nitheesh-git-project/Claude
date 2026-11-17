@@ -2,8 +2,9 @@
 // wears the same light sidebar.
 //
 // Four complaints, each something only a browser shows:
-//  - tapping Sign In removed Sign In / Book from the nav (Get Started is no
-//    longer in the header: the hub's doors live in the footer);
+//  - tapping Sign In removed Sign In / Get Started / Book from the nav
+//    (Get Started stays in the header: it is how a therapist or a hospital
+//    finds their own sign-in);
 //  - tapping a dashboard tab flashed a dark sidebar (the old loading
 //    skeleton) until the page arrived;
 //  - the admin dashboard still had the dark blue sidebar;
@@ -13,17 +14,23 @@ import { BASE, QA_EMAILS, browserCookiesFor, markDashboardTourSeen, waitForSplas
 
 const SHOT = "/tmp/claude-0/-home-user-Claude/92352852-44c7-581f-b775-ee8d1b4f4c9d/scratchpad/shots";
 
-test("CHROME-001: the sign-in page keeps Sign In and Book in the nav, and Get Started is gone", async ({ page }) => {
+test("CHROME-001: the sign-in page keeps Sign In, Get Started and Book in the nav, and Get Started leads to the therapist and hospital doors", async ({ page }) => {
   await page.setViewportSize({ width: 1600, height: 900 });
   await page.goto(`${BASE}/conditions`);
   await waitForSplashToClear(page);
   const nav = page.getByRole("navigation").filter({ has: page.getByRole("link", { name: "Sign In" }) }).first();
   await nav.getByRole("link", { name: "Sign In" }).click();
   await expect(page).toHaveURL(/\/patient\/login/);
-  for (const name of ["Sign In", /Book a video session/]) {
+  for (const name of ["Sign In", "Get Started", /Book a video session/]) {
     await expect(nav.getByRole("link", { name })).toBeVisible();
   }
-  await expect(nav.getByRole("link", { name: "Get Started" })).toHaveCount(0);
+  // Without it a therapist or a hospital has no way to their own sign-in from
+  // the top bar: Sign In above is the patient's.
+  await nav.getByRole("link", { name: "Get Started" }).click();
+  await expect(page).toHaveURL(/\/get-started$/);
+  await expect(page.getByRole("link", { name: /Therapist Login/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Partner Login/ })).toBeVisible();
+  await page.goBack();
   // The therapist and partner doors moved to the footer, under their own heading.
   const footer = page.getByRole("contentinfo");
   await expect(footer.getByRole("heading", { name: "For clinicians and partners" })).toBeVisible();

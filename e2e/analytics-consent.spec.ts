@@ -6,8 +6,9 @@
 // What is asserted is the promise the pop-up makes: nothing optional is
 // requested before a yes, Accept and Reject are the same size, a refusal
 // sticks, it opens as soon as the opening splash lifts and never
-// by itself inside a booking, an ignored pop-up rests for a day, and the
-// signed-in trees never show it.
+// by itself inside a booking, an ignored pop-up rests for a day, an answered
+// visitor is not asked again on the way back from a sign-in page or a booking,
+// and the signed-in trees never show it.
 import { test, expect, type Page } from "@playwright/test";
 import { BASE, adminClient } from "./helpers";
 
@@ -186,6 +187,48 @@ test.describe("cookie consent pop-up", () => {
     await page.mouse.wheel(0, 400);
     await page.waitForTimeout(500);
     await expect(popup(page)).toBeHidden();
+  });
+
+  for (const answer of ["Accept", "Reject"] as const) {
+    test(`AC-010: after ${answer}, going to a sign-in page and a booking and back to a public page does not ask again`, async ({ page }) => {
+      await watchGoogle(page);
+      await page.goto(`${BASE}/faq`);
+      await expect(popup(page)).toBeVisible({ timeout: 10_000 });
+      await popup(page).getByRole("button", { name: answer, exact: true }).click();
+      await expect(popup(page)).toBeHidden();
+
+      // Client-side navigation only: the card lives in the root layout and is
+      // not remounted, which is exactly when it used to reappear.
+      const nav = page.getByRole("navigation").filter({ has: page.getByRole("link", { name: "Sign In" }) }).first();
+      await nav.getByRole("link", { name: "Sign In" }).click();
+      await expect(page).toHaveURL(/\/patient\/login/);
+      await page.waitForTimeout(1500);
+      await expect(popup(page)).toBeHidden();
+
+      await nav.getByRole("link", { name: /Book a video session/ }).click();
+      await expect(page).toHaveURL(/\/book/);
+      await page.waitForTimeout(1500);
+      await expect(popup(page)).toBeHidden();
+
+      await page.getByRole("link", { name: "Home", exact: true }).or(page.locator('a[href="/"]').first()).first().click();
+      await expect(page).toHaveURL(`${BASE}/`);
+      await page.waitForTimeout(3500);
+      await expect(popup(page)).toBeHidden();
+      expect(await stored(page)).toMatchObject({ analytics: answer === "Accept" });
+    });
+  }
+
+  test("AC-011: an unanswered card does not follow someone into a booking, and is there again on a public page", async ({ page }) => {
+    await watchGoogle(page);
+    await page.goto(`${BASE}/faq`);
+    await expect(popup(page)).toBeVisible({ timeout: 10_000 });
+    const nav = page.getByRole("navigation").filter({ has: page.getByRole("link", { name: "Sign In" }) }).first();
+    await nav.getByRole("link", { name: /Book a video session/ }).click();
+    await expect(page).toHaveURL(/\/book/);
+    await expect(popup(page)).toBeHidden();
+    await page.goBack();
+    await expect(page).toHaveURL(/\/faq/);
+    await expect(popup(page)).toBeVisible({ timeout: 10_000 });
   });
 
   for (const path of ["/admin/login", "/patient/login", "/therapist/login", "/hospital/login"]) {

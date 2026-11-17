@@ -810,11 +810,14 @@ Eight pages from one design system, the word budgets, why every photograph carri
   shown where `isBookBarRoute` says -- not on `/get-started`, the wizard, an
   auth card or a dashboard). From `lg` the header shows Conditions, How it
   works, Home visit, Team and FAQ with Mission and Hospitals under **More**,
-  then Sign In and the Book button; from `2xl` every page is in the row. There
-  is **no Get Started in the header**: that hub is a switchboard (patient,
-  therapist, hospital sign-ins), so the phone menu's one primary button is
-  Book a video session and the hub's other doors live in the footer under
-  "For clinicians and partners". The brand is the **full name with its tagline at
+  then Sign In, **Get Started** and the Book button; from `2xl` every page is
+  in the row. **Get Started stays in the header, beside Book.** Sign In is the
+  patient's door; the hub it opens (patient, therapist, hospital sign-ins) is
+  the only way a therapist or a hospital reaches theirs from the top bar, and
+  without it they cannot find where to sign in. It is the quieter, outlined
+  button; Book is still the one filled primary, and so is the phone menu's top
+  button. The footer repeats the hub's doors under "For clinicians and
+  partners". Guard: CHROME-001, and the phone menu in `mobile-smoke`. The brand is the **full name with its tagline at
   every width**, never the short name and never an ellipsis: on a phone the name
   scales with the screen (15px at 360px), and from 1024 to 1279px it is 16px,
   the bar's gaps tighten and Our team steps into More (`LAPTOP_MORE_KEYS`). Menu rows
@@ -971,6 +974,19 @@ Eight pages from one design system, the word budgets, why every photograph carri
   any change of substance to the Cookie policy and everyone is asked again.
   An answer to the earlier analytics-only banner (`mr_analytics_consent`) is
   honoured until the visitor answers the new pop-up. Guard: AC-006, AC-007.
+- **When it shows, in one rule: only to someone who has not answered, only on
+  a public page, never by itself in a booking.** `Analytics` lives in the root
+  layout and is *not* remounted by a client-side navigation, so the question is
+  asked again on every route change from the visitor's **current** answer
+  (`shouldAutoOpenCard`), never from a value read once at load. It used to be
+  read once: someone who accepted, went to a sign-in page or a booking (which
+  switch the rule off) and came back to a public page was asked again, because
+  the return switched it back on. An answered visitor is never asked again
+  until `COOKIE_POLICY_VERSION` changes; an unanswered card is hidden on the
+  sign-in pages, the dashboards and the back office, and on a booking unless
+  the visitor opened it from the footer (`cardShownOn`), and is there again
+  when they are back on a public page. Guard: AC-010 and AC-011, and the unit
+  tests of both functions.
 - **Every choice is recorded, append-only, and nothing identifies the
   visitor.** `recordCookieConsent` posts to `/api/consent`, which validates
   the body (a Reject all that claims analytics is refused), works out the
