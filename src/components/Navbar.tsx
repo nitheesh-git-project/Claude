@@ -21,9 +21,10 @@ import type { PublicContactLinks } from "@/lib/contactLinks";
 // reads before booking. Mission and Hospitals (the latter written for a
 // different audience) go under More until 2xl.
 const PRIMARY_KEYS = new Set<MarketingPageKey>(["conditions", "how-it-works", "home-visit", "team", "faq"]);
-// Below xl (1024-1279px) the bar keeps the brand's full name, so one primary
-// link steps into More to make room; it is back in the bar from xl.
-const LAPTOP_MORE_KEYS = new Set<MarketingPageKey>(["team"]);
+// Below xl (1024-1279px) the bar keeps the brand's full name and three
+// buttons (Sign In, Get Started, Book), so two primary links step into More
+// to make room; they are back in the bar from xl.
+const LAPTOP_MORE_KEYS = new Set<MarketingPageKey>(["team", "home-visit"]);
 
 export default function Navbar({
   offsetTop = false,

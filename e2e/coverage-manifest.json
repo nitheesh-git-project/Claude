@@ -4355,7 +4355,7 @@
     {
       "id": "platform.chrome-and-loader",
       "runner": "platform",
-      "title": "Navigation stays put while a page loads: spine loader, light sidebars, sign-in nav, /conditions order",
+      "title": "Navigation stays put while a page loads: spine loader, light sidebars, sign-in nav, /conditions order; Sign In, Get Started and Book fit the header from 1024px",
       "required": true,
       "status": "covered",
       "coverage": [
@@ -4365,7 +4365,8 @@
             "CHROME-001",
             "CHROME-002",
             "CHROME-003",
-            "CHROME-004"
+            "CHROME-004",
+            "CHROME-007"
           ],
           "level": "browser"
         }

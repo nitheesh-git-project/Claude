@@ -200,3 +200,36 @@ test("CHROME-006: an in-app link that loads slowly shows the loader, not a page 
   await expect(page).toHaveURL(/\/faq/, { timeout: 30_000 });
   await expect(page.getByTestId("navigation-loader")).toHaveCount(0, { timeout: 30_000 });
 });
+
+test("CHROME-007: Sign In, Get Started and Book fit the header on one row from 1024px, with no sideways scroll", async ({ page }) => {
+  // Three buttons beside the brand's full name is tight at the smallest laptop
+  // width: Our team and Home visit step into More below xl to make room.
+  for (const width of [1024, 1100, 1280, 1536]) {
+    await page.setViewportSize({ width, height: 800 });
+    await page.addInitScript(() =>
+      localStorage.setItem("mr_cookie_consent", JSON.stringify({ version: "2026-11-12", analytics: false, marketing: false, at: Date.now() }))
+    );
+    await page.goto(`${BASE}/`);
+    await waitForSplashToClear(page);
+    const nav = page.getByRole("navigation").filter({ has: page.getByRole("link", { name: "Sign In" }) }).first();
+    const boxes = [];
+    for (const name of ["Sign In", "Get Started", /Book a video session/] as const) {
+      const link = nav.getByRole("link", { name });
+      await expect(link, `${width}px`).toBeVisible();
+      boxes.push((await link.boundingBox())!);
+    }
+    // One row, left to right, and the last one inside the window.
+    expect(Math.abs(boxes[0].y - boxes[1].y), `${width}px: Sign In and Get Started share a row`).toBeLessThan(6);
+    expect(Math.abs(boxes[1].y - boxes[2].y), `${width}px: Get Started and Book share a row`).toBeLessThan(6);
+    expect(boxes[0].x + boxes[0].width, `${width}px`).toBeLessThanOrEqual(boxes[1].x + 1);
+    expect(boxes[1].x + boxes[1].width, `${width}px`).toBeLessThanOrEqual(boxes[2].x + 1);
+    expect(boxes[2].x + boxes[2].width, `${width}px: Book is inside the window`).toBeLessThanOrEqual(width);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth), `${width}px: sideways scroll`).toBe(false);
+  }
+  // Home visit is not lost below xl: it is under More.
+  await page.setViewportSize({ width: 1024, height: 800 });
+  await page.goto(`${BASE}/`);
+  await waitForSplashToClear(page);
+  await page.getByRole("button", { name: /^More/ }).click();
+  await expect(page.getByRole("link", { name: "Home visit" }).first()).toBeVisible();
+});

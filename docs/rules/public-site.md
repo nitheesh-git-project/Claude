@@ -820,7 +820,9 @@ Eight pages from one design system, the word budgets, why every photograph carri
   partners". Guard: CHROME-001, and the phone menu in `mobile-smoke`. The brand is the **full name with its tagline at
   every width**, never the short name and never an ellipsis: on a phone the name
   scales with the screen (15px at 360px), and from 1024 to 1279px it is 16px,
-  the bar's gaps tighten and Our team steps into More (`LAPTOP_MORE_KEYS`). Menu rows
+  the bar's gaps tighten and Our team and Home visit step into More
+  (`LAPTOP_MORE_KEYS`) so the three buttons fit on one row with no sideways
+  scroll (CHROME-007). Menu rows
   and footer links are 44px targets. The WhatsApp / Call chip in the menu and
   the icon beside the sticky bar's Book button exist only for numbers an admin
   has filled in (`contactLinks.ts`; the shipped "+91 XXXXX XXXXX" is not one),
