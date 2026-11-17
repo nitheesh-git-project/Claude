@@ -1268,7 +1268,8 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   `cancellation` (`src/lib/bookingEmails.ts`, pure templates;
   `appointmentEmailServer.ts` sends): *received* when a paid, free or
   pay-later booking is claimed with nobody assigned yet, *confirmed* when it
-  is confirmed (at payment by `confirmPaidAppointment`, or later by
+  is confirmed (at payment by `confirmPaidAppointment`, or by Razorpay's webhook when
+  the browser callback never lands, or by a cash payment an admin records, or later by
   `/api/admin/assign-appointment`), *cancelled* from both cancel routes,
   saying who cancelled and what happens to the money as
   `cancelAppointmentAndRefund` wrote it (refunded, pending, not eligible, a

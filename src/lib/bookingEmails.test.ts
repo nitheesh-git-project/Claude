@@ -135,3 +135,20 @@ describe("reminders", () => {
     expect(soon.text).toContain("come to the address you gave");
   });
 });
+
+describe("every way a session gets confirmed sends the patient's email", () => {
+  // Each of these confirms a booking; one that forgot to queue the email would
+  // leave the patient without it (found by hand: the webhook-only path and a
+  // cash payment).
+  const paths: [string, RegExp][] = [
+    ["src/lib/confirmPaidAppointment.ts", /queueAppointmentEmail\(appointment\.id, "confirmed"\)/],
+    ["src/app/api/admin/assign-appointment/route.ts", /queueAppointmentEmail\(appointmentId, "confirmed"\)/],
+    ["src/app/api/razorpay/webhook/route.ts", /queueAppointmentEmail\(appointment\.id, "confirmed"\)/],
+    ["src/app/api/admin/mark-paid-by-cash/route.ts", /queueAppointmentEmail\(appointmentId, "confirmed"\)/],
+    ["src/app/api/appointments/cancel/route.ts", /queueAppointmentEmail\(appointmentId, "cancelled"/],
+    ["src/app/api/admin/cancel-appointment/route.ts", /queueAppointmentEmail\(appointmentId, "cancelled"/],
+  ];
+  for (const [file, pattern] of paths) {
+    it(file, () => expect(readFileSync(file, "utf8")).toMatch(pattern));
+  }
+});
