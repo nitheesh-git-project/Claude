@@ -3,6 +3,7 @@ import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync";
+import { queueAppointmentEmail } from "@/lib/appointmentEmailServer";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { serverError } from "@/lib/apiError";
@@ -107,6 +108,11 @@ export async function POST(request: NextRequest) {
       timezone: appointment.timezone,
     });
   }
+
+  // The patient's email, after the response and once per booking: confirmed
+  // when the session had a therapist, otherwise "we have your booking".
+  if (shouldAutoConfirm) queueAppointmentEmail(appointmentId, "confirmed");
+  else if (appointment.status === "requested") queueAppointmentEmail(appointmentId, "received");
 
   await recordAdminActivity(admin, adminUser.id, {
     action: "session.mark_paid_cash",
