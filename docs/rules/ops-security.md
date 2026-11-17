@@ -254,6 +254,33 @@ client is the only writer and the log is append-only from any session.
   still accepts any live session from the browser; turning on **Secure
   password change** in the Supabase dashboard (Authentication -> Providers ->
   Email) closes that at the source. Guard: `e2e/password-flows.spec.ts`.
+
+- **Phone sign-in is for patients, therapists and hospitals; an admin is
+  never sent a code and a code-started session never opens the back
+  office.** Built and switched off (`phone_login_controls`, Settings ->
+  Sign-in & Security; `src/lib/phoneLogin.ts`). `/api/auth/phone/send` asks
+  Supabase to text a code only when `phone_login_account()` (security
+  definer, service role only) finds the number **verified** on an active
+  patient, therapist or hospital account, with `shouldCreateUser: false`; an
+  admin's number, an unknown one and an inactive account all get the same
+  200 and the same `NEUTRAL_SENT` sentence and no code -- the reply never
+  says who is registered. Rate-limited per caller and per number, closed on
+  failure (`phoneCodeSend*`). `/api/auth/phone/verify` checks the code with
+  the cookie-bound client, then signs straight back out anybody whose role
+  may not use it (an admin above all), answering like a wrong code (401).
+  And because Supabase's own API is reachable with the public key,
+  **`getAdminContextResult` refuses any admin session whose JWT `amr` shows
+  `otp`** (`sessionUsedOtp`; an unreadable claim counts as not, so a
+  malformed token never locks out the clinic). A number is linked only
+  through a verified phone change from the profile (`updateUser({ phone })`
+  + `verifyOtp` `phone_change`), never set from a form field. Forgot
+  password -> "Text me a code instead" signs in with the code and sets the
+  same sessionStorage mark an emailed link does, so `/reset-password` shows
+  its form. The sign-in pages read the switch at request time
+  (`phoneLoginOffered`, `connection()`); a failed read is "not offered".
+  Local stack only: `supabase/config.toml` answers three fictional numbers
+  with a fixed code and sends nothing. Going live: `docs/auth/PHONE-SIGN-IN.md`.
+  Tests: `phoneLogin.test.ts`; `e2e/phone-login.spec.ts`.
 - **Rate limiting is Postgres, not Redis, and it fails open.** 173 route
   handlers had nothing throttled. `src/lib/rateLimit.ts` holds the named
   limits and the pure judgements (which caller a request counts against, how

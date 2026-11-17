@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
         ? deletionCompletedEmail(brand, { name, reference: current.reference })
         : deletionDeclinedEmail(brand, { name, reference: current.reference, reason: note });
   }
-  const emailed = recipient && message ? await sendEmail(recipient, message, { replyTo: officerEmail }) : "skipped";
+  const emailed = recipient && message ? await sendEmail(recipient, message, { kind: "legal", replyTo: officerEmail }) : "skipped";
   if (type === "deletion" && (to === "completed" || to === "rejected")) {
     await admin.from("data_requests").update({ contact_name: null, contact_email: null }).eq("id", id);
   }

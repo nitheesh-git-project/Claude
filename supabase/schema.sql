@@ -10245,6 +10245,13 @@ begin
     -- What the clinic chose to show on one patient's Health Profile (end of
     -- this file); the condition-kind settings are settings and stay.
     patient_profile_widget_overrides,
+    -- The email send log (end of this file); the email switches are settings and stay.
+    email_log,
+    -- Which booking emails were sent once (end of this file).
+    appointment_emails,
+    -- WhatsApp's send log and patients' consent choices (end of this file).
+    whatsapp_log,
+    whatsapp_consents,
     -- Who closed or has seen which announcement, and everybody's private
     -- notebook (both at the end of this file). The announcements themselves
     -- are the admin's own writing, like the FAQs, and stay.
@@ -21322,3 +21329,253 @@ begin
   alter publication supabase_realtime add table trusted_patient_codes;
 exception when duplicate_object then null;
 end $$;
+
+-- ---------------------------------------------------------------------------
+-- Email controls and the send log (Settings -> Emails; src/lib/emailControls.ts
+-- has the rules, src/lib/emailServer.ts applies them).
+--
+-- email_controls is ONE row (id = 1): the master switch, the test-mode
+-- inbox and the kinds switched off one by one. It is read on its own, never
+-- through SITE_SETTINGS_SELECT, so a database without it only affects email
+-- and falls back to "on, no test inbox" -- how email behaved before. Staging
+-- is expected to be switched to test mode by a person after this is applied;
+-- the default stays "on" so production's complaint and deletion receipts
+-- keep going out.
+--
+-- email_log is one row per email the app tried to send: the kind, a MASKED
+-- recipient (as***@gmail.com), the subject, sent / skipped / failed and why.
+-- Not evidence (the case itself is the record), so no append-only guard; the
+-- data reset truncates it (newest debug_reset_all_data()). No foreign keys,
+-- so scripts/clean-e2e-residue.mjs has nothing to learn.
+-- Both are read by admins only; every write is the service role's.
+-- ---------------------------------------------------------------------------
+create table if not exists email_controls (
+  id smallint primary key default 1 check (id = 1),
+  sending_enabled boolean not null default true,
+  test_inbox text check (test_inbox is null or (length(test_inbox) <= 254 and test_inbox ~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$')),
+  disabled_kinds text[] not null default '{}',
+  updated_by uuid references profiles(id) on delete set null,
+  updated_at timestamptz not null default now()
+);
+
+insert into email_controls (id) values (1) on conflict (id) do nothing;
+
+alter table email_controls enable row level security;
+
+drop policy if exists "email_controls_select_admin" on email_controls;
+create policy "email_controls_select_admin" on email_controls
+  for select using (is_admin());
+
+revoke insert, update, delete on email_controls from anon, authenticated;
+
+create table if not exists email_log (
+  id bigint generated always as identity primary key,
+  created_at timestamptz not null default now(),
+  kind text not null check (kind ~ '^[a-z0-9_]{1,40}$'),
+  recipient text not null check (length(recipient) <= 254),
+  subject text not null check (length(subject) <= 300),
+  status text not null check (status in ('sent', 'skipped', 'failed')),
+  reason text check (reason is null or reason ~ '^[a-z0-9_]{1,40}$'),
+  redirected boolean not null default false
+);
+
+create index if not exists email_log_created_at_idx on email_log (created_at desc);
+
+alter table email_log enable row level security;
+
+drop policy if exists "email_log_select_admin" on email_log;
+create policy "email_log_select_admin" on email_log
+  for select using (is_admin());
+
+revoke insert, update, delete on email_log from anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Booking emails, once each (src/lib/appointmentEmailServer.ts).
+--
+-- One row per (appointment, event) the patient was emailed about: received,
+-- confirmed, cancelled. The INSERT is the claim -- the payment callback and
+-- Razorpay's webhook can both confirm one booking, and only the request
+-- whose insert lands sends. What happened to the email itself is in
+-- email_log. The appointment cascades, so scripts/clean-e2e-residue.mjs has
+-- nothing to learn; the data reset truncates it with the appointments
+-- (newest debug_reset_all_data()). Admin read only; written by the service
+-- role.
+-- ---------------------------------------------------------------------------
+create table if not exists appointment_emails (
+  appointment_id uuid not null references appointments(id) on delete cascade,
+  event text not null check (event in ('received', 'confirmed', 'cancelled')),
+  created_at timestamptz not null default now(),
+  primary key (appointment_id, event)
+);
+
+alter table appointment_emails enable row level security;
+
+drop policy if exists "appointment_emails_select_admin" on appointment_emails;
+create policy "appointment_emails_select_admin" on appointment_emails
+  for select using (is_admin());
+
+revoke insert, update, delete on appointment_emails from anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Session reminders (src/lib/bookingReminders.ts): appointment_emails also
+-- records the day-before and hour-before reminder, once each. Widens the
+-- event check by name; re-runnable (drop if exists, then add).
+-- ---------------------------------------------------------------------------
+alter table appointment_emails drop constraint if exists appointment_emails_event_check;
+alter table appointment_emails add constraint appointment_emails_event_check
+  check (event in ('received', 'confirmed', 'cancelled', 'reminder_24h', 'reminder_1h'));
+
+-- ---------------------------------------------------------------------------
+-- WhatsApp: switches, send log and patients' consent (src/lib/whatsappRules.ts
+-- has the rules, src/lib/whatsappServer.ts sends).
+--
+-- Built ready, switched off: whatsapp_controls starts with sending OFF, and
+-- nothing is sent before the clinic's Meta Business account, its approved
+-- templates and WHATSAPP_ACCESS_TOKEN / WHATSAPP_PHONE_NUMBER_ID exist.
+--
+-- whatsapp_consents is the evidence of what a patient agreed to: one row per
+-- yes or no (from their profile, or a STOP reply to a message), the latest
+-- wins, none is "no". APPEND-ONLY by trigger, like every evidence table here
+-- (a route writes with the service role, which RLS does not stop). The patient
+-- cascades, so scripts/clean-e2e-residue.mjs has nothing to learn and an
+-- account deletion takes the rows with it. A patient reads their own rows.
+--
+-- whatsapp_log is one row per message the app tried, masked number and the
+-- rendered text (which never holds health details), sent/skipped/failed and
+-- why. Admin read only. The data reset truncates both (newest
+-- debug_reset_all_data()); the switches are settings and stay.
+-- ---------------------------------------------------------------------------
+create table if not exists whatsapp_controls (
+  id smallint primary key default 1 check (id = 1),
+  sending_enabled boolean not null default false,
+  test_number text check (test_number is null or test_number ~ '^[0-9]{8,15}$'),
+  disabled_kinds text[] not null default '{}',
+  updated_by uuid references profiles(id) on delete set null,
+  updated_at timestamptz not null default now()
+);
+
+insert into whatsapp_controls (id) values (1) on conflict (id) do nothing;
+
+alter table whatsapp_controls enable row level security;
+
+drop policy if exists "whatsapp_controls_select_admin" on whatsapp_controls;
+create policy "whatsapp_controls_select_admin" on whatsapp_controls
+  for select using (is_admin());
+
+revoke insert, update, delete on whatsapp_controls from anon, authenticated;
+
+create table if not exists whatsapp_log (
+  id bigint generated always as identity primary key,
+  created_at timestamptz not null default now(),
+  kind text not null check (kind ~ '^[a-z0-9_]{1,40}$'),
+  recipient text not null check (length(recipient) <= 40),
+  template text not null check (template ~ '^[a-z0-9_]{1,80}$'),
+  preview text not null check (length(preview) <= 500),
+  status text not null check (status in ('sent', 'skipped', 'failed')),
+  reason text check (reason is null or reason ~ '^[a-z0-9_]{1,40}$'),
+  redirected boolean not null default false,
+  http_status integer
+);
+
+create index if not exists whatsapp_log_created_at_idx on whatsapp_log (created_at desc);
+
+alter table whatsapp_log enable row level security;
+
+drop policy if exists "whatsapp_log_select_admin" on whatsapp_log;
+create policy "whatsapp_log_select_admin" on whatsapp_log
+  for select using (is_admin());
+
+revoke insert, update, delete on whatsapp_log from anon, authenticated;
+
+create table if not exists whatsapp_consents (
+  id bigint generated always as identity primary key,
+  patient_id uuid not null references profiles(id) on delete cascade,
+  choice text not null check (choice in ('granted', 'withdrawn')),
+  source text not null check (source in ('profile', 'stop_reply', 'admin')),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists whatsapp_consents_patient_idx on whatsapp_consents (patient_id, created_at desc);
+
+alter table whatsapp_consents enable row level security;
+
+drop policy if exists "whatsapp_consents_select_own" on whatsapp_consents;
+create policy "whatsapp_consents_select_own" on whatsapp_consents
+  for select using (patient_id = (select auth.uid()) or is_admin());
+
+revoke insert, update, delete on whatsapp_consents from anon, authenticated;
+
+create or replace function public.whatsapp_consents_guard()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  -- The one change allowed: the row going with its patient's account
+  -- (on delete cascade arrives here as a DELETE).
+  if tg_op = 'DELETE' and not exists (select 1 from profiles where id = old.patient_id) then
+    return old;
+  end if;
+  raise exception 'whatsapp_consents is append-only: record a new choice instead';
+end;
+$$;
+
+drop trigger if exists trg_whatsapp_consents_guard on whatsapp_consents;
+create trigger trg_whatsapp_consents_guard
+  before update or delete on whatsapp_consents
+  for each row execute function public.whatsapp_consents_guard();
+
+-- ---------------------------------------------------------------------------
+-- Phone sign-in (src/lib/phoneLogin.ts has the rules).
+--
+-- phone_login_controls is ONE row: whether the sign-in pages offer "sign in
+-- with a phone code". It starts OFF -- texting codes needs an SMS provider on
+-- the Supabase project (and a DLT-registered sender in India) -- and is read
+-- on its own, never through SITE_SETTINGS_SELECT. Admins read it; the
+-- service role writes it.
+--
+-- phone_login_account(phone) answers, for the server only, which account (if
+-- any) has VERIFIED that number on its Supabase user, and its role and
+-- active flag -- so /api/auth/phone/send can refuse to text a code to an
+-- admin, or to anybody, without saying which. Supabase keeps the number as
+-- digits without "+". security definer (it reads auth.users), revoked from
+-- public, anon AND authenticated, explicit search_path, and granted back to
+-- service_role right after.
+-- ---------------------------------------------------------------------------
+create table if not exists phone_login_controls (
+  id smallint primary key default 1 check (id = 1),
+  enabled boolean not null default false,
+  updated_by uuid references profiles(id) on delete set null,
+  updated_at timestamptz not null default now()
+);
+
+insert into phone_login_controls (id) values (1) on conflict (id) do nothing;
+
+alter table phone_login_controls enable row level security;
+
+drop policy if exists "phone_login_controls_select_admin" on phone_login_controls;
+create policy "phone_login_controls_select_admin" on phone_login_controls
+  for select using (is_admin());
+
+revoke insert, update, delete on phone_login_controls from anon, authenticated;
+
+create or replace function public.phone_login_account(p_phone text)
+returns table (user_id uuid, role text, active boolean)
+language sql
+stable
+security definer
+set search_path = public, auth
+as $$
+  select u.id, p.role, p.active
+  from auth.users u
+  join public.profiles p on p.id = u.id
+  where u.phone = regexp_replace(coalesce(p_phone, ''), '[^0-9]', '', 'g')
+    and u.phone_confirmed_at is not null
+    and u.deleted_at is null
+  limit 1;
+$$;
+
+revoke all on function public.phone_login_account(text) from public;
+revoke all on function public.phone_login_account(text) from anon;
+revoke all on function public.phone_login_account(text) from authenticated;
+grant execute on function public.phone_login_account(text) to service_role;

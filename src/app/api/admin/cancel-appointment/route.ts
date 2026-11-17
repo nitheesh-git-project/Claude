@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { cancelAppointmentAndRefund } from "@/lib/cancelAppointment";
+import { queueAppointmentEmail } from "@/lib/appointmentEmailServer";
 
 const MAX_REASON_LENGTH = 500;
 
@@ -60,6 +61,7 @@ export async function POST(request: NextRequest) {
     },
   });
 
+  queueAppointmentEmail(appointmentId, "cancelled", { byClinic: true });
   return NextResponse.json({
     success: true,
     refunded: result.refunded,

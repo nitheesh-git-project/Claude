@@ -5,6 +5,7 @@ import {
   LOCKED_WIDGET_KEYS,
   PROFILE_WIDGETS,
   cleanOverrideReason,
+  cleanPatientSearch,
   filterGraphLines,
   graphLineWidgetKey,
   hiddenForPatientText,
@@ -178,6 +179,38 @@ describe("the admin routes' gates", () => {
       // The patient's kind comes from the server, never the body.
       if (section === "people") expect(source).toContain("loadPatientProfileKind(admin, patientId)");
     }
+  });
+
+  it("guards the patient route's read (search and one patient's layout) with the same scope as its write", () => {
+    const source = readFileSync("src/app/api/admin/profile-widgets/patient/route.ts", "utf8");
+    const get = source.slice(source.indexOf("export async function GET"));
+    expect(get).toContain('requireAdminScope("people")');
+    // The search text goes through the cleaner before it reaches a filter.
+    expect(get).toContain("cleanPatientSearch(");
+  });
+});
+
+describe("cleanPatientSearch", () => {
+  it("keeps a name or a patient ID", () => {
+    expect(cleanPatientSearch("  Asha   Rao ")).toEqual({ ok: true, query: "Asha Rao" });
+    expect(cleanPatientSearch("PT0012")).toEqual({ ok: true, query: "PT0012" });
+    expect(cleanPatientSearch("D'Souza-Pinto")).toEqual({ ok: true, query: "D'Souza-Pinto" });
+    expect(cleanPatientSearch("ஆஷா")).toEqual({ ok: true, query: "ஆஷா" });
+  });
+
+  it("strips what would change a PostgREST filter instead of the search", () => {
+    const r = cleanPatientSearch("a%,full_name.eq.x)*(");
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.query).not.toMatch(/[%,.()*]/);
+  });
+
+  it("refuses too little, and caps a long paste", () => {
+    expect(cleanPatientSearch("a").ok).toBe(false);
+    expect(cleanPatientSearch("  ").ok).toBe(false);
+    expect(cleanPatientSearch(null).ok).toBe(false);
+    expect(cleanPatientSearch("%%").ok).toBe(false);
+    const long = cleanPatientSearch("x".repeat(500));
+    expect(long.ok && long.query.length).toBe(60);
   });
 });
 

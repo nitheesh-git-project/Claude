@@ -7,6 +7,7 @@ import InstantProfileFields from "@/components/profile/InstantProfileFields";
 import GatedProfileFields from "@/components/profile/GatedProfileFields";
 import RichTextField from "@/components/RichTextField";
 import AccountSecuritySection from "@/components/profile/AccountSecuritySection";
+import PhoneSignInSetupSection from "@/components/profile/PhoneSignInSetupSection";
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import { computeFieldStatus } from "@/lib/computeFieldStatus";
 import { buildTherapistNavItems } from "@/lib/dashboardNavItems";
@@ -229,6 +230,9 @@ export default async function TherapistProfilePage() {
       )}
 
       <div className="mt-6">
+        {/* Only while phone sign-in is switched on (phoneLogin.ts). */}
+        <PhoneSignInSetupSection suggestedPhone={profile?.phone ?? null} />
+
         <YourDataSection userId={user.id} role="therapist" />
       </div>
 

@@ -171,6 +171,9 @@ import AdminMetricsTab from "@/components/admin/AdminMetricsTab";
 import QuestionBankManager from "@/components/admin/QuestionBankManager";
 import LicensedMeasureSettings from "@/components/admin/LicensedMeasureSettings";
 import ProfileWidgetSettings from "@/components/admin/ProfileWidgetSettings";
+import EmailSettings from "@/components/admin/EmailSettings";
+import WhatsAppSettings from "@/components/admin/WhatsAppSettings";
+import PhoneLoginSettings from "@/components/admin/PhoneLoginSettings";
 import AnnouncementSettings from "@/components/admin/AnnouncementSettings";
 import ImpersonationLogSettings from "@/components/admin/ImpersonationLogSettings";
 import RefundsSettings from "@/components/admin/RefundsSettings";
@@ -4376,11 +4379,15 @@ export default async function AdminDashboardPage({
   );
 
   const settingsSecurityTab = (
-    <AdminFeatureControlTab
-      settings={adminSettings}
-      adminEmail={adminProfile?.email ?? user.email ?? ""}
-      view="security"
-    />
+    <>
+      <AdminFeatureControlTab
+        settings={adminSettings}
+        adminEmail={adminProfile?.email ?? user.email ?? ""}
+        view="security"
+      />
+      {/* Self-fetching; its route is requireAdminScope("settings"). */}
+      <PhoneLoginSettings />
+    </>
   );
 
   const adminRows: AdminRow[] = (allProfiles ?? [])
@@ -6036,12 +6043,16 @@ export default async function AdminDashboardPage({
     "settings:clinical": settingsClinicalTab,
     // Self-fetching; Settings is Master Admin only and its route is
     // requireAdminScope("settings").
-    "settings:profile-layout": <ProfileWidgetSettings />,
+    "settings:profile-layout": <ProfileWidgetSettings canManagePeople={canManagePeople} />,
     // Self-fetching, for the same reason; its routes are
     // requireAdminScope("settings") too.
     "settings:announcements": <AnnouncementSettings />,
     "settings:access": settingsAccessTab,
     "settings:health": settingsHealthTab,
+    // Self-fetching; its routes are requireAdminScope("settings").
+    "settings:emails": <EmailSettings />,
+    // Self-fetching; its route is requireAdminScope("settings").
+    "settings:whatsapp": <WhatsAppSettings />,
     "settings:advanced": settingsAdvancedTab,
     "settings:reachouts": settingsDevReachoutsTab,
     // The three limited desks' own history, on Today because they cannot

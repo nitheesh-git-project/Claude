@@ -148,8 +148,12 @@ test.describe("Self-registration without email confirmation", () => {
     const ctx = await browser.newContext();
     const page = await ctx.newPage();
     await page.goto(`${BASE}/patient/login`, { waitUntil: "domcontentloaded" });
-    await page.getByRole("button", { name: "Register Account" }).click();
-    await expect(page.locator('input[name="fullName"]')).toBeVisible();
+    // Click until the tab switches: a click before hydration is dropped
+    // (CI patient-1of2), and the tab is idempotent, so a second click is safe.
+    await expect(async () => {
+      await page.getByRole("button", { name: "Register Account" }).click();
+      await expect(page.locator('input[name="fullName"]')).toBeVisible({ timeout: 3_000 });
+    }).toPass({ timeout: 30_000 });
     // What the form tells a new patient to expect: an admin review, and
     // nothing about their inbox.
     await expect(page.getByText(/reviewed by our team/i)).toBeVisible();

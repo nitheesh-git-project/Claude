@@ -1,6 +1,7 @@
 # Runs the app's housekeeping on a schedule: Calendar/Meet retries, Meet
-# waiting rooms, the risk scan and the credential purge. Without it these
-# ran only when an admin opened the dashboard.
+# waiting rooms, the risk scan, the credential purge and the session reminder
+# emails (src/lib/bookingReminders.ts). Without it these ran only when an
+# admin opened the dashboard -- and a reminder is only useful on time.
 #
 # Needs two repository secrets, set by a person (they are credentials):
 #   MAINTENANCE_URL  the deployed app's origin, e.g. https://example.com

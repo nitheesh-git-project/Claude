@@ -9,6 +9,7 @@ import { recordPaymentCapture } from "@/lib/recordPaymentCapture";
 import { settleInvitesOnCapture } from "@/lib/inviteRewardsServer";
 import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync";
 import { claimTherapistSlot } from "@/lib/claimTherapistSlot";
+import { queueAppointmentEmail } from "@/lib/appointmentEmailServer";
 import { fulfilPaidPurchase } from "@/lib/fulfilPaidPurchase";
 import { unlockPayerAfterCapture } from "@/lib/unlockPayerAfterCapture";
 import { WEBHOOK_RETRYABLE_PREFIX, webhookRetryVerdict } from "@/lib/webhookRetry";
@@ -360,6 +361,12 @@ export async function POST(request: NextRequest) {
         .select("id")
         .maybeSingle();
 
+      // The patient's email, after the response and once per booking
+      // (appointmentEmailServer.ts): this is the path where the browser
+      // callback never landed, so confirmPaidAppointment never ran. The
+      // appointment_emails row makes it a no-op if it did.
+      if (confirmed) queueAppointmentEmail(appointment.id, "confirmed");
+
       // Only after the status change actually stuck, and only when no event
       // exists yet -- createSessionCalendarEvent only ever creates, so a
       // second attempt would orphan an event on the calendar under a link
@@ -374,6 +381,10 @@ export async function POST(request: NextRequest) {
           timezone: appointment.timezone,
         });
       }
+    } else if (appointment && !therapistId && appointment.status === "requested") {
+      // Paid, nobody free to assign yet: the patient hears we have the
+      // booking, and the confirmation follows when an admin assigns.
+      queueAppointmentEmail(appointment.id, "received");
     }
   }
 

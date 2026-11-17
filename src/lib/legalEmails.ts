@@ -28,7 +28,7 @@ export function escapeHtml(value: string): string {
 /** One branded, mobile-friendly layout for every email: a teal header with
  *  the clinic's name, a white card, a quiet footer. Inline styles only --
  *  email clients ignore stylesheets. */
-function layout(brand: EmailBrand, heading: string, paragraphs: string[], footnote?: string): string {
+export function layout(brand: EmailBrand, heading: string, paragraphs: string[], footnote?: string): string {
   const body = paragraphs.map((p) => `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;color:#334155">${p}</p>`).join("");
   return `<!doctype html><html><body style="margin:0;background:#f1f5f9;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:24px 12px"><tr><td align="center">
@@ -163,5 +163,26 @@ export function officerAlertEmail(
     `Complete within <strong>${DELETION_DEADLINE_DAYS} days</strong>.`,
     `<a href="${escapeHtml(queue)}" style="display:inline-block;padding:12px 18px;border-radius:12px;background:#0f766e;color:#ffffff;text-decoration:none;font-weight:600">Open Data requests</a>`,
   ], "Sent to the Grievance Officer.");
+  return { subject, text, html };
+}
+
+// --- Settings -> Emails ------------------------------------------------------
+
+/** "Send me a test email": proves the sender, the domain and the inbox work,
+ *  in the same layout as every real email. Carries no personal data. */
+export function testEmail(brand: EmailBrand): Email {
+  const subject = `Test email from ${brand.siteName}`;
+  const text =
+    `This is a test from Settings -> Emails on ${brand.siteUrl}.\n\n` +
+    `If you can read this, the clinic's emails are reaching this inbox. Check it did not land in spam.\n\n${brand.siteName}`;
+  const html = layout(
+    brand,
+    "Your emails are working",
+    [
+      `This is a test from <strong>Settings &rarr; Emails</strong> on ${escapeHtml(brand.siteUrl)}.`,
+      "If you can read this, the clinic's emails are reaching this inbox. Check it did not land in spam.",
+    ],
+    "You are receiving this because you pressed \"Send me a test email\"."
+  );
   return { subject, text, html };
 }

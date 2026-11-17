@@ -332,6 +332,45 @@
       "integration": "local",
       "destructive": false
     },
+    "admin-email-controls.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "whatsapp.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "phone-login.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "admin-settings-ia.spec.ts": {
       "runner": "admin",
       "levels": [
@@ -3272,6 +3311,74 @@
       ]
     },
     {
+      "id": "admin.email-controls",
+      "runner": "admin",
+      "title": "Settings -> Emails: the master switch, test mode (every email to one inbox), the per-kind switches with a warning before the legal receipts stop, Send me a test email to the admin's own address, and the send log; a test address is never mailed",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "admin-email-controls.spec.ts",
+          "tests": [
+            "EML-001",
+            "EML-002",
+            "EML-003",
+            "EML-004"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "Never sends a real email: every address in the spec is a test address, which the rules refuse. The delivery decision itself (redirects, the unreadable fallback, legal versus the master switch) is unit-tested in src/lib/emailControls.test.ts.",
+      "rules": [
+        "docs/rules/admin.md"
+      ]
+    },
+    {
+      "id": "admin.whatsapp",
+      "runner": "admin",
+      "title": "WhatsApp, built and switched off: a patient's append-only yes/no (yes needs a number), the webhook's verify token and HMAC signature, a STOP reply withdrawing consent, Settings -> WhatsApp starting off and saving its switches, and an account deletion taking the consent rows",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "whatsapp.spec.ts",
+          "tests": [
+            "WA-001",
+            "WA-002",
+            "WA-003",
+            "WA-004"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "Never reaches Meta: the gate sets the webhook's values but not WHATSAPP_ACCESS_TOKEN, and the fixtures are test accounts. Who is messaged and when (consent, test accounts, switches, test mode) and the template wording are unit-tested in src/lib/whatsappRules.test.ts.",
+      "rules": [
+        "docs/rules/admin.md"
+      ]
+    },
+    {
+      "id": "admin.phone-login",
+      "runner": "admin",
+      "title": "Phone sign-in, built and switched off: nothing offered and the routes refuse while off; a patient with a linked number signs in with a code; an unknown number gets the same answer; an admin is never sent a code and a code-started admin session is refused by the admin routes",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "phone-login.spec.ts",
+          "tests": [
+            "PL-001",
+            "PL-002",
+            "PL-003"
+          ],
+          "level": "browser"
+        }
+      ],
+      "limitation": "Never texts anyone: the local stack answers three fictional numbers with a fixed code (supabase/config.toml). Linking a number from the profile and the reset-by-code path are covered in the QA plan (ADM-SET-043); the rules are unit-tested in src/lib/phoneLogin.test.ts.",
+      "rules": [
+        "docs/rules/ops-security.md"
+      ]
+    },
+    {
       "id": "admin.settings-and-catalogue",
       "runner": "admin",
       "title": "Settings information architecture, the booking lead time reaching the patient picker, and Catalog -> Conditions with its home-visit prices (clinic-wide and per condition) reaching the wizard and recommendations",
@@ -3425,7 +3532,7 @@
     {
       "id": "admin.maintenance-sweeps",
       "runner": "admin",
-      "title": "The scheduled maintenance sweeps (risk, retention, balance verification) run on a cron",
+      "title": "The scheduled maintenance sweeps (risk, retention, balance verification, session reminder emails once each) run on a cron",
       "required": false,
       "status": "covered",
       "coverage": [
@@ -3433,7 +3540,8 @@
           "spec": "admin-maintenance-sweep.spec.ts",
           "tests": [
             "MS-001",
-            "MS-002"
+            "MS-002",
+            "MS-003"
           ],
           "level": "api"
         }
@@ -4808,7 +4916,7 @@
     {
       "id": "therapist.health-profile-layout",
       "runner": "therapist",
-      "title": "The clinic chooses which Health Profile sections a patient sees (per condition type and per patient, locked safety sections never hidden); the patient's page follows the patient's order with closed blocks; the therapist and admin still see hidden sections; a fall saved by mistake is withdrawn without deleting anything",
+      "title": "The clinic chooses which Health Profile sections a patient sees (per condition type and per patient, locked safety sections never hidden); the patient's page follows the patient's order with closed blocks; the therapist and admin still see hidden sections; Settings finds one patient by name or ID and changes their own layout with a reason; a fall saved by mistake is withdrawn without deleting anything",
       "required": true,
       "status": "covered",
       "coverage": [
@@ -4820,7 +4928,8 @@
             "HPL-003",
             "HPL-004",
             "HPL-005",
-            "HPL-006"
+            "HPL-006",
+            "HPL-007"
           ],
           "level": "browser"
         }

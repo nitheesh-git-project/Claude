@@ -6,11 +6,13 @@ import AccountCreatedNote from "@/components/profile/AccountCreatedNote";
 import InstantProfileFields from "@/components/profile/InstantProfileFields";
 import GatedProfileFields from "@/components/profile/GatedProfileFields";
 import AccountSecuritySection from "@/components/profile/AccountSecuritySection";
+import PhoneSignInSetupSection from "@/components/profile/PhoneSignInSetupSection";
 import PatientDashboardShell from "@/components/patient/PatientDashboardShell";
 import { loadPatientDashboard } from "@/lib/patientDashboardData";
 import { computeFieldStatus } from "@/lib/computeFieldStatus";
 import { LANGUAGE_OPTIONS } from "@/lib/languageOptions";
 import YourDataSection from "@/components/profile/YourDataSection";
+import WhatsAppConsentSection from "@/components/profile/WhatsAppConsentSection";
 import MyAddresses from "@/components/profile/MyAddresses";
 
 export const metadata: Metadata = {
@@ -169,6 +171,14 @@ export default async function PatientProfilePage() {
           <MyAddresses addresses={savedAddresses ?? []} />
         )}
       </div>
+
+      {/* Only once WhatsApp is set up on the server (whatsappServer.ts). */}
+      <WhatsAppConsentSection userId={user.id} phone={profile?.phone ?? null} />
+
+      {/* Only while phone sign-in is switched on (phoneLogin.ts). */}
+
+      <PhoneSignInSetupSection suggestedPhone={profile?.phone ?? null} />
+
 
       <YourDataSection userId={user.id} role="patient" />
 

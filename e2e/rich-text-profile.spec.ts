@@ -4,7 +4,7 @@
 // Both used to be printed into a plain <p>, so every Enter collapsed into one
 // long line on the live page. Rules: src/lib/richText.ts.
 import { test, expect, type Page } from "@playwright/test";
-import { BASE, QA_EMAILS, adminClient, browserCookiesFor, cookieHeaderFor, profileIdFor } from "./helpers";
+import { BASE, QA_EMAILS, adminClient, browserCookiesFor, cookieHeaderFor, profileIdFor, waitForSplashToClear } from "./helpers";
 
 async function clearAndFocus(page: Page, testId: string) {
   const editor = page.getByTestId(testId);
@@ -77,9 +77,14 @@ test.describe("Formatted therapist profile copy", () => {
       const visitor = await browser.newContext();
       const pub = await visitor.newPage();
       await pub.goto(`${BASE}/team`);
-      await pub.getByRole("button", { name: new RegExp(before!.full_name!) }).first().click();
-      const note = pub.getByTestId("team-display-note");
-      await expect(note).toBeVisible({ timeout: 30_000 });
+      await waitForSplashToClear(pub);
+      // Click until the popup opens: a click before the card has hydrated is
+      // dropped (CI admin-6of6 on PR #133), and opening it twice is harmless.
+      const note = pub.getByTestId("team-display-note").filter({ visible: true });
+      await expect(async () => {
+        await pub.getByRole("button", { name: new RegExp(before!.full_name!) }).first().click();
+        await expect(note).toBeVisible({ timeout: 3_000 });
+      }).toPass({ timeout: 30_000 });
       await expect(note.locator("strong")).toHaveText("Back pain specialist");
       await expect(note.locator(":scope > p")).toHaveCount(2);
       await expect(note.locator("li")).toHaveCount(2);
@@ -129,8 +134,12 @@ test.describe("Formatted therapist profile copy", () => {
         timeout: 30_000,
       });
       await page.reload();
-      await expect(page.getByTestId("therapist-bio-pending")).toBeVisible({ timeout: 60_000 });
-      await expect(page.getByTestId("therapist-bio-saved").locator("p")).toHaveCount(2);
+      // Scoped to <main>: while the page streams in after a reload, Next can
+      // hold a hidden copy of the same content (<div id="S:0">) before
+      // swapping it in, so a page-wide test id briefly matches twice.
+      const main = page.getByRole("main");
+      await expect(main.getByTestId("therapist-bio-pending")).toBeVisible({ timeout: 60_000 });
+      await expect(main.getByTestId("therapist-bio-saved").locator("p")).toHaveCount(2);
       const { data: still } = await admin.from("profiles").select("bio").eq("id", therapistId).single();
       expect(still?.bio ?? null).toBe(before?.bio ?? null);
 
@@ -154,7 +163,7 @@ test.describe("Formatted therapist profile copy", () => {
       const { data: after } = await admin.from("profiles").select("bio").eq("id", therapistId).single();
       expect(after?.bio).toContain("Works with desk-based patients.");
       await page.reload();
-      await expect(page.getByTestId("therapist-bio-pending")).toHaveCount(0, { timeout: 60_000 });
+      await expect(main.getByTestId("therapist-bio-pending")).toHaveCount(0, { timeout: 60_000 });
     } finally {
       await context.close();
       await admin.from("profile_change_requests").delete().eq("user_id", therapistId).gte("created_at", startedAt);

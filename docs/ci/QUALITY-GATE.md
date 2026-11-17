@@ -226,9 +226,14 @@ Edge Runtime, Logflare and Vector, Supavisor, and Mailpit. Each was checked
 unused in `src/`, `e2e/` and `scripts/`; the script's header says why per
 service. Mailpit is the one that config.toml had on: email confirmations
 are off, no spec asks for a reset or magic link, and the admin access links
-use `generateLink`, which sends nothing. Docker once failed to bind its
-port and took a run down. If `supabase start` fails, the script stops what
-started and tries exactly once more. It then:
+use `generateLink`, which sends nothing. Docker failing to bind the
+database port ("address already in use") took whole jobs down: the stack's
+ports (54320-54324) sit in Linux's ephemeral range, and the background
+start overlaps npm ci and the image pulls, whose outgoing connections can
+be handed 54322 first. The script now reserves 54320-54329
+(`net.ipv4.ip_local_reserved_ports`) before it pulls anything. If `supabase
+start` still fails, the script stops what started, waits for the database
+port to be free, and tries exactly once more. It then:
 
 1. Refuses to run if a `.env*` file is in the workspace.
 2. Runs the preflight in static mode, before any write.
@@ -267,7 +272,10 @@ closed. It is **unsafe** (exit 1, nothing runs) when any of these holds:
 Two values are generated per run in the workflow's `env` rather than kept
 as secrets: `E2E_QA_PASSWORD`, the fixture accounts' password, and
 `CRON_SECRET`, which the app's `/api/cron/maintenance` checks and
-`admin-maintenance-sweep.spec.ts` sends. Each guards only that run's
+`admin-maintenance-sweep.spec.ts` sends; and `WHATSAPP_APP_SECRET` /
+`WHATSAPP_VERIFY_TOKEN`, which `/api/whatsapp/webhook` checks and
+`whatsapp.spec.ts` signs with (no `WHATSAPP_ACCESS_TOKEN`, so the gate's app
+never has WhatsApp set up and sends nothing). Each guards only that run's
 loopback app; the real `CRON_SECRET` that `maintenance.yml` uses against the
 deployed site is a repository secret the gate never reads.
 
@@ -419,6 +427,8 @@ export NEXT_PUBLIC_RAZORPAY_KEY_ID=rzp_test_...   # test keys only
 export RAZORPAY_KEY_SECRET=...
 export E2E_QA_PASSWORD="local-$(openssl rand -hex 8)!Qa"   # the workflow generates both per run
 export CRON_SECRET="local-$(openssl rand -hex 16)"          # for admin-maintenance-sweep.spec.ts
+export WHATSAPP_APP_SECRET="local-$(openssl rand -hex 16)"  # for whatsapp.spec.ts (webhook signature)
+export WHATSAPP_VERIFY_TOKEN="local-$(openssl rand -hex 8)"
 GITHUB_ENV=.gate.env scripts/ci/provision-local-stack.sh
 set -a; . ./.gate.env; set +a
 node scripts/ci/run-runner.mjs hospital           # or any runner (all its shards' files)

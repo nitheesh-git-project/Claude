@@ -114,6 +114,21 @@ Check the Logs section afterwards: an added, edited, removed or reordered row ea
 * Step 3: each row reads *Inherited from the condition type · Off/On* or *Set for this patient*; a `profile_widgets.set_patient` row with the section, from, to.
 * Step 4: the patient sees *Your measures* with the table, and no *Reports and scans* block. The chart shows the same, with *1 section hidden for this patient - show* opening to name it (reports still listed on the chart). The admin record names *Hidden for the patient: Reports and scans* above the chart and still draws everything. The PDF has no reports section and a line *Left out because the clinic does not show them on this patient's own profile: Reports and scans...*.
 * Step 5: both back to inherited. A desk that cannot manage People sees the list read-only (no switches); a Settings screen is never shown to a limited desk. A failed read says *We couldn't check...* rather than drawing switches.
+
+#### `ADM-HPL-002` - Health Profile layout: sections for one patient, from Settings · P1 **[UI] [API]**
+**Preconditions.** A Master Admin; the orthopaedic patient from ADM-HPL-001, with a patient ID (PT....).
+**Steps.**
+1. Open **Settings → Health Profile layout** and scroll to **Sections for one patient**. Search for one letter, then for the patient's first name, then for their patient ID.
+2. Open the patient from the results. Type a reason in **Why** (e.g. *Physiotherapist: neck not involved*) and switch **Reports and scans** off.
+3. Tap **Choose another patient**; look at **Patients with their own layout**, and tap **Open** on the patient.
+4. As the patient open My progress. Then back on Settings tap **Reset to condition default** on the section.
+5. Call `GET /api/admin/profile-widgets/patient?q=...` as a patient and as a therapist.
+**Expected Result.**
+* Step 1: one letter asks for at least two; the name and the ID both find the patient (name and ID shown).
+* Step 2: only the sections of the patient's own condition type are listed (no fall-risk on an orthopaedic patient), opened straight away; safety sections carry a lock. The row reads *Set for this patient · Off · Physiotherapist: neck not involved*; a `profile_widgets.set_patient` log row carries the reason.
+* Step 3: the patient is listed with *1 change*; **Open** brings back the same panel.
+* Step 4: no *Reports and scans* block for the patient; after the reset it is back and the patient leaves the list.
+* Step 5: both 403. The same patient's record (People) shows the same choice, since both screens use one panel and one route.
 ---
 
 ### 15.3 Settings → Booking Rules, Offers & Discounts, Programmes & Home Visits
@@ -132,7 +147,7 @@ Where a case below still says "Settings → Booking Rules", that is correct - it
 
 #### `ADM-SET-009` - Every Settings screen says what it is · P2
 
-**Steps.** Open each of the eleven Settings screens in turn, in sidebar order and under their four captions - *Your website:* Brand & Contact, Public Site; *How the clinic runs:* Booking Rules, Offers & Discounts, Programmes & Home Visits, Clinical Questions; *Who gets in:* User Access, Sign-in & Security; *Technical:* System Health, Advanced, Developer messages. Then open both Logs screens: All Activity and Archive & Clear.
+**Steps.** Open each of the Settings screens in turn, in sidebar order and under their four captions - *Your website:* Brand & Contact, Public Site, Cookie consent; *How the clinic runs:* Booking Rules, Offers & Discounts, Programmes & Home Visits, Clinical Questions, Health Profile layout, Announcements; *Who gets in:* User Access, Sign-in & Security; *Technical:* System Health, Emails, WhatsApp, Advanced, Developer messages. Then open both Logs screens: All Activity and Archive & Clear.
 
 **Expected Result.** Under the page heading, each one shows **two lines**: one plain sentence saying what the screen is, and a second beginning **"For example:"** with one concrete thing you would come there to do. The sentences differ per screen - none of them says "How the product behaves", which is the section's line and is what every one of these screens used to show. No jargon, no database column names, no feature names.
 
@@ -733,6 +748,80 @@ The Logs section is **Master Admin only**. Operations, Finance and Clinical have
 * Step 2: each lands on a screen their scope can open - never a heading over nothing, and never the log.
 * Step 3: Settings has **eleven** screens under four captions, and Activity Log is **not** among them; it moved to the Logs section, which is the whole of it in one place.
 * Step 4: the matrix carries a **Logs** group with a read row and a clear row, ticked for Master Admin and blank for the other three - derived from the same module the routes enforce with, so it cannot claim access nobody has.
+
+#### `ADM-SET-039` - Emails: switches, test mode, test email and the log · P0 **[UI] [API]**
+**Preconditions.** Master Admin. Resend set up on the server (`RESEND_API_KEY`, `EMAIL_FROM`) for step 5; the rest works without it.
+**Steps.**
+1. Open **Settings → Emails** (`?section=settings&tab=emails`). Switch **Send emails** off.
+2. As a patient with a real inbox, file a complaint on `/grievances`. Then submit one from a QA account (`@example.test`).
+3. Back on Emails, set **Test inbox** to your own address and save. File another complaint from the real patient.
+4. Switch **Complaints and data requests** off; read the warning; choose **Keep sending**.
+5. Press **Send me a test email**. Turn test mode off and **Send emails** back on.
+6. Post `{ testInbox: "x@example.test" }` to `/api/admin/email/settings`; post anything to both email routes as a patient.
+**Expected Result.**
+* Step 1: the line under the switch says nothing is sent except complaint and data-request receipts and your test email.
+* Step 2: the real patient still gets the receipt (legal emails are not stopped by the main switch). The QA account's row in **Last 100 emails** reads *Not sent · Test address - never sent*; the recipient is masked (`qa***@example.test`).
+* Step 3: the receipt arrives in **your** inbox with *[Test, for ...]* and the patient's address in the subject; the row says *test inbox*.
+* Step 4: a confirm naming the legal duty; nothing changes on *Keep sending*.
+* Step 5: the test email arrives (check spam), in the **test inbox** while test mode is on and otherwise at your own address; the result line says where it went. Without Resend set up it says *Email isn't set up on this server*.
+* Step 6: 400 *never receives mail*; 403 for the patient. Each change is an `email_controls.set` row in the log with from and to.
+
+#### `ADM-SET-040` - Booking and cancellation emails · P1 **[UI]**
+**Preconditions.** Settings → Emails with **Test mode** set to your own inbox (ADM-SET-039); Resend set up on the server.
+**Steps.**
+1. As a patient, book and pay for a video session where one therapist is free (auto-assigned). Then book one where nobody is free.
+2. As the admin, assign a therapist to the second session.
+3. As the patient, cancel the first session outside the refund window; as the admin, cancel the second.
+4. Switch **Booking confirmations** off and book again.
+**Expected Result.**
+* Step 1: one *Booked: your video session on ...* email for the first (time in IST, length, physiotherapist, *Paid: ₹...*); one *We have your booking for ...* for the second. **No** condition, concern or Meet link in either. Paying twice-confirmed (callback and webhook) still sends one email.
+* Step 2: one *Booked: ...* email naming the physiotherapist.
+* Step 3: *Cancelled: ...*: *You cancelled ...* with *A refund of ₹... is on its way*; *The clinic has cancelled ...* for the second.
+* Step 4: nothing arrives; **Last 100 emails** lists it as *This kind is switched off*.
+
+#### `ADM-SET-041` - Session reminders · P1 **[UI]**
+**Preconditions.** As ADM-SET-040. The maintenance schedule running (`.github/workflows/maintenance.yml`), or open the admin dashboard to run the sweep by hand.
+**Steps.**
+1. Book a confirmed video session for about 1 hour from now, and another for about 22 hours from now (booked at least a day ahead, or by an admin for a patient booked earlier).
+2. Wait for a sweep (up to 30 minutes), then open the admin dashboard twice more.
+3. Cancel a third confirmed session that is about an hour away before the sweep runs.
+**Expected Result.**
+* Step 2: one *Starting soon: your video session at ...* for the first and one *Tomorrow: ...* for the second; opening the dashboard again sends no second copy.
+* Step 3: no reminder for the cancelled session.
+* With **Session reminders** switched off on Settings → Emails, the attempts are listed as *This kind is switched off*.
+
+#### `ADM-SET-042` - WhatsApp: built, switched off, consent and STOP · P1 **[UI] [API]**
+**Preconditions.** Master Admin. For steps 4-6, the WhatsApp variables set on the server (`docs/whatsapp/TEMPLATES.md`) and the templates approved by Meta; without them, steps 1-3 only.
+**Steps.**
+1. Open **Settings → WhatsApp**. Read the status line and the consent count; open **Templates to submit to Meta**.
+2. Set **Test number** to your own mobile; switch **Session reminders** off and on again.
+3. As a patient open **Profile**: with WhatsApp not set up there is no WhatsApp card.
+4. (Set up) As a patient with a real email and a mobile number, open Profile → **WhatsApp messages** and switch it on. Remove the number and try to switch it on: refused with *Add your mobile number*.
+5. (Set up) Switch **Send WhatsApp messages** on, book a session as that patient: the message arrives on the test number; **Last 100 messages** lists it with *test number*.
+6. (Set up) Reply **STOP** to the message from the patient's own number; book again.
+**Expected Result.**
+* Step 1: *Not set up yet...* until the variables exist; the switch starts **Off**; five templates, each named `mr_..._v1`.
+* Step 2: each change is a `whatsapp_controls.set` log row; the test number appears there as its last three digits only.
+* Step 3: no card, no question about WhatsApp.
+* Step 5: the message has the time, type, physiotherapist and price, and no condition, concern or Meet link.
+* Step 6: the patient's choice turns to no (`stop_reply`); nothing more is sent to them; emails continue.
+
+#### `ADM-SET-043` - Phone sign-in: off by default; never for admins · P0 **[UI] [API]**
+**Preconditions.** Steps 3-6 need an SMS provider on the Supabase project (`docs/auth/PHONE-SIGN-IN.md`); without one, steps 1-2 only.
+**Steps.**
+1. Open `/patient/login`, `/therapist/login`, `/hospital/login`, `/admin/login`.
+2. **Settings → Sign-in & Security → Phone sign-in**: read the line; switch on and cancel at the confirm.
+3. Switch on. As a patient with a real email, **Profile → Sign in with your phone → Link my number**: enter your mobile, type the texted code.
+4. Sign out; on `/patient/login` tap **Sign in with a phone code instead**, enter the number, then the code.
+5. Sign out; **Forgot password? → Text me a code instead**; enter the code; set a new password.
+6. Ask for a code for a number with no account, and for an admin's number.
+**Expected Result.**
+* Step 1: no phone option anywhere while off; **never** on `/admin/login`.
+* Step 2: the confirm warns about the SMS provider and cost; a `phone_login.set` log row on switching.
+* Step 3: the profile reads *Linked: +91...*.
+* Step 4: lands on the patient dashboard.
+* Step 5: the new password works with email sign-in.
+* Step 6: the same *If this number is linked to an account...* answer as step 4, and no text arrives.
 
 #### `ADM-SET-038` - Developer messages · P1
 **Feature.** The developer credit under the footer's copyright ("Contact me") leads to `/developer` and `/developer/lets-talk`. Whatever a visitor sends lands on **Settings → Developer messages**, which is **Master Admin only** and also holds the two switches that publish the page. See `PUB-DEV-001` for the visitor's side.

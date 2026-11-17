@@ -213,7 +213,10 @@ test.describe("announcements and the notebook", () => {
 
     // On another screen it is one line, not a banner.
     await patient.goto(`${BASE}/patient/dashboard/book`);
-    await expect(patient.getByTestId("announcement-strip")).toContainText("Festival timings", { timeout: 60_000 });
+    // Visible only: while the page streams in, Next can hold a hidden copy of
+    // the same content (<div hidden id="S:0">) before swapping it in, so the
+    // test id briefly matches twice (the FIND-003 / RT-002 race).
+    await expect(patient.getByTestId("announcement-strip").filter({ visible: true })).toContainText("Festival timings", { timeout: 60_000 });
     await expect(patient.getByTestId("announcement-bar")).toHaveCount(0);
     await patient.context().close();
 

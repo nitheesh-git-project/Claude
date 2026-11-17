@@ -46,6 +46,23 @@ that project's own `SUPABASE_ACCESS_TOKEN` and `NEXT_PUBLIC_SUPABASE_URL`, and
 a trigger naming it. That is a credentials decision rather than a code one, so
 it is left to a person; the manual step is the honest default until then.
 
+## Emails on staging go to one inbox
+
+Staging and production are separate databases, so each has its own
+**Settings -> Emails** switches (`email_controls`). The schema creates them
+"on, no test inbox" -- right for production, where complaint and deletion
+receipts must go out. **After applying the schema to staging, open Settings
+-> Emails there and set Test mode to your own inbox** (or switch Send emails
+off), so testing never emails a real person. Test addresses such as
+`@example.test` are never mailed on either. The email package's tables
+(`email_controls`, `email_log`, `appointment_emails`) can also be applied on
+their own with `scripts/email-package-2026-11.sql`, the same statements as the
+end of `schema.sql`, short enough for the SQL editor. WhatsApp's tables are in
+`scripts/whatsapp-2026-11.sql` the same way; WhatsApp starts switched off and
+sends nothing until the steps in `docs/whatsapp/TEMPLATES.md` are done. Phone
+sign-in's switch is in `scripts/phone-login-2026-11.sql`; it starts off and
+needs an SMS provider on the Supabase project first (`docs/auth/PHONE-SIGN-IN.md`).
+
 ## A new Supabase project needs table grants, which the schema does not carry
 
 Applying `supabase/schema.sql` to a fresh project (staging or production) is

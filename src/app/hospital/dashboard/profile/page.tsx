@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import ProfileLoadFailed from "@/components/profile/ProfileLoadFailed";
 import { createClient } from "@/lib/supabase/server";
 import AccountSecuritySection from "@/components/profile/AccountSecuritySection";
+import PhoneSignInSetupSection from "@/components/profile/PhoneSignInSetupSection";
 import AvatarUpload from "@/components/profile/AvatarUpload";
 import AccountCreatedNote from "@/components/profile/AccountCreatedNote";
 import GatedProfileFields from "@/components/profile/GatedProfileFields";
@@ -161,6 +162,11 @@ export default async function HospitalProfilePage() {
 
         </>
         )}
+
+        {/* Only while phone sign-in is switched on (phoneLogin.ts). */}
+
+        <PhoneSignInSetupSection suggestedPhone={profile?.phone ?? null} />
+
 
         <YourDataSection userId={user.id} role="hospital" />
 

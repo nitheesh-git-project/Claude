@@ -454,13 +454,14 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
           "The questions a patient answers about their condition, the ones a therapist fills in after an exam, which paid-for assessment scales your therapists may use, and the six-minute walk's predicted-distance formula.",
         example: "Reword the question that asks how long the pain has lasted, or switch on a scale once the clinic holds its licence.",
       },
-      // What a patient's own Health Profile shows, per condition type. One
-      // patient's own choice lives on their record (People), not here.
+      // What a patient's own Health Profile shows, per condition type, and
+      // for one patient found by name or ID (the same panel as on their
+      // record in People, behind the same "people" scope).
       {
         key: "profile-layout",
         label: "Health Profile layout",
         group: "How the clinic runs",
-        blurb: "Which sections a patient sees on their own Health Profile, for each condition type.",
+        blurb: "Which sections a patient sees on their own Health Profile, for each condition type, and for one patient when theirs needs to differ.",
         example: "Hide the measures table from every orthopaedic patient's page, while their physiotherapist still sees it.",
       },
       // What the clinic says to everybody at once: a banner on top of the
@@ -501,6 +502,27 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
         group: "Technical",
         blurb: "Warnings when something behind the scenes has failed. Nothing here is set by you \u2014 it is the app reporting on itself.",
         example: "Find a booked session whose Google Meet link was never created, and try again.",
+      },
+      // What the clinic emails: the master switch, test mode (every email to
+      // one inbox), a switch per kind, a test button and the last 100
+      // attempts. Technical, beside System Health, because it is about the
+      // plumbing, not what the clinic sells; the rules are emailControls.ts.
+      {
+        key: "emails",
+        label: "Emails",
+        group: "Technical",
+        blurb: "What the clinic emails: switch emails off or send them all to one inbox while testing, and see what was sent.",
+        example: "Send every email to your own inbox on staging, then press Send me a test email.",
+      },
+      // WhatsApp, built ready and switched off: the same switches as Emails,
+      // the patients' consent count, the templates to submit to Meta, and
+      // the last 100 attempts. Rules: whatsappRules.ts.
+      {
+        key: "whatsapp",
+        label: "WhatsApp",
+        group: "Technical",
+        blurb: "Session messages on WhatsApp for patients who said yes. Off until the clinic's WhatsApp Business account is set up.",
+        example: "Once Meta has approved the templates, switch WhatsApp on and send every message to your own number first.",
       },
       // The quarantine. One switch today, and the point of the screen is that
       // it is the only place a switch like it may live: a data-migration

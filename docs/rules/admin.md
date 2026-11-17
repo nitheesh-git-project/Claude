@@ -1143,7 +1143,8 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   direction is better). `profileWidgetGuide.test.ts` fails if any option
   is left without one. Guard: `admin-dashboard-ui` K-HPL.
 - **Settings -> Health Profile layout chooses what every patient of a
-  condition kind sees; the patient's record chooses for one patient.** The
+  condition kind sees; one patient's own choice is made on their record or
+  from the same screen.** The
   Settings screen (`ProfileWidgetSettings`, self-fetching) lists every
   section of each kind's profile with a switch and the live count ("12 of 15
   sections shown"); locked sections show a lock and why. It writes through
@@ -1155,9 +1156,14 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   (`requireAdminScope("people")` -- a clinical-record capability, like
   care-status -- audit `profile_widgets.set_patient`, the patient's kind read
   on the server); its switches render only under `scopeCanManage(scope,
-  "people")`. Both routes refuse an unknown section and hiding a locked one
-  (400), and an unreadable setting is "we couldn't check" on the screen,
-  never a row of switches. Rules: `clinical.md`.
+  "people")`. The same panel is also at the bottom of the Settings screen,
+  **Sections for one patient** (`PatientLayoutFinder`): search by name or
+  patient ID, open a patient, change their sections with an optional reason,
+  and a list of the patients with their own layout. It reads through `GET
+  /api/admin/profile-widgets/patient` (same `people` scope) and renders only
+  when the viewer can manage People. Both routes refuse an unknown section
+  and hiding a locked one (400), and an unreadable setting is "we couldn't
+  check" on the screen, never a row of switches. Rules: `clinical.md`.
 - **Announcements is a Settings screen, so only a Master Admin posts one.**
   Settings -> Announcements (`AnnouncementSettings`, self-fetching like the
   Health Profile layout; `AdminAnnouncementsManager`) lists what is live,
@@ -1231,4 +1237,92 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   after the account's own email is cleared; the update route nulls both the
   moment the case closes. The log records whether the email was `sent`,
   `skipped` or `failed`, never its text.
+
+- **Every email goes through Settings -> Emails, and a test address is never
+  mailed.** `sendEmail(to, email, { kind })` (`emailServer.ts`) asks
+  `decideDelivery()` (`src/lib/emailControls.ts`, pure and unit-tested)
+  before every send, in this order: a test address (`example.test`,
+  `example.com/.net/.org`, `.invalid`, `.localhost`...) is skipped whatever
+  is set, because the QA accounts use them and bounces hurt the domain;
+  "Send me a test email" ignores the switches but not that rule; a **legal**
+  email (complaint and data-request receipts) is a duty with a deadline, so
+  the master switch does not stop it -- only its own switch, which asks
+  first; a kind switched off, or the master switch off, skips the rest; test
+  mode sends everything to one inbox with the real recipient in the subject.
+  An unreadable switch sends a legal email and skips anything else. Every
+  attempt is a row in `email_log` (kind, a **masked** recipient, subject,
+  sent/skipped/failed and why), shown as the last 100 on the screen. The
+  switches are the single-row `email_controls` table, read on its own and
+  never through `SITE_SETTINGS_SELECT`, so a database without it only
+  affects email and falls back to "on, no test inbox". Routes:
+  `POST /api/admin/email/settings` (one change per call) and
+  `POST /api/admin/email/test` (to the test inbox when test mode is on,
+  else the signed-in admin's own address from the session; never from the
+  body), both `requireAdminScope("settings")`, audited as
+  `email_controls.set` / `email.test_send`. A new kind of email joins
+  `EMAIL_KINDS` with its own switch. Tests: `emailControls.test.ts`;
+  `e2e/admin-email-controls.spec.ts`.
+
+- **A patient is emailed about their booking once per event, after the
+  response, and never about their health.** Kinds `booking` and
+  `cancellation` (`src/lib/bookingEmails.ts`, pure templates;
+  `appointmentEmailServer.ts` sends): *received* when a paid, free or
+  pay-later booking is claimed with nobody assigned yet, *confirmed* when it
+  is confirmed (at payment by `confirmPaidAppointment`, or by Razorpay's webhook when
+  the browser callback never lands, or by a cash payment an admin records, or later by
+  `/api/admin/assign-appointment`), *cancelled* from both cancel routes,
+  saying who cancelled and what happens to the money as
+  `cancelAppointmentAndRefund` wrote it (refunded, pending, not eligible, a
+  programme session). An unpaid checkout that is cancelled gets nothing. The
+  payment callback and the webhook can both claim one booking, so the guard
+  is the `appointment_emails` row (appointment, event): the insert is the
+  claim and only its winner sends; a skipped send keeps its row, so turning
+  emails back on never mails old bookings. Sent with `after()`, so a slow
+  provider never holds up a payment. The email carries the time, type,
+  length, physiotherapist and price, a link to the dashboard, and **no
+  condition, concern, note or Meet link**. Tests: `bookingEmails.test.ts`;
+  `e2e/gateway-cancellation-refund.spec.ts` CR-001.
+
+- **A confirmed session gets a day-before and an hour-before reminder, once
+  each, from the maintenance sweep.** Kind `reminder` (its own switch).
+  `sendDueBookingReminders` (`src/lib/bookingReminders.ts`) is the
+  `bookingReminders` step of `runMaintenanceSweep`, so it runs every 30
+  minutes (`.github/workflows/maintenance.yml`) and after an admin dashboard
+  load; `appointment_emails` (events `reminder_24h`, `reminder_1h`) makes a
+  repeat run a no-op. The windows are wide because GitHub's schedule runs
+  late: the day-before reminder between 25 and 18 hours ahead (skipped for a
+  session booked inside that window, which just had its confirmation), the
+  hour-before between 90 and 15 minutes ahead (later is noise). Only a
+  session that is still `confirmed` is reminded; at most 100 a run, soonest
+  first. Rules: `dueReminder()`, unit-tested in `bookingEmails.test.ts`;
+  `e2e/admin-maintenance-sweep.spec.ts` MS-003.
+
+- **WhatsApp is built and switched off; it messages only a patient who said
+  yes, never a test account, and never about their health.** The same
+  events as the booking emails (received, confirmed, cancelled, the two
+  reminders) send a WhatsApp template beside the email, on the same
+  `appointment_emails` claim (`appointmentEmailServer.ts` ->
+  `deliverWhatsApp`, `src/lib/whatsappServer.ts`). `decideWhatsApp()`
+  (`whatsappRules.ts`, pure and unit-tested): a test account (email is a test
+  address) and an unreadable number are skipped first; then no consent
+  (latest `whatsapp_consents` row, none is no, a failed read is no); then
+  unreadable switches (skipped -- no legal WhatsApp); then the master switch,
+  which **starts off** in `whatsapp_controls`, and each kind; test mode sends
+  to one number. Nothing reaches Meta without `WHATSAPP_ACCESS_TOKEN` and
+  `WHATSAPP_PHONE_NUMBER_ID` (else `not_configured`), and the template must be
+  approved under the same name (`whatsappTemplates.ts`, `docs/whatsapp/
+  TEMPLATES.md`, generated from it; a body never starts or ends with a
+  variable, each parameter one line). The provider sits behind
+  `WhatsAppProvider` (Meta Cloud API today). Consent: Profile -> WhatsApp
+  messages (drawn only while the server is configured), `POST
+  /api/patient/whatsapp-consent` (the signed-in patient only; yes needs a
+  usable number), stored append-only by trigger; a STOP reply through `POST
+  /api/whatsapp/webhook` (HMAC over the raw body with `WHATSAPP_APP_SECRET`;
+  GET is Meta's verify-token check) records a withdrawn row for every patient
+  with that number. Settings -> WhatsApp (`POST /api/admin/whatsapp/settings`,
+  `requireAdminScope("settings")`, audit `whatsapp_controls.set` with a test
+  number kept to its last three digits) shows set-up status, the consent
+  count, the templates to submit and the last 100 attempts (`whatsapp_log`,
+  masked number). Tests: `whatsappRules.test.ts`;
+  `e2e/whatsapp.spec.ts`.
 
