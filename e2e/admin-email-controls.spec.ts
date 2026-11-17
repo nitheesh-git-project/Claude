@@ -78,8 +78,14 @@ test("EML-002: the master switch and test mode save from the screen and are logg
   await expect.poll(async () => (await controls()).sending_enabled, SEEN).toBe(true);
 
   // Off, test inbox on, test inbox off, on: four audit rows.
-  const { data: log } = await db.from("admin_activity_log").select("action").eq("action", "email_controls.set").gte("created_at", startedAt);
-  expect((log ?? []).length).toBe(4);
+  // Polled: the route writes its audit row just after the switch itself, so
+  // the last row can land a moment after the switch reads back.
+  await expect
+    .poll(async () => {
+      const { data: log } = await db.from("admin_activity_log").select("action").eq("action", "email_controls.set").gte("created_at", startedAt);
+      return (log ?? []).length;
+    }, SEEN)
+    .toBe(4);
 });
 
 test("EML-003: switching off the legal receipts asks first, and Keep sending changes nothing", async ({ page }) => {
