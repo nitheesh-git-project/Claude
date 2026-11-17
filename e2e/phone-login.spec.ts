@@ -51,8 +51,11 @@ async function setSwitch(enabled: boolean) {
  *  somebody could, with the public key, without going through our routes. */
 async function cookieFromPhoneCode(phone: string): Promise<string> {
   const anon = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
-  const sent = await anon.auth.signInWithOtp({ phone: `+${phone}`, options: { shouldCreateUser: false } });
-  expect(sent.error, sent.error?.message).toBeNull();
+  // Asking the local stack to send answers "Unsupported phone provider" (no
+  // real provider there), but a test number's fixed code verifies without a
+  // send -- PL-002 signs in the same way. What matters here is that a session
+  // exists at all.
+  await anon.auth.signInWithOtp({ phone: `+${phone}`, options: { shouldCreateUser: false } });
   const { data, error } = await anon.auth.verifyOtp({ phone: `+${phone}`, token: CODE, type: "sms" });
   expect(error, error?.message).toBeNull();
   const collected: { name: string; value: string }[] = [];

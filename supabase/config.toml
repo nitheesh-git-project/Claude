@@ -89,10 +89,12 @@ max_frequency = "1s"
 # Phone sign-in (src/lib/phoneLogin.ts) on the LOCAL, disposable stack only.
 # Sign-ups by phone stay off (phone sign-in never creates an account). The
 # numbers under test_otp never reach a provider: GoTrue answers them with the
-# fixed code, which is what e2e/phone-login.spec.ts types. Twilio is "enabled"
-# with placeholder values only because GoTrue needs some provider switched on
-# to accept phone codes at all; nothing is ever sent (the test numbers skip it,
-# and the gate's egress guard blocks the internet anyway). The deployed
+# fixed code, which is what e2e/phone-login.spec.ts types: a test number's code
+# verifies without anything being sent. The Twilio block holds placeholders
+# only, so phone sign-in is switched on here; asking this stack to SEND still
+# answers "Unsupported phone provider" (the app's /send route logs it and gives
+# its usual neutral answer), and the gate's egress guard blocks the internet
+# anyway, so nothing can ever be texted from it. The deployed
 # projects take their provider from the Supabase dashboard, not from here:
 # docs/auth/PHONE-SIGN-IN.md.
 [auth.sms]
