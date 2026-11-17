@@ -269,9 +269,9 @@ export default async function AdminDashboardPage({
   // (?section=money&tab=summary) server-renders that screen directly. The
   // shell still syncs the URL after hydration; without this, a shared link
   // painted Today first and jumped once the client effect ran.
-  searchParams: Promise<{ section?: string; tab?: string }>;
+  searchParams: Promise<{ section?: string; tab?: string; sub?: string }>;
 }) {
-  const { section: sectionParam, tab: tabParam } = await searchParams;
+  const { section: sectionParam, tab: tabParam, sub: subParam } = await searchParams;
 
   // The page proves for itself that this caller is an active admin, rather
   // than trusting the proxy to have done it.
@@ -5858,11 +5858,12 @@ export default async function AdminDashboardPage({
   ];
 
   // Every screen, keyed "<section>:<tab>" exactly as ADMIN_SECTIONS defines
-  // them. The shell only decides which key is visible.
+  // them, or "<section>:<tab>/<sub>" for each chip of a tab that holds
+  // several (AdminTabDef.subs). The shell only decides which key is visible.
   const screens: AdminScreens = {
     "today:overview": adminOverviewTab,
-    "today:approvals": approvalsTab,
-    "today:health-reviews": healthReviewsTab,
+    "today:todo/approvals": approvalsTab,
+    "today:todo/health-reviews": healthReviewsTab,
     "today:risk": todayRiskTab,
     "sessions:schedule": calendarTab,
     "sessions:all": allSessionsTab,
@@ -5871,7 +5872,7 @@ export default async function AdminDashboardPage({
     "people:patients": patientsTab,
     "people:therapists": therapistsTab,
     "people:partners": b2bPartners,
-    "people:declined": (
+    "people:requests/declined": (
       <DeclinedApplicationsTab
         rows={scopeCanOpen(viewerScope, "people") ? declinedApplications : []}
         adminNames={Object.fromEntries(
@@ -5883,8 +5884,8 @@ export default async function AdminDashboardPage({
     ),
     // Self-fetching; its routes are requireAdminScope("people"), and a desk
     // that can only read People sees the cases without the buttons.
-    "people:data-requests": <DataRequestsTab canManage={scopeCanManage(viewerScope, "people")} />,
-    "people:abandoned": (
+    "people:requests/data-requests": <DataRequestsTab canManage={scopeCanManage(viewerScope, "people")} />,
+    "people:requests/abandoned": (
       <AbandonedCheckoutsTab
         rows={scopeCanOpen(viewerScope, "people") ? abandonedCheckouts : []}
         deleteAfterDays={adminSettings.abandonedBookingAccountDays}
@@ -5895,7 +5896,7 @@ export default async function AdminDashboardPage({
     // Summary alone, which is the one screen whose labels are self-evident
     // -- an admin reading "Net payable" on Payouts or "Session revenue" on
     // Performance is the one who needs it.
-    "money:summary": (
+    "money:summary/summary": (
       <>
         {moneyAlerts}
         {moneySummaryTab}
@@ -5905,8 +5906,8 @@ export default async function AdminDashboardPage({
       </>
     ),
     // Self-fetching; Money scope.
-    "money:refunds": <RefundsSettings canManage={scopeCanManage(viewerScope, "money")} />,
-    "money:transactions": (
+    "money:transactions/refunds": <RefundsSettings canManage={scopeCanManage(viewerScope, "money")} />,
+    "money:transactions/transactions": (
       <>
         {moneyAlerts}
         {paymentHistoryTab}
@@ -5993,7 +5994,7 @@ export default async function AdminDashboardPage({
         </div>
       </>
     ),
-    "money:health": (
+    "money:health/health": (
       <>
         {moneyAlerts}
         {businessHealthTab}
@@ -6002,8 +6003,8 @@ export default async function AdminDashboardPage({
         </div>
       </>
     ),
-    "money:inputs": financeInputsTab,
-    "money:breakdown": (
+    "money:health/inputs": financeInputsTab,
+    "money:summary/breakdown": (
       <>
         {moneyAlerts}
         {moneyBreakdownTab}
@@ -6012,8 +6013,8 @@ export default async function AdminDashboardPage({
         </div>
       </>
     ),
-    "programmes:all": programmesAllTab,
-    "programmes:review": programmesReviewTab,
+    "sessions:programmes/all": programmesAllTab,
+    "sessions:programmes/review": programmesReviewTab,
     "sessions:delivery": deliveryTab,
     "catalog:conditions": (
       <>
@@ -6033,38 +6034,38 @@ export default async function AdminDashboardPage({
         {catalogCountriesTab}
       </>
     ),
-    "settings:brand": settingsBrandTab,
-    "settings:public": settingsPublicSiteTab,
+    "settings:website/brand": settingsBrandTab,
+    "settings:website/public": settingsPublicSiteTab,
     // Self-fetching; its route is requireAdminScope("settings").
-    "settings:cookies": <CookieConsentStats />,
-    "settings:booking": settingsBookingTab,
-    "settings:offers": settingsOffersTab,
-    "settings:programmes": settingsProgrammesTab,
-    "settings:clinical": settingsClinicalTab,
+    "settings:website/cookies": <CookieConsentStats />,
+    "settings:clinic/booking": settingsBookingTab,
+    "settings:clinic/offers": settingsOffersTab,
+    "settings:clinic/programmes": settingsProgrammesTab,
+    "settings:clinic/clinical": settingsClinicalTab,
     // Self-fetching; Settings is Master Admin only and its route is
     // requireAdminScope("settings").
-    "settings:profile-layout": <ProfileWidgetSettings canManagePeople={canManagePeople} />,
+    "settings:clinic/profile-layout": <ProfileWidgetSettings canManagePeople={canManagePeople} />,
     // Self-fetching, for the same reason; its routes are
     // requireAdminScope("settings") too.
-    "settings:announcements": <AnnouncementSettings />,
-    "settings:access": settingsAccessTab,
-    "settings:health": settingsHealthTab,
+    "settings:clinic/announcements": <AnnouncementSettings />,
+    "settings:access/access": settingsAccessTab,
+    "settings:technical/health": settingsHealthTab,
     // Self-fetching; its routes are requireAdminScope("settings").
-    "settings:emails": <EmailSettings />,
+    "settings:technical/emails": <EmailSettings />,
     // Self-fetching; its route is requireAdminScope("settings").
-    "settings:whatsapp": <WhatsAppSettings />,
-    "settings:advanced": settingsAdvancedTab,
-    "settings:reachouts": settingsDevReachoutsTab,
+    "settings:technical/whatsapp": <WhatsAppSettings />,
+    "settings:technical/advanced": settingsAdvancedTab,
+    "settings:technical/reachouts": settingsDevReachoutsTab,
     // The three limited desks' own history, on Today because they cannot
     // open the Logs section at all -- without it, their record is whatever
     // fits in the Today feed. Hidden from a Master Admin, who reads the
     // whole log under Logs.
     "today:activity": activityLogTab,
-    "logs:all": logsTab,
-    "logs:retention": <AdminLogRetentionTab />,
+    "settings:history/all": logsTab,
+    "settings:history/retention": <AdminLogRetentionTab />,
     // Self-fetching; Logs is Master Admin only.
-    "logs:signed-in-as": <ImpersonationLogSettings />,
-    "settings:security": settingsSecurityTab,
+    "settings:history/signed-in-as": <ImpersonationLogSettings />,
+    "settings:access/security": settingsSecurityTab,
   };
 
   // Badges, keyed the same way. A section's own badge is the sum of its
@@ -6078,24 +6079,24 @@ export default async function AdminDashboardPage({
     "sessions:all": unassignedTotal,
     // Waiting on the clinic's decision, and paid with nothing booked: the
     // two programme states that are somebody's job right now.
-    "programmes:review": carePlansPendingCount,
-    "programmes:all": recommendationPulse.counts.paidUnbooked,
-    "today:approvals": (pendingAccounts?.length ?? 0) + (pendingProfileChanges?.length ?? 0),
+    "sessions:programmes/review": carePlansPendingCount,
+    "sessions:programmes/all": recommendationPulse.counts.paidUnbooked,
+    "today:todo/approvals": (pendingAccounts?.length ?? 0) + (pendingProfileChanges?.length ?? 0),
     "today:risk": openRiskCount,
-    "today:health-reviews": (conditionRequestsPendingCount ?? 0) + (conditionAccessPendingCount ?? 0),
+    "today:todo/health-reviews": (conditionRequestsPendingCount ?? 0) + (conditionAccessPendingCount ?? 0),
     "people:partners": b2bBadgeCount,
-    "people:abandoned": abandonedCheckouts?.length ?? 0,
+    "people:requests/abandoned": abandonedCheckouts?.length ?? 0,
     "money:payouts": payoutRequestsBadgeCount + manualRefundsPending,
-    "money:refunds": refundsNeedingPerson,
+    "money:transactions/refunds": refundsNeedingPerson,
     "catalog:areas": homeVisitWaitlist?.filter((w) => w.status === "new").length ?? 0,
     // Checks asking for a person, not rows -- so the badge, the verdict at
     // the top of that screen and the chips under it are all the same number.
     // Counting rows hid the two failures with no rows behind them at all: a
     // missing webhook secret (money arriving against unpaid bookings) and a
     // dead Google credential both badged zero.
-    "settings:health": summarizeHealth(systemHealthChecks).needsPerson,
+    "settings:technical/health": summarizeHealth(systemHealthChecks).needsPerson,
     // Messages nobody has answered yet.
-    "settings:reachouts": (devReachoutRows ?? []).filter((r) => r.status === "new").length,
+    "settings:technical/reachouts": (devReachoutRows ?? []).filter((r) => r.status === "new").length,
   };
 
   // Only the screens this scope reaches leave the server. AdminShell hides
@@ -6117,6 +6118,7 @@ export default async function AdminDashboardPage({
       <AdminShell
         initialSection={sectionParam ?? null}
         initialTab={tabParam ?? null}
+        initialSub={subParam ?? null}
         screens={pickScreens(screens, reachableScreens)}
         badges={pickScreens(badges, reachableScreens)}
         searchEntities={searchEntities}

@@ -78,7 +78,34 @@ export type AdminTabDef = {
    * exists to stop.
    */
   limitedScopesOnly?: boolean;
+  /**
+   * The scope section that decides who may open this screen, when it is not
+   * the nav section it sits in. Access is per *capability*, not per menu: the
+   * Morning Brief layout moved Programmes under Sessions and the log under
+   * Settings, but a desk's right to read or change a programme is still the
+   * `programmes` grant, and only a Master Admin still reads the log. Every
+   * API route keeps guarding with the same section it always did
+   * (requireAdminScope), so the menu can move without anybody's access
+   * moving with it. Defaults to the section the tab sits in.
+   */
+  scope?: AdminSectionKey;
+  /**
+   * The screens one tab holds, shown as a row of chips under the tab bar.
+   *
+   * Several old screens answered the same question ("who is waiting on a
+   * decision", "what came in and went out") from two places; they now share
+   * one tab and the chips pick between them, so nothing was rewritten and
+   * nothing was dropped -- each chip is the old screen, whole. A tab with
+   * subs is visible when at least one of its subs is.
+   */
+  subs?: AdminSubDef[];
 };
+
+/** One chip inside a tab: an old screen, kept whole. Same access fields as a tab. */
+export type AdminSubDef = Pick<
+  AdminTabDef,
+  "key" | "label" | "blurb" | "example" | "requiresManage" | "limitedScopesOnly" | "scope"
+>;
 
 export type AdminSectionDef = {
   key: AdminSectionKey;
@@ -88,42 +115,75 @@ export type AdminSectionDef = {
   tabs: AdminTabDef[];
 };
 
+/**
+ * Every scope section -- what a desk is granted, as opposed to where a
+ * screen sits in the menu -- with the name an admin knows it by. Two of
+ * them (`programmes`, `logs`) have no menu section of their own any more;
+ * their screens sit under Sessions and Settings, and keep this scope.
+ */
+export const SCOPE_SECTIONS: { key: AdminSectionKey; label: string }[] = [
+  { key: "today", label: "Home" },
+  { key: "sessions", label: "Sessions" },
+  { key: "programmes", label: "Programmes" },
+  { key: "people", label: "People" },
+  { key: "money", label: "Money" },
+  { key: "catalog", label: "Prices & areas" },
+  { key: "logs", label: "History" },
+  { key: "settings", label: "Settings" },
+];
+
+// The Morning Brief layout: six sections, each one a question an owner asks,
+// in the order they ask it. Today's screens were 49 across eight sections;
+// they are all still here, as tabs or as the chips inside one (see `subs`).
+// Two scope sections, `programmes` and `logs`, no longer have a menu entry of
+// their own -- their screens live under Sessions and Settings and keep their
+// own scope through `scope`. LEGACY_SCREENS sends every old link to its new
+// home.
 export const ADMIN_SECTIONS: AdminSectionDef[] = [
   {
     key: "today",
-    label: "Today",
-    icon: "fa-inbox",
-    blurb: "Everything waiting on you, in one list.",
+    label: "Home",
+    icon: "fa-house",
+    blurb: "What needs you today, in one place.",
     tabs: [
-      // One screen, not two: the figures, the queues and the activity feed
-      // all answer "what needs me today", and splitting them meant an
-      // admin checked one and missed the other.
-      { key: "overview", label: "Today" },
-      // The inbox counts what is waiting; this is where that work is done.
-      // Approvals used to sit on the patients directory, which made one
-      // screen do three jobs -- a queue is not a person.
-      { key: "approvals", label: "Approvals" },
-      // The other half of "waiting on a person": a patient's Health Profile
-      // answers waiting to go live, and a therapist asking to edit one. It
-      // sits beside Approvals because it is the same kind of work, and is its
-      // own screen because the people differ (a patient's record, not an
-      // account) and so does the row (who asked, who for, how long).
       {
-        key: "health-reviews",
-        label: "Health Profile reviews",
-        blurb:
-          "Patient answers waiting to go live on a Health Profile, and therapists asking to edit one.",
-        example: "Approve the answers Dr Meera filled in for Asha, or decline them with a reason.",
+        key: "overview",
+        label: "Today",
+        blurb: "The day at a glance: what needs you, today's sessions, and the numbers that matter.",
+        example: "See that two sessions today have no therapist, and assign them.",
       },
-      // What the detectors noticed. Under Today rather than in a section of
-      // its own because a signal is a piece of work waiting on somebody,
-      // and that is what this section is for.
-      { key: "risk", label: "Risk" },
-      // Their own desk's history. See limitedScopesOnly above for why a
-      // Master Admin does not get this entry.
+      // Approvals and Health Profile reviews are the same kind of work -- a
+      // person waiting on a yes or a no -- so they share one To-do tab.
+      {
+        key: "todo",
+        label: "To-do",
+        blurb: "Accounts, profile changes and Health Profile answers waiting for your decision.",
+        example: "Approve a new therapist and set their share.",
+        subs: [
+          {
+            key: "approvals",
+            label: "Approvals",
+            blurb: "Patients, therapists and hospitals waiting to be let in, and profile changes waiting for a yes or no.",
+            example: "Approve Dr Rohan's account and set his share at 60%.",
+          },
+          {
+            key: "health-reviews",
+            label: "Health Profile reviews",
+            blurb:
+              "Patient answers waiting to go live on a Health Profile, and therapists asking to edit one.",
+            example: "Approve the answers Dr Meera filled in for Asha, or decline them with a reason.",
+          },
+        ],
+      },
+      {
+        key: "risk",
+        label: "Risk & safety",
+        blurb: "What the checks noticed: unusual cancellations, payment details in messages, and contact details shown.",
+        example: "Check why a patient cancelled three times this week.",
+      },
       {
         key: "activity",
-        label: "Activity",
+        label: "Your desk's activity",
         limitedScopesOnly: true,
         blurb: "Every change your own desk has made, newest first.",
         example: "Check which session a colleague on your desk reassigned this morning.",
@@ -134,52 +194,68 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
     key: "sessions",
     label: "Sessions",
     icon: "fa-calendar-check",
-    blurb: "What is being delivered, and by whom.",
+    blurb: "What is being delivered, by whom, and how it is going.",
     tabs: [
-      { key: "schedule", label: "Schedule" },
-      { key: "all", label: "All Sessions" },
-      { key: "roster", label: "Roster" },
-      // No-show, cancellation and repeat rates, and sessions per therapist.
-      // These lived under Money, which made that section the one place a
-      // financial screen answered an operational question -- a no-show rate
-      // is about how the clinic runs, not about its books.
-      { key: "delivery", label: "Delivery" },
       {
-        key: "new",
-        label: "New Booking",
-        // A form, and nothing else.
-        requiresManage: true,
+        key: "schedule",
+        label: "Calendar",
+        blurb: "Every session, day by day, with its join link.",
+        example: "Open Thursday and see who is booked with whom.",
       },
-    ],
-  },
-  // A programme from the therapist's recommendation to its last session.
-  // It used to be two screens that never met -- Sessions -> Recommendations
-  // until the patient paid, Catalog -> Purchases after, with a different
-  // code on each side -- so nobody could follow one programme through.
-  // Both live here now (old links land here through LEGACY_SCREENS), and
-  // every row carries one ID with its progress: PED_PKG001-2/6.
-  {
-    key: "programmes",
-    label: "Programmes",
-    icon: "fa-layer-group",
-    blurb: "Every recommended and bought programme, and how far along it is.",
-    tabs: [
       {
         key: "all",
-        label: "All Programmes",
-        blurb:
-          "Every programme in one list - recommended, paid for, under way and finished - with how many of its sessions are done.",
-        example: "Find PED_PKG001, see that 2 of its 6 sessions are done, and who the next one is with.",
+        label: "All sessions",
+        blurb: "Every session ever booked, with search, filters and a download.",
+        example: "Find every home visit Dr Arjun gave last month.",
+      },
+      // A programme from the therapist's recommendation to its last session,
+      // under Sessions because a programme is a run of sessions. Its own
+      // scope still decides who sees it, and who may decide on one.
+      {
+        key: "programmes",
+        label: "Programmes",
+        scope: "programmes",
+        blurb: "Every recommended and bought programme, how far along it is, and the recommendations waiting for you.",
+        example: "Find PED_PKG001 and see that 2 of its 6 sessions are done.",
+        subs: [
+          {
+            key: "all",
+            label: "All programmes",
+            scope: "programmes",
+            blurb:
+              "Every programme in one list - recommended, paid for, under way and finished - with how many of its sessions are done.",
+            example: "Find PED_PKG001, see that 2 of its 6 sessions are done, and who the next one is with.",
+          },
+          {
+            key: "review",
+            label: "Recommendations",
+            scope: "programmes",
+            requiresManage: true,
+            blurb: "Approve, change or turn down what a therapist recommended, or write one for them.",
+            example: "Approve Dr Meera's six-session recommendation so the patient sees it.",
+          },
+        ],
       },
       {
-        key: "review",
-        label: "Recommendations",
-        // Approve, turn down, rewrite, withdraw, write one on a therapist's
-        // behalf: there is no reading half left once the decisions are
-        // gone, and All Programmes is the reading half.
+        key: "roster",
+        label: "Therapist rota",
+        blurb: "Who works when, who is on leave, and their weekly hours.",
+        example: "Mark Dr Priya on leave next week.",
+      },
+      // No-show, cancellation and repeat rates, and sessions per therapist:
+      // how the clinic runs, not its books.
+      {
+        key: "delivery",
+        label: "How it's going",
+        blurb: "No-shows, cancellations, repeat visits and sessions per therapist.",
+        example: "See whether no-shows went down this month.",
+      },
+      {
+        key: "new",
+        label: "Book a session",
         requiresManage: true,
-        blurb: "Approve, change or turn down what a therapist recommended, or write one for them.",
-        example: "Approve Dr Meera's six-session recommendation so the patient sees it.",
+        blurb: "Book an online session or a home visit on a patient's behalf.",
+        example: "Book Asha's next knee session for Wednesday at 4.",
       },
     ],
   },
@@ -189,20 +265,52 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
     icon: "fa-users",
     blurb: "Patients, therapists and partner hospitals.",
     tabs: [
-      { key: "patients", label: "Patients" },
-      { key: "therapists", label: "Therapists" },
-      { key: "partners", label: "Partners" },
-      // Every declined signup and hospital inquiry, with the reason. A
-      // declined signup's account is deleted, so this is the only place
-      // the person is still listed.
-      { key: "declined", label: "Declined" },
-      // People who signed up while booking and have not paid: their account
-      // is locked, and is deleted after a few days if it stays that way.
-      // Leads worth a call, never an approval decision.
-      { key: "abandoned", label: "Abandoned checkouts" },
-      // "Delete my account" requests and grievances from the /grievances
-      // form, each with its legal deadline (src/lib/dataRequests.ts).
-      { key: "data-requests", label: "Data requests" },
+      {
+        key: "patients",
+        label: "Patients",
+        blurb: "Everyone who has booked or signed up. Open a patient to see and change everything about them.",
+        example: "Open Asha's page and read her payment history.",
+      },
+      {
+        key: "therapists",
+        label: "Therapists",
+        blurb: "Who treats your patients, and on what terms.",
+        example: "Change Dr Arjun's share for home visits.",
+      },
+      {
+        key: "partners",
+        label: "Hospitals",
+        blurb: "Partner hospitals, their enquiries, and the patients they refer.",
+        example: "Assign CityCare's new referral to a therapist.",
+      },
+      // People who asked for something, or left half-way: data requests with
+      // their legal deadlines, abandoned checkouts, and declined sign-ups.
+      {
+        key: "requests",
+        label: "Requests",
+        blurb: "Data requests and grievances, sign-ups that stopped at checkout, and everyone who was declined.",
+        example: "Answer a deletion request before its deadline.",
+        subs: [
+          {
+            key: "data-requests",
+            label: "Data requests",
+            blurb: "\"Delete my account\" requests and grievances, each with its legal deadline.",
+            example: "Move a deletion request to done once the account is gone.",
+          },
+          {
+            key: "abandoned",
+            label: "Abandoned checkouts",
+            blurb: "People who signed up while booking and have not paid. Leads worth a call.",
+            example: "Call Arun, who stopped at the payment step yesterday.",
+          },
+          {
+            key: "declined",
+            label: "Declined",
+            blurb: "Every declined sign-up and hospital enquiry, with the reason.",
+            example: "See why a therapist was declined last month.",
+          },
+        ],
+      },
     ],
   },
   {
@@ -210,169 +318,114 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
     label: "Money",
     icon: "fa-sack-dollar",
     blurb: "What came in, what goes out, what it costs, what is still owed.",
-    // Every screen here says what it is and gives one example, for the same
-    // reason the Settings screens do -- more so, in fact. Five money screens
-    // whose names are all abstract nouns ("Summary", "Breakdown") leave an
-    // owner opening three of them to find the one answering the question
-    // they arrived with, and a promo code that lived on Summary while every
-    // other surface said Costs was that failure at its worst: the screen the
-    // note sent you to genuinely did not have it.
     tabs: [
       {
         key: "summary",
-        label: "Summary",
+        label: "Overview",
         blurb: "Whether the clinic made money over a stretch of dates, and where each rupee went.",
         example: "See what last month left you after paying therapists and your own costs.",
-      },
-      // The seven figures a bank, an investor or an accountant asks for.
-      // Beside Summary rather than at the end of the list because it is read
-      // the same way -- "how is the business doing" -- and differs only in
-      // asking it over the standard ratios rather than over this clinic's own
-      // revenue split.
-      {
-        key: "health",
-        label: "Business Health",
-        blurb:
-          "The standard figures a bank, an investor or your accountant asks for - what you get back, what you keep, and how many sessions cover the costs.",
-        example: "Work out how many sessions a month you need before the clinic is paying for itself.",
-      },
-      {
-        key: "transactions",
-        label: "Transactions",
-        blurb: "Every payment and refund, one row each.",
-        example: "Find what a patient paid on Tuesday, and whether any of it went back.",
-      },
-      // Every refund Razorpay reports, including ones made on the Razorpay
-      // website, with where it is and what the app did about it.
-      {
-        key: "refunds",
-        label: "Refunds",
-        blurb: "Every refund, including ones made on the Razorpay website: where it is, who it was for, and what still needs you.",
-        example: "Check a refund you made on Razorpay reached the patient's session, or see one the bank failed.",
+        subs: [
+          {
+            key: "summary",
+            label: "Where it went",
+            blurb: "Whether the clinic made money over a stretch of dates, and where each rupee went.",
+            example: "See what last month left you after paying therapists and your own costs.",
+          },
+          {
+            key: "breakdown",
+            label: "By treatment & therapist",
+            blurb: "Which treatments and therapists the money came from.",
+            example: "See which condition earned the most over the last three months.",
+          },
+        ],
       },
       {
         key: "payouts",
-        label: "Payouts",
+        label: "Pay therapists",
         blurb: "What you owe each therapist right now, and paying it.",
         example: "Pay a therapist what they have earned, less any cash they are still holding.",
       },
-      // The mirror of Payouts: money out, per person, with the control that
-      // settles it -- and money in, per patient, with the control that settles
-      // that. Its own screen rather than a card on Summary for two reasons.
-      // It is the only place these rows are listed, and a count that opens a
-      // screen not containing the rows it counted is the failure the `?view=`
-      // presets exist to prevent. And it is a balance: true right now, all
-      // time, where every Money screen but Payouts moves with the dates in
-      // view -- so a `now` figure dropped onto a `range` screen is the scope
-      // mixing that ScopeChip exists to paper over.
       {
         key: "owing",
-        label: "Owed by Patients",
-        blurb:
-          "Patients you have allowed to pay after their treatment, what they still owe, and settling it.",
-        example:
-          "See that Lakshmi has had four sessions and not settled yet, and record the cash she hands over.",
+        label: "Patients owe",
+        blurb: "Patients you have allowed to pay after their treatment, what they still owe, and settling it.",
+        example: "See that Lakshmi has had four sessions and not settled yet, and record the cash she hands over.",
       },
-      // What the clinic itself spends. Without it the money screens stop at
-      // the clinic's share and no figure anywhere can honestly be called
-      // profit.
+      {
+        key: "transactions",
+        label: "Payments & refunds",
+        blurb: "Every payment and refund, one row each.",
+        example: "Find what a patient paid on Tuesday, and whether any of it went back.",
+        subs: [
+          {
+            key: "transactions",
+            label: "Payments",
+            blurb: "Every payment and refund, one row each.",
+            example: "Find what a patient paid on Tuesday, and whether any of it went back.",
+          },
+          {
+            key: "refunds",
+            label: "Refunds",
+            blurb: "Every refund, including ones made on the Razorpay website: where it is, who it was for, and what still needs you.",
+            example: "Check a refund you made on Razorpay reached the patient's session, or see one the bank failed.",
+          },
+        ],
+      },
       {
         key: "costs",
-        label: "Costs",
+        label: "Costs & offers",
         blurb: "What the clinic spends, and what your discounts give away.",
         example: "Record this month's rent, or set up a promo code for a campaign.",
       },
       {
-        key: "breakdown",
-        label: "Breakdown",
-        blurb: "Which treatments and therapists the money came from.",
-        example: "See which condition earned the most over the last three months.",
-      },
-      // The figures only the owner knows. A screen of its own rather than
-      // panels under Business Health, because that screen is read often and
-      // typed into rarely -- and because every entry here is a row somebody
-      // has to fetch from a bank statement or an ads dashboard, which is a
-      // sitting-down job, not a glance.
-      {
-        key: "inputs",
-        label: "Your Numbers",
-        // Forms, and nothing else: a scope holding Money at `view` would open
-        // an empty page.
-        requiresManage: true,
+        key: "health",
+        label: "For your accountant",
         blurb:
-          "The figures only you know: what you have put into the clinic, what you spend on ads, and what you own and owe.",
-        example: "Enter last month's Google Ads spend, or today's bank balance.",
+          "The standard figures a bank, an investor or your accountant asks for, and the numbers only you know.",
+        example: "Work out how many sessions a month you need before the clinic is paying for itself.",
+        subs: [
+          {
+            key: "health",
+            label: "Business health",
+            blurb:
+              "The standard figures a bank, an investor or your accountant asks for - what you get back, what you keep, and how many sessions cover the costs.",
+            example: "Work out how many sessions a month you need before the clinic is paying for itself.",
+          },
+          {
+            key: "inputs",
+            label: "Your numbers",
+            requiresManage: true,
+            blurb:
+              "The figures only you know: what you have put into the clinic, what you spend on ads, and what you own and owe.",
+            example: "Enter last month's Google Ads spend, or today's bank balance.",
+          },
+        ],
       },
     ],
   },
   {
     key: "catalog",
-    label: "Catalog",
+    label: "Prices & areas",
     icon: "fa-tags",
     blurb: "What we sell, at what price, and where.",
     tabs: [
-      // One catalogue: each condition is sold as one online session and as
-      // one home visit. A course of either is a therapist's recommendation at
-      // these prices, which is why there is no Packages screen any more --
-      // an old ?tab=packages link falls back here through findTab.
       {
         key: "conditions",
-        label: "Conditions",
+        label: "Conditions & prices",
         blurb: "What we treat, and what one session of each costs - online and at home.",
         example: "Set Knee pain's home visit to its own price, or let it use the clinic-wide one.",
       },
-      { key: "areas", label: "Service Areas" },
-      // Prices for visitors outside India. In Catalog because it decides
-      // what a patient is charged, the same as every other screen here.
+      {
+        key: "areas",
+        label: "Home-visit areas",
+        blurb: "Where therapists visit, the travel fee, and people outside those areas who asked.",
+        example: "Add Kakkanad with a ₹150 travel fee.",
+      },
       {
         key: "countries",
-        label: "Countries & currency",
+        label: "Other countries",
         blurb: "What visitors outside India see and pay, in their own currency.",
         example: "Charge visitors in the US 100% more, shown in dollars and rounded up to .99.",
-      },
-      // Purchases moved to Programmes -> All Programmes, beside the
-      // recommendations they came from.
-    ],
-  },
-  {
-    key: "logs",
-    label: "Logs",
-    icon: "fa-clipboard-list",
-    blurb: "Every action taken in this dashboard, and who took it.",
-    // A section of its own rather than a screen under Settings, where it
-    // used to sit. Settings is where the product is configured; a log is not
-    // a setting, and burying the record of what everybody did inside the
-    // screen list an owner opens least often is how it stops being read.
-    //
-    // Master Admin only (see SECTION_ACCESS in adminScope.ts). The three
-    // limited desks keep their own filtered history on Today -> Activity,
-    // which is their desk's work alone -- the whole log names actions on
-    // screens they cannot open and colleagues whose desks are not theirs.
-    tabs: [
-      {
-        key: "all",
-        label: "All Activity",
-        blurb: "Every change an admin has made, newest first \u2014 who, when, and what it changed from.",
-        example: "Find who refunded a session last Tuesday, and what reason they gave.",
-      },
-      // Who opened whose dashboard, and why: the reason an admin types before
-      // "Sign in as", with what they changed while inside. It was saved all
-      // along, but only as single lines in All Activity.
-      {
-        key: "signed-in-as",
-        label: "Signed in as",
-        blurb: "Every time an admin opened somebody's dashboard as them, with the reason they gave and what they changed.",
-        example: "See why somebody opened a patient's dashboard last week, and whether they changed anything.",
-      },
-      {
-        key: "retention",
-        label: "Archive & Clear",
-        // Nothing to read here: the screen is a download and a destructive
-        // button. A scope holding this section at `view` would open an
-        // empty page.
-        requiresManage: true,
-        blurb: "Download older entries and remove them, once you have a copy.",
-        example: "Take a copy of everything older than a year, then clear it out.",
       },
     ],
   },
@@ -381,174 +434,174 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
     label: "Settings",
     icon: "fa-sliders",
     blurb: "How the product behaves.",
-    // Every screen here says what it is and gives one example, because a
-    // settings list is the part of a back office people open least often and
-    // therefore remember least well.
-    //
-    // "Booking Rules" is three screens for the same reason: it had grown
-    // into six unrelated stacks -- when a patient may book, what money comes
-    // off, how a programme works, how a home visit works -- with no heading
-    // between them, so the one screen an owner opened to change a refund
-    // window also held the discount that decides revenue.
-    //
-    // They are also grouped, because ten flat labels is a list nobody reads
-    // top to bottom: an owner hunting for the refund window scanned past the
-    // discount that decides what every new patient pays, and the two screens
-    // about nothing but their own login sat in the same undifferentiated run
-    // as the clinic's booking rules. Four captions -- your website, how the
-    // clinic runs, who gets in, and the technical shelf -- say which quarter
-    // of the list to read. Screens sharing a caption are adjacent, which the
-    // sidebar relies on (see AdminTabDef.group).
+    // The four captions the old Settings list was grouped under became its
+    // tabs, and each old screen is a chip inside one. History (the log) joins
+    // as a fifth, with its own `logs` scope, so it stays Master Admin only.
     tabs: [
       {
-        key: "brand",
-        label: "Brand & Contact",
-        group: "Your website",
-        blurb: "Your clinic's name and the contact details patients see.",
+        key: "website",
+        label: "Your website",
+        blurb: "What visitors see and read on your website.",
         example: "Change the WhatsApp number shown in the website footer.",
+        subs: [
+          {
+            key: "brand",
+            label: "Brand & contact",
+            blurb: "Your clinic's name and the contact details patients see.",
+            example: "Change the WhatsApp number shown in the website footer.",
+          },
+          {
+            key: "public",
+            label: "Public site",
+            blurb: "What visitors read on your website.",
+            example: "Add a patient's story to the home page, or answer a new question on the FAQ page.",
+          },
+          {
+            key: "cookies",
+            label: "Cookie consent",
+            blurb: "What visitors chose when the website asked about cookies.",
+            example: "See how many visitors accepted analytics in the last 30 days.",
+          },
+        ],
       },
       {
-        key: "public",
-        label: "Public Site",
-        group: "Your website",
-        blurb: "What visitors read on your website.",
-        example: "Add a patient's story to the home page, or answer a new question on the FAQ page.",
-      },
-      // What visitors chose in the cookie pop-up. Under "Your website"
-      // because it is about the public site's visitors; read-only, so it
-      // carries no switch of its own.
-      {
-        key: "cookies",
-        label: "Cookie consent",
-        group: "Your website",
-        blurb: "What visitors chose when the website asked about cookies.",
-        example: "See how many visitors accepted analytics in the last 30 days.",
-      },
-      {
-        key: "booking",
-        label: "Booking Rules",
-        group: "How the clinic runs",
-        blurb: "When a patient may book, cancel, and join a video session.",
+        key: "clinic",
+        label: "How the clinic runs",
+        blurb: "Rules for booking, money off, programmes, home visits, clinical questions and announcements.",
         example: "Stop patients booking a slot that is less than 12 hours away.",
-      },
-      {
-        key: "offers",
-        label: "Offers & Discounts",
-        group: "How the clinic runs",
-        blurb: "Money off, to bring new patients in.",
-        example: "Give every new patient \u20b9200 off their first session.",
-      },
-      {
-        key: "programmes",
-        label: "Programmes & Home Visits",
-        group: "How the clinic runs",
-        blurb:
-          "Rules for a course of sessions a therapist recommends, and for visits to a patient's home.",
-        example: "Make a therapist's recommendation wait for your approval before the patient sees it.",
-      },
-      {
-        key: "clinical",
-        label: "Clinical Questions",
-        group: "How the clinic runs",
-        blurb:
-          "The questions a patient answers about their condition, the ones a therapist fills in after an exam, which paid-for assessment scales your therapists may use, and the six-minute walk's predicted-distance formula.",
-        example: "Reword the question that asks how long the pain has lasted, or switch on a scale once the clinic holds its licence.",
-      },
-      // What a patient's own Health Profile shows, per condition type, and
-      // for one patient found by name or ID (the same panel as on their
-      // record in People, behind the same "people" scope).
-      {
-        key: "profile-layout",
-        label: "Health Profile layout",
-        group: "How the clinic runs",
-        blurb: "Which sections a patient sees on their own Health Profile, for each condition type, and for one patient when theirs needs to differ.",
-        example: "Hide the measures table from every orthopaedic patient's page, while their physiotherapist still sees it.",
-      },
-      // What the clinic says to everybody at once: a banner on top of the
-      // patient, therapist and hospital dashboards, with a pop-up behind it.
-      // Under "How the clinic runs" rather than "Your website" because none
-      // of it is public -- it is shown only to people who are signed in.
-      {
-        key: "announcements",
-        label: "Announcements",
-        group: "How the clinic runs",
-        blurb: "Banners on top of the patient, therapist and hospital dashboards, and the pop-up each one opens.",
-        example: "Wish everybody a happy Diwali for three days, or tell every therapist the payout day has moved.",
+        subs: [
+          {
+            key: "booking",
+            label: "Booking rules",
+            blurb: "When a patient may book, cancel, and join a video session.",
+            example: "Stop patients booking a slot that is less than 12 hours away.",
+          },
+          {
+            key: "offers",
+            label: "Offers & discounts",
+            blurb: "Money off, to bring new patients in.",
+            example: "Give every new patient ₹200 off their first session.",
+          },
+          {
+            key: "programmes",
+            label: "Programmes & home visits",
+            blurb:
+              "Rules for a course of sessions a therapist recommends, and for visits to a patient's home.",
+            example: "Make a therapist's recommendation wait for your approval before the patient sees it.",
+          },
+          {
+            key: "clinical",
+            label: "Clinical questions",
+            blurb:
+              "The questions a patient answers about their condition, the ones a therapist fills in after an exam, which paid-for assessment scales your therapists may use, and the six-minute walk's predicted-distance formula.",
+            example: "Reword the question that asks how long the pain has lasted, or switch on a scale once the clinic holds its licence.",
+          },
+          {
+            key: "profile-layout",
+            label: "Health Profile layout",
+            blurb: "Which sections a patient sees on their own Health Profile, for each condition type, and for one patient when theirs needs to differ.",
+            example: "Hide the measures table from every orthopaedic patient's page, while their physiotherapist still sees it.",
+          },
+          {
+            key: "announcements",
+            label: "Announcements",
+            blurb: "Banners on top of the patient, therapist and hospital dashboards, and the pop-up each one opens.",
+            example: "Wish everybody a happy Diwali for three days, or tell every therapist the payout day has moved.",
+          },
+        ],
       },
       {
         key: "access",
-        label: "User Access",
-        group: "Who gets in",
-        blurb: "Who can sign in to this dashboard, what each of them reaches, and how much of a patient's phone number a therapist is shown.",
+        label: "Who gets in",
+        blurb: "Back-office accounts, what each can reach, and how sign-in works.",
         example: "Hire somebody into Operations, or take away the access of somebody who left.",
+        subs: [
+          {
+            key: "access",
+            label: "User access",
+            blurb: "Who can sign in to this dashboard, what each of them reaches, and how much of a patient's phone number a therapist is shown.",
+            example: "Hire somebody into Operations, or take away the access of somebody who left.",
+          },
+          {
+            key: "security",
+            label: "Sign-in & security",
+            blurb: "Your own password, and how long a patient, therapist or partner stays signed in.",
+            example: "Sign people out automatically after 30 minutes of doing nothing.",
+          },
+        ],
       },
-      // Your own password, and how long anybody else's session stays open.
-      // The two sign-out settings used to sit on Booking Rules, whose own
-      // header promises "when a patient may book, cancel, and join a video
-      // session" -- neither is about booking, and both are about a session
-      // ending rather than a session being sold. Moving them here also gives
-      // this screen something to be: one button to email yourself a reset was
-      // a screen an owner opened once and never found a second reason for.
       {
-        key: "security",
-        label: "Sign-in & Security",
-        group: "Who gets in",
-        blurb: "Your own password, and how long a patient, therapist or partner stays signed in.",
-        example: "Sign people out automatically after 30 minutes of doing nothing.",
+        key: "technical",
+        label: "Technical",
+        blurb: "System health, the emails and WhatsApp messages the clinic sends, and the advanced shelf.",
+        example: "Send every email to your own inbox while testing.",
+        subs: [
+          {
+            key: "health",
+            label: "System health",
+            blurb: "Warnings when something behind the scenes has failed. Nothing here is set by you — it is the app reporting on itself.",
+            example: "Find a booked session whose Google Meet link was never created, and try again.",
+          },
+          {
+            key: "emails",
+            label: "Emails",
+            blurb: "What the clinic emails: switch emails off or send them all to one inbox while testing, and see what was sent.",
+            example: "Send every email to your own inbox on staging, then press Send me a test email.",
+          },
+          {
+            key: "whatsapp",
+            label: "WhatsApp",
+            blurb: "Session messages on WhatsApp for patients who said yes. Off until the clinic's WhatsApp Business account is set up.",
+            example: "Once Meta has approved the templates, switch WhatsApp on and send every message to your own number first.",
+          },
+          {
+            key: "advanced",
+            label: "Advanced",
+            requiresManage: true,
+            blurb:
+              "Technical switches that change how the app works inside, not what the clinic sells. Leave these alone unless you are following instructions.",
+            example: "Switch which of two records the app trusts for a patient's remaining sessions.",
+          },
+          {
+            key: "reachouts",
+            label: "Developer messages",
+            blurb: "Messages left through the developer credit in the footer, and the switch that shows it.",
+            example: "Read a note somebody left on the Say hello page, then mark it contacted.",
+          },
+        ],
       },
+      // The log: Master Admin only through its own `logs` scope, exactly as
+      // when it was a section of its own.
       {
-        key: "health",
-        label: "System Health",
-        group: "Technical",
-        blurb: "Warnings when something behind the scenes has failed. Nothing here is set by you \u2014 it is the app reporting on itself.",
-        example: "Find a booked session whose Google Meet link was never created, and try again.",
-      },
-      // What the clinic emails: the master switch, test mode (every email to
-      // one inbox), a switch per kind, a test button and the last 100
-      // attempts. Technical, beside System Health, because it is about the
-      // plumbing, not what the clinic sells; the rules are emailControls.ts.
-      {
-        key: "emails",
-        label: "Emails",
-        group: "Technical",
-        blurb: "What the clinic emails: switch emails off or send them all to one inbox while testing, and see what was sent.",
-        example: "Send every email to your own inbox on staging, then press Send me a test email.",
-      },
-      // WhatsApp, built ready and switched off: the same switches as Emails,
-      // the patients' consent count, the templates to submit to Meta, and
-      // the last 100 attempts. Rules: whatsappRules.ts.
-      {
-        key: "whatsapp",
-        label: "WhatsApp",
-        group: "Technical",
-        blurb: "Session messages on WhatsApp for patients who said yes. Off until the clinic's WhatsApp Business account is set up.",
-        example: "Once Meta has approved the templates, switch WhatsApp on and send every message to your own number first.",
-      },
-      // The quarantine. One switch today, and the point of the screen is that
-      // it is the only place a switch like it may live: a data-migration
-      // cutover whose own help text sends you to System Health to decide it
-      // has no business sitting between two rules about how a programme is
-      // sold. Master Admin only, because the whole Settings section is.
-      {
-        key: "advanced",
-        label: "Advanced",
-        group: "Technical",
-        requiresManage: true,
-        blurb:
-          "Technical switches that change how the app works inside, not what the clinic sells. Leave these alone unless you are following instructions.",
-        example: "Switch which of two records the app trusts for a patient's remaining sessions.",
-      },
-      // The developer's own inbox: messages left through the "Contact me" link
-      // under the footer, and the two switches that publish that page. It sits
-      // after Advanced so the Technical caption stays one adjacent run, and it
-      // is Master Admin only like everything under Settings -- these are not
-      // the clinic's leads, and a scoped admin has no business reading them.
-      {
-        key: "reachouts",
-        label: "Developer messages",
-        group: "Technical",
-        blurb: "Messages left through the developer credit in the footer, and the switch that shows it.",
-        example: "Read a note somebody left on the Say hello page, then mark it contacted.",
+        key: "history",
+        label: "History",
+        scope: "logs",
+        blurb: "Every action taken in this dashboard, who took it, and who opened whose dashboard.",
+        example: "Find who refunded a session last Tuesday, and what reason they gave.",
+        subs: [
+          {
+            key: "all",
+            label: "All activity",
+            scope: "logs",
+            blurb: "Every change an admin has made, newest first — who, when, and what it changed from.",
+            example: "Find who refunded a session last Tuesday, and what reason they gave.",
+          },
+          {
+            key: "signed-in-as",
+            label: "Signed in as",
+            scope: "logs",
+            blurb: "Every time an admin opened somebody's dashboard as them, with the reason they gave and what they changed.",
+            example: "See why somebody opened a patient's dashboard last week, and whether they changed anything.",
+          },
+          {
+            key: "retention",
+            label: "Archive & clear",
+            scope: "logs",
+            requiresManage: true,
+            blurb: "Download older entries and remove them, once you have a copy.",
+            example: "Take a copy of everything older than a year, then clear it out.",
+          },
+        ],
       },
     ],
   },
@@ -564,11 +617,119 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
  * must open the screen that does that job now, not fall back to the first
  * tab of a section that no longer has it.
  */
-export const LEGACY_SCREENS: Record<string, { section: AdminSectionKey; tab: string }> = {
-  "sessions:recommendations": { section: "programmes", tab: "review" },
-  "catalog:purchases": { section: "programmes", tab: "all" },
+export type ScreenAddress = { section: AdminSectionKey; tab: string; sub?: string };
+
+export const LEGACY_SCREENS: Record<string, ScreenAddress> = {
+  // Older moves, kept so their bookmarks still land.
+  "sessions:recommendations": { section: "sessions", tab: "programmes", sub: "review" },
+  "catalog:purchases": { section: "sessions", tab: "programmes", sub: "all" },
+  // The Morning Brief layout (every screen that changed address).
+  "today:approvals": { section: "today", tab: "todo", sub: "approvals" },
+  "today:health-reviews": { section: "today", tab: "todo", sub: "health-reviews" },
+  "programmes:all": { section: "sessions", tab: "programmes", sub: "all" },
+  "programmes:review": { section: "sessions", tab: "programmes", sub: "review" },
+  "people:data-requests": { section: "people", tab: "requests", sub: "data-requests" },
+  "people:abandoned": { section: "people", tab: "requests", sub: "abandoned" },
+  "people:declined": { section: "people", tab: "requests", sub: "declined" },
+  "money:breakdown": { section: "money", tab: "summary", sub: "breakdown" },
+  "money:refunds": { section: "money", tab: "transactions", sub: "refunds" },
+  "money:inputs": { section: "money", tab: "health", sub: "inputs" },
+  "settings:brand": { section: "settings", tab: "website", sub: "brand" },
+  "settings:public": { section: "settings", tab: "website", sub: "public" },
+  "settings:cookies": { section: "settings", tab: "website", sub: "cookies" },
+  "settings:booking": { section: "settings", tab: "clinic", sub: "booking" },
+  "settings:offers": { section: "settings", tab: "clinic", sub: "offers" },
+  "settings:programmes": { section: "settings", tab: "clinic", sub: "programmes" },
+  "settings:clinical": { section: "settings", tab: "clinic", sub: "clinical" },
+  "settings:profile-layout": { section: "settings", tab: "clinic", sub: "profile-layout" },
+  "settings:announcements": { section: "settings", tab: "clinic", sub: "announcements" },
+  "settings:security": { section: "settings", tab: "access", sub: "security" },
+  "settings:health": { section: "settings", tab: "technical", sub: "health" },
+  "settings:emails": { section: "settings", tab: "technical", sub: "emails" },
+  "settings:whatsapp": { section: "settings", tab: "technical", sub: "whatsapp" },
+  "settings:advanced": { section: "settings", tab: "technical", sub: "advanced" },
+  "settings:reachouts": { section: "settings", tab: "technical", sub: "reachouts" },
+  "logs:all": { section: "settings", tab: "history", sub: "all" },
+  "logs:signed-in-as": { section: "settings", tab: "history", sub: "signed-in-as" },
+  "logs:retention": { section: "settings", tab: "history", sub: "retention" },
 };
 
+/**
+ * A section, tab or sub-screen's scope: its own `scope`, else the section it
+ * sits in. This, not the menu position, is what decides access.
+ */
+export function screenScope(section: AdminSectionKey, def: { scope?: AdminSectionKey }): AdminSectionKey {
+  return def.scope ?? section;
+}
+
+/** Whether one tab or sub may be shown, before looking at any subs it has. */
+function screenAllowed(
+  section: AdminSectionKey,
+  def: Pick<AdminTabDef, "scope" | "requiresManage" | "limitedScopesOnly">,
+  allowed: AdminSectionKey[],
+  manageable: AdminSectionKey[],
+  limitedScope: boolean
+): boolean {
+  const scope = screenScope(section, def);
+  if (!allowed.includes(scope)) return false;
+  if (def.requiresManage && !manageable.includes(scope)) return false;
+  if (def.limitedScopesOnly && !limitedScope) return false;
+  return true;
+}
+
+/** The chips of one tab this admin may open, in order. */
+export function visibleSubs(
+  section: AdminSectionKey,
+  tab: AdminTabDef,
+  allowed: AdminSectionKey[],
+  manageable: AdminSectionKey[],
+  limitedScope: boolean
+): AdminSubDef[] {
+  return (tab.subs ?? []).filter((sub) =>
+    screenAllowed(section, { ...sub, scope: sub.scope ?? tab.scope }, allowed, manageable, limitedScope)
+  );
+}
+
+/**
+ * The screens of one section this admin actually sees.
+ *
+ * One filter, read by the sidebar and by `findTab`, so a hand-typed
+ * `?tab=` cannot resolve to a screen the shell does not render -- which
+ * leaves a heading over nothing. A tab with chips needs at least one chip
+ * the admin may open.
+ */
+export function visibleTabs(
+  section: AdminSectionDef,
+  allowed: AdminSectionKey[],
+  manageable: AdminSectionKey[],
+  limitedScope: boolean
+): AdminTabDef[] {
+  return section.tabs.filter((tab) => {
+    if (!screenAllowed(section.key, tab, allowed, manageable, limitedScope)) return false;
+    if (tab.subs && visibleSubs(section.key, tab, allowed, manageable, limitedScope).length === 0) return false;
+    return true;
+  });
+}
+
+/** The menu this admin sees: sections with at least one visible tab. */
+export function visibleSections(
+  allowed: AdminSectionKey[],
+  manageable: AdminSectionKey[],
+  limitedScope: boolean
+): AdminSectionDef[] {
+  return ADMIN_SECTIONS.map((s) => ({ ...s, tabs: visibleTabs(s, allowed, manageable, limitedScope) })).filter(
+    (s) => s.tabs.length > 0
+  );
+}
+
+/** Where an old `section:tab` lives now, or the address unchanged. */
+export function currentAddress(section: string, tab: string): ScreenAddress | null {
+  return LEGACY_SCREENS[`${section}:${tab}`] ?? null;
+}
+
+// Resolves whatever is in the URL to a real screen. A stale bookmark, a
+// hand-edited query string, or a screen this admin's scope can't open all
+// land somewhere valid rather than on a blank page.
 export function findTab(
   sectionParam: string | null,
   tabParam: string | null,
@@ -584,49 +745,29 @@ export function findTab(
   // what decides the `limitedScopesOnly` screens. Defaults to false so a
   // caller that has not thought about it hides them rather than showing a
   // Master Admin a duplicate of a screen they already have.
-  limitedScope = false
-): { section: string; tab: string } {
-  const usable = ADMIN_SECTIONS.filter((s) => allowed.includes(s.key)).map((s) => ({
-    ...s,
-    tabs: visibleTabs(s, manageable.includes(s.key), limitedScope),
-  }));
+  limitedScope = false,
+  subParam: string | null = null
+): { section: string; tab: string; sub?: string } {
+  const usable = visibleSections(allowed, manageable, limitedScope);
   const fallback = usable[0] ?? ADMIN_SECTIONS[0];
-  const moved = LEGACY_SCREENS[`${sectionParam ?? ""}:${tabParam ?? ""}`];
-  if (moved) {
-    const target = usable.find((s) => s.key === moved.section);
-    // The review screen is manage-only; a desk reading Programmes at
-    // `view` lands on the list, which is the reading half of the same job.
-    if (target) {
-      const tab = target.tabs.find((t) => t.key === moved.tab) ?? target.tabs[0];
-      return { section: target.key, tab: tab.key };
-    }
-  }
-  const section = usable.find((s) => s.key === sectionParam) ?? fallback;
-  const tab = section.tabs.find((t) => t.key === tabParam) ?? section.tabs[0];
-  return { section: section.key, tab: tab.key };
+  const moved = currentAddress(sectionParam ?? "", tabParam ?? "");
+  const want = moved ?? { section: sectionParam, tab: tabParam, sub: subParam ?? undefined };
+  const section = usable.find((s) => s.key === want.section) ?? fallback;
+  const sectionHit = usable.some((s) => s.key === want.section);
+  const tab = (sectionHit ? section.tabs.find((t) => t.key === want.tab) : undefined) ?? section.tabs[0];
+  if (!tab) return { section: section.key, tab: "" };
+  const subs = visibleSubs(section.key, tab, allowed, manageable, limitedScope);
+  if (subs.length === 0) return { section: section.key, tab: tab.key };
+  // A sub-screen the admin cannot open (a view-only desk following a link
+  // to Recommendations) lands on the tab's first chip -- the reading half
+  // of the same job -- rather than a heading over nothing.
+  const sub = subs.find((x) => x.key === want.sub) ?? subs[0];
+  return { section: section.key, tab: tab.key, sub: sub.key };
 }
 
 /**
- * The screens of one section this admin actually sees.
- *
- * One filter, read by the sidebar and by `findTab`, so a hand-typed
- * `?tab=` cannot resolve to a screen the shell does not render -- which
- * leaves a heading over nothing.
- */
-export function visibleTabs(
-  section: AdminSectionDef,
-  canManage: boolean,
-  limitedScope: boolean
-): AdminTabDef[] {
-  return section.tabs.filter((tab) => {
-    if (tab.requiresManage && !canManage) return false;
-    if (tab.limitedScopesOnly && !limitedScope) return false;
-    return true;
-  });
-}
-
-/**
- * Every "<section>:<tab>" key this admin may be sent, and nothing else.
+ * Every screen key this admin may be sent, and nothing else: "<section>:<tab>"
+ * for a plain tab, "<section>:<tab>/<sub>" for each chip of a tab with chips.
  *
  * The shell only *shows* the screens a scope reaches, but whatever the page
  * hands it is serialized into the response whether it is shown or not -- a
@@ -640,10 +781,15 @@ export function visibleScreenKeys(
   limitedScope: boolean
 ): Set<string> {
   const keys = new Set<string>();
-  for (const section of ADMIN_SECTIONS) {
-    if (!allowed.includes(section.key)) continue;
-    for (const tab of visibleTabs(section, manageable.includes(section.key), limitedScope)) {
-      keys.add(`${section.key}:${tab.key}`);
+  for (const section of visibleSections(allowed, manageable, limitedScope)) {
+    for (const tab of section.tabs) {
+      if (!tab.subs) {
+        keys.add(`${section.key}:${tab.key}`);
+        continue;
+      }
+      for (const sub of visibleSubs(section.key, tab, allowed, manageable, limitedScope)) {
+        keys.add(`${section.key}:${tab.key}/${sub.key}`);
+      }
     }
   }
   return keys;
@@ -674,9 +820,17 @@ export function adminScreenHref(
   // unknown one is ignored, so a stale link still lands somewhere valid.
   // AdminShell drops it from the URL on the next tab change, which is what
   // keeps it a one-shot preset rather than a sticky filter.
-  view?: string
+  view?: string,
+  // The chip to open on a tab that holds several screens (AdminTabDef.subs).
+  sub?: string
 ): string {
-  const base = `/admin/dashboard?section=${section}&tab=${tab}`;
+  // An old address (a call site written before a screen moved) is sent to
+  // where the screen lives now, so no link in the app goes through a
+  // redirect or, worse, a fallback.
+  const moved = currentAddress(section, tab);
+  const base = moved
+    ? `/admin/dashboard?section=${moved.section}&tab=${moved.tab}${moved.sub ? `&sub=${moved.sub}` : ""}`
+    : `/admin/dashboard?section=${section}&tab=${tab}${sub ? `&sub=${sub}` : ""}`;
   return view ? `${base}&view=${encodeURIComponent(view)}` : base;
 }
 

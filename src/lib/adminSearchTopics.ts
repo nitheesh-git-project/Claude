@@ -11,7 +11,7 @@
 // Dependency-free and unit-tested (adminSearchTopics.test.ts checks that
 // every entry points at a real screen).
 
-import type { AdminSectionKey } from "@/lib/adminNav";
+import { currentAddress, type AdminSectionKey } from "@/lib/adminNav";
 
 export type AdminSearchTopic = {
   /** What the result says. */
@@ -63,6 +63,8 @@ export type AdminScreenRef = {
   section: AdminSectionKey;
   sectionLabel: string;
   tab: string;
+  /** The chip inside the tab, for a tab that holds several screens. */
+  sub?: string;
   label: string;
   blurb?: string;
 };
@@ -75,6 +77,7 @@ export type AdminScreenResult = {
   where: string;
   section: AdminSectionKey;
   tab: string;
+  sub?: string;
 };
 
 function norm(text: string): string {
@@ -93,28 +96,37 @@ export function searchAdminScreens(
 ): AdminScreenResult[] {
   const q = norm(query);
   if (q.length < 2) return [];
-  const open = new Map(screens.map((s) => [`${s.section}:${s.tab}`, s]));
+  const keyOf = (s: AdminScreenRef) => `${s.section}:${s.tab}${s.sub ? `/${s.sub}` : ""}`;
+  const open = new Map(screens.map((s) => [keyOf(s), s]));
+  // A topic names the screen by the address it had when it was written; a
+  // screen that has since moved (or become a chip of a tab) is found by
+  // where it lives now -- the moved address, else the tab's first chip.
+  const resolve = (section: string, tab: string): AdminScreenRef | undefined => {
+    const moved = currentAddress(section, tab);
+    const key = moved ? `${moved.section}:${moved.tab}${moved.sub ? `/${moved.sub}` : ""}` : `${section}:${tab}`;
+    return open.get(key) ?? screens.find((s) => s.section === (moved?.section ?? section) && s.tab === (moved?.tab ?? tab));
+  };
   const out: AdminScreenResult[] = [];
   const seen = new Set<string>();
   const push = (key: string, label: string, s: AdminScreenRef) => {
     if (seen.has(key) || out.length >= limit) return;
     seen.add(key);
-    out.push({ key, label, where: `${s.sectionLabel} › ${s.label}`, section: s.section, tab: s.tab });
+    out.push({ key, label, where: `${s.sectionLabel} › ${s.label}`, section: s.section, tab: s.tab, sub: s.sub });
   };
 
   for (const t of ADMIN_SEARCH_TOPICS) {
-    const s = open.get(`${t.section}:${t.tab}`);
+    const s = resolve(t.section, t.tab);
     if (!s) continue;
     if (norm(t.label).includes(q) || t.keywords.some((k) => norm(k).includes(q) || q.includes(norm(k)))) {
       push(`topic:${t.label}`, t.label, s);
     }
   }
   for (const s of screens) {
-    if (norm(s.label).includes(q)) push(`screen:${s.section}:${s.tab}`, s.label, s);
+    if (norm(s.label).includes(q)) push(`screen:${keyOf(s)}`, s.label, s);
   }
   for (const s of screens) {
     if (norm(s.sectionLabel).includes(q) || norm(s.blurb ?? "").includes(q)) {
-      push(`screen:${s.section}:${s.tab}`, s.label, s);
+      push(`screen:${keyOf(s)}`, s.label, s);
     }
   }
   return out;

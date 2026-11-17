@@ -9,7 +9,7 @@ import { AdminScreenNavigationProvider } from "@/lib/adminScreenNavigation";
 import AdminGlobalSearch, { type SearchEntity } from "@/components/admin/AdminGlobalSearch";
 import RefreshButton from "@/components/dashboard/RefreshButton";
 import { useLeavingPage } from "@/lib/useLeavingPage";
-import { ADMIN_SECTIONS, findTab, visibleTabs, type AdminSectionKey, LEGACY_SCREENS } from "@/lib/adminNav";
+import { ADMIN_SECTIONS, currentAddress, findTab, visibleSections, visibleSubs, type AdminSectionKey, LEGACY_SCREENS } from "@/lib/adminNav";
 import { adminShortcuts, filterAdminScreens } from "@/lib/adminMobileNav";
 
 // Every base table this page's Promise.all queries (src/app/admin/dashboard/
@@ -217,6 +217,7 @@ export default function AdminShell({
   offsetTop,
   initialSection,
   initialTab,
+  initialSub,
 }: {
   screens: AdminScreens;
   // Keyed the same way as `screens`. A section's own badge is the sum of its
@@ -259,10 +260,15 @@ export default function AdminShell({
   // hydration. Null on a plain /admin/dashboard visit.
   initialSection?: string | null;
   initialTab?: string | null;
+  /** The ?sub= chip a deep link arrived with (see AdminTabDef.subs). */
+  initialSub?: string | null;
 }) {
-  const sections = ADMIN_SECTIONS.filter((s) => allowedSections.includes(s.key)).map((s) => ({
+  // The menu this admin sees, each tab carrying the chips it may open.
+  // Access is decided per screen by its scope (adminNav.ts), not by which
+  // section of the menu it sits in.
+  const sections = visibleSections(allowedSections, manageSections, limitedScope).map((s) => ({
     ...s,
-    tabs: visibleTabs(s, manageSections.includes(s.key), limitedScope),
+    tabs: s.tabs.map((t) => ({ ...t, visibleSubs: visibleSubs(s.key, t, allowedSections, manageSections, limitedScope) })),
   }));
   const firstSection = sections[0] ?? ADMIN_SECTIONS[0];
 
@@ -271,10 +277,16 @@ export default function AdminShell({
     initialTab ?? null,
     allowedSections,
     manageSections,
-    limitedScope
+    limitedScope,
+    initialSub ?? null
   );
   const [sectionKey, setSectionKey] = useState<string>(initial.section);
   const [tabKey, setTabKey] = useState<string>(initial.tab);
+  // The chip open on each tab that has chips, remembered per tab so a look
+  // at another screen does not reset it.
+  const [subByTab, setSubByTab] = useState<Record<string, string>>(() =>
+    initial.sub ? { [`${initial.section}:${initial.tab}`]: initial.sub } : {}
+  );
   // A link that asked for a screen this scope cannot open, said out loud.
   //
   // `findTab` falls back to the first screen a scope *can* reach, which is
@@ -330,33 +342,52 @@ export default function AdminShell({
         params.get("tab") ?? initialTab ?? null,
         allowedSections,
         manageSections,
-        limitedScope
+        limitedScope,
+        params.get("sub") ?? initialSub ?? null
       );
       setSectionKey(found.section);
       setTabKey(found.tab);
+      if (found.sub) {
+        const sub = found.sub;
+        setSubByTab((prev) => ({ ...prev, [`${found.section}:${found.tab}`]: sub }));
+      }
       // A screen that moved (Sessions -> Recommendations, Catalog ->
       // Purchases) answers with where it lives now, in the address bar too,
       // so the link an admin copies next is the current one.
       if (LEGACY_SCREENS[`${params.get("section") ?? ""}:${params.get("tab") ?? ""}`]) {
         params.set("section", found.section);
         params.set("tab", found.tab);
+        if (found.sub) params.set("sub", found.sub);
+        else params.delete("sub");
         window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
       }
     }
     applyFromLocation();
     window.addEventListener("popstate", applyFromLocation);
     return () => window.removeEventListener("popstate", applyFromLocation);
-  }, [allowedSections, manageSections, limitedScope, initialSection, initialTab]);
+  }, [allowedSections, manageSections, limitedScope, initialSection, initialTab, initialSub]);
 
-  function navigate(nextSection: string, nextTab: string, view?: string | null) {
+  function navigate(nextSectionArg: string, nextTabArg: string, view?: string | null, nextSubArg?: string | null) {
+    // A link written against an old address lands where that screen lives now.
+    const moved = currentAddress(nextSectionArg, nextTabArg);
+    const nextSection = moved?.section ?? nextSectionArg;
+    const nextTab = moved?.tab ?? nextTabArg;
+    const nextSub = nextSubArg ?? moved?.sub ?? null;
     setSectionKey(nextSection);
     setTabKey(nextTab);
+    const tabDef = sections.find((s) => s.key === nextSection)?.tabs.find((t) => t.key === nextTab);
+    const sub = tabDef?.visibleSubs.length
+      ? (tabDef.visibleSubs.find((x) => x.key === nextSub) ?? tabDef.visibleSubs.find((x) => x.key === subByTab[`${nextSection}:${nextTab}`]) ?? tabDef.visibleSubs[0]).key
+      : null;
+    if (sub) setSubByTab((prev) => ({ ...prev, [`${nextSection}:${nextTab}`]: sub }));
     // The notice describes the link they arrived on, not the screen they
     // chose next.
     setMissedTab(null);
     const params = new URLSearchParams(window.location.search);
     params.set("section", nextSection);
     params.set("tab", nextTab);
+    if (sub) params.set("sub", sub);
+    else params.delete("sub");
     // `view` is a one-shot filter preset a Today row or a stat tile arrived
     // with (adminScreenHref). Carrying it onto the next screen would make it
     // sticky -- an admin who filtered to unassigned sessions once would keep
@@ -367,7 +398,7 @@ export default function AdminShell({
     // that screen only. Carried onto another they are noise in a link
     // somebody copies; the screen keeps them in its own state and writes
     // them back when it is shown again.
-    if (nextSection !== "programmes") {
+    if (!(nextSection === "sessions" && nextTab === "programmes")) {
       for (const key of [...params.keys()]) if (key.startsWith("pg_")) params.delete(key);
     }
     // ...unless this navigation *is* one of those presets. A Today count
@@ -400,10 +431,17 @@ export default function AdminShell({
 
   const activeSection = sections.find((s) => s.key === sectionKey) ?? firstSection;
 
+  // A tab with chips counts what its chips count; badges are keyed the same
+  // way as `screens` ("<section>:<tab>" or "<section>:<tab>/<sub>").
+  function tabBadge(sectionKeyArg: string, t: (typeof sections)[number]["tabs"][number]) {
+    if (!t.visibleSubs.length) return badges[`${sectionKeyArg}:${t.key}`] ?? 0;
+    return t.visibleSubs.reduce((sum, x) => sum + (badges[`${sectionKeyArg}:${t.key}/${x.key}`] ?? 0), 0);
+  }
+
   function sectionBadge(key: string) {
     const section = sections.find((s) => s.key === key);
     if (!section) return 0;
-    return section.tabs.reduce((sum, t) => sum + (badges[`${key}:${t.key}`] ?? 0), 0);
+    return section.tabs.reduce((sum, t) => sum + tabBadge(key, t), 0);
   }
 
   const shortcuts = adminShortcuts(sections);
@@ -412,7 +450,11 @@ export default function AdminShell({
   // Every screen this viewer can open, for the top search to find by name,
   // section, description or the words people use for it.
   const searchScreens = sections.flatMap((sec) =>
-    sec.tabs.map((t) => ({ section: sec.key, sectionLabel: sec.label, tab: t.key, label: t.label, blurb: t.blurb }))
+    sec.tabs.flatMap((t) =>
+      t.visibleSubs.length
+        ? t.visibleSubs.map((x) => ({ section: sec.key, sectionLabel: sec.label, tab: t.key, sub: x.key, label: `${t.label}: ${x.label}`, blurb: x.blurb }))
+        : [{ section: sec.key, sectionLabel: sec.label, tab: t.key, label: t.label, blurb: t.blurb }]
+    )
   );
 
   useEffect(() => {
@@ -520,7 +562,7 @@ export default function AdminShell({
     return (
       <div className="mb-1 ml-5 mt-1 space-y-0.5 border-l-2 border-slate-100 pl-2">
         {section.tabs.map((t, i) => {
-          const tabBadge = badges[`${section.key}:${t.key}`] ?? 0;
+          const tabCount = tabBadge(section.key, t);
           // A caption whenever the group changes, so Settings' screens read
           // as short lists rather than one long one.
           const caption = t.group && t.group !== section.tabs[i - 1]?.group ? t.group : null;
@@ -553,7 +595,7 @@ export default function AdminShell({
                 }`}
               >
                 <span className="flex-1">{t.label}</span>
-                {count(tabBadge, "h-4 min-w-4 text-[10px]")}
+                {count(tabCount, "h-4 min-w-4 text-[10px]")}
               </button>
             </Fragment>
           );
@@ -842,7 +884,8 @@ export default function AdminShell({
       >
         {shortcuts.map((sc) => {
           const active = activeSection.key === sc.section && tabKey === sc.tab;
-          const n = badges[`${sc.section}:${sc.tab}`] ?? 0;
+          const scTab = sections.find((x) => x.key === sc.section)?.tabs.find((x) => x.key === sc.tab);
+          const n = scTab ? tabBadge(sc.section, scTab) : 0;
           return (
             <button
               key={`${sc.section}:${sc.tab}`}
@@ -904,7 +947,9 @@ export default function AdminShell({
               {/* The screen's own sentence when it has one, the section's
                   otherwise. */}
               {(() => {
-                const activeTab = activeSection.tabs.find((t) => t.key === tabKey);
+                const tabDef = activeSection.tabs.find((t) => t.key === tabKey);
+                const activeSub = tabDef?.visibleSubs.find((x) => x.key === subByTab[`${activeSection.key}:${tabKey}`]) ?? tabDef?.visibleSubs[0];
+                const activeTab = activeSub ?? tabDef;
                 if (!activeTab?.blurb) {
                   return <p className="text-xs text-slate-500 mt-1">{activeSection.blurb}</p>;
                 }
@@ -936,7 +981,7 @@ export default function AdminShell({
               <div role="group" aria-label={`${activeSection.label} screens`} className="flex w-max items-center gap-2 pb-1">
                 {activeSection.tabs.map((t, i) => {
                   const on = t.key === tabKey;
-                  const n = badges[`${activeSection.key}:${t.key}`] ?? 0;
+                  const n = tabBadge(activeSection.key, t);
                   // Settings' groups (Your website, How the clinic runs...)
                   // as plain titles between the pills, with a divider before
                   // each new group -- a title shaped like a pill read as one
@@ -999,12 +1044,51 @@ export default function AdminShell({
           {sections.flatMap((section) =>
             section.tabs.map((t) => {
               const key = `${section.key}:${t.key}`;
+              const shown = section.key === activeSection.key && t.key === tabKey;
+              if (!t.visibleSubs.length) {
+                return (
+                  <div key={key} className={shown ? "" : "hidden"}>
+                    {screens[key] ?? null}
+                  </div>
+                );
+              }
+              // A tab holding several old screens: a row of chips, then the
+              // chosen screen. Every chip's screen stays mounted, like every
+              // tab's, so a half-typed filter survives a look at another.
+              const activeSubKey = subByTab[key] ?? t.visibleSubs[0].key;
               return (
-                <div
-                  key={key}
-                  className={section.key === activeSection.key && t.key === tabKey ? "" : "hidden"}
-                >
-                  {screens[key] ?? null}
+                <div key={key} className={shown ? "" : "hidden"}>
+                  {t.visibleSubs.length > 1 && (
+                    <div className="-mx-4 mb-5 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+                      <div role="group" aria-label={`${t.label} screens`} className="flex w-max items-center gap-2 pb-1" data-testid="admin-sub-chips">
+                        {t.visibleSubs.map((x) => {
+                          const on = x.key === activeSubKey;
+                          const n = badges[`${key}/${x.key}`] ?? 0;
+                          return (
+                            <button
+                              key={x.key}
+                              type="button"
+                              onClick={() => navigate(section.key, t.key, null, x.key)}
+                              aria-pressed={on}
+                              className={`inline-flex min-h-10 items-center gap-2 whitespace-nowrap rounded-xl border px-3.5 text-sm font-semibold transition ${
+                                on
+                                  ? "border-teal-600 bg-teal-50 text-teal-800"
+                                  : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900"
+                              }`}
+                            >
+                              {x.label}
+                              {count(n, "h-[18px] min-w-[18px] text-[10px]")}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  {t.visibleSubs.map((x) => (
+                    <div key={x.key} className={x.key === activeSubKey ? "" : "hidden"}>
+                      {screens[`${key}/${x.key}`] ?? null}
+                    </div>
+                  ))}
                 </div>
               );
             })

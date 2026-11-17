@@ -27,7 +27,7 @@ import { createContext, useContext, type ReactNode } from "react";
 export type AdminScreenNavigation = {
   /** Switch to a screen already on this page. `view` is the one-shot filter
    *  preset the target screen applies on arrival. */
-  goToScreen: (section: string, tab: string, view?: string | null) => void;
+  goToScreen: (section: string, tab: string, view?: string | null, sub?: string | null) => void;
 };
 
 const AdminScreenNavigationContext = createContext<AdminScreenNavigation | null>(null);
@@ -64,12 +64,12 @@ export function useAdminScreenNavigation(): AdminScreenNavigation | null {
  *  navigate normally. */
 export function parseAdminScreenHref(
   href: string
-): { section: string; tab: string; view: string | null } | null {
+): { section: string; tab: string; view: string | null; sub: string | null } | null {
   const [path, query] = href.split("?");
   if (path !== "/admin/dashboard" || !query) return null;
   const params = new URLSearchParams(query);
   const section = params.get("section");
   const tab = params.get("tab");
   if (!section || !tab) return null;
-  return { section, tab, view: params.get("view") };
+  return { section, tab, view: params.get("view"), sub: params.get("sub") };
 }

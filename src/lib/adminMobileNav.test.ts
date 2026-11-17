@@ -8,7 +8,7 @@ const full: NavSection[] = [
     icon: "fa-inbox",
     tabs: [
       { key: "overview", label: "Today" },
-      { key: "approvals", label: "Approvals" },
+      { key: "todo", label: "To-do" },
       { key: "risk", label: "Risk" },
     ],
   },
@@ -39,13 +39,13 @@ const full: NavSection[] = [
 ];
 
 describe("adminShortcuts", () => {
-  it("offers Today and Approvals to a Master Admin", () => {
-    expect(adminShortcuts(full).map((s) => s.label)).toEqual(["Today", "Approvals"]);
+  it("offers Today and the To-do list to a Master Admin", () => {
+    expect(adminShortcuts(full).map((s) => s.label)).toEqual(["Today", "To-do"]);
   });
 
   it("skips a screen the scope cannot open", () => {
     const noApprovals = full.map((s) =>
-      s.key === "today" ? { ...s, tabs: s.tabs.filter((t) => t.key !== "approvals") } : s
+      s.key === "today" ? { ...s, tabs: s.tabs.filter((t) => t.key !== "todo") } : s
     );
     expect(adminShortcuts(noApprovals).map((s) => s.label)).toEqual(["Today", "Sessions"]);
   });

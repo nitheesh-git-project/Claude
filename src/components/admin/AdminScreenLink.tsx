@@ -50,7 +50,7 @@ export default function AdminScreenLink({
           return;
         }
         event.preventDefault();
-        nav.goToScreen(screen.section, screen.tab, screen.view);
+        nav.goToScreen(screen.section, screen.tab, screen.view, screen.sub);
       }}
     >
       {children}
