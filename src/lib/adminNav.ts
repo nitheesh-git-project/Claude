@@ -514,6 +514,16 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
         blurb: "What the clinic emails: switch emails off or send them all to one inbox while testing, and see what was sent.",
         example: "Send every email to your own inbox on staging, then press Send me a test email.",
       },
+      // WhatsApp, built ready and switched off: the same switches as Emails,
+      // the patients' consent count, the templates to submit to Meta, and
+      // the last 100 attempts. Rules: whatsappRules.ts.
+      {
+        key: "whatsapp",
+        label: "WhatsApp",
+        group: "Technical",
+        blurb: "Session messages on WhatsApp for patients who said yes. Off until the clinic's WhatsApp Business account is set up.",
+        example: "Once Meta has approved the templates, switch WhatsApp on and send every message to your own number first.",
+      },
       // The quarantine. One switch today, and the point of the screen is that
       // it is the only place a switch like it may live: a data-migration
       // cutover whose own help text sends you to System Health to decide it

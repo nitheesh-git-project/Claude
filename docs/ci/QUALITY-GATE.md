@@ -267,7 +267,10 @@ closed. It is **unsafe** (exit 1, nothing runs) when any of these holds:
 Two values are generated per run in the workflow's `env` rather than kept
 as secrets: `E2E_QA_PASSWORD`, the fixture accounts' password, and
 `CRON_SECRET`, which the app's `/api/cron/maintenance` checks and
-`admin-maintenance-sweep.spec.ts` sends. Each guards only that run's
+`admin-maintenance-sweep.spec.ts` sends; and `WHATSAPP_APP_SECRET` /
+`WHATSAPP_VERIFY_TOKEN`, which `/api/whatsapp/webhook` checks and
+`whatsapp.spec.ts` signs with (no `WHATSAPP_ACCESS_TOKEN`, so the gate's app
+never has WhatsApp set up and sends nothing). Each guards only that run's
 loopback app; the real `CRON_SECRET` that `maintenance.yml` uses against the
 deployed site is a repository secret the gate never reads.
 
@@ -419,6 +422,8 @@ export NEXT_PUBLIC_RAZORPAY_KEY_ID=rzp_test_...   # test keys only
 export RAZORPAY_KEY_SECRET=...
 export E2E_QA_PASSWORD="local-$(openssl rand -hex 8)!Qa"   # the workflow generates both per run
 export CRON_SECRET="local-$(openssl rand -hex 16)"          # for admin-maintenance-sweep.spec.ts
+export WHATSAPP_APP_SECRET="local-$(openssl rand -hex 16)"  # for whatsapp.spec.ts (webhook signature)
+export WHATSAPP_VERIFY_TOKEN="local-$(openssl rand -hex 8)"
 GITHUB_ENV=.gate.env scripts/ci/provision-local-stack.sh
 set -a; . ./.gate.env; set +a
 node scripts/ci/run-runner.mjs hospital           # or any runner (all its shards' files)

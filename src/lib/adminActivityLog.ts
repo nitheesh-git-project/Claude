@@ -200,6 +200,9 @@ export type AdminActivityAction =
   // "Send me a test email" button (details: result and reason).
   | "email_controls.set"
   | "email.test_send"
+  // Settings -> WhatsApp: a switch moved (details: field, from, to; a test
+  // number is kept to its last three digits).
+  | "whatsapp_controls.set"
   | "clinical_questions.update_intake"
   | "clinical_questions.update_pain_map"
   | "risk.review"
@@ -440,6 +443,7 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
   "profile_widgets.set_patient": "Changed which Health Profile sections one patient sees",
   "email_controls.set": "Changed an email switch",
   "email.test_send": "Sent a test email",
+  "whatsapp_controls.set": "Changed a WhatsApp switch",
   "clinical_questions.update_intake": "Reworded an intake question",
   "clinical_questions.update_pain_map": "Reworded a Pain Map question",
   "risk.review": "Reviewed a risk signal",

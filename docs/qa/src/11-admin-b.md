@@ -147,7 +147,7 @@ Where a case below still says "Settings → Booking Rules", that is correct - it
 
 #### `ADM-SET-009` - Every Settings screen says what it is · P2
 
-**Steps.** Open each of the Settings screens in turn, in sidebar order and under their four captions - *Your website:* Brand & Contact, Public Site, Cookie consent; *How the clinic runs:* Booking Rules, Offers & Discounts, Programmes & Home Visits, Clinical Questions, Health Profile layout, Announcements; *Who gets in:* User Access, Sign-in & Security; *Technical:* System Health, Emails, Advanced, Developer messages. Then open both Logs screens: All Activity and Archive & Clear.
+**Steps.** Open each of the Settings screens in turn, in sidebar order and under their four captions - *Your website:* Brand & Contact, Public Site, Cookie consent; *How the clinic runs:* Booking Rules, Offers & Discounts, Programmes & Home Visits, Clinical Questions, Health Profile layout, Announcements; *Who gets in:* User Access, Sign-in & Security; *Technical:* System Health, Emails, WhatsApp, Advanced, Developer messages. Then open both Logs screens: All Activity and Archive & Clear.
 
 **Expected Result.** Under the page heading, each one shows **two lines**: one plain sentence saying what the screen is, and a second beginning **"For example:"** with one concrete thing you would come there to do. The sentences differ per screen - none of them says "How the product behaves", which is the section's line and is what every one of these screens used to show. No jargon, no database column names, no feature names.
 
@@ -789,6 +789,22 @@ The Logs section is **Master Admin only**. Operations, Finance and Clinical have
 * Step 2: one *Starting soon: your video session at ...* for the first and one *Tomorrow: ...* for the second; opening the dashboard again sends no second copy.
 * Step 3: no reminder for the cancelled session.
 * With **Session reminders** switched off on Settings → Emails, the attempts are listed as *This kind is switched off*.
+
+#### `ADM-SET-042` - WhatsApp: built, switched off, consent and STOP · P1 **[UI] [API]**
+**Preconditions.** Master Admin. For steps 4-6, the WhatsApp variables set on the server (`docs/whatsapp/TEMPLATES.md`) and the templates approved by Meta; without them, steps 1-3 only.
+**Steps.**
+1. Open **Settings → WhatsApp**. Read the status line and the consent count; open **Templates to submit to Meta**.
+2. Set **Test number** to your own mobile; switch **Session reminders** off and on again.
+3. As a patient open **Profile**: with WhatsApp not set up there is no WhatsApp card.
+4. (Set up) As a patient with a real email and a mobile number, open Profile → **WhatsApp messages** and switch it on. Remove the number and try to switch it on: refused with *Add your mobile number*.
+5. (Set up) Switch **Send WhatsApp messages** on, book a session as that patient: the message arrives on the test number; **Last 100 messages** lists it with *test number*.
+6. (Set up) Reply **STOP** to the message from the patient's own number; book again.
+**Expected Result.**
+* Step 1: *Not set up yet...* until the variables exist; the switch starts **Off**; five templates, each named `mr_..._v1`.
+* Step 2: each change is a `whatsapp_controls.set` log row; the test number appears there as its last three digits only.
+* Step 3: no card, no question about WhatsApp.
+* Step 5: the message has the time, type, physiotherapist and price, and no condition, concern or Meet link.
+* Step 6: the patient's choice turns to no (`stop_reply`); nothing more is sent to them; emails continue.
 
 #### `ADM-SET-038` - Developer messages · P1
 **Feature.** The developer credit under the footer's copyright ("Contact me") leads to `/developer` and `/developer/lets-talk`. Whatever a visitor sends lands on **Settings → Developer messages**, which is **Master Admin only** and also holds the two switches that publish the page. See `PUB-DEV-001` for the visitor's side.

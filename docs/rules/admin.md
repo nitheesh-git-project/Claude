@@ -1295,3 +1295,32 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   first. Rules: `dueReminder()`, unit-tested in `bookingEmails.test.ts`;
   `e2e/admin-maintenance-sweep.spec.ts` MS-003.
 
+- **WhatsApp is built and switched off; it messages only a patient who said
+  yes, never a test account, and never about their health.** The same
+  events as the booking emails (received, confirmed, cancelled, the two
+  reminders) send a WhatsApp template beside the email, on the same
+  `appointment_emails` claim (`appointmentEmailServer.ts` ->
+  `deliverWhatsApp`, `src/lib/whatsappServer.ts`). `decideWhatsApp()`
+  (`whatsappRules.ts`, pure and unit-tested): a test account (email is a test
+  address) and an unreadable number are skipped first; then no consent
+  (latest `whatsapp_consents` row, none is no, a failed read is no); then
+  unreadable switches (skipped -- no legal WhatsApp); then the master switch,
+  which **starts off** in `whatsapp_controls`, and each kind; test mode sends
+  to one number. Nothing reaches Meta without `WHATSAPP_ACCESS_TOKEN` and
+  `WHATSAPP_PHONE_NUMBER_ID` (else `not_configured`), and the template must be
+  approved under the same name (`whatsappTemplates.ts`, `docs/whatsapp/
+  TEMPLATES.md`, generated from it; a body never starts or ends with a
+  variable, each parameter one line). The provider sits behind
+  `WhatsAppProvider` (Meta Cloud API today). Consent: Profile -> WhatsApp
+  messages (drawn only while the server is configured), `POST
+  /api/patient/whatsapp-consent` (the signed-in patient only; yes needs a
+  usable number), stored append-only by trigger; a STOP reply through `POST
+  /api/whatsapp/webhook` (HMAC over the raw body with `WHATSAPP_APP_SECRET`;
+  GET is Meta's verify-token check) records a withdrawn row for every patient
+  with that number. Settings -> WhatsApp (`POST /api/admin/whatsapp/settings`,
+  `requireAdminScope("settings")`, audit `whatsapp_controls.set` with a test
+  number kept to its last three digits) shows set-up status, the consent
+  count, the templates to submit and the last 100 attempts (`whatsapp_log`,
+  masked number). Tests: `whatsappRules.test.ts`;
+  `e2e/whatsapp.spec.ts`.
+

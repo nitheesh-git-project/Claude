@@ -172,6 +172,7 @@ import QuestionBankManager from "@/components/admin/QuestionBankManager";
 import LicensedMeasureSettings from "@/components/admin/LicensedMeasureSettings";
 import ProfileWidgetSettings from "@/components/admin/ProfileWidgetSettings";
 import EmailSettings from "@/components/admin/EmailSettings";
+import WhatsAppSettings from "@/components/admin/WhatsAppSettings";
 import AnnouncementSettings from "@/components/admin/AnnouncementSettings";
 import ImpersonationLogSettings from "@/components/admin/ImpersonationLogSettings";
 import RefundsSettings from "@/components/admin/RefundsSettings";
@@ -6045,6 +6046,8 @@ export default async function AdminDashboardPage({
     "settings:health": settingsHealthTab,
     // Self-fetching; its routes are requireAdminScope("settings").
     "settings:emails": <EmailSettings />,
+    // Self-fetching; its route is requireAdminScope("settings").
+    "settings:whatsapp": <WhatsAppSettings />,
     "settings:advanced": settingsAdvancedTab,
     "settings:reachouts": settingsDevReachoutsTab,
     // The three limited desks' own history, on Today because they cannot

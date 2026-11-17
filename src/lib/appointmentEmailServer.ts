@@ -3,6 +3,8 @@ import { after } from "next/server";
 import { headers } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { deliverEmail } from "@/lib/emailServer";
+import { deliverWhatsApp } from "@/lib/whatsappServer";
+import { bookingCancelledMessage, bookingConfirmedMessage, bookingReceivedMessage, reminderMessage } from "@/lib/whatsappTemplates";
 import { getLayoutSettings } from "@/lib/siteSettingsCache";
 import { parseAdminSettings } from "@/lib/adminSettings";
 import { formatClinicDateTimeWithZone } from "@/lib/formatDateTime";
@@ -100,9 +102,13 @@ export async function sendAppointmentEmailOnce(
   if (!(await claimOnce(admin, appointmentId, event))) return;
 
   const ids = [appointment.patient_id, ...(appointment.therapist_id ? [appointment.therapist_id] : [])];
-  const { data: people } = await admin.from("profiles").select("id, full_name, email").in("id", ids);
+  const { data: people } = await admin.from("profiles").select("id, full_name, email, phone").in("id", ids);
   const patient = (people ?? []).find((p) => p.id === appointment.patient_id);
-  if (!patient?.email) return;
+  if (!patient) return;
+  const to = (patient.email as string | null) ?? null;
+  // WhatsApp goes beside the email, on the same claim (once each); it has
+  // its own switches and needs the patient's own yes (whatsappServer.ts).
+  const whatsappTo = { id: patient.id as string, email: to, phone: (patient.phone as string | null) ?? null };
   const therapist = appointment.therapist_id ? (people ?? []).find((p) => p.id === appointment.therapist_id) : null;
 
   const { brand } = await getLayoutSettings();
@@ -113,15 +119,18 @@ export async function sendAppointmentEmailOnce(
   const dashboardUrl = `${origin}/patient/dashboard`;
 
   if (event === "cancelled") {
-    const email = bookingCancelledEmail(site, {
+    const cancelFacts = {
       name,
       when,
       mode: sessionModeOf(appointment),
       byClinic: !!options.byClinic,
       refund: cancelRefundOf(appointment),
       dashboardUrl,
-    });
-    await deliverEmail(patient.email as string, email, { kind: "cancellation" });
+    };
+    await Promise.all([
+      to ? deliverEmail(to, bookingCancelledEmail(site, cancelFacts), { kind: "cancellation" }) : null,
+      deliverWhatsApp(whatsappTo, bookingCancelledMessage(cancelFacts), "cancellation"),
+    ]);
     return;
   }
   const facts = {
@@ -134,9 +143,13 @@ export async function sendAppointmentEmailOnce(
     dashboardUrl,
   };
   if (event === "reminder_24h" || event === "reminder_1h") {
-    await deliverEmail(patient.email as string, bookingReminderEmail(site, facts, event), { kind: "reminder" });
+    await Promise.all([
+      to ? deliverEmail(to, bookingReminderEmail(site, facts, event), { kind: "reminder" }) : null,
+      deliverWhatsApp(whatsappTo, reminderMessage(facts, event), "reminder"),
+    ]);
     return;
   }
   const email = event === "confirmed" ? bookingConfirmedEmail(site, facts) : bookingReceivedEmail(site, facts);
-  await deliverEmail(patient.email as string, email, { kind: "booking" });
+  const message = event === "confirmed" ? bookingConfirmedMessage(facts) : bookingReceivedMessage(facts);
+  await Promise.all([to ? deliverEmail(to, email, { kind: "booking" }) : null, deliverWhatsApp(whatsappTo, message, "booking")]);
 }
