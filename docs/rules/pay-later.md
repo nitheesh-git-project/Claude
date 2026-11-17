@@ -132,7 +132,7 @@ A trusted patient treated first and settling afterwards: the grant, the booking 
      as worth chasing" computed from the ages already on the page, and a scope
      that cannot manage settings gets `PayLaterAgeNote` -- the rule plus who
      owns it -- rather than an absence that reads as a half-built screen. Its
-     control sits on Money -> Owed by Patients beside the figure it colours
+     control sits on Money -> Patients owe beside the figure it colours
      rather than in Settings -- the `promo_codes_enabled` placement rule -- but
      is gated on `scopeCanManage(scope, "settings")`, **not** money: Finance
      manages Money and holds settings at `none`, so `/api/admin/update-setting`
@@ -315,7 +315,7 @@ A trusted patient treated first and settling afterwards: the grant, the booking 
      since a pay-later booking was the one checkout ending in this app that
      showed no figure at all: the confirmation names what was frozen and
      what came off it (the route already returned both and the wizard
-     dropped them), and Money -> Owed by Patients states the list price and
+     dropped them), and Money -> Patients owe states the list price and
      the rule beside any session owed less than it -- an unexplained ₹499
      against a ₹1,200 session, on the screen an admin chases people from,
      reads as an error.
@@ -413,7 +413,7 @@ A trusted patient treated first and settling afterwards: the grant, the booking 
        split from the grant: there the risk is all on one side, here writing
        off gives money away and reversing re-imposes a debt on a patient who
        was told it was forgiven. Written-off sessions get their own list on
-       Money -> Owed by Patients precisely so the undo is a control rather
+       Money -> Patients owe precisely so the undo is a control rather
        than a claim -- every balance drops them.
      - **A refund on a settled session is handed back by a person.** The
        money arrived into a **pool** covering several sessions and an online
@@ -422,14 +422,14 @@ A trusted patient treated first and settling afterwards: the grant, the booking 
        express safely. Every settled pay-later session takes the
        `manual_pending` lane whatever it was settled with, on the same claim
        and the same ceiling, and is worked from **Refunds to hand back** on
-       Money -> Owed by Patients through the existing
+       Money -> Patients owe through the existing
        `mark-cash-refund-returned`. An **unsettled** session is not a refund
        at all and the route says so rather than dead-ending: it is the
        write-off. A session paid by `mark-paid-by-cash` is the same shape and
        is deliberately left alone -- it has no figure of its own that an
        unrecorded hand-back would falsify.
      - **`manual_refunds` splits in two.** It counted every `manual_pending`
-       row and linked to Money -> Payouts, whose Cash Ledger lists home
+       row and linked to Money -> Pay therapists, whose Cash Ledger lists home
        visits -- so a pay-later refund would be counted there and actionable
        nowhere. `pay_later_refunds` is its own key linking to Owed by
        Patients; the two sum to the old total, so no count moved.

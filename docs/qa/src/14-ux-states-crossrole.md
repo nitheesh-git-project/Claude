@@ -68,7 +68,7 @@
 **Feature.** `<input type="date">` hands the choice to a panel the browser draws: unstyled, worded differently and placed differently on every browser and every phone, and the one piece of UI in this product nobody designed. Twenty-eight of them - every report filter, a cost's date, a promo campaign's window, a document's date, the roster's exceptions and leave - now open the **same month grid that books a session**, in the clinic's own popover. This is the third of the three browser defaults replaced, alongside the blank-field tooltip (`UX-A11Y-004`) and the number box.
 
 **Steps**
-1. Visit every screen that asks for a date and tap the control: **Sessions → Delivery** (from/to), **Sessions → All Sessions** (from/to), **Sessions → Schedule** (jump to a day), **Money → Costs** (date incurred, and the from/to), **Money → Your Numbers** (all five), **Money → Business Health** (from/to), **Money → Costs → promo campaign** (start and end), **Logs → All Activity** (from/to), **Today → Activity** (from/to), a patient's **Payment History** (from/to), the therapist's **Earnings** (from/to), a patient's **Reports** upload (document date), and **Sessions → Roster** (an exception's date, a leave range).
+1. Visit every screen that asks for a date and tap the control: **Sessions → How it's going** (from/to), **Sessions → All Sessions** (from/to), **Sessions → Calendar** (jump to a day), **Money → Costs** (date incurred, and the from/to), **Money → For your accountant → Your numbers** (all five), **Money → For your accountant → Business health** (from/to), **Money → Costs → promo campaign** (start and end), **Settings → History → All activity** (from/to), **Home → Your desk's activity** (from/to), a patient's **Payment History** (from/to), the therapist's **Earnings** (from/to), a patient's **Reports** upload (document date), and **Sessions → Therapist rota** (an exception's date, a leave range).
 2. On each, pick a date in the **past** - a report filter has no lead time and must not refuse one.
 3. On the promo campaign's start and end, set an **hour and minute** as well.
 4. Press **Escape** with the popover open, then **Tab** through it.
@@ -90,7 +90,7 @@
 **Feature.** A mutating control ends with `router.refresh()`, which re-renders the screen into a state that looks identical to the one before it. Turning home visits on left the admin looking at the same page with no idea whether it had worked. Every control now raises a confirmation naming the thing and its new state.
 
 **Steps**
-1. **Settings → Programmes & Home Visits**: toggle **Home Visit enabled** off, then on. Read the message each time.
+1. **Settings → How the clinic runs → Programmes & home visits**: toggle **Home Visit enabled** off, then on. Read the message each time.
 2. Change **online booking lead time** to 12, then to 1. Read both.
 3. Change an **invite reward** amount and read the message.
 4. Set the **home page walkthrough** rotation to 0, and the **splash revisit** minutes to 0.
@@ -237,7 +237,7 @@
 
 ### 19.4 Dark mode
 
-Settings -> Public Site -> **Appearance**: three cards - **Light**, **Dark**, **Based on the visitor's device** - each with a small preview above its name (Device shows the page split light and dark). Test with the device (or the browser's DevTools rendering panel) set to dark and to light.
+Settings -> Your website -> Public site -> **Appearance**: three cards - **Light**, **Dark**, **Based on the visitor's device** - each with a small preview above its name (Device shows the page split light and dark). Test with the device (or the browser's DevTools rendering panel) set to dark and to light.
 
 | Step | Expected | Test |
 | --- | --- | --- |
@@ -299,18 +299,18 @@ Settings -> Public Site -> **Appearance**: three cards - **Light**, **Dark**, **
 | --- | --- | --- |
 | Patient | `/patient/dashboard/sessions` → Upcoming | The session, `Confirmed`, with Therapist A's name and the Meet link |
 | Therapist | `/therapist/dashboard/sessions` | The same session, same slot, patient's name, **masked phone**, no email |
-| Admin | Sessions → All Sessions **and** Sessions → Schedule | The same session, in both, opening the **same drawer** |
-| Finance | Money → Transactions | One payment row of ₹1,999 with its order and payment ids |
+| Admin | Sessions → All Sessions **and** Sessions → Calendar | The same session, in both, opening the **same drawer** |
+| Finance | Money → Payments & refunds → Payments | One payment row of ₹1,999 with its order and payment ids |
 | Hospital | Your Referrals | **Nothing** - Patient A was not referred |
 
 **Expected Result.** The slot time is identical everywhere (allowing for the timezone label each screen states). The status is identical. **No screen shows a therapist the others do not.**
 
 #### `XR-BOOK-002` - A referred patient's booking adds a sixth view · P0
-Repeat with Patient C (Hospital A). **Additional expectation:** the hospital sees the referral as **Registered**, and once the session is completed, `₹249.90` appears on their Earnings and in Money → Breakdown's partner share - **the same number in both places**.
+Repeat with Patient C (Hospital A). **Additional expectation:** the hospital sees the referral as **Registered**, and once the session is completed, `₹249.90` appears on their Earnings and in Money → Overview → By treatment & therapist's partner share - **the same number in both places**.
 
 #### `XR-PAY-001` - One payment, one figure everywhere · P0
 **Event.** The payment from `XR-BOOK-001`.
-**Expected Result.** Patient's Payments screen, Money → Transactions, Money → Summary's Gross, and the appointment's own paid state all describe **one** payment of ₹1,999. **No screen shows it twice and no screen shows a different amount.**
+**Expected Result.** Patient's Payments screen, Money → Payments & refunds → Payments, Money → Overview's Gross, and the appointment's own paid state all describe **one** payment of ₹1,999. **No screen shows it twice and no screen shows a different amount.**
 
 #### `XR-REFUND-001` - One refund, four views · P0
 **Event.** Patient A cancels S3 outside the window.
@@ -331,7 +331,7 @@ Repeat with Patient C (Hospital A). **Additional expectation:** the hospital see
 
 #### `XR-CARE-002` - One purchase, five views · P0
 **Event.** `PAT-CARE-002`.
-**Expected Result.** Patient: Your Packages, `6 sessions · 0 used · 6 remaining`. Therapist: the programme appears in the Programmes view of My Patients with the same balance. Admin: Programmes → All Programmes with the same balance (`…-0/6`) and a frozen snapshot. Money: the purchase's cash appears as **Package cash collected** and is recognised session by session as **Recognised revenue** - these are **two different words for two different things and must not be conflated**. Activity Log: nothing (a patient purchase is not an admin action).
+**Expected Result.** Patient: Your Packages, `6 sessions · 0 used · 6 remaining`. Therapist: the programme appears in the Programmes view of My Patients with the same balance. Admin: Sessions → Programmes → All programmes with the same balance (`…-0/6`) and a frozen snapshot. Money: the purchase's cash appears as **Package cash collected** and is recognised session by session as **Recognised revenue** - these are **two different words for two different things and must not be conflated**. Activity Log: nothing (a patient purchase is not an admin action).
 
 #### `XR-CREDIT-001` - One credit consumed, four views · P0
 **Event.** The patient books one package session.
@@ -339,11 +339,11 @@ Repeat with Patient C (Hospital A). **Additional expectation:** the hospital see
 
 #### `XR-PAYOUT-001` - One settlement, four views · P0
 **Event.** `FIN-PAY-002`.
-**Expected Result.** Therapist Earnings: paid-out increases, owed decreases by the same amount. Admin Payouts: the row settles. Money → Summary: the therapist share is unchanged (settling moves money, it does not create a new share). Activity Log: a **`payout.settle`** row with the actor, target and amount.
+**Expected Result.** Therapist Earnings: paid-out increases, owed decreases by the same amount. Admin Payouts: the row settles. Money → Overview: the therapist share is unchanged (settling moves money, it does not create a new share). Activity Log: a **`payout.settle`** row with the actor, target and amount.
 
 #### `XR-CASH-001` - One cash collection, four views · P0
 **Event.** `THR-SESS-007`.
-**Expected Result.** Therapist: the visit shows cash recorded, and their next payout figure **drops by the cash held**. Admin Cash Ledger: the collection appears as un-remitted. Money → Payouts: the Pay button shows the netted figure. After settling: the Cash Ledger stops listing it, and a second payout does **not** deduct it again.
+**Expected Result.** Therapist: the visit shows cash recorded, and their next payout figure **drops by the cash held**. Admin Cash Ledger: the collection appears as un-remitted. Money → Pay therapists: the Pay button shows the netted figure. After settling: the Cash Ledger stops listing it, and a second payout does **not** deduct it again.
 
 #### `XR-HP-001` - One health-profile update, three views · P0
 **Event.** `THR-HP-002` then `PAT-HP-004`.
@@ -381,7 +381,7 @@ Repeat with Patient C (Hospital A). **Additional expectation:** the hospital see
 **Purpose.** Announcements are the clinic speaking to everybody of a role at once. The two ways this goes wrong are a notice shown to the wrong role, and one that never leaves.
 
 **Steps**
-1. As a Master Admin open **Settings -> Announcements -> New announcement**. Title it, tick **Patients** and **Therapists** only, upload a banner picture of any shape and a pop-up picture, write a few lines with a **Table**, add a button ("Book a session") and pick a destination for each ticked dashboard. Leave **Stays for** on 24 hours. Open the pop-up preview, then **Publish now**.
+1. As a Master Admin open **Settings -> How the clinic runs -> Announcements -> New announcement**. Title it, tick **Patients** and **Therapists** only, upload a banner picture of any shape and a pop-up picture, write a few lines with a **Table**, add a button ("Book a session") and pick a destination for each ticked dashboard. Leave **Stays for** on 24 hours. Open the pop-up preview, then **Publish now**.
 2. Sign in as a patient on a phone and on a laptop. Open the dashboard home, then the booking screen.
 3. Tap the banner. Read the pop-up, then tap its button.
 4. Sign in as a therapist, then as a hospital partner.
@@ -422,10 +422,10 @@ Repeat with Patient C (Hospital A). **Additional expectation:** the hospital see
 1. Copy a payment ID (`pay_...`) from a Razorpay email or the Razorpay dashboard. As a Master Admin, paste it into the search at the top of the admin dashboard.
 2. Open the result.
 3. Open the patient's receipt for that payment, and the session's details.
-4. On the Razorpay dashboard, refund a single session's payment (test mode). Wait a minute, then open **Money -> Refunds** and the session.
+4. On the Razorpay dashboard, refund a single session's payment (test mode). Wait a minute, then open **Money -> Payments & refunds -> Refunds** and the session.
 5. Refund part of a programme's payment on Razorpay.
 
-**Expected Result.** Step 1: a **Payment** result shows the patient, amount, status and date. Step 2: Money -> Transactions opens filtered to that payment. Step 3: the payment ID is shown with a copy button in both. Step 4: the refund is listed as **Made on Razorpay**, **Refunded**, and the session reads Refunded with the amount; it is **not** cancelled. Step 5: the refund is under **Need a look** with a note to decide the programme, and the Refunds tab carries a badge until it is marked dealt with.
+**Expected Result.** Step 1: a **Payment** result shows the patient, amount, status and date. Step 2: Money -> Payments & refunds -> Payments opens filtered to that payment. Step 3: the payment ID is shown with a copy button in both. Step 4: the refund is listed as **Made on Razorpay**, **Refunded**, and the session reads Refunded with the amount; it is **not** cancelled. Step 5: the refund is under **Need a look** with a note to decide the programme, and the Refunds tab carries a badge until it is marked dealt with.
 **Needs** the Razorpay webhook subscribed to `refund.created`, `refund.processed` and `refund.failed`.
 
 #### `XADM-SRCH-001` - The admin search finds screens by the words people use · P2
@@ -439,7 +439,7 @@ Repeat with Patient C (Hospital A). **Additional expectation:** the hospital see
 
 **Steps**
 1. As a Master Admin, sign in as a patient with a reason, change their address, and exit.
-2. Open **Logs -> Signed in as**. Filter by your name, by Patients, by today, and tick "Only where something was changed".
+2. Open **Settings -> History -> Signed in as**. Filter by your name, by Patients, by today, and tick "Only where something was changed".
 
 **Expected Result.** One entry: you, the patient, the reason you typed, start time, minutes, **Exited**, and "1 change made inside" which expands to the address change. Each filter keeps it; a filter for another admin or Therapists hides it.
 

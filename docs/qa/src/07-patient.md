@@ -47,7 +47,7 @@ Two rules shape almost everything on the patient's screens:
 7. Leave **Referral Code** blank.
 8. Tap **Create Account**.
 
-**Expected Result.** The button reads `Creating account...`, then the browser lands on **`/pending-approval`** - **not** the dashboard, and **not** any "check your email" screen. The page says the clinic is checking the account (*"usually within 1 working day"* - a default until it has a setting), offers a 16px teal **Book your first session** button to `/book` (checkout opens the account), WhatsApp / call links from Settings -> Brand & Contact (only when a real number is set) and the support email, and never says "admin". In Supabase, the `profiles` row exists with `role='patient'`, `approved=false`, `active=true`, and a `patient_code` of the form `PT####`.
+**Expected Result.** The button reads `Creating account...`, then the browser lands on **`/pending-approval`** - **not** the dashboard, and **not** any "check your email" screen. The page says the clinic is checking the account (*"usually within 1 working day"* - a default until it has a setting), offers a 16px teal **Book your first session** button to `/book` (checkout opens the account), WhatsApp / call links from Settings -> Your website -> Brand & contact (only when a real number is set) and the support email, and never says "admin". In Supabase, the `profiles` row exists with `role='patient'`, `approved=false`, `active=true`, and a `patient_code` of the form `PT####`.
 **Cleanup.** Leave. `ADM-APPR-001` approves this account.
 
 #### `PAT-AUTH-003` - An unapproved patient cannot reach the dashboard · P0
@@ -100,8 +100,8 @@ await fetch("/api/appointments/create", {
 **Expected Result.** (1) Refused with *"Please agree to the Terms of use and Privacy policy to create your account."*, and no account exists. (2) The dashboard opens with no extra screen, and the admin's patient page → **Agreements** shows *Terms of use and Privacy policy · At signup*. (3) A full-page **Before you continue** appears; **Agree and continue** stays disabled until the box is ticked, then the dashboard opens and Agreements shows *On sign-in*. An admin using **View as** this patient is never shown the screen. (4) A box *"I am their parent or legal guardian…"* appears; Review Booking without it says *"Please confirm you are their parent or legal guardian."* After booking, Agreements shows *Parent or guardian consent* and *Telehealth consent · On a booking*. Automated: `e2e/terms-acceptance.spec.ts`.
 
 #### `PAT-DATA-001` - Your data: download and delete · P0
-**Steps.** As a patient open **Profile** and scroll to **Your data**. (1) Tap **Download PDF** and open the file. (2) Tap **Ask to delete my account**, read the dialog, add a reason and send. (3) Reload, then tap **Take back my request**. (4) Ask again; as an admin open **People → Data requests**, tap **Start working on it**, then **Decline** with and without a note. Repeat (1) and (2) as a therapist and a hospital partner.
-**Expected Result.** (1) A PDF named `moverestore-your-data-<date>.pdf`: a dark teal cover with the person's name and an `EXP-` reference, four figures, then Your account, addresses, sessions, payments, programmes, health profile, documents, agreements and requests, with "Confidential" and page numbers in every footer. A therapist's sessions and a hospital's referrals show **no patient names**. (2) The card now shows the `DEL-` reference, "received", and the 30-day promise; a second request is impossible. (3) The request is withdrawn and the button returns. (4) The case shows its deadline chip; Decline is refused without a note; once started the patient can no longer take it back. People → Data requests also lists the PDF download under **Recent data downloads**.
+**Steps.** As a patient open **Profile** and scroll to **Your data**. (1) Tap **Download PDF** and open the file. (2) Tap **Ask to delete my account**, read the dialog, add a reason and send. (3) Reload, then tap **Take back my request**. (4) Ask again; as an admin open **People → Requests → Data requests**, tap **Start working on it**, then **Decline** with and without a note. Repeat (1) and (2) as a therapist and a hospital partner.
+**Expected Result.** (1) A PDF named `moverestore-your-data-<date>.pdf`: a dark teal cover with the person's name and an `EXP-` reference, four figures, then Your account, addresses, sessions, payments, programmes, health profile, documents, agreements and requests, with "Confidential" and page numbers in every footer. A therapist's sessions and a hospital's referrals show **no patient names**. (2) The card now shows the `DEL-` reference, "received", and the 30-day promise; a second request is impossible. (3) The request is withdrawn and the button returns. (4) The case shows its deadline chip; Decline is refused without a note; once started the patient can no longer take it back. People → Requests → Data requests also lists the PDF download under **Recent data downloads**.
 
 ### 11.1a The dashboard landing screens
 
@@ -233,7 +233,7 @@ The patient portal's Overview is the screen a patient lands on after every sign-
 * Step 12: the button shows `Please wait...`; the Supabase account is created and signed in **with no email-confirmation step**; the appointment is created; Razorpay checkout opens.
 * Step 14: Step 3 is replaced by a green tick, **Payment Confirmed**, the time restated in clinic time (*"Fri 11 Sep, 9-10 am, with a physiotherapist"*), three numbered next steps (the clinic confirms your time; your video link appears on your Home page 15 minutes before; tap *Join your video call*), an **Add to calendar** button (downloads an `.ics`) and a **Go to Dashboard** button.
 * **Data state:** exactly **one** appointment for Patient A - `status='requested'`, `payment_status='paid'`, `therapist_id=null`, `visit_mode='online'`, `duration_minutes=60`, `concern='QA Back & Spine Care'`, `preferred_language='English'`, timezone recorded. Exactly **one** `payments` row for that Razorpay order. Patient A's `approved` is now **true** (flipped by `create-order`).
-* **Cross-role:** Admin → Sessions → All Sessions lists it as unassigned and raises the badge; Admin → Money → Transactions lists the ₹1,999 payment; **no therapist sees it yet**.
+* **Cross-role:** Admin → Sessions → All Sessions lists it as unassigned and raises the badge; Admin → Money → Payments & refunds → Payments lists the ₹1,999 payment; **no therapist sees it yet**.
 
 **Cleanup.** Leave everything. This is the root fixture for most of the plan.
 
@@ -334,7 +334,7 @@ Attempt **Review Booking →** once per row, as a guest:
 
 **Steps**
 1. Load `/book` and select `QA Knee & Joint Care` on Step 2, but do **not** submit.
-2. In a second browser as Admin Full, open Catalog → Conditions and set `QA Knee & Joint Care` to inactive.
+2. In a second browser as Admin Full, open Prices & areas → Conditions & prices and set `QA Knee & Joint Care` to inactive.
 3. Return to the wizard and tap **Request Booking**.
 
 **Expected Result.** The booking is refused with `That concern isn't available any more. Please pick another one.` (HTTP 409). No appointment is created. This proves the route re-derives the category rather than trusting the ISR-cached page.
@@ -377,7 +377,7 @@ Attempt **Review Booking →** once per row, as a guest:
 **Expected Result**
 * Step 4: an error banner appears; the primary button now reads **Pay ₹1,799 Now**; the appointment already exists as `requested`/`unpaid`.
 * Step 6: **Payment Confirmed** panel. **Still exactly one appointment.** The `payments` table has one row for the successful order. A failed attempt is logged (`payment_failure_log`) and appears nowhere on a patient screen.
-* Money → Transactions shows **₹1,799 once**, not twice.
+* Money → Payments & refunds → Payments shows **₹1,799 once**, not twice.
 
 #### `PAT-PAY-002` - Dismissing the checkout · P1
 
@@ -413,11 +413,11 @@ After the third, that line is replaced by an amber panel: *"Having trouble payin
 
 > **Preconditions for this whole sub-section:** `ADM-SET-013` has switched **Home Visit enabled** on, `SETUP-AREA-001` has created Area 1 (`560038`, ₹150/visit), and `SETUP-HVPKG-001` has set the clinic-wide home-visit price (₹2,499) and `QA Knee & Joint Care`'s own price (₹2,999). HV2 (4 visits) is seeded by SQL where a case needs it (§8.12).
 >
-> **On a shared database (staging) these figures drift.** The pincodes, travel fees and prices above are the ones the `SETUP-*` cases create; staging is also written to by the automated suite and by other testers (its served pincode is often `600017`, its prices whatever an admin last saved). **Before running this section, read the current values** - pincodes and travel fees from **Catalog → Service areas**, visit prices from **Catalog → Conditions → Home visits** (or the cards on `/home-visit`) - and use those wherever a case below names a figure. What is under test is the relationship (a served pincode is accepted, the travel line is that area's fee, visit + travel = the total charged), not the number printed here. Never take a figure from the public FAQ: it is admin-written text, and only its live home-visit answer is built from the catalog.
+> **On a shared database (staging) these figures drift.** The pincodes, travel fees and prices above are the ones the `SETUP-*` cases create; staging is also written to by the automated suite and by other testers (its served pincode is often `600017`, its prices whatever an admin last saved). **Before running this section, read the current values** - pincodes and travel fees from **Catalog → Service areas**, visit prices from **Prices & areas → Conditions & prices → Home visits** (or the cards on `/home-visit`) - and use those wherever a case below names a figure. What is under test is the relationship (a served pincode is accepted, the travel line is that area's fee, visit + travel = the total charged), not the number printed here. Never take a figure from the public FAQ: it is admin-written text, and only its live home-visit answer is built from the catalog.
 
 #### `PAT-HV-001` - The public home-visit page appears only when enabled · P1
 
-**Steps.** With the master switch **off**, open `/home-visit`. Then switch it on in Settings → Programmes & Home Visits → Home Visit and reload.
+**Steps.** With the master switch **off**, open `/home-visit`. Then switch it on in Settings → How the clinic runs → Programmes & home visits → Home Visit and reload.
 **Expected Result.** Off: a **404** page, and the **Home visit** entry is absent from the header nav, the footer Explore column, the home page connector grid and every "Where to go next" strip. On: the page renders with the admin-configured heading and subheading, and the entry reappears everywhere.
 
 #### `PAT-HV-002` - Serviceable pincode → address → book and pay · P0
@@ -425,7 +425,7 @@ After the third, that line is replaced by an amber panel: *"Having trouble payin
 **Test Data.** Pincode `560038`; address from Patient A §8.3.
 
 **Steps**
-1. Open `/book-home-visit`. Confirm the header reads **Step 1 of 4**, and that **what the visit is for** is named at the top of the screen, *above* the pincode field: it opens on the service switched on as **Default on booking** in Catalog -> Conditions (as `/book` does), with its photograph, `₹2,499 · 60 min`, a **View details** link and a **Change** button. Tap **Change**: a dialog of condition cards, exactly as `/book`, each at its home-visit price (`QA Back & Spine Care` ₹2,499, `QA Knee & Joint Care` ₹2,999) and none carrying a visit count or days. Choose `QA Back & Spine Care`.
+1. Open `/book-home-visit`. Confirm the header reads **Step 1 of 4**, and that **what the visit is for** is named at the top of the screen, *above* the pincode field: it opens on the service switched on as **Default on booking** in Prices & areas -> Conditions & prices (as `/book` does), with its photograph, `₹2,499 · 60 min`, a **View details** link and a **Change** button. Tap **Change**: a dialog of condition cards, exactly as `/book`, each at its home-visit price (`QA Back & Spine Care` ₹2,499, `QA Knee & Joint Care` ₹2,999) and none carrying a visit count or days. Choose `QA Back & Spine Care`.
 2. Tap the **Pincode** field. Enter `560038`.
 3. Tap **Check**.
 4. Read the confirmation line. It must agree with the visit named above it: a visit whose price already covers travel reads *"Travel is included"*, and one that does not quotes the per-visit travel fee for this area. That is why the visit is chosen before the pincode is asked for.
@@ -449,7 +449,7 @@ After the third, that line is replaced by an amber panel: *"Having trouble payin
 #### `PAT-HV-003` - Unserviceable pincode → waitlist · P1
 
 **Steps.** Open `/book-home-visit`, enter `560025`, tap **Check**. Then enter `QA Patient B` and `+91 98765 43211` and tap **Tell me when you do**.
-**Expected Result.** An amber panel: *"We don't visit 560025 yet."* plus *"Leave your number and we'll tell you the moment we do. Nothing has been charged."* No address form appears and nothing can be paid for. After submitting: *"Thanks - we'll be in touch."* The panel also offers a link to an **online consultation**, which is available anywhere. Admin → Catalog → Service Areas shows the waitlist entry, and its badge count increases.
+**Expected Result.** An amber panel: *"We don't visit 560025 yet."* plus *"Leave your number and we'll tell you the moment we do. Nothing has been charged."* No address form appears and nothing can be paid for. After submitting: *"Thanks - we'll be in touch."* The panel also offers a link to an **online consultation**, which is available anywhere. Admin → Prices & areas → Home-visit areas shows the waitlist entry, and its badge count increases.
 
 #### `PAT-HV-004` - Pincode validation · P2
 
@@ -469,7 +469,7 @@ After the third, that line is replaced by an amber panel: *"Having trouble payin
 
 **Preconditions.** **Allow cash on visit** is on.
 **Steps.** Repeat `PAT-HV-002` but choose **Pay at the visit** on Step 4.
-**Expected Result.** The booking completes with **no Razorpay checkout**. The purchase row has `payment_mode='cash'` and `payment_status='unpaid'` - **for its whole life**, with a real confirmed visit hanging off it. The patient's Payments screen must not describe this as an outstanding failure. Admin → Money → Payouts → Cash Ledger will show the collection once the therapist records it.
+**Expected Result.** The booking completes with **no Razorpay checkout**. The purchase row has `payment_mode='cash'` and `payment_status='unpaid'` - **for its whole life**, with a real confirmed visit hanging off it. The patient's Payments screen must not describe this as an outstanding failure. Admin → Money → Pay therapists → Cash Ledger will show the collection once the therapist records it.
 
 #### `PAT-HV-007` - Cash refused when the switch is off · P2
 
@@ -504,13 +504,13 @@ See `XR-CUTOFF-001` for the cross-role version. Simulate 90 minutes after the sl
 
 **Preconditions.** A **paid**, `confirmed` session whose slot is more than 24 hours away in **real** time (the refund maths runs server-side, so a simulated clock will not move it).
 **Steps.** Open the session card, tap **Cancel Session**, read the dialog, optionally enter a reason, confirm.
-**Expected Result.** The dialog reads *"Cancel this session and refund the payment? You can add a reason (optional):"*. After confirming, the card shows `Cancelling...` then a cancelled state. The appointment becomes `cancelled` with `refund_status='processed'` and the refund amount recorded. Admin → Money → Summary shows the refund reducing **Net Revenue** while **Gross Revenue** is unchanged. **No therapist cut is reversed** - a cancelled session never earned one. If the patient was hospital-referred, the **partner commission is reduced**, because it is taken on net.
+**Expected Result.** The dialog reads *"Cancel this session and refund the payment? You can add a reason (optional):"*. After confirming, the card shows `Cancelling...` then a cancelled state. The appointment becomes `cancelled` with `refund_status='processed'` and the refund amount recorded. Admin → Money → Overview shows the refund reducing **Net Revenue** while **Gross Revenue** is unchanged. **No therapist cut is reversed** - a cancelled session never earned one. If the patient was hospital-referred, the **partner commission is reduced**, because it is taken on net.
 
 #### `PAT-CANCEL-002` - Cancel inside the window → no refund, and the dialog says so (scenario TIME-H) · P0
 
 **Preconditions.** A paid session whose slot is **less than 24 hours** away in real time.
 **Steps.** Tap **Cancel Session** and read the dialog **before** confirming.
-**Expected Result.** The dialog reads *"Cancel this session? It's within 24 hours of your slot, so this won't be refunded. You can add a reason (optional):"*. After confirming, the appointment is `cancelled` with **no refund**. Money → Summary is unchanged for refunds. This forfeited amount stays in the clinic's share - it must not deduct a therapist cut, because the session was never completed.
+**Expected Result.** The dialog reads *"Cancel this session? It's within 24 hours of your slot, so this won't be refunded. You can add a reason (optional):"*. After confirming, the appointment is `cancelled` with **no refund**. Money → Overview is unchanged for refunds. This forfeited amount stays in the clinic's share - it must not deduct a therapist cut, because the session was never completed.
 
 #### `PAT-CANCEL-003` - Home visits use their own refund window · P1
 Repeat `PAT-CANCEL-001`/`002` against a home visit. **Expected Result.** The window used is `home_visit_cancellation_refund_hours` (default 24, independently configurable). Changing the online window in Settings must **not** change the home-visit dialog, and vice versa.
@@ -804,7 +804,7 @@ Additionally: if an admin switches **Home Visit enabled** off, `/api/care-plan/c
 ### 11.9 Payments screen, profile and addresses
 
 #### `PAT-PAY-010` - Receipts · P2
-**Steps.** Open `/patient/dashboard/payments`. **Expected Result.** Every paid session and purchase is listed once, with amount, date and what it was for. A cash-on-visit home purchase appears with its cash status and is **not** presented as a failed payment. Amounts match Money → Transactions exactly.
+**Steps.** Open `/patient/dashboard/payments`. **Expected Result.** Every paid session and purchase is listed once, with amount, date and what it was for. A cash-on-visit home purchase appears with its cash status and is **not** presented as a failed payment. Amounts match Money → Payments & refunds → Payments exactly.
 
 #### `PAT-PAY-011` - The patient is told about their refund · P0
 **Preconditions.** For one patient: a session cancelled outside the window and refunded in full, a **completed** session partially refunded by `₹500` with a stated reason, a cash home visit at `manual_pending`, a refund that failed at the gateway, and a session cancelled **inside** the window.
@@ -817,7 +817,7 @@ Additionally: if an admin switches **Home Visit enabled** off, `/api/care-plan/c
 
 #### `PAT-PROF-001` - Edit Profile sections · P2
 **Steps.** Open `/patient/dashboard/profile`. Walk the five sub-sections: **Photo**, **Personal Details**, **Contact Details**, **My Addresses**, **Account Security**.
-**Expected Result.** Each is reachable from the sidebar's child list. Instant fields (photo, some details) save immediately; **gated** fields (the ones an admin must approve) submit a profile change request instead of writing directly, and say so. The request appears in Admin → Today → Approvals.
+**Expected Result.** Each is reachable from the sidebar's child list. Instant fields (photo, some details) save immediately; **gated** fields (the ones an admin must approve) submit a profile change request instead of writing directly, and say so. The request appears in Admin → Home → To-do → Approvals.
 **If it fails to load.** When the profile (or the list of changes waiting for approval) cannot be read, the page shows *We couldn't load …* with a **Try again** button **instead of** the editable sections - never blank fields. Account Security still works. The sidebar's section links land on the notice. To check by hand, the page must be made to fail a read on the server (for example a temporarily broken query on a scratch build); there is no switch for it. If only the saved addresses fail to load, only **My Addresses** shows the notice (no **Add an address**, which would create a duplicate) and the rest of the page stays editable.
 
 #### `PAT-ADDR-001` - Address book · P2

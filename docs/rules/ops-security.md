@@ -560,7 +560,7 @@ client is the only writer and the log is append-only from any session.
 - **An admin can sign in as somebody, and that is a session swap rather than
   a preview.** A Master Admin opens a patient's, therapist's or partner hospital's
   dashboard -- the first two from their profile page, a hospital from its card
-  on People -> Partners, which is where a hospital's record lives -- and the
+  on People -> Hospitals, which is where a hospital's record lives -- and the
   browser genuinely becomes that account: same
   routes, same data, same controls, every write real. It exists because "the
   app is broken for me" is unanswerable from the back office, which shows an
@@ -728,7 +728,7 @@ The asymmetry decides it: keeping them costs a tester who wanted a clean config
 baseline a few fields, each with its own control on its own screen; clearing
 them costs an owner their clinic's identity, and the mission and vision have no
 "what was it before" anywhere. `risk_rules` goes the same way -- the thresholds
-are an admin's tuning on Today -> Risk, while the signals they produced are
+are an admin's tuning on Home -> Risk & safety, while the signals they produced are
 rows and are still truncated.
 
 **`dev_reachouts` is kept too, and so are `dev_contact_enabled` and
@@ -748,7 +748,7 @@ body names it or the `TRUNCATE` list gains `profiles`.
 **`faqs`, `testimonials` and `mission_principles` are kept for the same
 reason**, one table at a time with its own reason, as
 `treatment_categories` already was. They are the website's own content, written
-on Settings -> Public Site. `mission_principles` used to be cleared on the
+on Settings -> Your website -> Public site. `mission_principles` used to be cleared on the
 argument that the pages then fall back to the shipped wording in
 `src/lib/mission.ts` -- true, and exactly the argument an owner rejects the
 first time a reset replaces their promises with ours.
@@ -985,7 +985,7 @@ reset the database.
   a `?section=` with no `?tab=` is a link to a section's first screen, not to
   the screen you meant. And `AdminShell`'s own popstate handler called
   `findTab` **without `limitedScope`**, so a limited desk deep-linking to
-  Today -> Activity, or pressing Back to it, resolved the URL differently
+  Home -> Your desk's activity, or pressing Back to it, resolved the URL differently
   from the server that had just rendered it. Both arguments are easy to omit
   and neither failure announces itself.
 - **A hardcoded `?section=&tab=` link is a dead link waiting to happen.**

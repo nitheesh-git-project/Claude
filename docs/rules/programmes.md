@@ -22,7 +22,7 @@ Consultation first, how a course of treatment is bought, the therapist lock, wha
      letter combinations -- `condition_short_code_candidates()` in
      `schema.sql` and `conditionCodeCandidates()` in
      `src/lib/programmeId.ts` walk the same list, pinned by a unit test) and
-     editable on Catalog -> Conditions (*Programme code*; blank means "make
+     editable on Prices & areas -> Conditions & prices (*Programme code*; blank means "make
      one"). `checkConditionCode` (`src/lib/conditionCodeServer.ts`) refuses
      a malformed or taken one with a sentence before anything is written.
      A programme with no condition (an old generic package, a clinic-wide
@@ -47,7 +47,7 @@ Consultation first, how a course of treatment is bought, the therapist lock, wha
      surface shows it through `ProgrammeIdChip`: admin All Programmes, All
      Sessions rows and the session drawer ("Part of ..."), a patient's
      admin page (Programmes card and Booking History), a therapist's admin
-     page, Money -> Transactions, Today's recommendation pulse, the
+     page, Money -> Payments & refunds -> Payments, Today's recommendation pulse, the
      review queue, the patient's My programme and session cards, and the
      therapist's session cards and Programmes view. On a database without
      the columns every reader falls back to the old code.

@@ -453,9 +453,9 @@ Dates in the clinic's zone, voice, no browser default ever speaking to a person,
   and nothing else -- no tab stop, no key handler, and in every one of the nine
   no focusable child doing the same job -- so the detail dialog behind them
   could not be opened without a pointing device at all. That is the whole of
-  Logs -> All Activity (the dialog saying what changed from what), All Sessions
+  Settings -> History -> All activity (the dialog saying what changed from what), All Sessions
   and the Calendar (the drawer that assigns, reschedules and refunds),
-  Programmes -> All Programmes, Money -> Breakdown's two ledgers, and the session list on every
+  Sessions -> Programmes -> All programmes, Money -> Overview -> By treatment & therapist's two ledgers, and the session list on every
   patient and therapist profile. The helper returns props rather than a
   component so it fits any element and changes no layout, and three things
   about it are load-bearing: it does **not** put `role="button"` on a `<tr>`
@@ -662,7 +662,7 @@ Dates in the clinic's zone, voice, no browser default ever speaking to a person,
      marker expires after 20s so a navigation nothing else can see cannot
      leave a bar running for ever.
 - **Marking an out-of-area request served is a decision about the catchment,
-  so it offers to open it.** The waitlist on Catalog -> Service Areas is
+  so it offers to open it.** The waitlist on Prices & areas -> Home-visit areas is
   demand the clinic had to turn away: somebody tried to book from a pincode
   nobody visits. Tapping **served** set a status and nothing else -- so the
   pincode stayed unserved, the next patient from that street met the same
@@ -768,7 +768,7 @@ is invisible to any tooling here.
   into half the screen.
 
 - **Dark mode is a palette, not a second set of classes - write colours as
-  you always have.** Settings -> Public Site -> Appearance
+  you always have.** Settings -> Your website -> Public site -> Appearance
   (`site_settings.site_theme`: light, dark or device; see `deviceTheme.ts`)
   decides. For dark, or device on a dark device, a head script sets
   `<html data-theme="dark">` before first paint, and `DeviceThemeFollower`

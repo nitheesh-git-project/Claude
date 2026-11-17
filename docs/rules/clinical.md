@@ -192,7 +192,7 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   multi-select with a "None" option that forgot to declare it.
 - **One authoring implementation, three doors.** A therapist writes their own
   recommendation from the session note dialog; an admin writes one on their
-  behalf from Programmes → Recommendations when that therapist cannot reach the
+  behalf from Sessions → Programmes → Recommendations when that therapist cannot reach the
   dashboard (on leave, off sick, gone, with a patient still waiting to hear);
   and an admin approving a queued one with different numbers writes a third,
   which is the same act again rather than an edit. All three call
@@ -348,7 +348,7 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      (`buildCourseSnapshot()` in `src/lib/carePlans.ts`): the condition's
      own `treatment_categories.price_paise` for video sessions, the
      condition's home-visit price (`src/lib/homeVisitRates.ts`: its own
-     price, else the clinic-wide one, set under Catalog -> Conditions -> Home
+     price, else the clinic-wide one, set under Prices & areas -> Conditions & prices -> Home
      visits -- never another condition's) when **Needs hands-on treatment**
      is ticked - which is the *only* switch between video and home visits
      (`offerKindFor()`), so a plan can never say hands-on and sell video.
@@ -804,7 +804,7 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
     since phase 6a made geriatric a condition type.
   - **The six-minute walk equation is the clinic's choice.**
     `site_settings.six_minute_walk_equation` (nullable text) is set on
-    Settings -> Clinical Questions (`admin.md`). Null, an unknown key and
+    Settings -> How the clinic runs -> Clinical questions (`admin.md`). Null, an unknown key and
     the placeholder all mean "formula not chosen yet": the guide says so and
     shows no percentage of predicted; an unreadable setting says "we
     couldn't check". `predictedSixMinuteWalk()` takes the key with no
@@ -1925,7 +1925,7 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   stay on the clinician's graph and are named), and the admin's record draws
   everything with the hidden ones named. One patient's own layout is set
   from either door with the same panel and route: their record (People) or
-  **Settings -> Health Profile layout -> Sections for one patient**, which
+  **Settings -> How the clinic runs -> Health Profile layout -> Sections for one patient**, which
   finds a patient by name or patient ID (`GET
   /api/admin/profile-widgets/patient?q=`, the text through
   `cleanPatientSearch()` before it reaches a filter), lists only their own

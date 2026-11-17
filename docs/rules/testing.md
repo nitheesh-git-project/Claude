@@ -408,7 +408,7 @@ for a calendar event. So a leftover fixture appointment is a credit the
 ledger has reserved and the legacy counter has never heard of, which
 `verify_entitlement_balances()` reports for ever because nothing sweeps it,
 and it is also a session with no video link. Nine runs put nine of each on
-Settings -> System Health, permanently red, none of them describing anything
+Settings -> Technical -> System health, permanently red, none of them describing anything
 wrong with the product. The specs register and delete their own rows in an
 `afterAll` now (an afterAll rather than the end of each test, so a failed
 assertion still cleans up); this script clears what earlier runs already
@@ -442,7 +442,7 @@ triggers are now suspended for those statements alone and restored before
 the transaction commits, exactly as the ledger block does. **A new
 append-only table with restrict keys belongs here in the same change that
 adds it** -- residue that cannot be cleared is a permanent red row on
-Settings -> System Health describing nothing wrong with the product.
+Settings -> Technical -> System health describing nothing wrong with the product.
 
 **Pay later's fixture money is the second thing only `--apply` can clear,
 and for the same kind of reason.** `e2e/pay-later.spec.ts` writes its

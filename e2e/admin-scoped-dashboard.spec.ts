@@ -283,7 +283,7 @@ test.describe("Suite S: scoped admin dashboards", () => {
       const sectionButton = (label: string) =>
         sidebar.getByRole("button", { name: new RegExp(`^${label}\\b`) }).first();
 
-      const sections = ["Sessions", "People", "Catalog", "Today"];
+      const sections = ["Sessions", "People", "Prices & areas", "Home"];
       for (let round = 0; round < 6; round++) {
         for (const label of sections) {
           // No awaiting settle between clicks on purpose: this is the
@@ -294,7 +294,7 @@ test.describe("Suite S: scoped admin dashboards", () => {
 
       // Back on a known screen, the dashboard still names itself exactly
       // twice -- not zero (unmounted), not four (duplicated).
-      await sectionButton("Today").click({ timeout: 15_000 });
+      await sectionButton("Home").click({ timeout: 15_000 });
       await expect(onScreen(page, "Operations")).toHaveCount(2);
       await expect(onScreen(page, "Unassigned sessions").first()).toBeVisible();
 

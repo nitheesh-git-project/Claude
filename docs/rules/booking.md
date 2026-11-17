@@ -131,7 +131,7 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
      with its photograph, its price and a way to read the detail -- a dialog
      that opens to show a single card asks somebody to tap twice to confirm
      the only thing on offer. Both wizards open on the service an admin
-     switched on as **Default on booking** (Catalog -> Conditions;
+     switched on as **Default on booking** (Prices & areas -> Conditions & prices;
      `treatment_categories.is_default`, `defaultCategoryId`; the switch
      **asks first**, naming the service it replaces, because one tap moves
      every patient's booking page - SP-013), or on the only
@@ -293,7 +293,7 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
   for somebody who reached Step 3 and left without paying. **It is locked**
   (`approved = false`, marked `signup_source: 'booking'` in the signup
   metadata) until a payment is captured or the patient has failed
-  `payment_tries_before_access` times (Settings -> Booking Rules, default 3,
+  `payment_tries_before_access` times (Settings -> How the clinic runs -> Booking rules, default 3,
   1-10). Every try that ends without a payment counts -- the sheet closed,
   a payment failed, or our own route answered 5xx -- and is reported to
   `/api/patient/payment-try`, which counts it in `checkout_payment_tries`
@@ -320,7 +320,7 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
   bullet in `docs/rules/admin.md`.
 - **A patient can't cancel an online session in its last N minutes.**
   `site_settings.patient_cancel_cutoff_minutes` (default 15, 0-1440,
-  Settings → Booking Rules) decides it through
+  Settings → How the clinic runs → Booking rules) decides it through
   `src/lib/patientCancelCutoff.ts`: `CancelSessionButton` hides itself at the
   cut-off (one timer, first render on the page's request clock so hydration
   agrees), and `/api/appointments/cancel` refuses 409 `cancel_cutoff`. The

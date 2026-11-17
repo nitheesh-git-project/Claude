@@ -144,8 +144,8 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   screen agree; amounts only for a scope that can open Money; no link for
   one that cannot open Programmes. Each event leads with the programme's ID
   and progress (`PED_PKG001-0/6`) and links to that programme on
-  Programmes -> All Programmes (`?view=code:...`); one waiting for approval
-  links to Programmes -> Recommendations for a desk that manages it, and to
+  Sessions -> Programmes -> All programmes (`?view=code:...`); one waiting for approval
+  links to Sessions -> Programmes -> Recommendations for a desk that manages it, and to
   the Waiting approval stage for one that only reads. The paid-unbooked
   inbox row opens the stage narrowed to the same two days
   (`?view=late:48`).
@@ -753,7 +753,7 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   video call open.* `e2e/assessment-cockpit.spec.ts` AC-001 / AC-005b.
 - **Announcements are read once by the layout and drawn by the shell: a
   banner on the dashboard's home, one line everywhere else.** An admin posts
-  one on Settings -> Announcements (`announcements`, `announcement_receipts`;
+  one on Settings -> How the clinic runs -> Announcements (`announcements`, `announcement_receipts`;
   every judgement is in `src/lib/announcements.ts`). Each role's
   `dashboard/layout.tsx` mounts `DashboardExtrasGate`, which works out who is
   looking, reads what is live for that role with the service role (the same

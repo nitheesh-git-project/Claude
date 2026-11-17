@@ -108,7 +108,7 @@ The revenue split and its two invariants, payouts, settlements, Business Health,
   treated as old: inventing an age would put somebody on a call list because
   of a timestamp nobody could read. It is **not urgent** -- nothing has gone
   wrong and nobody is out of pocket, which is the opposite of every other row
-  there. It links into **Programmes -> All Programmes** with `view=unscheduled`,
+  there. It links into **Sessions -> Programmes -> All programmes** with `view=unscheduled`,
   since the section is chosen by where the work is done and not by which
   strip the row sits on; the preset is the *Paid - nothing booked* stage
   narrowed by a removable "Paid over 24 hours ago" filter, so the list holds
@@ -188,7 +188,7 @@ The revenue split and its two invariants, payouts, settlements, Business Health,
   excluded from the split alone and surfaced as a named count. Never guess
   a percentage to make the numbers tie.
 - **The seven standard finance figures are a screen, and three of them stand
-  on numbers this app cannot know.** Money -> Business Health reports return
+  on numbers this app cannot know.** Money -> For your accountant -> Business health reports return
   on investment, return on ad spend, working capital, both profit margins,
   EBITDA, break-even and revenue run rate. The maths is dependency-free in
   `src/lib/financeMetrics.ts`; the screen draws what it returns and derives
@@ -258,7 +258,7 @@ The revenue split and its two invariants, payouts, settlements, Business Health,
   it "net profit".
 - **Money answers financial questions; Sessions answers operational ones.**
   No-show, cancellation and repeat-booking rates and sessions-per-therapist
-  live under **Sessions → Delivery**, not Money - a no-show rate is about
+  live under **Sessions → How it's going**, not Money - a no-show rate is about
   how the clinic runs, not about its books. `AdminMetricsTab` renders all
   three slices (`summary`, `breakdown`, `delivery`) off one pass of the
   same maths, so adding a figure means choosing which question it answers,
@@ -297,7 +297,7 @@ The revenue split and its two invariants, payouts, settlements, Business Health,
   (`effectiveShare`), not the column, and it fell back to the standard
   session fee for a session carrying no amount where the payout maths counts
   nothing. A QA therapist read ₹9,232.80 pending on Earnings/Overview against
-  ₹4,435.20 on their admin profile and Money -> Payouts -- the gap a whole
+  ₹4,435.20 on their admin profile and Money -> Pay therapists -- the gap a whole
   number of ₹1,999 fees at their share. **The admin figure is the right one**:
   it is what the request route lets them ask for, what the Pay button
   transfers, and what `session_settlements` records (`gross = coalesce(paid,
@@ -325,7 +325,7 @@ The revenue split and its two invariants, payouts, settlements, Business Health,
   isolated read merged by id -- an unmigrated column reads as nothing frozen
   (the live rate, as before); any other failure makes the request and settle
   routes answer 503 rather than pay at a rate nobody could check, and is
-  best-effort on screens. Money -> Payouts, Summary and Business Health were
+  best-effort on screens. Money -> Pay therapists, Summary and Business Health were
   also built from the raw appointments select, which carried neither this
   column nor the pay-later ones; `appointmentsForPayouts` is built from the
   merged array now. **No SQL change**: the settle function is a writer and
@@ -344,7 +344,7 @@ The revenue split and its two invariants, payouts, settlements, Business Health,
   the `session_credit_ledger` playbook and the whole reason it could land
   without a migration: historical sessions have no row and need no backfill,
   every money figure is unchanged, and `verify_settlement_agreement()` reports
-  disagreement on Settings -> System Health -> Settlement record. Making it
+  disagreement on Settings -> Technical -> System health -> Settlement record. Making it
   authoritative is a later change behind a switch, and the precondition is that
   reconciliation staying green on real data.
   Four rules. It **never fails the completion** -- closing a session is what
@@ -432,7 +432,7 @@ The revenue split and its two invariants, payouts, settlements, Business Health,
   **The same change corrected the profile's own arithmetic**, which is the
   sharper half: that page computed `owedPaise` and each row's payout from
   `revenue_share_percent` alone, with no home-visit branch and no travel fee --
-  so a therapist's own profile disagreed with Money -> Payouts and with what the
+  so a therapist's own profile disagreed with Money -> Pay therapists and with what the
   Pay button actually transfers. It routes through
   `computeTherapistPayoutSummary` now, which already held the rule. A figure on
   a profile that disagrees with the Pay button is worse than a missing field.

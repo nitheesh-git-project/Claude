@@ -78,7 +78,7 @@ Run **all** of §16.3 in one pass.
 ### `REG-J7` - The pay-later journey · P0
 
 ```
-ADM-SET (pay_later_enabled on, at Money -> Owed by Patients)
+ADM-SET (pay_later_enabled on, at Money -> Patients owe)
   -> PL-GRANT-001 (grant, with a reason) -> PL-GRANT-003 (a referred patient is refused)
   -> PL-BOOK-001 (book, no payment screen) -> PL-BOOK-003 (nothing owed yet)
   -> THR-SESS-005 (complete)             -> PL-DONE-001 (money in three places at once)
@@ -337,8 +337,8 @@ Sign off each line before release.
 **Functional sign-off**
 - [ ] `REG-J1` … `REG-J6` all pass on a fresh database
 - [ ] Both money identities hold on the reference dataset
-- [ ] Settings → System Health reports **no** accounting disagreements and **no** unresolved sync issues
-- [ ] Every action in the audit vocabulary has been observed in **Logs → All Activity**, `payout.settle` included
+- [ ] Settings → Technical → System health reports **no** accounting disagreements and **no** unresolved sync issues
+- [ ] Every action in the audit vocabulary has been observed in **Settings → History → All activity**, `payout.settle` included
 - [ ] A clear at the shortest cutoff left the last 30 days intact and recorded itself (`ADM-LOG-002`)
 - [ ] No generated password appears anywhere in the log
 - [ ] `npm run verify` (lint + unit tests + build) passes

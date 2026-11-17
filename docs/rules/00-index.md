@@ -20,7 +20,7 @@ rg -i "<the thing you are seeing>" docs/rules/
 - The admin dashboard's information architecture lives in `src/lib/adminNav.ts`
 - Programmes is its own section and its own scope
 - Every session and every person has a timestamped history, built from what is already recorded rather than a new event table
-- People -> Abandoned checkouts is a list of leads, never approvals
+- People -> Requests -> Abandoned checkouts is a list of leads, never approvals
 - A scope that could not be read is refused, never promoted, and a screen outside the scope never leaves the server
 - No password is issued, stored or shown - an admin hands over a one-time link
 - User Access is where the access model is read, and it is derived
@@ -39,7 +39,7 @@ rg -i "<the thing you are seeing>" docs/rules/
 - A profile change is checked by value, and approving it is claimed before it is applied
 - Approvals are a queue, not a person
 - A desk that can only read a page is told so, and shown no button
-- Today -> Health Profile reviews lists the rows the Today counts counted
+- Home -> To-do -> Health Profile reviews lists the rows the Today counts counted
 - The admin's Health Profile record reads in a fixed order
 - People -> Patients lists each patient once
 - Partner referrals filter by status, and a count opens what it counted
@@ -52,26 +52,26 @@ rg -i "<the thing you are seeing>" docs/rules/
 - Approving a therapist sets their revenue share in the same step
 - People -> Patients finds a patient by a reference that is not on their card
 - Admin-configurable behavior
-- A licensed outcome scale is switched on by the clinic, on Settings -> Clinical Questions, and an unreadable switch enables nothing
-- The six-minute walk's predicted-distance equation is chosen on Settings -> Clinical Questions, and unchosen is the default
+- A licensed outcome scale is switched on by the clinic, on Settings -> How the clinic runs -> Clinical questions, and an unreadable switch enables nothing
+- The six-minute walk's predicted-distance equation is chosen on Settings -> How the clinic runs -> Clinical questions, and unchosen is the default
 - The back office sets a patient's phase, overrules their status pill or writes "Where things stand" through `/api/admin/care-status/set`, and edits no goal or milestone
 - A conditional intake question shows in the question bank with its condition
 - Strength and balance care and Heart and lung rehabilitation are switched on by an admin (phase 6a)
 - A patient's diary entries are read-only to the back office
 - The admin's condition detail shows Home exercises read only
 - Checkout speed is the one check that measures the product rather than a backlog
-- Catalog -> Conditions is the one catalogue, and there is no Packages screen
+- Prices & areas -> Conditions & prices is the one catalogue, and there is no Packages screen
 - Countries & currency lives under Catalog, because it decides what a patient is charged
-- Appearance (Settings -> Public Site) is three choices: Light, Dark, or Based on the visitor's device
+- Appearance (Settings -> Your website -> Public site) is three choices: Light, Dark, or Based on the visitor's device
 - Every Health Profile layout option explains itself
-- Settings -> Health Profile layout chooses what every patient of a condition kind sees; one patient's own choice is made on their record or from the same screen
+- Settings -> How the clinic runs -> Health Profile layout chooses what every patient of a condition kind sees; one patient's own choice is made on their record or from the same screen
 - Announcements is a Settings screen, so only a Master Admin posts one
 - The top search finds screens as well as people
-- Logs -> Signed in as is the record of every session swap
-- Money -> Refunds and the Payouts columns
-- People -> Abandoned checkouts removes what it says it removes
-- People -> Data requests is the legal queue, with its deadlines on every case
-- Every email goes through Settings -> Emails, and a test address is never mailed
+- Settings -> History -> Signed in as is the record of every session swap
+- Money -> Payments & refunds -> Refunds and the Payouts columns
+- People -> Requests -> Abandoned checkouts removes what it says it removes
+- People -> Requests -> Data requests is the legal queue, with its deadlines on every case
+- Every email goes through Settings -> Technical -> Emails, and a test address is never mailed
 - A patient is emailed about their booking once per event, after the response, and never about their health
 - A confirmed session gets a day-before and an hour-before reminder, once each, from the maintenance sweep
 - WhatsApp is built and switched off; it messages only a patient who said yes, never a test account, and never about their health
