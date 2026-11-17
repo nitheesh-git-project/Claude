@@ -892,6 +892,18 @@ Eight pages from one design system, the word budgets, why every photograph carri
   redirects to `/patient/login?tab=register` rather than saying "Invalid
   Link", and `/account-suspended` offers Sign Out only with a session.
   Guards: CHROME-008, CHROME-009.
+- **The three sign-in doors share one layout, "Calm Clinic".**
+  `AuthSplitLayout` puts a photograph beside the form (side by side from
+  `md`, a 4:3 strip above it on a phone) and the whole door is teal - the
+  therapist door was purple and the hospital one blue, and the owner asked
+  for no purple. The photos are their own set in `src/lib/authPhotos.ts`,
+  chosen by the owner, and are **not** bound by the marketing rules below
+  (a screen and a glad face in every shot): they sit beside a form somebody
+  already came to fill in. Each carries a focal `position` used for both
+  `object-position` and the slow zoom's origin, so the faces or the scan
+  stay in frame at every width; the zoom is 5% (more softens the photo) and
+  stops under reduced motion. The patient and therapist doors swap to a
+  second photo on their register tab. Guard: AUTH-UI-001.
 
 - **Home visits are sold only when they can be booked.** The master switch
   alone is not "bookable": switched on with no active service area, or with no

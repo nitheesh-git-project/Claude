@@ -142,6 +142,11 @@ Covered by `PAT-HV-001` and `ADM-SET-013`.
 **Steps.** On any public page, scroll to the footer's bottom bar and open each link in the **Legal** row: Privacy policy, Terms of use, Refunds & cancellations, Cookie policy, Medical disclaimer, Grievances. Then change **Feature Control → online cancellation refund hours** and reload `/refunds` after five minutes.
 **Expected Result.** Each page opens with its title, a "Last updated" date and an "On this page" list whose links jump to the sections. No page shows a placeholder such as `[Company name]`, `undefined` or `TODO`; a fact the owner has not supplied (legal entity, address, Grievance Officer) is simply absent. `/refunds` and `/terms` quote the refund window and booking notice as set in Feature Control, never a different figure. The Cookie policy's essential cookies match what DevTools → Application → Cookies shows for a signed-out visitor who declined analytics (plus `_ga` cookies only after accepting). Automated: `e2e/legal-pages.spec.ts`.
 
+
+#### `PUB-AUTH-001` - The sign-in doors (Calm Clinic) · P1
+**Steps.** Signed out, open `/patient/login`, `/therapist/login` and `/hospital/login` on a laptop, then at tablet width and at phone width (DevTools device bar). On the patient and therapist doors switch to **Register Account** / **Apply to Join** and back. Then turn on **Reduce motion** in the operating system and reload one door.
+**Expected Result.** Each door is one rounded card: a photograph on the left half with a white label (**For patients** / **For therapists** / **For hospitals**) and one line over a dark fade at its foot, and the form on the right. On a phone the photo is a short strip above the form, and the faces (or, on the hospital door, the X-ray) are still in frame - nobody's head is cut off. The patient door shows the shoulder-stretch photo on Sign In and the sofa video call on Register; the therapist door the headset session on Sign In and the clinician at a laptop on Apply. Every button, tab and link on all three doors is teal - no purple, no blue. The photo drifts in very slowly; with Reduce motion it is still. Signing in, registering and Forgot password behave exactly as before. Automated: AUTH-UI-001 in `e2e/accessibility.spec.ts`.
+
 ---
 
 ## 18. Security and authorization test plan

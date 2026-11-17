@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import AuthSplitLayout from "./AuthSplitLayout";
 import PasswordInput from "./PasswordInput";
 
 export default function HospitalLoginCard() {
@@ -51,9 +52,9 @@ export default function HospitalLoginCard() {
   }
 
   return (
-    <section className="py-16 max-w-md mx-auto px-4">
-      <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-lg">
-        <div className="w-14 h-14 bg-blue-100 text-blue-700 rounded-xl flex items-center justify-center text-2xl mx-auto mb-4">
+    <AuthSplitLayout photo={"hospital"} kicker="For hospitals" line="Refer a patient for physiotherapy and follow their progress.">
+      <div>
+        <div className="w-14 h-14 bg-teal-100 text-teal-700 rounded-xl flex items-center justify-center text-2xl mx-auto mb-4">
           <i className="fa-solid fa-hospital"></i>
         </div>
         <h1 className="text-xl font-bold text-slate-900 text-center">
@@ -81,7 +82,7 @@ export default function HospitalLoginCard() {
                   setForgotMode(false);
                   setForgotSent(false);
                 }}
-                className="text-blue-700 font-semibold hover:underline"
+                className="text-teal-700 font-semibold hover:underline"
               >
                 ← Back to Sign In
               </button>
@@ -106,7 +107,7 @@ export default function HospitalLoginCard() {
               <button
                 type="submit"
                 disabled={forgotSubmitting}
-                className="w-full bg-blue-700 hover:bg-blue-800 disabled:opacity-60 text-white font-bold py-3 rounded-xl transition"
+                className="w-full bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white font-bold py-3 rounded-xl transition"
               >
                 {forgotSubmitting ? "Sending..." : "Send Reset Link"}
               </button>
@@ -147,7 +148,7 @@ export default function HospitalLoginCard() {
                 <button
                   type="button"
                   onClick={() => setForgotMode(true)}
-                  className="text-blue-700 font-semibold mt-1.5 hover:underline"
+                  className="text-teal-700 font-semibold mt-1.5 hover:underline"
                 >
                   Forgot password?
                 </button>
@@ -155,7 +156,7 @@ export default function HospitalLoginCard() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-blue-700 hover:bg-blue-800 disabled:opacity-60 text-white font-bold py-3 rounded-xl transition"
+                className="w-full bg-teal-700 hover:bg-teal-800 disabled:opacity-60 text-white font-bold py-3 rounded-xl transition"
               >
                 {loading ? "Signing in..." : "Sign In"}
               </button>
@@ -170,6 +171,6 @@ export default function HospitalLoginCard() {
           </>
         )}
       </div>
-    </section>
+    </AuthSplitLayout>
   );
 }

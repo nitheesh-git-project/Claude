@@ -28,6 +28,8 @@ const PAGES = [
   "/book",
   "/book-home-visit",
   "/get-started",
+  "/patient/login",
+  "/patient/login?tab=register",
   "/therapist/login",
   "/hospital/login",
   "/reset-password",
@@ -109,5 +111,50 @@ test("A11Y-003 the cookie card passes axe and every control is reachable by keyb
     const button = card.getByRole("button", { name, exact: true });
     await button.focus();
     await expect(button).toBeFocused();
+  }
+});
+
+test("AUTH-UI-001 the sign-in doors put a sharp photo beside a teal form, framed at every width", async ({ page }) => {
+  const doors = [
+    { path: "/patient/login", alt: /shoulder stretch/, swap: { tab: "Register Account", alt: /video session/ } },
+    { path: "/therapist/login", alt: /headset/, swap: { tab: "Apply to Join", alt: /desk with a laptop/ } },
+    { path: "/hospital/login", alt: /X-ray/, swap: null },
+  ];
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 860 });
+    for (const door of doors) {
+      await open(page, door.path);
+      const photo = page.getByTestId("auth-photo");
+      await expect(photo).toBeVisible();
+      await expect(photo).toHaveAttribute("alt", door.alt);
+      // Loaded, and at least as many pixels as it is drawn with - never a
+      // thumbnail stretched to fit (next/image serves a phone-sized copy on
+      // a phone, which is right).
+      await expect
+        .poll(() =>
+          photo.evaluate((img: HTMLImageElement) =>
+            img.complete && img.naturalWidth > 0 ? img.naturalWidth - img.getBoundingClientRect().width * devicePixelRatio : -1
+          )
+        )
+        .toBeGreaterThanOrEqual(0);
+      const box = await page.getByTestId("auth-split").boundingBox();
+      const pic = await photo.boundingBox();
+      expect(box && pic).toBeTruthy();
+      if (width < 768) {
+        // A 4:3 strip above the form, the full width of the card.
+        expect(Math.abs(pic!.width / pic!.height - 4 / 3)).toBeLessThan(0.05);
+      } else {
+        // Beside the form: half the card.
+        expect(Math.abs(pic!.width - box!.width / 2)).toBeLessThan(4);
+      }
+      // The door is teal: the submit button is teal, never purple or blue.
+      const cls = await page.getByRole("button", { name: "Sign In", exact: true }).last().getAttribute("class");
+      expect(cls).toContain("bg-teal-700");
+      expect(cls).not.toMatch(/purple|blue/);
+      if (door.swap) {
+        await page.getByRole("button", { name: door.swap.tab }).click();
+        await expect(page.getByTestId("auth-photo")).toHaveAttribute("alt", door.swap.alt);
+      }
+    }
   }
 });
