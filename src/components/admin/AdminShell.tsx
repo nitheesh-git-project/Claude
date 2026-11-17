@@ -42,6 +42,9 @@ const ADMIN_REALTIME_TABLES = [
   // A refund made on the Razorpay website arrives by webhook; Money ->
   // Refunds and its badge should show it without a manual refresh.
   "razorpay_refunds",
+  // Trusted-patient codes on Money -> Costs: a patient redeeming one turns
+  // it to Redeemed while an admin may be looking at the list.
+  "trusted_patient_codes",
   "session_suggestions",
   "appointments",
   "therapist_payout_requests",

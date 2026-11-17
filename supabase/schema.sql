@@ -21312,3 +21312,13 @@ create trigger trg_trusted_patient_codes_guard
   for each row execute function public.trusted_patient_codes_guard();
 
 alter table profiles add column if not exists pay_later_code_id uuid references trusted_patient_codes(id) on delete set null;
+
+-- ---------------------------------------------------------------------------
+-- Trusted-patient codes reach the admin dashboard live: a patient redeeming
+-- one turns it to Redeemed on Money -> Costs without a manual refresh
+-- (ADMIN_REALTIME_TABLES, guarded by H-006).
+do $$
+begin
+  alter publication supabase_realtime add table trusted_patient_codes;
+exception when duplicate_object then null;
+end $$;

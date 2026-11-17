@@ -106,7 +106,12 @@ export default function TreatmentGoals() {
   }
 
   const goal = TREATMENT_GOALS[active];
-  const eased = progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+  // Under reduced motion the goal shows at once, whatever the sweep is doing:
+  // tied to the sweep it waited on the in-view signal and the hydration-safe
+  // motion flag settling in the right order, and lost that race now and then
+  // (TG-003), leaving the first visit covering the goal.
+  const shown = reduce ? 1 : progress;
+  const eased = shown < 0.5 ? 2 * shown * shown : 1 - Math.pow(-2 * shown + 2, 2) / 2;
   const pct = eased * 100;
 
   return (
@@ -159,7 +164,7 @@ export default function TreatmentGoals() {
         </div>
         {/* The divider exists only mid-sweep: rendered hidden, it would put an
             inline opacity:0 in the server HTML (HY-003). */}
-        {progress > 0 && progress < 1 && (
+        {shown > 0 && shown < 1 && (
           <div
             aria-hidden="true"
             className="pointer-events-none absolute inset-y-0 w-[3px] -translate-x-1/2 bg-white shadow-[0_0_0_1px_rgba(15,23,42,0.08)]"
