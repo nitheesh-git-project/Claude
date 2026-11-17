@@ -59,7 +59,9 @@ off), so testing never emails a real person. Test addresses such as
 their own with `scripts/email-package-2026-11.sql`, the same statements as the
 end of `schema.sql`, short enough for the SQL editor. WhatsApp's tables are in
 `scripts/whatsapp-2026-11.sql` the same way; WhatsApp starts switched off and
-sends nothing until the steps in `docs/whatsapp/TEMPLATES.md` are done.
+sends nothing until the steps in `docs/whatsapp/TEMPLATES.md` are done. Phone
+sign-in's switch is in `scripts/phone-login-2026-11.sql`; it starts off and
+needs an SMS provider on the Supabase project first (`docs/auth/PHONE-SIGN-IN.md`).
 
 ## A new Supabase project needs table grants, which the schema does not carry
 

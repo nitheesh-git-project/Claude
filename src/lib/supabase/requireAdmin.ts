@@ -1,4 +1,5 @@
 import type { User } from "@supabase/supabase-js";
+import { decodeJwtClaims, sessionUsedOtp } from "@/lib/phoneLogin";
 import { createClient } from "@/lib/supabase/server";
 import { resolveAdminScope, scopeCanManage, type AdminScope } from "@/lib/adminScope";
 import type { AdminSectionKey } from "@/lib/adminNav";
@@ -90,6 +91,16 @@ export async function getAdminContextResult(): Promise<AdminGuardResult> {
 
   if (profile?.role !== "admin") return { ok: false, reason: "forbidden" };
   if (profile.active === false) return { ok: false, reason: "forbidden" };
+
+  // Admins sign in with email and password only (owner's decision; see
+  // src/lib/phoneLogin.ts). A session started with a one-time code -- a phone
+  // code obtained any way at all, since Supabase's API is reachable with the
+  // public key -- never opens the back office. The token was verified with
+  // Supabase by getUser() just above, so reading its claims here is safe.
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (sessionUsedOtp(decodeJwtClaims(sessionData?.session?.access_token)?.amr)) {
+    return { ok: false, reason: "forbidden" };
+  }
 
   // `admin_scope` is read in its own call so that a database predating the
   // column (an unknown-column error) still lets its admins in -- no limited

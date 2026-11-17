@@ -203,6 +203,9 @@ export type AdminActivityAction =
   // Settings -> WhatsApp: a switch moved (details: field, from, to; a test
   // number is kept to its last three digits).
   | "whatsapp_controls.set"
+  // Settings -> Sign-in & Security: patients, therapists and hospitals may
+  // (or may no longer) sign in with a phone code. Details: from, to.
+  | "phone_login.set"
   | "clinical_questions.update_intake"
   | "clinical_questions.update_pain_map"
   | "risk.review"
@@ -444,6 +447,7 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
   "email_controls.set": "Changed an email switch",
   "email.test_send": "Sent a test email",
   "whatsapp_controls.set": "Changed a WhatsApp switch",
+  "phone_login.set": "Switched phone sign-in on or off",
   "clinical_questions.update_intake": "Reworded an intake question",
   "clinical_questions.update_pain_map": "Reworded a Pain Map question",
   "risk.review": "Reviewed a risk signal",

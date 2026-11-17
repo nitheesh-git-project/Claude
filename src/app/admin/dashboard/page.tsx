@@ -173,6 +173,7 @@ import LicensedMeasureSettings from "@/components/admin/LicensedMeasureSettings"
 import ProfileWidgetSettings from "@/components/admin/ProfileWidgetSettings";
 import EmailSettings from "@/components/admin/EmailSettings";
 import WhatsAppSettings from "@/components/admin/WhatsAppSettings";
+import PhoneLoginSettings from "@/components/admin/PhoneLoginSettings";
 import AnnouncementSettings from "@/components/admin/AnnouncementSettings";
 import ImpersonationLogSettings from "@/components/admin/ImpersonationLogSettings";
 import RefundsSettings from "@/components/admin/RefundsSettings";
@@ -4378,11 +4379,15 @@ export default async function AdminDashboardPage({
   );
 
   const settingsSecurityTab = (
-    <AdminFeatureControlTab
-      settings={adminSettings}
-      adminEmail={adminProfile?.email ?? user.email ?? ""}
-      view="security"
-    />
+    <>
+      <AdminFeatureControlTab
+        settings={adminSettings}
+        adminEmail={adminProfile?.email ?? user.email ?? ""}
+        view="security"
+      />
+      {/* Self-fetching; its route is requireAdminScope("settings"). */}
+      <PhoneLoginSettings />
+    </>
   );
 
   const adminRows: AdminRow[] = (allProfiles ?? [])

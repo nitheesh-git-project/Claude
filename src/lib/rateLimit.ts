@@ -214,6 +214,39 @@ export const RATE_LIMITS = {
     message: "We already have your complaint from a moment ago.",
   },
 
+  /**
+   * Asking for a sign-in code by text (/api/auth/phone/send). Every code is
+   * an SMS the clinic pays for, and the answer never says whether a number
+   * has an account, so a script's only reward is the clinic's bill. Per
+   * caller, and fails CLOSED: "we couldn't check" sends nothing.
+   */
+  phoneCodeSend: {
+    scope: "phone-code-send",
+    onCheckFailure: "closed",
+    limit: 10,
+    windowSeconds: 3600,
+    message: "We can't send another code just now. Please try again later, or sign in with your email and password.",
+  },
+
+  /** The same, per number: five codes an hour to one phone, whoever asks. */
+  phoneCodeSendNumber: {
+    scope: "phone-code-send-number",
+    onCheckFailure: "closed",
+    limit: 5,
+    windowSeconds: 3600,
+    message: "We can't send another code just now. Please try again later, or sign in with your email and password.",
+  },
+
+  /** Typing a sign-in code (/api/auth/phone/verify): six digits are a small
+   *  space, so guesses are capped per caller as well as by Supabase. */
+  phoneCodeVerify: {
+    scope: "phone-code-verify",
+    onCheckFailure: "closed",
+    limit: 20,
+    windowSeconds: 900,
+    message: "We can't check that code just now. Please wait a few minutes and ask for a new one.",
+  },
+
   /** Creating an account from a referral link. */
   registration: {
     scope: "registration",

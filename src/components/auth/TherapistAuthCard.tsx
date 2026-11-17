@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import PhoneCodeSignIn from "@/components/auth/PhoneCodeSignIn";
 import { createClient } from "@/lib/supabase/client";
 import AuthSplitLayout from "./AuthSplitLayout";
 import { isValidEmail } from "@/lib/validateEmail";
@@ -15,7 +16,7 @@ import PasswordInput from "./PasswordInput";
 import TermsCheckbox, { TERMS_REQUIRED_MESSAGE } from "@/components/legal/TermsCheckbox";
 import { signupTermsMetadata } from "@/lib/policyAcceptance";
 
-export default function TherapistAuthCard() {
+export default function TherapistAuthCard({ phoneEnabled = false }: { phoneEnabled?: boolean } = {}) {
   const [tab, setTab] = useState<"login" | "register">("login");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,6 +27,9 @@ export default function TherapistAuthCard() {
   const [registerPassword, setRegisterPassword] = useState("");
   const [registerConfirmPassword, setRegisterConfirmPassword] = useState("");
   const [forgotMode, setForgotMode] = useState(false);
+  // Phone code sign-in / reset (PhoneCodeSignIn), offered only while an
+  // admin has it switched on (the page reads that on the server).
+  const [phoneMode, setPhoneMode] = useState<"signin" | "reset" | null>(null);
   const [forgotSubmitting, setForgotSubmitting] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
   const supabase = createClient();
@@ -225,7 +229,9 @@ export default function TherapistAuthCard() {
           </div>
         )}
 
-        {tab === "login" && forgotMode ? (
+        {tab === "login" && phoneMode ? (
+          <PhoneCodeSignIn purpose={phoneMode} onCancel={() => setPhoneMode(null)} />
+        ) : tab === "login" && forgotMode ? (
           forgotSent ? (
             <div className="text-xs space-y-4">
               <div className="bg-teal-50 border border-teal-200 rounded-lg p-3 text-teal-800">
@@ -279,6 +285,18 @@ export default function TherapistAuthCard() {
               >
                 {forgotSubmitting ? "Sending..." : "Send Reset Link"}
               </button>
+              {phoneEnabled && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setForgotMode(false);
+                    setPhoneMode("reset");
+                  }}
+                  className="w-full min-h-[44px] text-teal-700 font-semibold hover:underline"
+                >
+                  Text me a code instead
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setForgotMode(false)}
@@ -340,6 +358,15 @@ export default function TherapistAuthCard() {
             >
               {loading ? "Signing in..." : "Sign In"}
             </button>
+            {phoneEnabled && (
+              <button
+                type="button"
+                onClick={() => setPhoneMode("signin")}
+                className="w-full min-h-[44px] text-teal-700 font-semibold hover:underline"
+              >
+                Sign in with a phone code instead
+              </button>
+            )}
           </form>
         ) : (
           <form onSubmit={handleRegister} className="space-y-3 text-xs">
