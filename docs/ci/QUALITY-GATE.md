@@ -226,9 +226,14 @@ Edge Runtime, Logflare and Vector, Supavisor, and Mailpit. Each was checked
 unused in `src/`, `e2e/` and `scripts/`; the script's header says why per
 service. Mailpit is the one that config.toml had on: email confirmations
 are off, no spec asks for a reset or magic link, and the admin access links
-use `generateLink`, which sends nothing. Docker once failed to bind its
-port and took a run down. If `supabase start` fails, the script stops what
-started and tries exactly once more. It then:
+use `generateLink`, which sends nothing. Docker failing to bind the
+database port ("address already in use") took whole jobs down: the stack's
+ports (54320-54324) sit in Linux's ephemeral range, and the background
+start overlaps npm ci and the image pulls, whose outgoing connections can
+be handed 54322 first. The script now reserves 54320-54329
+(`net.ipv4.ip_local_reserved_ports`) before it pulls anything. If `supabase
+start` still fails, the script stops what started, waits for the database
+port to be free, and tries exactly once more. It then:
 
 1. Refuses to run if a `.env*` file is in the workspace.
 2. Runs the preflight in static mode, before any write.
