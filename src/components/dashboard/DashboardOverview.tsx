@@ -30,6 +30,7 @@ export default function DashboardOverview({
   banner,
   greeting,
   headline,
+  brief,
   cells,
   stripFooter,
   feed,
@@ -67,6 +68,9 @@ export default function DashboardOverview({
    *  where the clinic's revenue starts. Rendered above the feed, in its
    *  column, so it is read before the log of what happened. */
   spotlight?: ReactNode;
+  /** Under the headline, in the same card: the admin's Morning Brief (most
+   *  urgent jobs and today's sessions). Other dashboards leave it out. */
+  brief?: ReactNode;
 }) {
   return (
     // One set of blocks, placed by width (`.overview-grid` in globals.css):
@@ -86,6 +90,7 @@ export default function DashboardOverview({
               {headline}
             </div>
           )}
+          {brief}
         </div>
       )}
 

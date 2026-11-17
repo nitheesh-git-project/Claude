@@ -18,6 +18,7 @@ import AdminShell, { type AdminScreens } from "@/components/admin/AdminShell";
 import DashboardOverview from "@/components/dashboard/DashboardOverview";
 import StatStrip from "@/components/dashboard/StatStrip";
 import { buildAdminFeed, queueRollup } from "@/lib/dashboardFeed";
+import AdminMorningBrief from "@/components/admin/AdminMorningBrief";
 import AdminInboxQueues from "@/components/admin/AdminInboxQueues";
 import AdminAllSessionsTab from "@/components/admin/AdminAllSessionsTab";
 import AdminNewBookingTab from "@/components/admin/AdminNewBookingTab";
@@ -5741,6 +5742,26 @@ export default async function AdminDashboardPage({
       }
       greeting={home.greeting}
       headline={home.headline}
+      brief={
+        <AdminMorningBrief
+          groups={scopedInboxGroups}
+          workable={workableSections}
+          nowMs={nowTimestamp()}
+          sessions={sessionsToday.map((a) => {
+            const homeVisit = homeVisitIds.has(a.id);
+            const therapist = a.therapist_id ? profileMap.get(a.therapist_id) : null;
+            return {
+              id: a.id,
+              slotTime: a.slot_time as string,
+              patient: profileMap.get(a.patient_id)?.full_name ?? "A patient",
+              therapist: therapist ? therapist.full_name ?? "A therapist" : null,
+              homeVisit,
+              needsTherapist: needsTherapist(a, homeVisit),
+              completed: a.status === "completed",
+            };
+          })}
+        />
+      }
       cells={home.cells}
       spotlight={
         canSeeCarePlans ? (

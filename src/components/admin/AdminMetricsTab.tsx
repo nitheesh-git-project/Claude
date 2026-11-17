@@ -1,5 +1,6 @@
 "use client";
 
+import MoneySplitBar from "@/components/admin/MoneySplitBar";
 import { useMemo, useState } from "react";
 import PaidAheadNote from "@/components/admin/PaidAheadNote";
 import { formatClinicDate } from "@/lib/formatDateTime";
@@ -680,6 +681,19 @@ export default function AdminMetricsTab({
 
       {view === "summary" && (
       <div>
+        <MoneySplitBar
+          rangeLabel={`${formatClinicDate(fromDate)} to ${formatClinicDate(toDate)}`}
+          parts={{
+            netRevenuePaise: totalNetRevenuePaise,
+            refundedPaise: totalRefundedPaise,
+            therapistPaise: totalTherapistCutPaise,
+            partnerPaise: totalHospitalCutPaise,
+            paymentFeesPaise: totalGatewayFeePaise,
+            runningCostsPaise: operating.recordedExpensesPaise,
+            operatingProfitPaise: operating.operatingProfitPaise,
+          }}
+        />
+
         {/* The four figures an admin scans first, in the same strip every
             other dashboard opens with. Two flows and two balances: what the
             range earned and what it left the clinic, then what is owed and
