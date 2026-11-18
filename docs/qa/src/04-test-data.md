@@ -21,11 +21,11 @@ Where a test needs a *second, different* password (a change-password test), use 
 | **Admin Finance** | `qa.admin.finance@example.test` | `finance` | Proves Sessions and Catalog are blocked. |
 | **Admin Clinical** | `qa.admin.clinical@example.test` | `clinical` | Proves Money, Catalog and Settings are blocked. |
 
-Admin Full is created by hand in Supabase before Step 0 (set `role='admin'`, `active=true`, `admin_scope='full'`), and is the only account that has the §8.1 standard password. The other three are created from **Settings → User Access** in `ADM-SET-026`, and each gets a **generated password shown on that screen** - not the `E2E_QA_PASSWORD` value. It stays readable on that admin's own Back office row until they set their own, and if it is lost, **Reset password** on the row issues a new one.
+Admin Full is created by hand in Supabase before Step 0 (set `role='admin'`, `active=true`, `admin_scope='full'`), and is the only account that has the §8.1 standard password. The other three are created from **Settings → Who gets in → User access** in `ADM-SET-026`, and each gets a **generated password shown on that screen** - not the `E2E_QA_PASSWORD` value. It stays readable on that admin's own Back office row until they set their own, and if it is lost, **Reset password** on the row issues a new one.
 
 ### 8.3 Patients
 
-**Patient E is made only for §16.4 (pay later), and is made late on purpose.** That section turns on an arrangement where work is delivered before money arrives, and half of it asks *"is this patient new?"* - a question the app answers **once ever** per patient. Patients A and B both carry paid sessions from the reference dataset by the time Finance runs, so reusing either would spend the first-session offer before `PL-BOOK-007` could watch it fire. Create Patient E as an **admin-made account** (Settings → User Access) rather than a self-signup, because that is how these patients really arrive: the clinic makes the account and hands over the credentials.
+**Patient E is made only for §16.4 (pay later), and is made late on purpose.** That section turns on an arrangement where work is delivered before money arrives, and half of it asks *"is this patient new?"* - a question the app answers **once ever** per patient. Patients A and B both carry paid sessions from the reference dataset by the time Finance runs, so reusing either would spend the first-session offer before `PL-BOOK-007` could watch it fire. Create Patient E as an **admin-made account** (Settings → Who gets in → User access) rather than a self-signup, because that is how these patients really arrive: the clinic makes the account and hands over the credentials.
 
 | Field | **Patient E** (pay later) |
 | --- | --- |
@@ -174,7 +174,7 @@ Expected suggestion: **Orthopaedic** for Patient A, **Neurological** for Patient
 
 ### 8.10 Treatment categories (conditions)
 
-Create these in **Catalog → Conditions**.
+Create these in **Prices & areas → Conditions & prices**.
 
 | Category Name | Price (₹) | Session Length (min) | Order | Button Text |
 | --- | --- | --- | --- | --- |
@@ -186,11 +186,11 @@ Negative values for validation tests: Price `0`, Price `-100`, Price `abc`, Sess
 
 ### 8.11 Session packages (programmes)
 
-**Not created any more.** Catalog → Packages was removed: a therapist's recommendation is priced per session from the condition (its online price, or its home-visit price when hands-on), so there is no admin programme to set up. Any old `treatment_category_packages` rows and the purchases that point at them keep working and are named on Programmes → All Programmes; a test that needs an old purchase seeds it by SQL and says so.
+**Not created any more.** Catalog → Packages was removed: a therapist's recommendation is priced per session from the condition (its online price, or its home-visit price when hands-on), so there is no admin programme to set up. Any old `treatment_category_packages` rows and the purchases that point at them keep working and are named on Sessions → Programmes → All programmes; a test that needs an old purchase seeds it by SQL and says so.
 
 ### 8.12 Home-visit prices
 
-Set in **Catalog → Conditions → Home visits**. One visit each - there is no visit count, validity or day to enter.
+Set in **Prices & areas → Conditions & prices → Home visits**. One visit each - there is no visit count, validity or day to enter.
 
 | What | Value |
 | --- | --- |
@@ -200,11 +200,11 @@ Set in **Catalog → Conditions → Home visits**. One visit each - there is no 
 
 **HV2 (legacy programme)** - a `visit_count = 4` row (`QA Home Visit Recovery - 4 Visits`, ₹8,999) has no screen any more. Where a test needs it (`PAT-HV-005`, `PAT-CARE-003`'s old-purchase variant), insert it by SQL. It must be refused by both `/api/home-visit/create-order` and `/api/home-visit/book-cash` with the programme sentence (403), and it never appears on `/home-visit` or the booking hub.
 
-**Negatives** (Catalog → Conditions → Home visits, expected message): price `0` or blank → `Enter the price in rupees, for example 1500.`; visit length `5` → `A visit lasts between 15 and 480 minutes.`
+**Negatives** (Prices & areas → Conditions & prices → Home visits, expected message): price `0` or blank → `Enter the price in rupees, for example 1500.`; visit length `5` → `A visit lasts between 15 and 480 minutes.`
 
 ### 8.13 Service areas (home visit)
 
-Create in **Catalog → Service Areas**.
+Create in **Prices & areas → Home-visit areas**.
 
 | Field | **Area 1** | **Area 2** |
 | --- | --- | --- |
@@ -216,7 +216,7 @@ Create in **Catalog → Service Areas**.
 
 **Not serviceable (use for the negative path):** `560025`. **Invalid formats:** `0560038`, `56003`, `abcdef`.
 
-**These are the areas you create, not the areas a shared database has.** Staging also carries the automated suite's area (`600017`, Chennai) and whatever other testers saved, and its home-visit prices move the same way. If you did not create the rows above yourself on this database, read the live pincodes and travel fees from **Catalog → Service Areas** and the visit prices from **Catalog → Conditions → Home visits**, and test against those. A figure in the public FAQ is never a source: it is admin-typed text.
+**These are the areas you create, not the areas a shared database has.** Staging also carries the automated suite's area (`600017`, Chennai) and whatever other testers saved, and its home-visit prices move the same way. If you did not create the rows above yourself on this database, read the live pincodes and travel fees from **Prices & areas → Home-visit areas** and the visit prices from **Prices & areas → Conditions & prices → Home visits**, and test against those. A figure in the public FAQ is never a source: it is admin-typed text.
 
 ### 8.14 Documents (patient uploads)
 
@@ -261,7 +261,7 @@ Unless a test says otherwise, leave every setting at its default. The four that 
 | --- | --- | --- |
 | **Therapist-Suggested Sessions** | **on** on a fresh database | Needed by `THR-SUGG-*` and `PAT-SUGG-*`. On a database that predates the change it stays at its old value - **confirm the toggle before running those tests** |
 | **Assign a Therapist Automatically** | **off** | `ADM-SET-021` switches it on; several booking tests assume the queue behaviour while it is off |
-| **Where a patient's remaining sessions are counted** (Settings → Advanced) | **Running total** | `ADM-SET-019` |
+| **Where a patient's remaining sessions are counted** (Settings → Technical → Advanced) | **Running total** | `ADM-SET-019` |
 | **Home Visit** | **off** | `ADM-SET-013` switches it on for the home-visit journey |
 
 ### 8.18 Setup aliases used in preconditions

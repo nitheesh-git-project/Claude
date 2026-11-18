@@ -33,14 +33,14 @@ A hospital is a **referral source**, never a clinical actor. It is **provisioned
 2. Scroll to the enquiry form.
 3. Fill it with Hospital A's details from §8.9 and submit.
 
-**Expected Result.** A confirmation appears. A `b2b_leads` row is created. It shows in Admin → People → Partners and raises that tab's badge. **No account is created and no login works yet** - an enquiry is not a partner.
+**Expected Result.** A confirmation appears. A `b2b_leads` row is created. It shows in Admin → People → Hospitals and raises that tab's badge. **No account is created and no login works yet** - an enquiry is not a partner.
 **Negative:** submitting with a blank required field, or an invalid email, is refused with a readable message and creates nothing.
 
 #### `HOS-AUTH-002` - Admin provisions the hospital · P0
 *(Executed by the admin; verified here because it produces the partner's credentials.)*
 
 **Steps**
-1. As Admin Full, open **People → Partners**.
+1. As Admin Full, open **People → Hospitals**.
 2. Find the lead `QA Sunrise Hospital`. Tap the onboard control.
 3. Enter **Organisation Name** `QA Sunrise Hospital`, **Contact Person** `QA Hospital Admin A`, **Email** `qa.hospital@example.test`, **Revenue Share %** `10`.
 4. Submit.
@@ -74,7 +74,7 @@ A hospital is a **referral source**, never a clinical actor. It is **provisioned
 8. Tap **Treatment Needed**. Enter `Gait and balance retraining, twice weekly`.
 9. Submit.
 
-**Expected Result.** The form is replaced by a teal card, scrolled into view and focused: *"We'll call <patient name>; track it in Your Referrals"* with a **Refer another** button that brings back an empty form (Session Type back on `Online`). Inputs are 16px on a phone (no iOS zoom) and controls are at least 44px tall. The referral appears under **Your Referrals** with status **Pending Review** and "Sent <date>" (clinic zone), plus "updated <date>" once declined or withdrawn. The list has a patient-name search and 10 rows per page; the Overview **Accepted** cell opens the list filtered (`?show=accepted`) with a "Show all referrals" link. The badge and filter chip both say **Registered** (not "Booked"). Overview quick actions read **Earnings** and **Edit Profile**; the Refer, Referrals and Earnings pages do not repeat the page title in the card. It appears in Admin → People → Partners and raises the badge. **The Pincode field is not required for an online referral.** The phone field clears with the rest of the form.
+**Expected Result.** The form is replaced by a teal card, scrolled into view and focused: *"We'll call <patient name>; track it in Your Referrals"* with a **Refer another** button that brings back an empty form (Session Type back on `Online`). Inputs are 16px on a phone (no iOS zoom) and controls are at least 44px tall. The referral appears under **Your Referrals** with status **Pending Review** and "Sent <date>" (clinic zone), plus "updated <date>" once declined or withdrawn. The list has a patient-name search and 10 rows per page; the Overview **Accepted** cell opens the list filtered (`?show=accepted`) with a "Show all referrals" link. The badge and filter chip both say **Registered** (not "Booked"). Overview quick actions read **Earnings** and **Edit Profile**; the Refer, Referrals and Earnings pages do not repeat the page title in the card. It appears in Admin → People → Hospitals and raises the badge. **The Pincode field is not required for an online referral.** The phone field clears with the rest of the form.
 **Negative:** submitting with the phone blank or malformed is refused with `Enter the patient's phone number so our team can reach them.` The number is required because the clinic **rings this patient before sending the registration link** - see `ADM-REF-001`.
 
 #### `HOS-REF-002` - A home-visit referral requires a pincode · P1
@@ -132,7 +132,7 @@ A hospital is a **referral source**, never a clinical actor. It is **provisioned
 **Expected Result**
 * The completed session contributes `2499 × 10% = ₹249.90 → 24990 paise`.
 * The refunded session's net is `₹1,999 − ₹1,999 = ₹0`, so it contributes **₹0** - a refund reverses the partner's commission, because the commission is a cut of money **kept**.
-* The figures on this screen match Admin → Money → Breakdown's `hospitalCutPaise` for the same range exactly.
+* The figures on this screen match Admin → Money → Overview → By treatment & therapist's `hospitalCutPaise` for the same range exactly.
 * Balances are **not date-filtered**; flows are. The screen labels which is which.
 
 #### `HOS-MONEY-002` - A patient whose therapist share is unset is excluded, not guessed · P0

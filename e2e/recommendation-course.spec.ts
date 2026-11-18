@@ -375,7 +375,7 @@ test("RC-008: admin Today shows a recommendation waiting for approval, then with
     await expect(row).toContainText(`5 sessions of ${CONDITION}`);
     // Programmes -> Recommendations is the approval queue now, and the row
     // leads with the recommendation's programme ID (…_PKG…-0/5).
-    await expect(row).toHaveAttribute("href", /section=programmes&tab=review/);
+    await expect(row).toHaveAttribute("href", /section=sessions&tab=programmes&sub=review/);
     await expect(row).toContainText(/[A-Z]{2,4}_PKG\d{3,}-0\/5/);
     await card.screenshot({ path: "test-results/recommendation-pulse-pending.png" });
     const review = await adminCtx.post(`${BASE}/api/admin/review-care-plan`, {

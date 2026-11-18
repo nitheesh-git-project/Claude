@@ -34,7 +34,7 @@ Five rules shape almost every screen:
 10. Tap **Submit Application**.
 
 **Expected Result.** The button reads `Submitting...`, then the form returns to the **Sign In** tab with a confirmation that the application is with the clinic. The `profiles` row exists with `role='therapist'`, `approved=false`, `active=true`, `specialization='Orthopaedic'` - the exact label, not a code - and `years_experience = 9`.
-**Step 7b:** letters never reach the box at all; `-2` and `61` are refused with the clinic's own wording naming the range (0 to 60); `2024` is refused as a number of years rather than stored, since somebody typing a *year* has answered a different question. Leaving it empty is refused - it is required on this form, and optional only on the admin's own create-account form, where the therapist can set it themselves afterwards. This column has existed since the first therapist shipped and nothing ever wrote it, so a therapist created before this landed carries null and shows nothing rather than `0`. **No "check your email" step appears anywhere.** The application shows in Admin → Today → Approvals, **carrying the specialisation chip**, and raises that tab's badge. Submitting with **Specialist In** left on its placeholder is refused by the form's own validation, in the clinic's wording rather than the browser's.
+**Step 7b:** letters never reach the box at all; `-2` and `61` are refused with the clinic's own wording naming the range (0 to 60); `2024` is refused as a number of years rather than stored, since somebody typing a *year* has answered a different question. Leaving it empty is refused - it is required on this form, and optional only on the admin's own create-account form, where the therapist can set it themselves afterwards. This column has existed since the first therapist shipped and nothing ever wrote it, so a therapist created before this landed carries null and shows nothing rather than `0`. **No "check your email" step appears anywhere.** The application shows in Admin → Home → To-do → Approvals, **carrying the specialisation chip**, and raises that tab's badge. Submitting with **Specialist In** left on its placeholder is refused by the form's own validation, in the clinic's wording rather than the browser's.
 **Critical check:** the specialisation and the years both reach the profile row through the signup trigger (`handle_new_user`), which clamps the years server-side - signup metadata comes from a browser and is never trusted. A database that has not had the schema re-applied writes the rest of the application and leaves those columns null - the account is still created, and the therapist sets it from their own dashboard.
 **Cleanup.** Leave for `ADM-APPR-002`.
 
@@ -85,7 +85,7 @@ The therapist Overview is where a clinician starts every shift: what is on today
 * **The tutorial explains the health profile from the therapist's side** with dummy data only (Priya, Dr Ananya): who fills it first, that the first fill saves without review and unlocks the patient's profile, and that later changes wait for the clinic. Skip asks once, then records it as seen; the (i) beside any page title replays just that page's chapter.
 * Header: `Welcome, QA Therapist A`, the credentials string, `Your Revenue Share: 60%` (whatever `ADM-PEOP-006` set), and `Your Rating: No ratings yet` until a patient has rated one - then `4.0 (1 rating)`. If an admin has hidden this therapist's rating, the line ends ` - hidden from public pages`.
 * Greeting `Your practice today`. The headline names the next session and its patient, or reads `No sessions booked yet - keep your availability open and the clinic assigns work to it.`
-* **Today** counts today's sessions with `Next at H:MM` beneath, **Upcoming** counts confirmed and awaiting-assignment work, **Notes to write** counts delivered sessions with nothing recorded (amber above zero, emerald at zero with `Every delivered session is written up`), **Owed to you** is a rupee figure with `Not yet requested` / `Payout request under review` / `Payout request sent` - and it is **the same figure**, to the paisa, as Earnings' *Pending Payout*, the *Owed* on this therapist's admin profile and their row on Money → Payouts (cash held aside). A session marked paid with no amount recorded adds nothing to any of them; one that read ₹9,232.80 here against ₹4,435.20 there is the QA F-21 bug.
+* **Today** counts today's sessions with `Next at H:MM` beneath, **Upcoming** counts confirmed and awaiting-assignment work, **Notes to write** counts delivered sessions with nothing recorded (amber above zero, emerald at zero with `Every delivered session is written up`), **Owed to you** is a rupee figure with `Not yet requested` / `Payout request under review` / `Payout request sent` - and it is **the same figure**, to the paisa, as Earnings' *Pending Payout*, the *Owed* on this therapist's admin profile and their row on Money → Pay therapists (cash held aside). A session marked paid with no amount recorded adds nothing to any of them; one that read ₹9,232.80 here against ₹4,435.20 there is the QA F-21 bug.
 * Steps 4 and 5 land on `/therapist/dashboard/sessions` and `/therapist/dashboard/earnings`. The counts there match the figures exactly.
 * Empty feed reads `Assignments, completed sessions and payouts show up here as they happen.` A session delivered with no note written is a `needsYou` item pinned above dated items.
 * **Step 7 must land on `/therapist/dashboard/availability`, with the weekly schedule editor on screen.** Availability is its own route; a quick action that reloads the Overview and changes nothing is a defect - report it against this test ID.
@@ -112,13 +112,13 @@ The therapist Overview is where a clinician starts every shift: what is on today
 9. Read the two fields you just changed.
 10. Tap **Withdraw** beside **Specialist In**.
 11. Repeat steps 7–8 for **Specialist In** only. Leave it pending.
-12. Sign in as a full admin and open **Today → Approvals**. Decline **both** requested fields with the note `Send the council registration number first.`
+12. Sign in as a full admin and open **Home → To-do → Approvals**. Decline **both** requested fields with the note `Send the council registration number first.`
 13. Sign back in as the therapist and reopen **Edit Profile**.
 14. Under **Account Security**, tap **Email me a reset link** (the **Change password** form above it is covered by `PW-001`: it needs the current password).
 
 **Expected Result.**
 * **Languages save instantly.** The button reads `Saving...` then `Save`; the value survives the reload at step 5.
-* **The bio waits for approval.** Its section says the therapist writes it and that it appears on the Our Team page once the clinic approves it. After Save it shows as typed with an amber `Waiting for the clinic's approval` note, and `/team` still shows the previous bio until an admin approves it under **Today → Approvals** (`Bio (Our Team page)`).
+* **The bio waits for approval.** Its section says the therapist writes it and that it appears on the Our Team page once the clinic approves it. After Save it shows as typed with an amber `Waiting for the clinic's approval` note, and `/team` still shows the previous bio until an admin approves it under **Home → To-do → Approvals** (`Bio (Our Team page)`).
 * **The bio keeps its formatting everywhere.** Once approved, the grey saved view, the admin's therapist page and the `/team` popup all show the same two paragraphs with `posture-driven` in bold - never one run-on line. **Cancel** with unsaved changes asks before discarding them.
 * **Credentials do not.** Step 8 shows `Your request has been submitted for admin review.` Each requested field is replaced by its **new** value on a slate panel with an amber `Pending Review` chip and a **Withdraw** link, and **cannot be edited again** until the request is decided. The live public profile still shows the **old** value - `/team` and the patient's therapist card must not change yet.
 * Step 10's **Withdraw** returns the field to an editable control immediately, with the old value.
@@ -151,7 +151,7 @@ The therapist Overview is where a clinician starts every shift: what is on today
 
 **Expected Result.** After saving, a "Saved" indication appears, the editor **closes back to the read-only summary**, and that summary reads Mon–Fri `9:00 AM – 1:00 PM, 2:00 PM – 6:00 PM`. Reloading the page shows exactly the same periods - **the stored hour rows round-trip to the same periods** - and shows them read-only. Saturday and Sunday remain off.
 **This is also the first-save check for this therapist.** If it is refused with *"This schedule was changed by someone else"* on an account nobody else has touched, that is the version default returning: an absent `therapist_schedule_state` row is "no comparison asked for", not version `0`.
-**Cross-check:** Admin → Sessions → Roster, opening `QA Therapist A`, shows the identical schedule in the identical editor.
+**Cross-check:** Admin → Sessions → Therapist rota, opening `QA Therapist A`, shows the identical schedule in the identical editor.
 
 #### `THR-AVAIL-002` - A day with no hours must be explicit · P1
 **Steps.** Turn Monday's working toggle on, remove all its periods, and tap **Save**.
@@ -239,7 +239,7 @@ This is the regression that guards the whole design. See `XCFG-ROSTER-001`.
 * Outside the window: refused (403) with the time it opens - `You can see this number from <time> on <date>.` - or, after it, `This number closed at <time>, after the session.` A home visit outside its day says `You can see this number on <date>, the day of the visit.`
 * Cancelled session: refused.
 * A **home visit** is revealable **any time on the visit's own day in the clinic's zone (IST)**, not merely in a join window - verify this separately, including a 7 AM visit just after midnight.
-* Admin → Settings → User Access shows the reveal log. It is **admin-read-only and append-only by trigger**: attempting to update or delete a row raises, even with the service role.
+* Admin → Settings → Who gets in → User access shows the reveal log. It is **admin-read-only and append-only by trigger**: attempting to update or delete a row raises, even with the service role.
 
 #### `THR-SESS-005` - Completing a session is gated two ways · P0
 
@@ -475,7 +475,7 @@ A second attempt returns `This visit's payment has already been recorded.`
 **Expected Result.** The phase bar moves and says the plan only *suggests* a phase until one is set. A short reason cannot be saved; a saved overrule shows on the pill with its reason, and the patient sees the same pill and reason. After a new review the overrule asks to be looked at again. The patient's PDF export names the phase and the overrule with its reason. When a read fails, only its card says "We couldn't load ... They are not missing"; the Pain Map line and the rest of the chart still draw.
 
 #### `THR-HP-005g` - The neurological condition group and the Parkinson's follow-ups · P0
-**Steps.** As the assigned therapist, onboard (or re-triage) a patient as neurological. In the intake pop-up, answer **Condition group** with *Stroke or brain injury*, read the question count, step on; go back and change it to *Parkinson's disease*; step through; try to submit with **Diagnosed** and **Feet getting stuck** blank, then fill them. Change the group back to *Multiple sclerosis* and submit. As an admin, open Settings -> Clinical Questions -> Neurological. As an existing neurological patient (answered before this change, no group on file), open the Health Profile.
+**Steps.** As the assigned therapist, onboard (or re-triage) a patient as neurological. In the intake pop-up, answer **Condition group** with *Stroke or brain injury*, read the question count, step on; go back and change it to *Parkinson's disease*; step through; try to submit with **Diagnosed** and **Feet getting stuck** blank, then fill them. Change the group back to *Multiple sclerosis* and submit. As an admin, open Settings -> How the clinic runs -> Clinical questions -> Neurological. As an existing neurological patient (answered before this change, no group on file), open the Health Profile.
 **Expected Result.** With a stroke the count reads **of 8** and no Parkinson's question appears; choosing Parkinson's makes the next five steps the Parkinson's questions (each with plain help text) and the count **of 13**. Submitting with the two required ones blank is refused and returns to the first missing one. After switching to Multiple sclerosis the Parkinson's answers are kept on file but not shown, counted or printed in the PDF. The admin's question bank lists the group and the five follow-ups, each follow-up noted *Asked only when "Condition group" is "Parkinson's disease"*. The existing patient sees **no** "we've changed some of these questions" banner, and their record still reads complete.
 
 #### `THR-HP-005h` - Diary confirmation and the written "Where things stand" · P1 **[API]**
@@ -577,7 +577,7 @@ A second attempt returns `This visit's payment has already been recorded.`
 
 #### `THR-HP-005c` - Outcome measurements and milestones, at the routes · P1 **[API + SQL]**
 
-**Preconditions.** No screen draws this yet (Health Profile redesign phase 2b), so it is checked at the routes. Patient C (neurological) with a completed session with Therapist A, and on a disposable project only - the rows are append-only. Mark Patient C as Parkinson's by setting their intake answer `neuro_subtype` to `Parkinson's disease` in `patient_condition_profiles.data` (the intake question arrives in a later phase). Patient D: another neurological patient without that answer, also seen by Therapist A. Settings -> Clinical Questions -> **Licensed outcome scales** all off.
+**Preconditions.** No screen draws this yet (Health Profile redesign phase 2b), so it is checked at the routes. Patient C (neurological) with a completed session with Therapist A, and on a disposable project only - the rows are append-only. Mark Patient C as Parkinson's by setting their intake answer `neuro_subtype` to `Parkinson's disease` in `patient_condition_profiles.data` (the intake question arrives in a later phase). Patient D: another neurological patient without that answer, also seen by Therapist A. Settings -> How the clinic runs -> Clinical questions -> **Licensed outcome scales** all off.
 **Steps**
 1. As Therapist A, `POST /api/therapist/measurements/submit` for Patient C with `{"measurement":{"measureKey":"tug","value":11,"items":[10.8,11.1,11.1],"measuredAt":"<10 minutes ago>","conditions":{"setting":"in_person","medicationState":"on","lastDoseAt":"<2 hours ago>"}}}`. Repeat with only two trials, then without `medicationState`.
 2. The same TUG (without trials or ON/OFF) for Patient D. Then `measureKey` `mds_updrs_3` for Patient C.
@@ -591,7 +591,7 @@ A second attempt returns `This visit's payment has already been recorded.`
 * Step 2: Patient D **400** *"Timed Up and Go is recorded in the neurological examination."*; the licensed scale **400** *"switched off until the clinic confirms its licence"*. Switch MDS-UPDRS III on in Settings and it is accepted (with ON/OFF).
 * Step 3: both **403**; nothing is written.
 * Step 4: the goal and milestone save (**200**); a second goal is **409** `active_goal_exists`. Mark reached **200** with `reachedMeasurementId` set; the update **409** `milestone_reached`.
-* Step 5: **400** `reason_required`; then **200** - the milestone is back at **working** with no reached time, and a `care_milestone_events` row holds the reason and the measurement; the third call **409** `not_reached`. Logs -> All Activity shows **Reopened a milestone marked reached by mistake**.
+* Step 5: **400** `reason_required`; then **200** - the milestone is back at **working** with no reached time, and a `care_milestone_events` row holds the reason and the measurement; the third call **409** `not_reached`. Settings -> History -> All activity shows **Reopened a milestone marked reached by mistake**.
 * Step 6: both raise (*"stays reached"*, *"append-only"*).
 
 #### `THR-HP-005d` - Phase, status override and the walk formula, at the routes · P1 **[API + SQL]**
@@ -605,14 +605,14 @@ A second attempt returns `This visit's payment has already been recorded.`
 5. As the admin, `POST /api/admin/care-status/set` `{"patientId":…,"action":"set_phase","phase":"Build capacity"}`.
 6. **[SQL]** `update care_status_events set value = 'improving' where id = '<step 1's id>'`.
 7. As Therapist A, `POST /api/therapist/measurements/submit` for Patient C with step 1 of THR-HP-005c's TUG plus `"usedArms": true` in `conditions`.
-8. Settings -> Clinical Questions -> **Six-minute walk: predicted distance**: pick **Enright and Sherrill (1998), US adults**, then **Not chosen yet**. Then `POST /api/admin/update-setting` `{"key":"six_minute_walk_equation","value":"enright"}`.
+8. Settings -> How the clinic runs -> Clinical questions -> **Six-minute walk: predicted distance**: pick **Enright and Sherrill (1998), US adults**, then **Not chosen yet**. Then `POST /api/admin/update-setting` `{"key":"six_minute_walk_equation","value":"enright"}`.
 
 **Expected Result**
 * Step 1: **400** `reason_required`; then **200** with `state.override` Needs attention and the reason.
 * Step 2: **400** listing Patient C's phases (Assess, Learn strategies, Build capacity, Keep it going); then **200**; the repeat is **200** `unchanged: true` and writes no row.
 * Step 3: Therapist B **403** `not_assigned`; the patient **403**.
 * Step 4: **200** with `state.override` null; the second **409** `no_override`.
-* Step 5: **200**, the event has `setByRole` admin; Logs -> All Activity shows **Set a patient's phase, overruled their status or wrote where things stand**.
+* Step 5: **200**, the event has `setByRole` admin; Settings -> History -> All activity shows **Set a patient's phase, overruled their status or wrote where things stand**.
 * Step 6: raises *"append-only"*.
 * Step 7: **400** *"does not record whether the arms were used"* - only the 30-second chair stand takes the tick (a geriatric measure: no condition type reaches it yet, so its own case is a unit test).
 * Step 8: each pick saves with a toast; the bad key is **400** *"Unknown six-minute walk equation."* With **Not chosen yet** the six-minute walk guide says **Formula not chosen yet** and shows no percentage of predicted.
@@ -648,7 +648,7 @@ A second attempt returns `This visit's payment has already been recorded.`
 
 #### `THR-CARE-001` - Write a care plan from the session note dialog · P0
 
-**Preconditions.** A **completed** session that **this therapist ran** for Patient A, or a started one finished through **Done** (the note dialog carries the panel then too). Its condition has a price on Catalog → Conditions.
+**Preconditions.** A **completed** session that **this therapist ran** for Patient A, or a started one finished through **Done** (the note dialog carries the panel then too). Its condition has a price on Prices & areas → Conditions & prices.
 
 **Steps**
 1. Open the completed session's note dialog.
@@ -720,7 +720,7 @@ A second attempt returns `This visit's payment has already been recorded.`
 
 #### `THR-SUGG-001` - Suggest a session · P0
 
-**Preconditions.** `therapist_suggestions_enabled` is **on** (it is on by default now; confirm in Settings → Programmes & Home Visits). A programme locked to this therapist with credits remaining.
+**Preconditions.** `therapist_suggestions_enabled` is **on** (it is on by default now; confirm in Settings → How the clinic runs → Programmes & home visits). A programme locked to this therapist with credits remaining.
 
 **Steps**
 1. On the programme's card, tap the suggest control.
@@ -753,7 +753,7 @@ A second attempt returns `This visit's payment has already been recorded.`
 **Steps.** In a suggestion note, enter `https://rzp.io/l/abcd1234 pay here`. **Expected Result.** Refused, recorded.
 
 #### `THR-LEAK-003` - A phone number is delivered and recorded · P1
-**Steps.** In a suggestion note, enter `Call me on 9876543210 before the session`. **Expected Result.** The suggestion **is created** and the patient sees the note. A `communication_flags` row exists with tier `flag` and `blocked=false`. Admin → Settings → User Access shows it.
+**Steps.** In a suggestion note, enter `Call me on 9876543210 before the session`. **Expected Result.** The suggestion **is created** and the patient sees the note. A `communication_flags` row exists with tier `flag` and `blocked=false`. Admin → Settings → Who gets in → User access shows it.
 
 #### `THR-LEAK-004` - Clinical text with digits does not fire · P0
 **Steps.** In a session note, enter `Grade III PA mobilisation ×3 sets, 30s hold. 10 reps, 2× daily. Order ref 90210.`

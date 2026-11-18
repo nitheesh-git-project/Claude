@@ -6,7 +6,7 @@
 
 Every setting below is read through one shared settings module with defaults. **Every dashboard page selects the same column list**, so a new setting cannot silently read as its default on whichever page forgot it.
 
-### 15.1 Settings → Brand & Contact
+### 15.1 Settings → Your website → Brand & contact
 
 #### `ADM-SET-001` - Brand & Contact Details · P1
 
@@ -14,7 +14,7 @@ Every setting below is read through one shared settings module with defaults. **
 **What depends on it.** The **root layout** is the one place these are read (through a public/anon client, so ISR-cached pages under it are not forced dynamic) and it passes them into `Navbar` and `Footer` **as props**. Those two components must never fetch their own copy or hardcode a string.
 
 **Steps**
-1. Open **Settings → Brand & Contact**.
+1. Open **Settings → Your website → Brand & contact**.
 2. Change **Site name** to `QA Physio Clinic`. Save.
 3. Reload the admin page. Confirm the value persisted.
 4. Open `/` in a new tab.
@@ -30,7 +30,7 @@ Every setting below is read through one shared settings module with defaults. **
 **What it controls.** `social_instagram_url`, `social_facebook_url`, `social_linkedin_url`, `social_youtube_url`, `social_whatsapp_url` - the icon row under the clinic's name in the website footer.
 
 **Steps**
-1. Open **Settings → Brand & Contact → Social Media Links**. With nothing set, each row reads *Not set - no icon in the footer*, and `/` shows **no** icon row in the footer.
+1. Open **Settings → Your website → Brand & contact → Social Media Links**. With nothing set, each row reads *Not set - no icon in the footer*, and `/` shows **no** icon row in the footer.
 2. Set **Instagram** to `instagram.com/yourclinic` (no `https://`). Save.
 3. Set **Facebook** to `https://www.youtube.com/@clinic`. Save.
 4. Set **YouTube** to `javascript:alert(1)`. Save.
@@ -42,7 +42,7 @@ Every setting below is read through one shared settings module with defaults. **
 
 ---
 
-### 15.2 Settings → Public Site
+### 15.2 Settings → Your website → Public site
 
 #### `ADM-SET-004` - Ratings visibility · P2
 **Steps.** Toggle **ratings visible publicly** off. Open `/team` and `/`.
@@ -55,11 +55,11 @@ Every setting below is read through one shared settings module with defaults. **
 **Do not confuse this widget with "What treatment works towards"**, which loops through its six stories until you tap one, then stays on it. Their `aria-label`s must stay distinct: "How the process works" vs "Goals by kind of care".
 
 #### `ADM-SET-036` - Mission & Vision · P1
-**Steps.** On Settings → Public Site → **Mission & Vision**, replace the mission with `Seen properly, wherever you are.` and save. Open `/` and `/mission` **immediately** - do not wait five minutes. Then clear the mission box entirely and save again.
+**Steps.** On Settings → Your website → Public site → **Mission & Vision**, replace the mission with `Seen properly, wherever you are.` and save. Open `/` and `/mission` **immediately** - do not wait five minutes. Then clear the mission box entirely and save again.
 **Expected Result.** Both pages show the new line at once on the first check, in the Mission card on the Home page and in the "The practice, in two sentences" band on `/mission`. After clearing it, both pages go back to the line the site ships with - **blank is the undo, not an error**, and the confirmation says so ("back to the wording the site shipped with") rather than claiming an edit. The same two checks apply to the vision box. A value over the character cap is refused with `Please keep this to 160 characters or fewer.` (140 for the vision); past fifteen words the counter turns amber and the save still works, because that budget is advice.
 
 #### `ADM-SET-037` - Promises and limits · P1
-**Feature.** The four cards under the mission and the three "what we won't do" cards are rows an admin manages on Settings → Public Site, one list each. An **empty** list shows the wording the site shipped with; **every row switched off** is a decision and shows nothing.
+**Feature.** The four cards under the mission and the three "what we won't do" cards are rows an admin manages on Settings → Your website → Public site, one list each. An **empty** list shows the wording the site shipped with; **every row switched off** is a decision and shows nothing.
 
 | Step | Expected Result |
 | --- | --- |
@@ -103,7 +103,7 @@ Check the Logs section afterwards: an added, edited, removed or reordered row ea
 #### `ADM-HPL-001` - Health Profile layout: per condition type and per patient · P0 **[UI] [API]**
 **Preconditions.** A Master Admin; a Clinical-desk admin; an orthopaedic and a geriatric patient with records; their assigned Therapist A.
 **Steps.**
-1. As the Master Admin open **Settings → Health Profile layout**, choose *Orthopaedic*, switch **Measures table** off.
+1. As the Master Admin open **Settings → How the clinic runs → Health Profile layout**, choose *Orthopaedic*, switch **Measures table** off.
 2. Choose *Geriatric*: look at **Fall-risk level** and **Standing blood pressure**; post `{ profileKind: "geriatric", widgetKey: "fall_risk", visible: false }` to `/api/admin/profile-widgets/kind`.
 3. Open the orthopaedic patient's record (People → the patient → Health Profile): **Sections for this patient** → **Choose sections**; switch **Measures table** back on for this patient and **Reports and scans** off.
 4. As the patient open My progress; as Therapist A open the chart; download the patient's PDF.
@@ -118,7 +118,7 @@ Check the Logs section afterwards: an added, edited, removed or reordered row ea
 #### `ADM-HPL-002` - Health Profile layout: sections for one patient, from Settings · P1 **[UI] [API]**
 **Preconditions.** A Master Admin; the orthopaedic patient from ADM-HPL-001, with a patient ID (PT....).
 **Steps.**
-1. Open **Settings → Health Profile layout** and scroll to **Sections for one patient**. Search for one letter, then for the patient's first name, then for their patient ID.
+1. Open **Settings → How the clinic runs → Health Profile layout** and scroll to **Sections for one patient**. Search for one letter, then for the patient's first name, then for their patient ID.
 2. Open the patient from the results. Type a reason in **Why** (e.g. *Physiotherapist: neck not involved*) and switch **Reports and scans** off.
 3. Tap **Choose another patient**; look at **Patients with their own layout**, and tap **Open** on the patient.
 4. As the patient open My progress. Then back on Settings tap **Reset to condition default** on the section.
@@ -131,7 +131,7 @@ Check the Logs section afterwards: an added, edited, removed or reordered row ea
 * Step 5: both 403. The same patient's record (People) shows the same choice, since both screens use one panel and one route.
 ---
 
-### 15.3 Settings → Booking Rules, Offers & Discounts, Programmes & Home Visits
+### 15.3 Settings → How the clinic runs → Booking rules, Offers & Discounts, Programmes & Home Visits
 
 **These were one tab and are now three.** "Booking Rules" had grown six unrelated stacks with no heading between them, so an admin opening it to change a refund window scrolled past the discount that decides what every new patient pays. What lives where now:
 
@@ -143,7 +143,7 @@ Check the Logs section afterwards: an added, edited, removed or reordered row ea
 
 **Every Settings screen also states what it is and gives one example**, under its heading - check that line renders and matches the screen you are on. The cases below keep their original IDs; the **Where** line on each says which of the three screens it is now on.
 
-Where a case below still says "Settings → Booking Rules", that is correct - it did not move.
+Where a case below still says "Settings → How the clinic runs → Booking rules", that is correct - it did not move.
 
 #### `ADM-SET-009` - Every Settings screen says what it is · P2
 
@@ -162,7 +162,7 @@ Where a case below still says "Settings → Booking Rules", that is correct - it
 
 **Steps**
 1. Note the current earliest bookable slot on `/book` under simulated time `2026-09-10T10:00`.
-2. In **Settings → Booking Rules → Online Booking Lead Time**, change `12` to `48`. Save.
+2. In **Settings → How the clinic runs → Booking rules → Online Booking Lead Time**, change `12` to `48`. Save.
 3. Reload the admin page and confirm it persisted.
 4. Reload `/book` under the same simulated time.
 5. Attempt a booking at the old boundary (10 September 22:00) by any means, including a direct API call.
@@ -179,7 +179,7 @@ Where a case below still says "Settings → Booking Rules", that is correct - it
 **Independence check:** this must **not** change the **home-visit** refund dialog, which reads its own setting.
 
 #### `ADM-SET-011b` - Online cancel cut-off → the patient's Cancel button · P0
-**Configuration.** `patient_cancel_cutoff_minutes` (Settings → Booking Rules → **Online cancel cut-off**), default **15**, range 0-1440.
+**Configuration.** `patient_cancel_cutoff_minutes` (Settings → How the clinic runs → Booking rules → **Online cancel cut-off**), default **15**, range 0-1440.
 **Steps.** As a patient, open **Sessions** with an online session starting in about 20 minutes, and leave the page open past the 15-minute mark. Then set the cut-off to `0` and reload.
 **Expected Result.** **Cancel Session** shows at 20 minutes out and disappears by itself at 15 minutes out, without a reload; a cancel sent anyway is refused with *"This session starts too soon to cancel online (within 15 minutes). Please contact the clinic."* At `0` the button is back until the session starts. Restore `15`.
 **Independence check:** a **home visit** keeps its Cancel button - the cut-off is online only. Out-of-range values (e.g. `2000`) are refused on save.
@@ -245,11 +245,11 @@ Where a case below still says "Settings → Booking Rules", that is correct - it
 
 #### `ADM-SET-022` - Recommendation settings · P0
 
-At **Settings → Programmes & Home Visits**, above the package settings.
+At **Settings → How the clinic runs → Programmes & home visits**, above the package settings.
 
 | Setting | Default | Dependent feature |
 | --- | --- | --- |
-| **Approve recommendations before the patient sees them** | **on** | Off → a therapist's submission publishes on save and the patient sees it immediately, as it did before the review step. On → it lands in Programmes → Recommendations and the patient sees nothing. See `ADM-CARE-004..008`. **Fails closed:** an unreadable column holds the recommendation rather than publishing it. Read in its own query, not through `SITE_SETTINGS_SELECT` - the same treatment **Therapist-Suggested Sessions** gets, so a database one apply behind loses this one control instead of resetting every setting on the page |
+| **Approve recommendations before the patient sees them** | **on** | Off → a therapist's submission publishes on save and the patient sees it immediately, as it did before the review step. On → it lands in Sessions → Programmes → Recommendations and the patient sees nothing. See `ADM-CARE-004..008`. **Fails closed:** an unreadable column holds the recommendation rather than publishing it. Read in its own query, not through `SITE_SETTINGS_SELECT` - the same treatment **Therapist-Suggested Sessions** gets, so a database one apply behind loses this one control instead of resetting every setting on the page |
 | **How long a recommendation holds** | 30 d | The patient's answering window, counted **from approval**, not from when the therapist wrote it |
 | **Most sessions a week a clinician may ask for** | 5 | A ceiling over the programme's own `max_sessions_per_week`, whichever is lower. Above it: `This programme allows at most N sessions a week.` |
 
@@ -257,7 +257,7 @@ Note there is no longer a **Show programme prices publicly** switch. Programmes 
 
 #### `ADM-SET-023` - First session offer · P0
 
-At **Settings → Offers & Discounts**, above Patient invites.
+At **Settings → How the clinic runs → Offers & discounts**, above Patient invites.
 
 | Setting | Default | Dependent feature |
 | --- | --- | --- |
@@ -301,8 +301,8 @@ At **Settings → Offers & Discounts**, above Patient invites.
 **Feature.** Whether a balance shown and offered is read from the **credit ledger** or from the older `sessions_used` / `visits_used` counters is **one admin switch**, off by default and **reversible in a second** - both are written either way.
 
 **Steps**
-1. Open **Settings → System Health** and confirm **Books & Sessions Agree** is `Healthy`, and that **Google Connection** is not red.
-2. On **Settings → Advanced**, switch **Where a patient's remaining sessions are counted** to **Session history**.
+1. Open **Settings → Technical → System health** and confirm **Books & Sessions Agree** is `Healthy`, and that **Google Connection** is not red.
+2. On **Settings → Technical → Advanced**, switch **Where a patient's remaining sessions are counted** to **Session history**.
 3. Check every surface that shows a balance: the patient's package widget, the therapist's programme list, both purchase detail modals, the admin Programmes list, and the bulk scheduler.
 4. Turn it back off and check them all again.
 
@@ -315,7 +315,7 @@ The screen warns you to turn it on only once System Health has been clean.
 **Feature.** The Health Profile question sets and the Pain Map templates. **Editing these changes what is asked from here on; answers already submitted are untouched.**
 
 **Steps**
-1. Open **Settings → Clinical Questions**.
+1. Open **Settings → How the clinic runs → Clinical questions**.
 2. Confirm the question bank is presented as **one tab per specialty**, not three stacked sections.
 3. On the **Orthopaedic** tab, change the wording of `severity` and save.
 4. Open a patient's intake wizard.
@@ -337,12 +337,12 @@ The screen warns you to turn it on only once System Health has been clean.
 #### `ADM-SET-020a` - Switching on Strength and balance care and Heart and lung rehabilitation · P0
 
 **Steps**
-1. On a database where nobody has touched the setting, open **Settings → Clinical Questions** and read **Condition types offered at triage**.
+1. On a database where nobody has touched the setting, open **Settings → How the clinic runs → Clinical questions** and read **Condition types offered at triage**.
 2. As Therapist A, open triage for a new patient aged 65 or older referred for falls.
 3. As the admin tick **Geriatric** and **Cardiopulmonary**; open the question bank's **Geriatric** and **Cardiopulmonary** tabs; reword *Do you worry about falling?* and save.
 4. Repeat step 2.
 5. `POST /api/admin/update-setting` `{"key":"enabled_intake_specialties","value":["geriatric","elderly"]}`, then `{"key":"enabled_intake_specialties","value":["cardiopulmonary"]}`.
-6. On **Catalog → Conditions** edit a condition and open **Condition type**.
+6. On **Prices & areas → Conditions & prices** edit a condition and open **Condition type**.
 7. Open the public home page and `/how-it-works`.
 
 **Expected Result**
@@ -356,7 +356,7 @@ The screen warns you to turn it on only once System Health has been clean.
 #### `ADM-SET-025` - User Access: scopes · P0
 
 **Steps**
-1. Open **Settings → User Access**.
+1. Open **Settings → Who gets in → User access**.
 2. Read the admin list.
 3. Attempt to change **your own** scope.
 4. Narrow every other `full` admin, then attempt to narrow the last one.
@@ -365,7 +365,7 @@ The screen warns you to turn it on only once System Health has been clean.
 
 #### `ADM-SET-025a` - User Access: what each level can do · P1
 
-**Steps.** On **Settings → User Access**, switch the toggle from **People** to **What each level can do**.
+**Steps.** On **Settings → Who gets in → User access**, switch the toggle from **People** to **What each level can do**.
 
 **Expected Result.** A table: rows are jobs in plain words, grouped by section (Today, Sessions, People, Money, Catalog, Settings); columns are **Master Admin · Operations · Finance · Clinical**. A legend names the three levels - **View and edit**, **View only**, **No access**. Each group heading also states the level each desk holds for that whole section.
 
@@ -381,7 +381,7 @@ The screen warns you to turn it on only once System Health has been clean.
 #### `ADM-SET-025b` - Suspend and restore a back-office account · P0
 
 **Steps**
-1. On **Settings → User Access → People**, note each admin's status chip (**Active** / **Suspended**).
+1. On **Settings → Who gets in → User access → People**, note each admin's status chip (**Active** / **Suspended**).
 2. Suspend `qa.admin.ops@example.test`. Sign in as them.
 3. Restore them. Sign in again.
 4. Attempt to suspend **yourself**.
@@ -420,13 +420,13 @@ The screen warns you to turn it on only once System Health has been clean.
 
 #### `ADM-PEOP-012` - Abandoned checkouts are leads, not approvals · P1
 
-**Feature.** Someone who signs up inside a booking wizard and does not pay has a **locked** account (see §4.3). They are listed under **People → Abandoned checkouts** with their contact details, the session they wanted, how many payment tries they have used, and the date the account is removed if it stays unpaid. They never appear in **Today → Approvals**: nobody reviews these accounts, and approving one would hand a dashboard to somebody who has not paid.
+**Feature.** Someone who signs up inside a booking wizard and does not pay has a **locked** account (see §4.3). They are listed under **People → Requests → Abandoned checkouts** with their contact details, the session they wanted, how many payment tries they have used, and the date the account is removed if it stays unpaid. They never appear in **Home → To-do → Approvals**: nobody reviews these accounts, and approving one would hand a dashboard to somebody who has not paid.
 
 **Steps**
 1. Signed out, open `/book`, fill Steps 1 and 2 with a new email, reach Step 3 and tap **Pay**. Close the payment window once.
-2. As the Master Admin, open **People → Abandoned checkouts**.
-3. Open **Today → Approvals**.
-4. In **Settings → Booking Rules → New patients at checkout**, set **Delete unpaid booking accounts after** to `0`, then to `91`, then back to `3`.
+2. As the Master Admin, open **People → Requests → Abandoned checkouts**.
+3. Open **Home → To-do → Approvals**.
+4. In **Settings → How the clinic runs → Booking rules → New patients at checkout**, set **Delete unpaid booking accounts after** to `0`, then to `91`, then back to `3`.
 
 **Expected Result**
 * Step 2: the new person is listed with name, `mailto:` email, `tel:` phone, the session they wanted (in the clinic's zone), **1 of 3 payment tries**, and **Removed on** a date three days after they signed up. The tab's badge counts them.
@@ -449,7 +449,7 @@ The screen warns you to turn it on only once System Health has been clean.
 5. Try to delete **your own** row in Back office.
 6. Leave exactly one active Master Admin and try to delete it.
 7. Sign in as **Operations**, then **Finance**, then **Clinical**, and look for the button. Then POST `/api/admin/delete-account` directly as each.
-8. Open **Logs → All Activity** after step 1.
+8. Open **Settings → History → All activity** after step 1.
 9. After step 1, try to sign in as that deleted account.
 
 **Expected Result**
@@ -476,7 +476,7 @@ The screen warns you to turn it on only once System Health has been clean.
 1. Create a back-office account. Copy the link from the panel.
 2. Open the link in a private window. Set a password.
 3. Open the same link again.
-4. Reload the admin page and open **Settings → User Access**, then a patient's and a partner's page under **People**.
+4. Reload the admin page and open **Settings → Who gets in → User access**, then a patient's and a partner's page under **People**.
 5. Press **Reset password (send sign-in link)** on another account's row and confirm.
 6. **[SQL]** `select temp_password from patient_admin_notes where temp_password is not null union all select temp_password from therapist_admin_notes where temp_password is not null union all select temp_password from hospital_admin_notes where temp_password is not null union all select temp_password from admin_account_notes where temp_password is not null;`
 7. **[SQL]** Search `admin_activity_log` for any link or token.
@@ -500,14 +500,14 @@ The screen warns you to turn it on only once System Health has been clean.
 4. Sign in as that admin with the **old** password. Then open the link and set a new one.
 5. Look for the reset button on **your own** row. Then POST `/api/admin/reset-admin-password` with your own id.
 6. Sign in as **Operations**, then **Finance**, then **Clinical**. Look for the button, then POST the route directly as each.
-7. Open **Logs → All Activity**.
+7. Open **Settings → History → All activity**.
 
 **Expected Result**
 * Step 1: the link is copied. The **×** dismisses the panel; the link is gone, and that is fine - the row issues a new one.
 * Step 2: a **confirmation first**, saying the current password stops working straight away. Nothing changes until it is confirmed.
 * Step 3: a one-time link appears under the button, with a Copy link control.
 * Step 4: the old password is refused; the link sets a new one, which then signs in.
-* Step 5: **no button on your own row**, and the direct POST is refused. The lane for your own password is the emailed reset on **Settings → Sign-in & Security**.
+* Step 5: **no button on your own row**, and the direct POST is refused. The lane for your own password is the emailed reset on **Settings → Who gets in → Sign-in & security**.
 * Step 6: **no button** for any of the three, and the POST is **403** for all three.
 * Step 7: an entry naming who reset whose sign-in, with `role: admin`, and **no link or token in it**.
 
@@ -516,7 +516,7 @@ The screen warns you to turn it on only once System Health has been clean.
 **Feature.** Both controls used to run their request and the dashboard refresh inside one transition, so the button stayed disabled and spinning until the whole Server Component had re-run - every screen, ~40 queries - which reads as a hang rather than as work. The button now owns its request only; the teal bar at the top of the page owns the refresh.
 
 **Steps**
-1. On **Settings → User Access**, tap **Suspend access** on an admin and watch the button and the top of the page.
+1. On **Settings → Who gets in → User access**, tap **Suspend access** on an admin and watch the button and the top of the page.
 2. Do the same for **Restore access**, and for the **Access level** dropdown.
 3. Create an account and watch the **Create account** button.
 4. Double-tap Suspend as fast as you can.
@@ -582,30 +582,30 @@ For each scoped admin, do **both**: navigate to a forbidden section by URL, **an
 
 #### `ADM-SET-028` - The section is chosen by the capability, not the button's location · P1
 **Purpose.** A refund is `money` scope **even though its button lives on a Programmes screen**.
-**Steps.** As **Admin Ops** (who *can* manage Programmes), open a bought programme's drawer on **Programmes → All Programmes** and look for the refund control, in the drawer and in its purchase modal. Then call `POST /api/admin/refund-package` directly. Repeat as **Finance**.
+**Steps.** As **Admin Ops** (who *can* manage Programmes), open a bought programme's drawer on **Sessions → Programmes → All programmes** and look for the refund control, in the drawer and in its purchase modal. Then call `POST /api/admin/refund-package` directly. Repeat as **Finance**.
 **Expected Result.** For Operations **the refund control does not render** - a control an admin's scope cannot call must not be shown, or they get a 403 with nothing to explain it - and the route returns **403**. Finance, who reads Programmes but manages Money, **does** get **Refund what is left** in the drawer, and the route accepts it.
 
 #### `ADM-SET-029` - Contact controls · P1
-**Steps.** On **Settings → User Access**, change `contact_scan_mode` through `flag_and_block` → `flag_only` → `off`, and toggle `contact_masking_enabled`.
+**Steps.** On **Settings → Who gets in → User access**, change `contact_scan_mode` through `flag_and_block` → `flag_only` → `off`, and toggle `contact_masking_enabled`.
 **Expected Result.** As per `THR-LEAK-006` and `THR-SESS-003`. Note the deliberate asymmetry: **`contact_scan_mode` fails open, `contact_masking_enabled` fails closed** - the safe answer to "I don't know" is opposite for the two, on purpose.
 This tab also surfaces the `communication_flags` and `contact_reveal_log` evidence, **read-only**.
 
 #### `ADM-SET-030` - System Health · P0
 
-**Steps.** Open **Settings → System Health**. Read the verdict strip at the top, then tap the **i** button on each check.
-**Expected Result.** A verdict strip naming how many checks need a person (`All 13 checks healthy`, `2 checks need you`, or `Nothing is broken` when a check is switched off or could not be run), with a jump chip per failing check, followed by thirteen cards in a fixed shape: **Payment Confirmations**, **Google Connection**, **Session Links**, **Waiting Room**, **Books & Sessions Agree**, **Public doors**, **Pay Later**, **Refunds**, **Settlement record**, **Patient files**, **Activity log**, **Checkout speed**, and the accounting check. **Checkout speed** reads *Not checked* until the Razorpay window has opened ten times in the last seven days, then *Healthy* with the typical wait, or *Needs a look* when one patient in ten waits more than six seconds, listing how long each stage took. Its *What this watches* says the clock runs from the Pay tap until the window is asked to open - account creation on a first booking is in it, the patient's time inside the window is not - and the evidence counts windows opened, not payments. **Activity log** reads *Needs a look* when any admin action in the last 30 days could not be written to the log; Logs → All Activity then lists those actions at the top (who, what, when) instead of reading as a complete history. Every card carries a status **word** as well as a colour - `Healthy`, `Needs a look`, `Needs you now`, `Not set up`, `Not checked` - a one-line plain-words headline, and, whenever it is not healthy, a numbered **How to fix it yourself**. The **i** button expands *What this watches* and *For example* inside the same card and nothing else moves. **Books & Sessions Agree** reports where the entitlement **cache**, the **ledger** and the **legacy counter** disagree, plus captured payments attached to nothing and delivered sessions with nothing behind them. **It reports and never repairs** - a silent auto-fix on a money record is how a discrepancy becomes permanent, and that card deliberately has no fix button. The badge on this tab is the number of **checks** needing a person, and it matches the strip's own count and its chips exactly.
+**Steps.** Open **Settings → Technical → System health**. Read the verdict strip at the top, then tap the **i** button on each check.
+**Expected Result.** A verdict strip naming how many checks need a person (`All 13 checks healthy`, `2 checks need you`, or `Nothing is broken` when a check is switched off or could not be run), with a jump chip per failing check, followed by thirteen cards in a fixed shape: **Payment Confirmations**, **Google Connection**, **Session Links**, **Waiting Room**, **Books & Sessions Agree**, **Public doors**, **Pay Later**, **Refunds**, **Settlement record**, **Patient files**, **Activity log**, **Checkout speed**, and the accounting check. **Checkout speed** reads *Not checked* until the Razorpay window has opened ten times in the last seven days, then *Healthy* with the typical wait, or *Needs a look* when one patient in ten waits more than six seconds, listing how long each stage took. Its *What this watches* says the clock runs from the Pay tap until the window is asked to open - account creation on a first booking is in it, the patient's time inside the window is not - and the evidence counts windows opened, not payments. **Activity log** reads *Needs a look* when any admin action in the last 30 days could not be written to the log; Settings → History → All activity then lists those actions at the top (who, what, when) instead of reading as a complete history. Every card carries a status **word** as well as a colour - `Healthy`, `Needs a look`, `Needs you now`, `Not set up`, `Not checked` - a one-line plain-words headline, and, whenever it is not healthy, a numbered **How to fix it yourself**. The **i** button expands *What this watches* and *For example* inside the same card and nothing else moves. **Books & Sessions Agree** reports where the entitlement **cache**, the **ledger** and the **legacy counter** disagree, plus captured payments attached to nothing and delivered sessions with nothing behind them. **It reports and never repairs** - a silent auto-fix on a money record is how a discrepancy becomes permanent, and that card deliberately has no fix button. The badge on this tab is the number of **checks** needing a person, and it matches the strip's own count and its chips exactly.
 **Negative:** a missing `RAZORPAY_WEBHOOK_SECRET` and a dead Google credential both badged **0** before this, because the badge counted rows and those two failures have no rows.
 
 #### `ADM-SET-030b` - Public doors · P1
 
-**Steps.** On a freshly started server, open **Settings → System Health** and read the **Public doors** card. Then use a capped public page - the pincode check on `/home-visit`, or the enquiry form on `/hospitals` - a few times and reload the screen. Ask whoever runs the hosting whether the visitor's own IP address is passed through to the app.
+**Steps.** On a freshly started server, open **Settings → Technical → System health** and read the **Public doors** card. Then use a capped public page - the pincode check on `/home-visit`, or the enquiry form on `/hospitals` - a few times and reload the screen. Ask whoever runs the hosting whether the visitor's own IP address is passed through to the app.
 **Expected Result.** Before anything has used a capped page it reads **Not checked**, with the headline `Nothing has used a capped page yet on this server, so there is nothing to judge.` and no steps - a probe that has not run is not evidence of a fault. Once visitors are being told apart it is **Healthy** and names how many requests it judged on. Two unhealthy readings exist and they are different problems: **Not set up** when no visitor could be told apart at all, and **Needs a look** when every visitor is arriving as the same person - a proxy passing on its own address rather than the visitor's, which shares one allowance between everybody and looks exactly like a working limiter from the inside. Both carry numbered steps naming the hosting setting to change, and **neither is red**: nothing is failing, the app is doing what it was told. The card never prints anybody's IP address - only the counts and the verdict.
 **Negative:** this reads what **this server** has received since it last restarted, so on `npm run start:cluster` it reports whichever worker drew the screen. A reload can therefore move the count; it cannot move the verdict, because whether the host forwards an address is the same for every request.
 
 #### `ADM-SET-030a` - System Health reaches the admin who never opens it · P1
 
-**Steps.** Unset `RAZORPAY_WEBHOOK_SECRET` (or revoke the Google refresh token) and open **Today**. Then fix it and reload. Then, on **Settings → System Health**, read the line at the foot of each card and press **Copy for my developer** on a failing one. Finally sign in as an **Operations**, **Finance** and **Clinical** admin and open Today.
-**Expected Result.** One red line at the top of Today naming the failing check and carrying its own headline, linking straight to Settings → System Health; it is gone once the check is green. **Only a red check does this** - an amber one (a Google account connected without Meet permission, sessions still being retried) puts nothing on Today. Each card's foot reads `Checked just now`, except **Google Connection**, which reports the age of its own cached probe (up to ten minutes after a success, one minute after a failure) - so an owner who has just re-run the token script can tell a stale answer from a disagreement. **Copy for my developer** puts the check name, its status, the headline and the numbered steps on the clipboard as plain text; a healthy card offers no such button. The three scoped admins see **no banner at all** - they cannot open Settings, and a banner linking somewhere they cannot follow would land them on a different screen through `findTab`'s fallback.
+**Steps.** Unset `RAZORPAY_WEBHOOK_SECRET` (or revoke the Google refresh token) and open **Today**. Then fix it and reload. Then, on **Settings → Technical → System health**, read the line at the foot of each card and press **Copy for my developer** on a failing one. Finally sign in as an **Operations**, **Finance** and **Clinical** admin and open Today.
+**Expected Result.** One red line at the top of Today naming the failing check and carrying its own headline, linking straight to Settings → Technical → System health; it is gone once the check is green. **Only a red check does this** - an amber one (a Google account connected without Meet permission, sessions still being retried) puts nothing on Today. Each card's foot reads `Checked just now`, except **Google Connection**, which reports the age of its own cached probe (up to ten minutes after a success, one minute after a failure) - so an owner who has just re-run the token script can tell a stale answer from a disagreement. **Copy for my developer** puts the check name, its status, the headline and the numbered steps on the clipboard as plain text; a healthy card offers no such button. The three scoped admins see **no banner at all** - they cannot open Settings, and a banner linking somewhere they cannot follow would land them on a different screen through `findTab`'s fallback.
 
 #### `ADM-SET-031` - Session Links retry · P1
 Covered by `ADM-SESS-003`.
@@ -613,7 +613,7 @@ Covered by `ADM-SESS-003`.
 #### `ADM-SET-033` - Activity Log · P0
 
 **Steps**
-1. Open **Logs → All Activity**.
+1. Open **Settings → History → All activity**.
 2. Confirm each of these earlier actions appears with actor, action, target and timestamp: account approval, therapist revenue-share change, care-plan withdrawal, care-plan authored on behalf, payout settlement, cash amount correction, credit adjustment, hospital onboarding, password reset.
 2a. Confirm the same for the actions that used to leave no trace at all: `Changed a patient's contact details` (`ADM-PEOP-003`'s contact edit), `Edited notes on a patient`, `Changed whether a therapist appears on Team`, `Excluded a session rating from the average`, `Changed a home visit's address`, `Decided a therapist's access to a Health Profile` and `Decided Health Profile answers` (`ADM-PEOP-004`), `Reworded an intake question` (`ADM-SET-020`), `Reviewed a risk signal` (`ADM-RISK-002`) and `Retried a Meet sync` (`ADM-SET-031`).
 3. Search the log for any of the generated passwords from `ADM-SET-026` or `ADM-PEOP-009`.
@@ -627,7 +627,7 @@ Covered by `ADM-SESS-003`.
 **Feature.** Tapping a row opens the whole entry. It used to expand the route's raw JSON into the table cell (`{"fromPercent":40,"toPercent":55}`) - a developer's view of a record whose purpose is to be read months later by somebody asking what a colleague altered and what it was before.
 
 **Steps**
-1. Change a therapist's revenue share from one percentage to another, then open **Logs → All Activity** and tap that row.
+1. Change a therapist's revenue share from one percentage to another, then open **Settings → History → All activity** and tap that row.
 2. Tap a row for **Changed a patient's contact details**.
 3. Tap a row for a **plain care-plan approval** (no reason required).
 4. Tap **Show the exact record** on any entry that has one.
@@ -644,14 +644,14 @@ Covered by `ADM-SESS-003`.
 
 ### 11.x Logs
 
-The Logs section is **Master Admin only**. Operations, Finance and Clinical have no such section in their sidebar and read their own desk's work on **Today → Activity**, filtered to their own domain and their own desk.
+The Logs section is **Master Admin only**. Operations, Finance and Clinical have no such section in their sidebar and read their own desk's work on **Home → Your desk's activity**, filtered to their own domain and their own desk.
 
 #### `ADM-LOG-001` - Finding one entry in a long log · P1
 
 **Feature.** The log grows for ever, so All Activity is built around finding one row rather than reading the list. The dashboard's own render carries the newest 200 entries; older ones are fetched on demand.
 
 **Steps**
-1. Open **Logs → All Activity** as a Master Admin.
+1. Open **Settings → History → All activity** as a Master Admin.
 2. Type a patient's name into the search box. Then type an admin's first name and a word from an action together, e.g. `asha refund`.
 3. Set **Any type** to **Money**, then to **Sessions**.
 4. Set a **From**/**To** range covering yesterday only, then press **Clear filters**.
@@ -669,11 +669,11 @@ The Logs section is **Master Admin only**. Operations, Finance and Clinical have
 
 #### `ADM-LOG-004` - Everyone's actions, and the Actor / Programme / Patient / Therapist / Condition filters · P1
 
-**Feature.** All Activity is not only admins. Patients, therapists, hospitals and the system leave entries too, each with the role of who acted, and the programme ID, session code, patient, therapist and condition it was about. Master Admin only; the three limited desks still read only their own desk's admin actions on Today -> Activity.
+**Feature.** All Activity is not only admins. Patients, therapists, hospitals and the system leave entries too, each with the role of who acted, and the programme ID, session code, patient, therapist and condition it was about. Master Admin only; the three limited desks still read only their own desk's admin actions on Home -> Your desk's activity.
 
 **Steps**
 1. As a patient, start a booking, then cancel an unpaid future session. As that patient's therapist, complete a session, write a session note and recommend a programme (or suggest a session). As the hospital, send a referral. Pay for one session through Razorpay (test mode).
-2. As a Master Admin open **Logs -> All Activity**.
+2. As a Master Admin open **Settings -> History -> All activity**.
 3. Set **Any actor** to **Patient**, then **Therapist**, then **Hospital**, then **System** (sign-ups show here), then **Admin**.
 4. Type the patient's name into **Patient**, the therapist's into **Therapist**, then a programme ID such as `PED_PKG001` (also `ped pkg001` and just `PED`) into **Programme ID**; pick a condition from **Any condition**.
 5. Copy the address bar, open it in a new tab, then press **Clear filters**.
@@ -696,7 +696,7 @@ The Logs section is **Master Admin only**. Operations, Finance and Clinical have
 
 **Steps**
 1. Do three different things to one patient as an admin (edit their contact details, refund a session, grant a credit).
-2. Open **Logs → All Activity**, tap the refund row, and press **See everything done to this record**.
+2. Open **Settings → History → All activity**, tap the refund row, and press **See everything done to this record**.
 3. Tap another entry inside the timeline.
 4. **Rename the patient**, then do one more action on them, and open the timeline again.
 5. Tap a row whose Subject is a dash, or one whose action recorded no record (`Reset all data`).
@@ -713,7 +713,7 @@ The Logs section is **Master Admin only**. Operations, Finance and Clinical have
 **Feature.** The only way a row ever leaves `admin_activity_log`. The whole point of the design is that an admin cannot act and then remove the record of having acted.
 
 **Steps**
-1. Open **Logs → Archive & Clear**. Try to find any control offering a cutoff inside 30 days.
+1. Open **Settings → History → Archive & clear**. Try to find any control offering a cutoff inside 30 days.
 2. Choose **Older than 365 days** and press **Count them**.
 3. Try to press **Clear** before downloading anything.
 4. Press **Prepare the archive**, then download the CSV.
@@ -741,7 +741,7 @@ The Logs section is **Master Admin only**. Operations, Finance and Clinical have
 1. Sign in as **Operations**, then **Finance**, then **Clinical**. Look for a Logs entry in the sidebar.
 2. For each, navigate directly to `/admin/dashboard?section=logs&tab=all`, and to `&tab=retention`.
 3. Open **Settings** as a Master Admin and look for an Activity Log screen.
-4. Open **Settings → User Access** as a Master Admin and read the matrix.
+4. Open **Settings → Who gets in → User access** as a Master Admin and read the matrix.
 
 **Expected Result**
 * Step 1: **no Logs section** for any of the three.
@@ -752,7 +752,7 @@ The Logs section is **Master Admin only**. Operations, Finance and Clinical have
 #### `ADM-SET-039` - Emails: switches, test mode, test email and the log · P0 **[UI] [API]**
 **Preconditions.** Master Admin. Resend set up on the server (`RESEND_API_KEY`, `EMAIL_FROM`) for step 5; the rest works without it.
 **Steps.**
-1. Open **Settings → Emails** (`?section=settings&tab=emails`). Switch **Send emails** off.
+1. Open **Settings → Technical → Emails** (`?section=settings&tab=emails`). Switch **Send emails** off.
 2. As a patient with a real inbox, file a complaint on `/grievances`. Then submit one from a QA account (`@example.test`).
 3. Back on Emails, set **Test inbox** to your own address and save. File another complaint from the real patient.
 4. Switch **Complaints and data requests** off; read the warning; choose **Keep sending**.
@@ -767,7 +767,7 @@ The Logs section is **Master Admin only**. Operations, Finance and Clinical have
 * Step 6: 400 *never receives mail*; 403 for the patient. Each change is an `email_controls.set` row in the log with from and to.
 
 #### `ADM-SET-040` - Booking and cancellation emails · P1 **[UI]**
-**Preconditions.** Settings → Emails with **Test mode** set to your own inbox (ADM-SET-039); Resend set up on the server.
+**Preconditions.** Settings → Technical → Emails with **Test mode** set to your own inbox (ADM-SET-039); Resend set up on the server.
 **Steps.**
 1. As a patient, book and pay for a video session where one therapist is free (auto-assigned). Then book one where nobody is free.
 2. As the admin, assign a therapist to the second session.
@@ -788,12 +788,12 @@ The Logs section is **Master Admin only**. Operations, Finance and Clinical have
 **Expected Result.**
 * Step 2: one *Starting soon: your video session at ...* for the first and one *Tomorrow: ...* for the second; opening the dashboard again sends no second copy.
 * Step 3: no reminder for the cancelled session.
-* With **Session reminders** switched off on Settings → Emails, the attempts are listed as *This kind is switched off*.
+* With **Session reminders** switched off on Settings → Technical → Emails, the attempts are listed as *This kind is switched off*.
 
 #### `ADM-SET-042` - WhatsApp: built, switched off, consent and STOP · P1 **[UI] [API]**
 **Preconditions.** Master Admin. For steps 4-6, the WhatsApp variables set on the server (`docs/whatsapp/TEMPLATES.md`) and the templates approved by Meta; without them, steps 1-3 only.
 **Steps.**
-1. Open **Settings → WhatsApp**. Read the status line and the consent count; open **Templates to submit to Meta**.
+1. Open **Settings → Technical → WhatsApp**. Read the status line and the consent count; open **Templates to submit to Meta**.
 2. Set **Test number** to your own mobile; switch **Session reminders** off and on again.
 3. As a patient open **Profile**: with WhatsApp not set up there is no WhatsApp card.
 4. (Set up) As a patient with a real email and a mobile number, open Profile → **WhatsApp messages** and switch it on. Remove the number and try to switch it on: refused with *Add your mobile number*.
@@ -810,7 +810,7 @@ The Logs section is **Master Admin only**. Operations, Finance and Clinical have
 **Preconditions.** Steps 3-6 need an SMS provider on the Supabase project (`docs/auth/PHONE-SIGN-IN.md`); without one, steps 1-2 only.
 **Steps.**
 1. Open `/patient/login`, `/therapist/login`, `/hospital/login`, `/admin/login`.
-2. **Settings → Sign-in & Security → Phone sign-in**: read the line; switch on and cancel at the confirm.
+2. **Settings → Who gets in → Sign-in & security → Phone sign-in**: read the line; switch on and cancel at the confirm.
 3. Switch on. As a patient with a real email, **Profile → Sign in with your phone → Link my number**: enter your mobile, type the texted code.
 4. Sign out; on `/patient/login` tap **Sign in with a phone code instead**, enter the number, then the code.
 5. Sign out; **Forgot password? → Text me a code instead**; enter the code; set a new password.
@@ -824,10 +824,10 @@ The Logs section is **Master Admin only**. Operations, Finance and Clinical have
 * Step 6: the same *If this number is linked to an account...* answer as step 4, and no text arrives.
 
 #### `ADM-SET-038` - Developer messages · P1
-**Feature.** The developer credit under the footer's copyright ("Contact me") leads to `/developer` and `/developer/lets-talk`. Whatever a visitor sends lands on **Settings → Developer messages**, which is **Master Admin only** and also holds the two switches that publish the page. See `PUB-DEV-001` for the visitor's side.
+**Feature.** The developer credit under the footer's copyright ("Contact me") leads to `/developer` and `/developer/lets-talk`. Whatever a visitor sends lands on **Settings → Technical → Developer messages**, which is **Master Admin only** and also holds the two switches that publish the page. See `PUB-DEV-001` for the visitor's side.
 
 **Steps**
-1. Complete `PUB-DEV-001` so there is at least one message, then sign in as the Master Admin and open **Settings → Developer messages** (`?section=settings&tab=reachouts`). Check the sidebar badge counts the **new** messages.
+1. Complete `PUB-DEV-001` so there is at least one message, then sign in as the Master Admin and open **Settings → Technical → Developer messages** (`?section=settings&tab=reachouts`). Check the sidebar badge counts the **new** messages.
 2. On the message, confirm the name, a `mailto:` email link, a `tel:` number link (when one was given), the message with its line breaks kept, and the received time **in the clinic's zone**.
 3. Under **Add a note**, type a note and tap **Save note**. Add a second note the same way. On the first note tap **Edit**, change the text and tap **Save**. On the second tap **Delete**, then **No**; tap **Delete** again, then **Yes**. Then tap **Mark as contacted**. Then tap **Move back to new**.
 4. In **Show the developer credit and contact page**, tap the switch. Read the dialog, tap **No**. Tap it again and tap **Yes**. Open `/developer`, then switch it back on the same way (dialog again, **No**, then **Yes**).
@@ -837,11 +837,11 @@ The Logs section is **Master Admin only**. Operations, Finance and Clinical have
 
 **Expected Result**
 * Step 1: the badge shows the number of **new** messages and the filter chips read New / Contacted / All. A new message appears without a reload.
-* Step 3: each saved note appears at once **below the previous one** under **Notes**, with its date and time **in the clinic's zone** and the admin's name; the box clears for the next note and the toast reads `Note added for <name>`. **Save note** stays disabled while the box is blank. The edited note keeps its place and time and adds `· edited <date, time>`; **Save** stays disabled until the text changes, and **Cancel** restores it. **No** on the delete dialog keeps the note; **Yes** removes it. The status pill reads **Contacted** with the date and time, then returns to **New**. Moving back clears who and when. Each action appears in Logs → All Activity as *Added a note to* / *Edited a note on* / *Deleted a note on a developer reachout* / *Moved a developer reachout*, and **a note's text is never in the log** - only its length.
+* Step 3: each saved note appears at once **below the previous one** under **Notes**, with its date and time **in the clinic's zone** and the admin's name; the box clears for the next note and the toast reads `Note added for <name>`. **Save note** stays disabled while the box is blank. The edited note keeps its place and time and adds `· edited <date, time>`; **Save** stays disabled until the text changes, and **Cancel** restores it. **No** on the delete dialog keeps the note; **Yes** removes it. The status pill reads **Contacted** with the date and time, then returns to **New**. Moving back clears who and when. Each action appears in Settings → History → All activity as *Added a note to* / *Edited a note on* / *Deleted a note on a developer reachout* / *Moved a developer reachout*, and **a note's text is never in the log** - only its length.
 * Step 4: **both** directions open a confirm dialog before anything is saved; **No** leaves the switch exactly where it was and writes nothing. After **Yes** the toast names the new state (`Developer credit is now hidden` / `shown`), the switch reads **Saving…** while in flight, the footer's credit line disappears or returns on a public page, and `/developer` and `/developer/lets-talk` are **404** while it is off. Messages already received are still listed.
 * Step 5: an invalid address is refused with a sentence and nothing is saved. A saved address shows as a `mailto:` link under **Prefer email?**; a blank one **hides that line entirely** while the form still works. No address ships in the code - a fresh database shows the box empty.
 * Step 6: a scoped admin never gets the tab, the rows or the controls, and a direct call to `/api/admin/update-dev-reachout`, `/api/admin/dev-reachout-note` or `/api/admin/delete-dev-reachout` answers **403**.
-* Step 7: no reason says `Choose why this message is being deleted.`; Other with no note says `Say why it is being deleted.`; **Keep it** deletes nothing. After the delete the card and its notes are gone, the toast reads `The message from <name> is deleted`, and Logs → All Activity shows *Deleted a developer reachout message* with the reason and the sender's name and email.
+* Step 7: no reason says `Choose why this message is being deleted.`; Other with no note says `Say why it is being deleted.`; **Keep it** deletes nothing. After the delete the card and its notes are gone, the toast reads `The message from <name> is deleted`, and Settings → History → All activity shows *Deleted a developer reachout message* with the reason and the sender's name and email.
 **Negative:** the debug **Reset data** button must **not** remove these messages or their notes, or change either setting - they are the developer's own leads, not test data.
 
 #### `ADM-SET-039` - Hide a public section without deleting it · P1
@@ -857,11 +857,11 @@ The Logs section is **Master Admin only**. Operations, Finance and Clinical have
 **Expected Result.** It opens on paid claims only, with a count and the total taken off. Each row names the patient, their ID, the code and its campaign note, what it was used on (session, programme or home-visit programme) and when, with the amount off. *Any status* adds unpaid and cancelled claims, each labelled. The ID and **Open profile** both open the patient pop-up from People -> Patients.
 
 #### `ADM-MON-042` - Trusted-patient code · P1
-**Steps.** Turn **Pay later** on (Money -> Owed by Patients). **Money -> Costs -> Tap here to create a trusted-patient code**: name, a reason, a note, and the email of a test patient. Create it and copy the code. Sign in as **another** patient, open **Payments** and enter it. Sign in as the named patient, open **Payments** and enter it in lower case. Back as admin, look at the list and at **Owed by Patients**. Try **Cancel code** on it.
+**Steps.** Turn **Pay later** on (Money -> Patients owe). **Money -> Costs -> Tap here to create a trusted-patient code**: name, a reason, a note, and the email of a test patient. Create it and copy the code. Sign in as **another** patient, open **Payments** and enter it. Sign in as the named patient, open **Payments** and enter it in lower case. Back as admin, look at the list and at **Owed by Patients**. Try **Cancel code** on it.
 **Expected Result.** A reason under ten characters, or no email and no phone, is refused. The code reads `TRUST-` and six characters, works **once**, and only for the named account: the other patient sees `That code isn't valid for this account.` and nothing changes. The named patient sees `Pay later is on for your account.`, their profile shows pay later on with the code's reason, and the list shows **Redeemed** with their name and the time. Owed by Patients shows `Pay later from trusted code TRUST-…` beside their balance once they owe anything. A redeemed code has no **Cancel code**; an unused one can be cancelled. Nothing is ever taken off a price.
 
 #### `ADM-SET-035` - Sign-in & Security · P2
-**Steps.** Open **Settings → Sign-in & Security** and change the admin's own password. Check the screen carries two headed blocks: *Your own sign-in* (the reset button) and *Everybody else's sign-in* (the inactivity timeout and the sign-out message).
+**Steps.** Open **Settings → Who gets in → Sign-in & security** and change the admin's own password. Check the screen carries two headed blocks: *Your own sign-in* (the reset button) and *Everybody else's sign-in* (the inactivity timeout and the sign-out message).
 **Expected Result.** The change succeeds and the new password works. Admins are exempt from the idle timeout, so no timeout dialog appears while working here.
 
 ---
@@ -872,58 +872,58 @@ Every row here is a required test. The **Verify** column is what proves the chan
 
 | # | Configuration | Where it is changed | Dependent feature | Verify | Test |
 | --- | --- | --- | --- | --- | --- |
-| 1 | Online booking lead time | Settings → Booking Rules | `/book` picker **and** the create-appointment validator | Earliest offered slot moves; a boundary API call returns 409 | `ADM-SET-010` |
-| 2 | Online cancellation refund window | Settings → Booking Rules | `/book` Step 3 notice; the cancel dialog; the refund paid | Notice text changes; a 48h-away cancel stops refunding at 72h | `ADM-SET-011` |
-| 3 | Booking languages | Settings → Booking Rules | Step 1 chips; the stored `preferred_language` | New chips appear; an off-list language is dropped | `ADM-SET-012` |
-| 4 | Treatment category price | Catalog → Conditions | `/book` header, Step 3 fee, the Razorpay amount | All three show the new price; an old cached page still charges the new one | `ADM-CAT-002` |
-| 5 | Treatment category duration | Catalog → Conditions | The appointment's `duration_minutes`; overlap checks | A new booking stores the new duration | `ADM-CAT-002` |
-| 6 | Category active/inactive | Catalog → Conditions | The concern dropdown; the create route | Absent from the dropdown; API returns 409 | `PAT-BOOK-013` |
-| 7 | Clinic-wide home-visit price | Catalog → Conditions → Home visits | `/home-visit`, the booking hub, `/book-home-visit`, both checkouts, a hands-on recommendation | Every condition without its own price moves to the new figure | `ADM-CAT-005` |
-| 8 | A condition's own home-visit price | Catalog → Conditions → Home visits | The same surfaces for that condition only; the patient's offer card and charge | Card and charge both move - **for new plans and new bookings only** | `ADM-CAT-005`, `PAT-CARE-003` |
-| 9 | Home-visit price changed after purchase | Catalog → Conditions → Home visits | An existing purchase | **Nothing changes** - the purchase keeps its amount | `ADM-CAT-006` |
+| 1 | Online booking lead time | Settings → How the clinic runs → Booking rules | `/book` picker **and** the create-appointment validator | Earliest offered slot moves; a boundary API call returns 409 | `ADM-SET-010` |
+| 2 | Online cancellation refund window | Settings → How the clinic runs → Booking rules | `/book` Step 3 notice; the cancel dialog; the refund paid | Notice text changes; a 48h-away cancel stops refunding at 72h | `ADM-SET-011` |
+| 3 | Booking languages | Settings → How the clinic runs → Booking rules | Step 1 chips; the stored `preferred_language` | New chips appear; an off-list language is dropped | `ADM-SET-012` |
+| 4 | Treatment category price | Prices & areas → Conditions & prices | `/book` header, Step 3 fee, the Razorpay amount | All three show the new price; an old cached page still charges the new one | `ADM-CAT-002` |
+| 5 | Treatment category duration | Prices & areas → Conditions & prices | The appointment's `duration_minutes`; overlap checks | A new booking stores the new duration | `ADM-CAT-002` |
+| 6 | Category active/inactive | Prices & areas → Conditions & prices | The concern dropdown; the create route | Absent from the dropdown; API returns 409 | `PAT-BOOK-013` |
+| 7 | Clinic-wide home-visit price | Prices & areas → Conditions & prices → Home visits | `/home-visit`, the booking hub, `/book-home-visit`, both checkouts, a hands-on recommendation | Every condition without its own price moves to the new figure | `ADM-CAT-005` |
+| 8 | A condition's own home-visit price | Prices & areas → Conditions & prices → Home visits | The same surfaces for that condition only; the patient's offer card and charge | Card and charge both move - **for new plans and new bookings only** | `ADM-CAT-005`, `PAT-CARE-003` |
+| 9 | Home-visit price changed after purchase | Prices & areas → Conditions & prices → Home visits | An existing purchase | **Nothing changes** - the purchase keeps its amount | `ADM-CAT-006` |
 | 10 | Old programme rules (min gap / max per week) | No screen - legacy rows | The bulk scheduler on an old purchase | Violating slots are still refused | `ADM-CAT-007` |
-| 11 | Package default validity | Settings → Programmes & Home Visits | A new purchase's expiry | Expiry date matches | `ADM-SET-018` |
-| 12 | Bulk scheduler limit | Settings → Programmes & Home Visits | `/api/appointments/book-package-sessions` | `Too many slots in one request.` | `ADM-SET-018` |
-| 13 | Therapist lock switch | Settings → Programmes & Home Visits | The pre-pick on later programme sessions in Sessions with no therapist | Off → no therapist pre-picked on a new programme | `ADM-SET-018` |
-| 14 | Therapist suggestions switch | Settings → Programmes & Home Visits | The suggest control and its route | Off → control absent, route 403 | `THR-SUGG-001` |
-| 15 | Ledger authority | Settings → Programmes & Home Visits | Six balance surfaces | All six follow together | `ADM-SET-019` |
-| 16 | Service area created/deleted | Catalog → Service Areas | `/book-home-visit` check; every purchase route | Serviceable ↔ waitlist | `ADM-CAT-010` |
-| 17 | Travel fee per area | Catalog → Service Areas | The quoted total and the therapist's payout | Total = programme + fee × visits | `PAT-CARE-003` |
-| 18 | Home visit master switch | Settings → Programmes & Home Visits | Seven surfaces + care-plan purchase | 404 / entries dropped / purchase refused | `ADM-SET-013` |
-| 19 | Cash on visit | Settings → Programmes & Home Visits | Step 4 option; `book-cash` | Option absent; route refuses | `PAT-HV-007` |
-| 20 | Home visit lead time | Settings → Programmes & Home Visits | The home-visit picker only | Online picker unchanged | `ADM-SET-014` |
-| 21 | Travel buffer minutes | Settings → Programmes & Home Visits | The locked therapist's conflict check | Padded both sides for visits, 0 for online | `ADM-SET-014` |
-| 22 | Home visit refund window | Settings → Programmes & Home Visits | The home-visit cancel dialog only | Online dialog unchanged | `PAT-CANCEL-003` |
-| 23 | Join window before/after | Settings → Booking Rules | Every join control | Goes live earlier/later everywhere | `ADM-SET-017` |
-| 24 | Session Completed cutoff | Settings → Booking Rules | Every join control on every role | All three read **Session Completed** together | `XR-CUTOFF-001` |
-| 25 | Google Meet toggle | Settings → Booking Rules | New online sessions' Meet link | No link; **home visit still gets an event** | `ADM-SET-017` |
-| 26 | Session timeout | Settings → Booking Rules | The idle dialog on all three non-admin dashboards | Signs out to the right login; admins exempt | `ADM-SET-015` |
-| 27 | Farewell banner seconds | Settings → Booking Rules | The post-logout banner | Duration changes; 0 = until dismissed | `ADM-SET-016` |
-| 28 | Clinical question wording | Settings → Clinical Questions | The intake wizard | New wording; old answers untouched | `ADM-SET-020` |
-| 29 | Enabled condition types | Settings → Clinical Questions | The triage picker only | Removed from triage; existing charts render | `ADM-SET-020` |
-| 30 | Pain Map templates | Settings → Clinical Questions | The exam dialog | New questions per region | `ADM-SET-020` |
-| 31 | Admin scope | Settings → User Access | Every admin route and the sidebar | Route 403 + control hidden | `ADM-SET-027` |
-| 32 | Contact scan mode | Settings → User Access | Every cross-role free-text write | block → flag → none | `THR-LEAK-006` |
-| 33 | Contact masking | Settings → User Access | Therapist session cards | Masked ↔ plain; **fails closed** | `THR-SESS-003` |
-| 34 | Risk signals on/off + thresholds | Today → Risk | The detector sweep | Sweep stops; thresholds change what fires | `ADM-RISK-003` |
-| 35 | Brand & contact details | Settings → Brand & Contact | Navbar, Footer, page metadata, splash fallback | All update | `ADM-SET-001` |
-| 36 | Walkthrough seconds | Settings → Public Site | The home page walkthrough | Pace changes; 0 = static | `ADM-SET-005` |
-| 36a | Mission & Vision | Settings → Public Site | `/` and `/mission` | Both update at once; blank restores the shipped line | `ADM-SET-036` |
-| 36b | Promises and limits | Settings → Public Site | `/` chips and both `/mission` bands | Rows publish at once; empty band restores the shipped set; all-off drops the band and its rail entry | `ADM-SET-037` |
-| 36c | Developer credit switch + published email | Settings → Developer messages | Footer credit line, `/developer`, `/developer/lets-talk`, `/api/developer/reachout` | Off ⇒ line hidden and all three 404; email blank ⇒ **Prefer email?** line hidden; **both directions confirm first** | `ADM-SET-038`, `PUB-DEV-001` |
-| 37 | Splash (5 settings) | Settings → Public Site | The opening splash | Each behaves as documented | `ADM-SET-006` |
-| 38 | Testimonials | Settings → Public Site | `/` and `/mission` bands | Both update from one component | `ADM-SET-007` |
-| 39 | FAQ | Settings → Public Site | `/faq` | Accordion updates | `ADM-SET-008` |
-| 40 | Public ratings visibility | Settings → Public Site | `/team`, `/` | Summary hidden | `ADM-SET-004` |
+| 11 | Package default validity | Settings → How the clinic runs → Programmes & home visits | A new purchase's expiry | Expiry date matches | `ADM-SET-018` |
+| 12 | Bulk scheduler limit | Settings → How the clinic runs → Programmes & home visits | `/api/appointments/book-package-sessions` | `Too many slots in one request.` | `ADM-SET-018` |
+| 13 | Therapist lock switch | Settings → How the clinic runs → Programmes & home visits | The pre-pick on later programme sessions in Sessions with no therapist | Off → no therapist pre-picked on a new programme | `ADM-SET-018` |
+| 14 | Therapist suggestions switch | Settings → How the clinic runs → Programmes & home visits | The suggest control and its route | Off → control absent, route 403 | `THR-SUGG-001` |
+| 15 | Ledger authority | Settings → How the clinic runs → Programmes & home visits | Six balance surfaces | All six follow together | `ADM-SET-019` |
+| 16 | Service area created/deleted | Prices & areas → Home-visit areas | `/book-home-visit` check; every purchase route | Serviceable ↔ waitlist | `ADM-CAT-010` |
+| 17 | Travel fee per area | Prices & areas → Home-visit areas | The quoted total and the therapist's payout | Total = programme + fee × visits | `PAT-CARE-003` |
+| 18 | Home visit master switch | Settings → How the clinic runs → Programmes & home visits | Seven surfaces + care-plan purchase | 404 / entries dropped / purchase refused | `ADM-SET-013` |
+| 19 | Cash on visit | Settings → How the clinic runs → Programmes & home visits | Step 4 option; `book-cash` | Option absent; route refuses | `PAT-HV-007` |
+| 20 | Home visit lead time | Settings → How the clinic runs → Programmes & home visits | The home-visit picker only | Online picker unchanged | `ADM-SET-014` |
+| 21 | Travel buffer minutes | Settings → How the clinic runs → Programmes & home visits | The locked therapist's conflict check | Padded both sides for visits, 0 for online | `ADM-SET-014` |
+| 22 | Home visit refund window | Settings → How the clinic runs → Programmes & home visits | The home-visit cancel dialog only | Online dialog unchanged | `PAT-CANCEL-003` |
+| 23 | Join window before/after | Settings → How the clinic runs → Booking rules | Every join control | Goes live earlier/later everywhere | `ADM-SET-017` |
+| 24 | Session Completed cutoff | Settings → How the clinic runs → Booking rules | Every join control on every role | All three read **Session Completed** together | `XR-CUTOFF-001` |
+| 25 | Google Meet toggle | Settings → How the clinic runs → Booking rules | New online sessions' Meet link | No link; **home visit still gets an event** | `ADM-SET-017` |
+| 26 | Session timeout | Settings → How the clinic runs → Booking rules | The idle dialog on all three non-admin dashboards | Signs out to the right login; admins exempt | `ADM-SET-015` |
+| 27 | Farewell banner seconds | Settings → How the clinic runs → Booking rules | The post-logout banner | Duration changes; 0 = until dismissed | `ADM-SET-016` |
+| 28 | Clinical question wording | Settings → How the clinic runs → Clinical questions | The intake wizard | New wording; old answers untouched | `ADM-SET-020` |
+| 29 | Enabled condition types | Settings → How the clinic runs → Clinical questions | The triage picker only | Removed from triage; existing charts render | `ADM-SET-020` |
+| 30 | Pain Map templates | Settings → How the clinic runs → Clinical questions | The exam dialog | New questions per region | `ADM-SET-020` |
+| 31 | Admin scope | Settings → Who gets in → User access | Every admin route and the sidebar | Route 403 + control hidden | `ADM-SET-027` |
+| 32 | Contact scan mode | Settings → Who gets in → User access | Every cross-role free-text write | block → flag → none | `THR-LEAK-006` |
+| 33 | Contact masking | Settings → Who gets in → User access | Therapist session cards | Masked ↔ plain; **fails closed** | `THR-SESS-003` |
+| 34 | Risk signals on/off + thresholds | Home → Risk & safety | The detector sweep | Sweep stops; thresholds change what fires | `ADM-RISK-003` |
+| 35 | Brand & contact details | Settings → Your website → Brand & contact | Navbar, Footer, page metadata, splash fallback | All update | `ADM-SET-001` |
+| 36 | Walkthrough seconds | Settings → Your website → Public site | The home page walkthrough | Pace changes; 0 = static | `ADM-SET-005` |
+| 36a | Mission & Vision | Settings → Your website → Public site | `/` and `/mission` | Both update at once; blank restores the shipped line | `ADM-SET-036` |
+| 36b | Promises and limits | Settings → Your website → Public site | `/` chips and both `/mission` bands | Rows publish at once; empty band restores the shipped set; all-off drops the band and its rail entry | `ADM-SET-037` |
+| 36c | Developer credit switch + published email | Settings → Technical → Developer messages | Footer credit line, `/developer`, `/developer/lets-talk`, `/api/developer/reachout` | Off ⇒ line hidden and all three 404; email blank ⇒ **Prefer email?** line hidden; **both directions confirm first** | `ADM-SET-038`, `PUB-DEV-001` |
+| 37 | Splash (5 settings) | Settings → Your website → Public site | The opening splash | Each behaves as documented | `ADM-SET-006` |
+| 38 | Testimonials | Settings → Your website → Public site | `/` and `/mission` bands | Both update from one component | `ADM-SET-007` |
+| 39 | FAQ | Settings → Your website → Public site | `/faq` | Accordion updates | `ADM-SET-008` |
+| 40 | Public ratings visibility | Settings → Your website → Public site | `/team`, `/` | Summary hidden | `ADM-SET-004` |
 | 41 | Therapist revenue share | People → Therapists | Earnings, Payouts, Money split | All three move together | `ADM-PEOP-006` |
 | 42 | Therapist home-visit share | People → Therapists | Home-visit payout maths | Falls back to online share when unset | `THR-EARN-002` |
-| 43 | Hospital revenue share | People → Partners | Partner Earnings, Money breakdown | Both move; unset ⇒ **excluded, not guessed** | `HOS-MONEY-002` |
+| 43 | Hospital revenue share | People → Hospitals | Partner Earnings, Money breakdown | Both move; unset ⇒ **excluded, not guessed** | `HOS-MONEY-002` |
 | 44 | Therapist team visibility | People → Therapists | `/team`, `?therapist=` resolution | Hidden ⇒ link resolves to nothing, silently | `PAT-BOOK-008` |
 | 45 | Payment gateway fee % | Settings (Costs context) | Operating profit on Money → Costs | The automatic fee line moves | `FIN-COST-002` |
-| 46 | **Therapist roster (any change)** | Sessions → Roster | **`/book` picker** | **Nothing changes - this is the guard** | `XCFG-ROSTER-001` |
-| 47 | Pay later master switch | **Money → Owed by Patients** (not Settings - it sits beside the figures it governs) | Granting terms; `confirm-pay-later` | Off ⇒ the grant card says it would do nothing and the route refuses; **money already owed is still settleable** | `PL-GRANT-004`, `PL-EDGE-002` |
-| 48 | Worth-chasing threshold | Money → Owed by Patients | The total's colour, each patient card, the Today alert | All three move together; a live count previews it before saving; 0 and 400 refused | `PL-OWED-002` |
-| 49 | Ageing warning on/off | Money → Owed by Patients | The same three, plus the filter chips | Off ⇒ nothing amber, chips dropped, alert counts **zero rather than hiding**; the number is kept | `PL-OWED-003` |
+| 46 | **Therapist roster (any change)** | Sessions → Therapist rota | **`/book` picker** | **Nothing changes - this is the guard** | `XCFG-ROSTER-001` |
+| 47 | Pay later master switch | **Money → Patients owe** (not Settings - it sits beside the figures it governs) | Granting terms; `confirm-pay-later` | Off ⇒ the grant card says it would do nothing and the route refuses; **money already owed is still settleable** | `PL-GRANT-004`, `PL-EDGE-002` |
+| 48 | Worth-chasing threshold | Money → Patients owe | The total's colour, each patient card, the Today alert | All three move together; a live count previews it before saving; 0 and 400 refused | `PL-OWED-002` |
+| 49 | Ageing warning on/off | Money → Patients owe | The same three, plus the filter chips | Off ⇒ nothing amber, chips dropped, alert counts **zero rather than hiding**; the number is kept | `PL-OWED-003` |
 
 #### `ADM-SET-025e` - Test accounts from the debug bar · P1
 

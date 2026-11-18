@@ -10,8 +10,7 @@ import { marketingConsentEnabled } from "@/lib/cookieConsent";
 export default function AnalyticsSettingsLink() {
   if (!GA_MEASUREMENT_ID && !marketingConsentEnabled()) return null;
   return (
-    <>
-      <span aria-hidden="true"> · </span>
+    <p>
       <a
         href={COOKIE_SETTINGS_HASH}
         onClick={(e) => {
@@ -24,6 +23,6 @@ export default function AnalyticsSettingsLink() {
       >
         Cookie settings
       </a>
-    </>
+    </p>
   );
 }

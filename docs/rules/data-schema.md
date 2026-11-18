@@ -398,7 +398,7 @@ before.
      change any history.
 
   **Which number the app believes is a switch, not a deploy.**
-  `site_settings.entitlement_ledger_authoritative` (Settings → Advanced,
+  `site_settings.entitlement_ledger_authoritative` (Settings → Technical → Advanced,
   off by default) decides whether a balance shown and offered comes
   from the ledger or from `sessions_used` / `visits_used`. Flipping it is
   reversible in a second, because both are still written either way.
@@ -446,7 +446,7 @@ before.
   cash-on-visit booking, which never becomes `paid` and so reaches neither.
 
   `verify_entitlement_balances()` reports where the cache, the ledger and
-  the legacy counter disagree, on Settings → System Health → Books &
+  the legacy counter disagree, on Settings → Technical → System health → Books &
   Sessions Agree. It reports and
   never repairs - a silent auto-fix on a money record is how a discrepancy
   becomes permanent. It has already earned itself twice, catching two

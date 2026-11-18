@@ -84,19 +84,19 @@ Costs: the three expenses from §8.15. Gateway fee: **2%**.
 
 #### `FIN-NAV-001` - Each Money screen says what it is, and holds what it claims · P1
 
-**Steps.** Open each of the seven Money screens in turn: Summary, Business Health, Transactions, Payouts, Costs, Breakdown, Your Numbers. Read the line under each heading. Then open **Settings → Offers & Discounts**, read its "Looking for promo codes?" note, and follow it.
+**Steps.** Open each of the seven Money screens in turn: Summary, Business Health, Transactions, Payouts, Costs, Breakdown, Your Numbers. Read the line under each heading. Then open **Settings → How the clinic runs → Offers & discounts**, read its "Looking for promo codes?" note, and follow it.
 **Expected Result.** Every screen prints its own one-line description plus a **For example:** line under the heading, in place of the section's own blurb - the same treatment the Settings screens get, and for a sharper reason: five screens named with abstract nouns ("Summary", "Breakdown") make an owner open three to find the one answering their question. **Promo codes are on Costs**, beside the *Discounts given* figure they produce - which is where the Offers note, the README and `ADM-PROMO-001` have always sent people.
 **Negative:** they used to render on **Summary**, so following that note landed on a screen with no promo codes anywhere on it and no way to tell whether the feature existed at all.
 
 #### `FIN-SUM-001` - Summary and the two identities · P0
 
-**Steps.** Open **Money → Summary**. Set the date range to cover the dataset. Read every figure. Compute the two identities by hand.
+**Steps.** Open **Money → Overview**. Set the date range to cover the dataset. Read every figure. Compute the two identities by hand.
 **Expected Result.** `net = gross − refunds` and `clinic share = splittable net − therapist share − partner share` **hold exactly**. The figures match §16.1. The excluded count reads `1` with `₹1,999` named. Every screen ends with the **MoneyGlossary**. No figure is labelled "approximate" - the split is exact over a stated subset.
 **No figure appears twice on the screen.** The strip carries Net revenue, Operating profit, Owed to therapists and Package cash collected; the two blocks below it are the subtraction chain, where Clinic share is deliberately carried down from *Where the money went* into *What it cost to run*. Before this, Net revenue was printed twice, Clinic share three times and Operating profit twice, because the strip repeated the chain under it.
 
 #### `FIN-SUM-004` - Every figure says what it means and when it is measured · P1
 
-**Steps.** On **Money → Summary**, tap the **i** beside Net revenue, Clinic share and Owed to therapists. Read the chip on each. Then open the glossary at the foot of the screen and compare the sentences. Then check the **Gateway fee %** tile on Costs.
+**Steps.** On **Money → Overview**, tap the **i** beside Net revenue, Clinic share and Owed to therapists. Read the chip on each. Then open the glossary at the foot of the screen and compare the sentences. Then check the **Gateway fee %** tile on Costs.
 **Expected Result.** The **i** expands one sentence beside the figure, and it is **word-for-word** what the glossary prints - both read `src/lib/moneyTerms.ts`. Clinic share's says in place that it is **not** profit. Chips: `These dates` on the flows, `Right now` on Owed to therapists (amber) and on the Payouts heading, `A setting` on Gateway fee %. **That tile used to be called "Payment fees"** - the same name Summary gives the rupee amount derived from it, which is the one-word-two-figures collision the vocabulary exists to prevent.
 
 #### `FIN-SUM-002` - Paid vs unpaid, completed vs not · P0
@@ -110,7 +110,7 @@ Costs: the three expenses from §8.15. Gateway fee: **2%**.
 
 #### `FIN-SUM-005` - Opening a figure, and what needs you · P1
 
-**Steps.** On **Money → Summary**, tap **See the sessions** on Net revenue, then on Therapists' share, Partners' share and Clinic share. Add up the last column by hand in each. Then leave S7's cash un-remitted and a payout request pending, and open each of the five Money screens.
+**Steps.** On **Money → Overview**, tap **See the sessions** on Net revenue, then on Therapists' share, Partners' share and Clinic share. Add up the last column by hand in each. Then leave S7's cash un-remitted and a payout request pending, and open each of the five Money screens.
 **Expected Result.** The modal lists exactly the sessions behind that figure and its footer **equals the card**, to the rupee - both come from `moneyLineFor`, which the totals themselves accumulate. A session paid for but **not delivered** appears under Therapists' share with **nothing** against it rather than being hidden. A session left out of the split is not counted in the two share modals. Partners' share offers no link when nothing was referred in range.
 Every Money screen opens with a **needs-you strip**: `N things need you` over one row per item - payout requests waiting, cash a therapist is holding, refunds to hand back by hand, payments attached to nothing - each linking to the rows it counted. With nothing outstanding it reads `Nothing in Money needs you`. A **Finance** admin (no `settings`) sees the first three and **not** payments-attached-to-nothing, whose fix is on a screen they cannot open.
 
@@ -121,12 +121,12 @@ Every Money screen opens with a **needs-you strip**: `N things need you` over on
 
 #### `FIN-BH-001` - Business Health agrees with Summary, and the chain adds up · P0
 
-**Steps.** Open **Money → Business Health** for the same range as `FIN-SUM-001`. Read the profit chain top to bottom and check every subtraction by hand.
+**Steps.** Open **Money → For your accountant → Business health** for the same range as `FIN-SUM-001`. Read the profit chain top to bottom and check every subtraction by hand.
 **Expected Result.** Net revenue is **the same figure Summary prints**, to the rupee - both come from `moneyByBucketFor`. The chain holds exactly: `net revenue − cost of delivering sessions = gross profit`; `gross profit − running the clinic − depreciation − amortization = operating income`; `operating income + depreciation + amortization = EBITDA`; `operating income − interest − tax = net profit`. Gross margin and net margin are each their figure over net revenue. With **no** revenue in the range both margins read `-`, never `0%`.
 
 #### `FIN-BH-002` - A figure that cannot be worked out says which input is missing · P0
 
-**Steps.** With **nothing** recorded on **Money → Your Numbers**, read the Return on investment, Return on ad spend and Working capital cards. Then record one investment, one campaign with no promo code, and one bank balance, and read them again.
+**Steps.** With **nothing** recorded on **Money → For your accountant → Your numbers**, read the Return on investment, Return on ad spend and Working capital cards. Then record one investment, one campaign with no promo code, and one bank balance, and read them again.
 **Expected Result.** Each card first shows `-` with a sentence naming the missing input and a link to Your Numbers - **never** `0%`, `0×` or `₹0`, which read as measurements. After recording: ROI fills in from net profit ÷ what was invested; the second ROI figure stays `-` until an investment carries a **present value with a date**, and the card says how many are valued and how many are not; ROAS still shows `-` because the campaign cannot be traced, and its spend is listed as **not traced** rather than counted against a return.
 
 #### `FIN-BH-003` - Advertising is traced by promo code, and spend is pro-rated · P1
@@ -150,23 +150,23 @@ Every Money screen opens with a **needs-you strip**: `N things need you` over on
 **Expected Result.** An **amber line** on the profit card says a filter is on, that rent and every other running cost belongs to the whole clinic and is shown in full, and that the profit figures are therefore not that slice's profit. Revenue, the therapists' share and the delivery costs do narrow. Every chart redraws at the chosen step. A period with no revenue leaves a **gap** in the margin lines rather than a point at zero.
 
 #### `FIN-BRK-001` - Breakdown agrees with Summary · P0
-**Steps.** Open **Money → Breakdown** for the same range.
+**Steps.** Open **Money → Overview → By treatment & therapist** for the same range.
 **Expected Result.** Every figure and every chart segment matches Summary **exactly** - both come from **one pass** of the same maths. A discrepancy of any size is a P0.
 
 #### `FIN-TXN-001` - Transactions · P1
-**Steps.** Open **Money → Transactions**. Reconcile every row against the dataset. Export CSV and PDF.
+**Steps.** Open **Money → Payments & refunds → Payments**. Reconcile every row against the dataset. Export CSV and PDF.
 **Expected Result.** One row per payment, with the order id and payment id. **No payment id appears on two rows.** The CSV and the PDF describe the **same table** - they are generated from one column definition, and the PDF route is sent the exact filtered rows the browser rendered. Both cover the **whole filtered set**. The PDF carries a subtitle naming the scope and the date. **No JSON export exists.**
 
 #### `FIN-TXN-002` - Refunds on Transactions · P0
-**Steps.** Pay ₹499 for a session as a patient. On the Razorpay Dashboard, refund ₹100 of it. Open **Money → Transactions**, find the payment by its ID, and open **View**.
+**Steps.** Pay ₹499 for a session as a patient. On the Razorpay Dashboard, refund ₹100 of it. Open **Money → Payments & refunds → Payments**, find the payment by its ID, and open **View**.
 **Expected Result.** The row's **Refunded** column reads **−₹100**; the patient's own Payment History table has the same column. The card lists the refund on its own line - **Refunded · on the Razorpay website**, ₹100, the refund ID with a copy button and the time in IST - then **Kept after refunds ₹399**. A refund still on its way reads "on its way" and a failed one "Refund failed", neither counted as refunded. The CSV carries a **Refunded (INR)** column. A programme or home-visit pack refunded on Razorpay shows the same way.
 
 #### `FIN-SUM-002` - Money paid for upcoming sessions · P1
-**Steps.** With the payment above for a session tomorrow, open **Money → Summary** and **Business Health** on their default range (ending today).
+**Steps.** With the payment above for a session tomorrow, open **Money → Overview** and **Business Health** on their default range (ending today).
 **Expected Result.** The figures do **not** include it - money counts on the session's date. Directly under the filters a blue line says **Paid for upcoming sessions: ₹399 from 1 session dated after this range (₹499 paid, ₹100 refunded)**. **Show up to <date>** moves the To date to that session, and the figures then include it. A cancelled session, a programme-covered one, and one paid after the range ends are not in the line. With none, the line is absent.
 
 #### `FIN-PAY-001` - Payouts · P0
-**Steps.** Open **Money → Payouts**. Read Therapist A's row. With a payout request open, read the top of the screen.
+**Steps.** Open **Money → Pay therapists**. Read Therapist A's row. With a payout request open, read the top of the screen.
 **Order.** The screen opens on the **open payout requests**, each with **Pay** on the row (beside Start review / Mark completed; *Set their share first* when no share is set), then the balances table, then the completed requests and the cash ledger. The paragraph on how the figures are worked out is behind an **(i)** beside the heading.
 **Expected Result.** `Owed` matches §16.1's therapist share for A, **less anything already settled**. **The Pay button shows the net figure** - owed minus cash held - not the gross owed. A therapist with **no revenue share set** shows the "not set" state rather than `₹0`; paying them is refused with `Set this therapist's revenue share % before paying out.`
 
@@ -196,8 +196,8 @@ As Admin Ops (no `money` scope): **403**, and the control does not render.
 
 #### `FIN-PAY-007` - A rate change does not reprice sessions already delivered · P0
 **Preconditions.** A therapist on a 40% share with one completed, paid, **unsettled** ₹1,000 online session (delivered at 40%), and one older completed session from before the freeze existed (`therapist_share_percent_at_completion` null).
-**Steps.** Read the therapist's owed figure on **Money → Payouts**, their admin profile, and their own **Earnings** and **Overview**. Change their share to 60%. Read all four again, then request a payout as the therapist and press **Pay** as the admin.
-**Expected Result.** The delivered-at-40% session owes **₹400** before and after the change, on all four screens, in the request and in the transfer - the rate is the one frozen at completion. Only the pre-freeze session moves to the new 60%. The profile's row reads `Session fee ₹1,000 × 40%`. Money → Summary's therapists' share agrees with Payouts.
+**Steps.** Read the therapist's owed figure on **Money → Pay therapists**, their admin profile, and their own **Earnings** and **Overview**. Change their share to 60%. Read all four again, then request a payout as the therapist and press **Pay** as the admin.
+**Expected Result.** The delivered-at-40% session owes **₹400** before and after the change, on all four screens, in the request and in the transfer - the rate is the one frozen at completion. Only the pre-freeze session moves to the new 60%. The profile's row reads `Session fee ₹1,000 × 40%`. Money → Overview's therapists' share agrees with Payouts.
 
 #### `FIN-COST-001` - Costs · P1
 **Steps.** Open **Money → Costs**. Add the three expenses from §8.15. Set the range to September 2026.
@@ -233,7 +233,7 @@ As Admin Ops (no `money` scope): **403**, and the control does not render.
 #### `FIN-REF-013` - Partial refunds, then a cancellation: one refund state · P0
 **Preconditions.** A ₹1,999 online session paid through Razorpay, outside the cancellation window.
 **Steps.** Partially refund it ₹200, then ₹100. Cancel it. Open its drawer. Then repeat on a second such session whose cancellation refund the gateway refuses (FIN-REF-002's method).
-**Expected Result.** The cancellation asks the gateway for **₹1,699** - what is left - never the full ₹1,999; it succeeds, and the drawer reads `₹1,999 refunded` with nothing left refundable. On the refused one: payment `Paid` with a `Refund failed` chip, *Refunded so far ₹300 of ₹1,999*, the partial-refund form offering **₹1,699 of ₹1,999**, and under Cancellation `₹300 refunded earlier; the refund of the remaining ₹1,699 failed - refund it from this session` - never `No payment to refund`. Money → Summary's Refunds still include the ₹300 that went back. Refunding the ₹1,699 from the drawer closes it as `Refunded ₹1,999`.
+**Expected Result.** The cancellation asks the gateway for **₹1,699** - what is left - never the full ₹1,999; it succeeds, and the drawer reads `₹1,999 refunded` with nothing left refundable. On the refused one: payment `Paid` with a `Refund failed` chip, *Refunded so far ₹300 of ₹1,999*, the partial-refund form offering **₹1,699 of ₹1,999**, and under Cancellation `₹300 refunded earlier; the refund of the remaining ₹1,699 failed - refund it from this session` - never `No payment to refund`. Money → Overview's Refunds still include the ₹300 that went back. Refunding the ₹1,699 from the drawer closes it as `Refunded ₹1,999`.
 
 #### `FIN-REF-008` - A refund the clinic owes is counted, and the count opens it · P0
 **Preconditions.** One cash home visit at `manual_pending`, one **session** at `manual_pending`, and one session whose refund `failed` at the gateway.
@@ -242,7 +242,7 @@ As Admin Ops (no `money` scope): **403**, and the control does not render.
 
 #### `FIN-REF-011` - A cash home visit is counted once, not twice · P0
 **Preconditions.** Exactly **one** cash home visit at `manual_pending` and no other refund owed anywhere.
-**Steps.** Read *Refunds to hand back* on the Money alerts strip and on the Today inbox, then open **Money → Payouts → Cash Ledger** and count the rows.
+**Steps.** Read *Refunds to hand back* on the Money alerts strip and on the Today inbox, then open **Money → Pay therapists → Cash Ledger** and count the rows.
 **Expected Result.** Every one of them reads **1**. It must not read 2: the dashboard's home-visit query and its main appointments query are the **same table** (`appointments`, one of them filtered to `visit_mode = 'home_visit'`), so a count that adds the two counts every cash visit twice and puts a figure on the strip the ledger underneath it disagrees with. Repeat with one failed refund on a home visit for *Refunds that failed*.
 
 #### `FIN-SCHED-001` - A purchase nobody has booked anything against is found · P0
@@ -251,13 +251,13 @@ As Admin Ops (no `money` scope): **403**, and the control does not render.
 
 **Preconditions.** One paid programme bought **two days ago** with no session ever booked; one **cash** home-visit purchase agreed at the door two days ago with no visit booked; one paid programme bought two days ago with one session already booked; one paid programme bought **an hour ago** with nothing booked; one abandoned checkout (unpaid, no cash mode); one refunded purchase with nothing booked.
 **Steps.** Read the Money alerts strip, then tap **Paid programmes with nothing booked**.
-**Expected Result.** The row reads **2** - the paid programme and the cash home visit, and nothing else. Tapping it opens **Programmes → All Programmes** on the **Paid - nothing booked** stage narrowed by a removable **Paid over 24 hours ago** chip, every other filter cleared, listing exactly those two. The row is **not urgent**: nothing has gone wrong and nobody is out of pocket, and marking it so would flatten the difference between this and cash a therapist is holding.
+**Expected Result.** The row reads **2** - the paid programme and the cash home visit, and nothing else. Tapping it opens **Sessions → Programmes → All programmes** on the **Paid - nothing booked** stage narrowed by a removable **Paid over 24 hours ago** chip, every other filter cleared, listing exactly those two. The row is **not urgent**: nothing has gone wrong and nobody is out of pocket, and marking it so would flatten the difference between this and cash a therapist is holding.
 **Negative, four ways, and each is a row that must *not* appear.** The purchase with one session booked is out - the finding is the run that never started, not "has sessions left", which is true of nearly every active purchase and would count almost all of them. The hour-old one is out, because a purchase on its way to the scheduler is the normal case and a row that is on every time anybody buys anything is a row nobody reads. The abandoned checkout is out - it is not a purchase, and ringing them means ringing somebody who never bought anything. The refunded one is out - it is a decision somebody already made.
 **The cash half is the sharp one:** a cash-on-visit purchase sits at `unpaid` for its **whole life** by design, so a check written on payment status alone drops every one of them and reports a clean screen.
 
 #### `FIN-SCHED-002` - "Paid - nothing booked" is not "has sessions left" · P1
 
-**Steps.** On **Programmes → All Programmes**, tap **Not finished**, read the count, then tap **Paid - nothing booked**.
+**Steps.** On **Sessions → Programmes → All programmes**, tap **Not finished**, read the count, then tap **Paid - nothing booked**.
 **Expected Result.** Two different lists, and the second is a subset of the first. The first is every programme still under way (including ones with sessions booked or done); the second is only those with no session ever completed and none currently booked. Removing the **Paid over 24 hours ago** chip, when it is on, adds the fresh purchases back.
 
 #### `FIN-REF-012` - The All Sessions export carries no money to a desk that cannot see it · P1
@@ -323,7 +323,7 @@ As Admin Ops (no `money` scope): **403**, and the control does not render.
 #### `PAY-DUP-004` - Duplicate webhook · P0
 **Preconditions.** `RAZORPAY_WEBHOOK_SECRET` is set.
 **Steps.** Capture a real webhook body and its `x-razorpay-signature` header from the Razorpay dashboard's webhook log. POST it to `/api/razorpay/webhook`. POST **the identical body** again.
-**Expected Result.** The first is processed. The second collides on `razorpay_event_id` in `payment_webhook_events` and is treated as already-seen - **that insert is the deduplication, and it happens before any work is done**, so a retry arriving mid-flight cannot do the work twice. Money → Transactions shows the payment **once**. Gross Revenue does not double.
+**Expected Result.** The first is processed. The second collides on `razorpay_event_id` in `payment_webhook_events` and is treated as already-seen - **that insert is the deduplication, and it happens before any work is done**, so a retry arriving mid-flight cannot do the work twice. Money → Payments & refunds → Payments shows the payment **once**. Gross Revenue does not double.
 
 #### `PAY-WH-001` - Signature verification · P0
 **Steps.** POST a webhook body with (a) no signature header, (b) a wrong signature, (c) the correct signature but a **re-serialised** body (`JSON.parse` then `JSON.stringify`).
@@ -345,7 +345,7 @@ As Admin Ops (no `money` scope): **403**, and the control does not render.
 Covered by `FIN-PAY-002`. **No double payout.**
 
 #### `PAY-DUP-006` - Partner commission is not accumulated twice · P0
-**Steps.** Re-run the webhook and the callback for S4, then read Money → Breakdown and the hospital's Earnings.
+**Steps.** Re-run the webhook and the callback for S4, then read Money → Overview → By treatment & therapist and the hospital's Earnings.
 **Expected Result.** `₹249.90` appears **once** on both.
 
 #### `PAY-DUP-007` - Credit idempotency keys are derived, never random · P0 **[SQL]**
@@ -381,12 +381,12 @@ Four consequences worth holding in mind while testing:
 
 1. **`payment_status = 'unpaid'` already means "somebody abandoned a checkout".** So `payment_terms` (`prepaid` | `pay_later`) is a **second axis**, and telling the two apart is what stops an abandoned cart being counted as a debt. A pay-later session sits at `unpaid` for its whole life and is **not** a failed payment.
 2. **Revenue is recognised at completion, not at collection** - because the therapist's share is. On completion the frozen price appears in **three places at once**: what the patient owes, the clinic's revenue, and the therapist's share. The therapist is deliberately **not** made to wait on the patient: they did the work and had no say in extending the credit, so **the clinic carries the gap**.
-3. **There is no ceiling, by choice.** So the two figures at the top of **Money → Owed by Patients** - the total, and how long the oldest unsettled session has been owed - are the **entire** early warning. Test them as though they were the only safety net, because they are.
+3. **There is no ceiling, by choice.** So the two figures at the top of **Money → Patients owe** - the total, and how long the oldest unsettled session has been owed - are the **entire** early warning. Test them as though they were the only safety net, because they are.
 4. **Online sessions only.** Never a home visit (travel is a pass-through paid to the therapist in full), never a session drawn from a programme already paid for, and never when a discount has already taken the total to nothing - a free booking is not a debt of zero.
 
 **Vocabulary.** Patient screens say *You owe so far*, *We're checking your payment*. They never say **debt**, **outstanding**, **invoice** or **balance** - that last one is already the patient's word for unspent session credits, and one dashboard cannot have it meaning two things. Admin screens say **Pay later**, **Owed by patients**, **Payments waiting**.
 
-**Prerequisite for everything below:** the master switch is **off by default**. Turn it on at **Money → Owed by Patients** (not Settings - it sits beside the figures it governs, the same placement rule promo codes follow). Use **Patient E** (§8.3), who is created for this section precisely because Patients A and B have both paid for sessions by now and the first-session offer is once-ever. **Patient C** is the one to point `PL-GRANT-003` at, since a hospital-referred patient can never be granted terms. Turn the switch **off again** when you finish.
+**Prerequisite for everything below:** the master switch is **off by default**. Turn it on at **Money → Patients owe** (not Settings - it sits beside the figures it governs, the same placement rule promo codes follow). Use **Patient E** (§8.3), who is created for this section precisely because Patients A and B have both paid for sessions by now and the first-session offer is once-ever. **Patient C** is the one to point `PL-GRANT-003` at, since a hospital-referred patient can never be granted terms. Turn the switch **off again** when you finish.
 
 ---
 
@@ -429,7 +429,7 @@ Four consequences worth holding in mind while testing:
 
 #### `PL-BOOK-003` - Immediately after booking, nothing is owed · P0
 
-**Steps.** With the session booked and not yet delivered, read the patient's dashboard and **Money → Owed by Patients**.
+**Steps.** With the session booked and not yet delivered, read the patient's dashboard and **Money → Patients owe**.
 **Expected Result.** The patient's widget is **absent** - not showing ₹0 - and the admin total is unchanged. A card reading ₹0 is a card telling somebody about a thing that is not happening.
 
 #### `PL-BOOK-004` - A late cancellation owes nothing, with no special case · P0
@@ -451,7 +451,7 @@ Four consequences worth holding in mind while testing:
 #### `PL-BOOK-007` - A discount applies exactly as it does to any other booking · P1
 
 **Steps.** With the **first-session offer** on, book two sessions on terms for one brand-new trusted patient.
-**Expected Result.** The offer applies to the **first only**. The confirmation names what was frozen **and what came off it**; **Money → Owed by Patients** prints the struck-through list price and the rule beside any session owed less than it.
+**Expected Result.** The offer applies to the **first only**. The confirmation names what was frozen **and what came off it**; **Money → Patients owe** prints the struck-through list price and the rule beside any session owed less than it.
 **Negative - the bug this replaced.** "Is this patient new" was asked in three places and all three asked `payment_status = 'paid'`. A session on terms is never paid, so a trusted patient read as **brand new on every booking they ever made**: the offer fired on sessions two, three and four, a first-session-only promo code was claimable repeatedly, and an invite welcome was claimable after they had already been treated. Silently, in all three.
 **Also check the cap.** A promo code claimed by a pay-later booking counts against its cap **permanently** - the discount has been given and can never be taken back - while an abandoned **prepaid** checkout of the same age still gives its claim back after the thirty-minute hold.
 
@@ -464,7 +464,7 @@ Four consequences worth holding in mind while testing:
 
 #### `PL-DONE-001` - Completion makes the money appear in three places at once · P0
 
-**Steps.** Have the therapist complete the session. Then read, in order: the patient's dashboard, **Money → Owed by Patients**, **Money → Summary**, and the therapist's **Earnings**.
+**Steps.** Have the therapist complete the session. Then read, in order: the patient's dashboard, **Money → Patients owe**, **Money → Overview**, and the therapist's **Earnings**.
 **Expected Result.** The frozen price appears in **all three** at the same moment - what the patient owes, the clinic's **gross and net revenue**, and the therapist's **share**. Nothing waits on the patient paying.
 **Hand-check the month.** A session delivered in January and paid in February must read: **January** revenue ₹1,200, therapist ₹720, **profit ₹480** - not a loss. **February: nothing moves.** Counting at collection instead reports a loss in the month the work was done and a windfall in the month it was paid - both months wrong for one session.
 
@@ -480,7 +480,7 @@ Four consequences worth holding in mind while testing:
 
 #### `PL-DONE-004` - No risk signal, no System Health row · P0
 
-**Steps.** After completing a pay-later session, open **Today → Risk** and **Settings → System Health**.
+**Steps.** After completing a pay-later session, open **Home → Risk & safety** and **Settings → Technical → System health**.
 **Expected Result.** **No** `completion_without_payment` signal, and **no** `sessions_without_backing` row. A session on terms **is** backed: the sale is recorded, the revenue counted, and the debt is on its own screen. Without these two exclusions every session one of these patients ever has would be a high-severity signal and a permanent red row.
 
 #### `PL-DONE-005` - The patient's feed does not say their booked session isn't booked · P1
@@ -495,7 +495,7 @@ Four consequences worth holding in mind while testing:
 
 #### `PL-DONE-007` - A session that happened and was never closed is named · P0
 
-**Steps.** Leave a pay-later session past its slot time without completing it. Open **Money → Owed by Patients** and **Settings → System Health**.
+**Steps.** Leave a pay-later session past its slot time without completing it. Open **Money → Patients owe** and **Settings → Technical → System health**.
 **Expected Result.** It is listed under **Sessions that were never closed**, and the System Health check turns **amber** naming the count. **This is the one place in the whole design where money can silently fail to exist** - debt, revenue and the therapist's pay all appear at completion, so a session nobody closed produces none of the three and no screen has anything to show. Every other failure here is a *wrong* number, which a check can catch; this is an *absent* one, which nothing else would.
 
 #### `PL-DONE-008` - The patient reads it in their own voice · P0
@@ -507,7 +507,7 @@ Four consequences worth holding in mind while testing:
 
 #### `PL-OWED-001` - The two figures that are the whole early warning · P0
 
-**Steps.** Open **Money → Owed by Patients** with several delivered, unsettled sessions across two patients. Read **Total owed** and **Owed longest**. Change the date range on any other Money screen and come back.
+**Steps.** Open **Money → Patients owe** with several delivered, unsettled sessions across two patients. Read **Total owed** and **Owed longest**. Change the date range on any other Money screen and come back.
 **Expected Result.** Both figures are `now`-scoped - **right now, all time** - and do **not** move with a date filter. A debt does not stop existing outside a filter. Each patient card names the session count, the oldest date and the age in days, and each session line carries **the price agreed on the day**.
 
 #### `PL-OWED-002` - The ageing threshold, and seeing it work before saving · P1
@@ -561,7 +561,7 @@ Four consequences worth holding in mind while testing:
 
 #### `PL-PAY-004` - No money figure moves either side of a settlement · P0
 
-**Steps.** Record every figure on **Money → Summary**, **Breakdown**, **Business Health** and the therapist's **Earnings** and **Payouts** before the settlement above. Compare after.
+**Steps.** Record every figure on **Money → Overview**, **Breakdown**, **Business Health** and the therapist's **Earnings** and **Payouts** before the settlement above. Compare after.
 **Expected Result.** **Byte-identical.** Settlement writes `amount_paid_paise = amount_due_paise` **exactly** - never the payment's share - so recognised revenue and every therapist's pay are the same number before and after the money arrives. This is the single most important assertion in the feature; if it fails, stop and report it.
 
 #### `PL-PAY-005` - The pool is fungible across payments · P1
@@ -577,7 +577,7 @@ Four consequences worth holding in mind while testing:
 #### `PL-PAY-007` - Reconciliation holds · P0 **[SQL]**
 
 **Steps.** After each of the cases above, compute `sum(confirmed payments)` against `sum(settled session amounts) + unallocated`.
-**Expected Result.** Equal, every time. **Settings → System Health → Pay Later** says *"Money in matches money accounted for"*. A disagreement is this feature's **only red state**, and it **reports and never repairs** - a silent auto-fix on a money record is how a discrepancy becomes permanent.
+**Expected Result.** Equal, every time. **Settings → Technical → System health → Pay Later** says *"Money in matches money accounted for"*. A disagreement is this feature's **only red state**, and it **reports and never repairs** - a silent auto-fix on a money record is how a discrepancy becomes permanent.
 
 ---
 
@@ -588,7 +588,7 @@ Four consequences worth holding in mind while testing:
 
 #### `PL-DECL-002` - The clinic answers it, and the two outcomes differ · P0
 
-**Steps.** As Finance, open **Payments waiting** on Money → Owed by Patients. Confirm one. On a second, tap **Could not find it** and try a 9-character reason, then a real one.
+**Steps.** As Finance, open **Payments waiting** on Money → Patients owe. Confirm one. On a second, tap **Could not find it** and try a 9-character reason, then a real one.
 **Expected Result.** **Confirm is one tap and needs no reason** - it is the outcome this queue exists to reach, and taxing it with a sentence meaning "the money is there" is how a reason column fills with "ok". **Rejecting needs ten characters**, enforced by the route **and** a CHECK, and the reason reaches the patient on their own dashboard: *"We couldn't find the ₹X you told us about"* followed by what the admin wrote. Confirming reaches the allocator; rejecting settles nothing and un-settles nothing.
 
 #### `PL-DECL-003` - One waiting at a time, and a rejection unblocks · P1
@@ -625,7 +625,7 @@ Four consequences worth holding in mind while testing:
 
 #### `PL-WOFF-001` - Writing a session off is a cost, not a reduction · P0
 
-**Steps.** Record every figure on **Money → Summary** and the therapist's **Earnings**. On **Money → Owed by Patients**, find an owed session and tap **Write it off**, enter a real reason, and tap **Write it off** again. A confirmation names the figure (*"Stop chasing ₹1,200?"*) - read it and tap **Yes**. Compare the figures. Then open **Money → Costs**.
+**Steps.** Record every figure on **Money → Overview** and the therapist's **Earnings**. On **Money → Patients owe**, find an owed session and tap **Write it off**, enter a real reason, and tap **Write it off** again. A confirmation names the figure (*"Stop chasing ₹1,200?"*) - read it and tap **Yes**. Compare the figures. Then open **Money → Costs**.
 **Expected Result.** **Revenue does not move. The therapist's share does not move.** `clinic share = net − therapist − partner` still holds. The session leaves the owed total, and **one Bad debt row** appears on Costs for exactly the amount forgiven, dated **today**.
 **Why:** the clinic **earned** the ₹1,200 at completion and **failed to collect** it - and the therapist has already been paid, because they did the work and had no say in extending the credit. Reducing the session's amount instead would pull revenue down **and claw their share back off money already handed over**.
 **Where it lands in the books:** a bad debt is an **operating expense** - below the gross-profit line, inside what break-even has to cover, and **not** added back in EBITDA. Check **Business Health**: gross margin must be unchanged, EBITDA and net profit each down by exactly the amount written off.
@@ -645,11 +645,11 @@ Four consequences worth holding in mind while testing:
 #### `PL-WOFF-004` - The cost cannot be deleted out from under the session · P1
 
 **Steps.** On **Money → Costs**, try to delete the Bad debt row.
-**Expected Result.** Refused, naming where to reverse it: *bring the session back on Money → Owed by Patients and this goes with it.* Ordinary hand-typed costs delete exactly as before.
+**Expected Result.** Refused, naming where to reverse it: *bring the session back on Money → Patients owe and this goes with it.* Ordinary hand-typed costs delete exactly as before.
 
 #### `PL-WOFF-005` - The books are checked, and null is not zero · P1
 
-**Steps.** Open **Settings → System Health → Pay Later** with a write-off in place.
+**Steps.** Open **Settings → Technical → System health → Pay Later** with a write-off in place.
 **Expected Result.** The evidence reads *"Every written-off session has its loss recorded as a cost"*. A disagreement is **red**. On a database that has not had the migration applied it reads **"could not be checked"** - never as agreement, because a read that failed is not a read that came back empty.
 
 #### `PL-WOFF-006` - Refusals name the alternative · P2
@@ -661,14 +661,14 @@ Four consequences worth holding in mind while testing:
 
 #### `PL-REF-001` - Refunding a settled session is handed back by a person · P0
 
-**Steps.** Settle a session, then open it in the **Sessions → All Sessions** drawer and refund part of it. Read the confirmation wording. Then open **Money → Owed by Patients**.
+**Steps.** Settle a session, then open it in the **Sessions → All Sessions** drawer and refund part of it. Read the confirmation wording. Then open **Money → Patients owe**.
 **Expected Result.** The confirmation says the money is **recorded as owed back**, not sent "via Razorpay". No gateway call is made. The session lands at `manual_pending` and appears under **Refunds to hand back** with the amount, the reason and how long it has waited. **Confirm handed back** clears it.
 **Why every settled pay-later session takes this lane, whatever it was settled with:** the money arrived into a **pool** covering several sessions, and an online settlement's gateway id sits on the payment row rather than the session - so "this session's share of that payment" is not something a gateway refund can express safely.
 
 #### `PL-REF-002` - Refunding an unsettled session is not a refund · P1
 
 **Steps.** Try to refund a session the patient has **not** settled.
-**Expected Result.** Refused, and the message names the write-off: *"Nothing has been paid for this session yet, so there is nothing to refund. To stop chasing it, write it off on Money → Owed by Patients."* A dead-end refusal here is the whole failure this replaces.
+**Expected Result.** Refused, and the message names the write-off: *"Nothing has been paid for this session yet, so there is nothing to refund. To stop chasing it, write it off on Money → Patients owe."* A dead-end refusal here is the whole failure this replaces.
 
 #### `PL-REF-003` - Each refund count links to a screen that can clear it · P1
 
@@ -687,7 +687,7 @@ Four consequences worth holding in mind while testing:
 
 **Feature.** Every gateway refund in this app claims its local row **first** and calls Razorpay **second**, deliberately: a refusal from Razorpay must leave no trace claiming money went back, which is why each of these routes puts its claim back when the gateway says no. The opposite failure had nothing watching it at all - Razorpay accepts the refund and the write recording what came back fails, leaving the money gone, no refund id, and a session that looks exactly like one that was claimed and never sent. `refund_attempts` records the intent before the call and the outcome after it, so neither outcome is invisible.
 
-**Steps.** Refund a gateway-paid session. In the database, read the newest `refund_attempts` row. Then open **Settings → System Health → Refunds**.
+**Steps.** Refund a gateway-paid session. In the database, read the newest `refund_attempts` row. Then open **Settings → Technical → System health → Refunds**.
 **Expected Result.** The row names the session, the Razorpay payment, the amount, the reason and the admin who asked, and is `succeeded` with Razorpay's own refund id on it. System Health → **Refunds** is **Healthy** and reads *"Every refund sent to Razorpay has a recorded outcome."*
 
 #### `PL-REF-006` - A refund that cannot be recorded is not sent · P0
@@ -698,23 +698,23 @@ Four consequences worth holding in mind while testing:
 
 #### `PL-REF-007` - A refund whose answer was never recorded is named · P0
 
-**Steps.** In the database, insert a `refund_attempts` row dated two hours ago and leave it `processing`. Open **Settings → System Health**.
+**Steps.** In the database, insert a `refund_attempts` row dated two hours ago and leave it `processing`. Open **Settings → Technical → System health**.
 **Expected Result.** **Refunds** is **red**: *"1 refund was sent to Razorpay and we never recorded what came back - check whether the money actually left."* The steps tell the owner to look in Razorpay's own Refunds list around that time, and say what to do in either case - **record it** where it went through, **issue it again** where it did not, with nothing to undo first. The sidebar badge and the verdict strip both count it as **one check**, not one row.
 **Negative:** a refund created moments ago must **not** be counted - one is legitimately unresolved for the length of a gateway call, and a check that is always red is a check nobody reads. Nothing here repairs anything: no screen can know whether Razorpay took the money, and guessing on a money record is how a discrepancy becomes permanent.
 
 #### `PL-REF-008` - The refund record cannot be rewritten or removed · P0
 
 **Steps.** Against the database, as the service role: resolve one `refund_attempts` row twice; change a resolved row's amount; delete any row; delete the appointment a row points at; delete the admin who asked for it.
-**Expected Result.** All five raise. The table permits exactly one transition (`processing` → `succeeded` or `failed`), once, plus the columns that resolution fills in; a success with **no** gateway refund id is refused outright. Every foreign key is `restrict`, so the last two are refused naming this table, and **Settings → User Access** offers suspension instead - the same refusal shape as every other record that blocks a delete.
+**Expected Result.** All five raise. The table permits exactly one transition (`processing` → `succeeded` or `failed`), once, plus the columns that resolution fills in; a success with **no** gateway refund id is refused outright. Every foreign key is `restrict`, so the last two are refused naming this table, and **Settings → Who gets in → User access** offers suspension instead - the same refusal shape as every other record that blocks a delete.
 **Why by trigger and not by RLS:** every refund writer in this app uses the service-role client, which bypasses RLS entirely - so for a table whose whole value is that it records what was attempted *before* it was attempted, "no route rewrites it" is not the same guarantee as "a rewrite raises".
 
 #### `SYS-SETTLE-001` - The settlement record agrees with the Money screens · P0
 
-**Feature.** Every delivered session now writes one immutable row saying what it was worth and how it was split -- gross, travel, the therapist's share, the partner's and the clinic's -- beside the figures the Money screens still work out for themselves. It is written **alongside** that derivation: nothing reads these rows to decide what anybody is paid, and no historical session has one. **Settings → System Health → Settlement record** is what has to stay green before they are ever made authoritative.
+**Feature.** Every delivered session now writes one immutable row saying what it was worth and how it was split -- gross, travel, the therapist's share, the partner's and the clinic's -- beside the figures the Money screens still work out for themselves. It is written **alongside** that derivation: nothing reads these rows to decide what anybody is paid, and no historical session has one. **Settings → Technical → System health → Settlement record** is what has to stay green before they are ever made authoritative.
 
-**Steps.** Complete a session. Open **Settings → System Health → Settlement record**. Then, in SQL, try to change that settlement's `gross_paise`, try to delete it, and try to set its `external_reference` twice.
+**Steps.** Complete a session. Open **Settings → Technical → System health → Settlement record**. Then, in SQL, try to change that settlement's `gross_paise`, try to delete it, and try to set its `external_reference` twice.
 
-**Expected Result.** The check reads `Healthy` -- *"Every recorded settlement agrees with the figures on the Money screens."* Every money figure on Money → Summary is **unchanged** by the completion having written this row; that is the whole safety case, since nothing reads it yet. The UPDATE, the DELETE and the second `external_reference` all **raise**; the first `external_reference` lands, because what a bank called a transfer genuinely arrives later. The three shares sum to gross **exactly** -- the clinic takes the remainder rather than its own percentage, so rounding can neither invent nor lose a paisa.
+**Expected Result.** The check reads `Healthy` -- *"Every recorded settlement agrees with the figures on the Money screens."* Every money figure on Money → Overview is **unchanged** by the completion having written this row; that is the whole safety case, since nothing reads it yet. The UPDATE, the DELETE and the second `external_reference` all **raise**; the first `external_reference` lands, because what a bank called a transfer genuinely arrives later. The three shares sum to gross **exactly** -- the clinic takes the remainder rather than its own percentage, so rounding can neither invent nor lose a paisa.
 
 **Negative:** a database without the table reads **"Cannot be checked"**, never `Healthy` -- on a money reconciliation, "we could not ask" and "nothing disagrees" are opposite facts.
 
@@ -730,27 +730,27 @@ Four consequences worth holding in mind while testing:
 
 **Feature.** `patient_medical_documents` holds metadata only - the scan itself is an object in the private `medical-reports` bucket - so the two can come apart in either direction and nothing looked.
 
-**Steps.** Delete a metadata row directly in SQL, leaving its file. Separately, delete a file from the bucket, leaving its row. Open **Settings → System Health → Patient files** after each.
+**Steps.** Delete a metadata row directly in SQL, leaving its file. Separately, delete a file from the bucket, leaving its row. Open **Settings → Technical → System health → Patient files** after each.
 **Expected Result.** The **record with no file** is **red**: the patient has it listed on their own health profile and the view route mints a signed URL for something that is not there, so the patient meets the failure. The **file with no record** is **amber**: nothing is broken for anybody, but a scan the patient believes they deleted is still stored. The count is the two added together, and the evidence names each separately.
 **The steps must never tell anybody to delete a file.** They say plainly that nothing is removed automatically and nothing should be - a file deleted because a record could not be found is a patient's scan. They also name the ordinary pre-launch cause: **Reset data empties the records and cannot reach the stored files**, so every reset leaves its uploads behind.
 **Negative, two ways.** With a bucket too large to walk in one pass, the check reads **"only part of the file store was checked"** rather than Healthy - a partial clean result is not a clean result. With the file store unreadable it reads **"could not be checked"**, never Healthy: on this check a zero would be read as "nothing to worry about" rather than "we did not look", and what is being counted is a medical record.
 
 #### `PL-REF-009` - An unmigrated database says so, rather than Healthy · P1
 
-**Steps.** Against a database without `refund_attempts`, open **Settings → System Health**.
+**Steps.** Against a database without `refund_attempts`, open **Settings → Technical → System health**.
 **Expected Result.** **Refunds** reads **"Not set up"** - *"Cannot be checked - this database has not had the latest changes applied yet."* - and names applying `supabase/schema.sql` as the fix. It is **not** counted as a failure and **never** reads Healthy: a check that could not be run is not a check that came back clean.
 
 ---
 
 #### `PL-RISK-001` - Trusted patients get their own heading, and a flag is never an accusation · P1
 
-**Steps.** Open **Today → Risk** with an aged balance.
+**Steps.** Open **Home → Risk & safety** with an aged balance.
 **Expected Result.** The findings sit under **Trusted patients - follow up**, with a line saying these are **reminders, not concerns**. A patient of two years appearing unexplained under a heading called "Risk" reads exactly wrong - to whoever opens the screen, and to the patient if it ever reaches them. Nothing is suspended, held or hidden; the signal links to the rows behind it and carries **no action buttons**.
 **Defaults.** `pay_later_aged` ships **enabled** - unusual for a threshold with no clinic baseline, and justified because the population is tiny and hand-picked so it cannot fire on everyone, and because it is the only automatic warning an arrangement with no ceiling has. It reads **the admin's own threshold**, so the amber on the screen and the signal can never disagree about what "a while" means. `pay_later_balance_high` ships **disabled**. `pay_later_declaration_rejected` is **enabled**, threshold **2** - it fires on the second rejection, not the first.
 
 #### `PL-HEALTH-001` - Owing money is never a fault · P0
 
-**Steps.** Read **Settings → System Health → Pay Later** in four states: switch off and nobody on terms; money owed, all recent, nothing waiting; a declaration waiting six days; the reconciliation disagreeing.
+**Steps.** Read **Settings → Technical → System health → Pay Later** in four states: switch off and nobody on terms; money owed, all recent, nothing waiting; a declaration waiting six days; the reconciliation disagreeing.
 **Expected Result.** In order: **`off`** (*"Pay later is not in use."*) - **not** a fault and not red; **Healthy**; **Needs a look**; **Needs you now**. A patient owing a large sum with nothing overdue is **not red** - that is the arrangement working, and painting it red is how red stops meaning anything. Every non-healthy state carries **steps an owner can follow alone**, and the sidebar badge rises by **at most one**, because it counts checks rather than rows.
 
 #### `PL-HEALTH-002` - An unapplied migration becomes a line on a screen · P1

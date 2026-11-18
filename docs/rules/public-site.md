@@ -45,7 +45,7 @@ Eight pages from one design system, the word budgets, why every photograph carri
   already rendered, so the honest answer to "don't animate" is not to show
   it. The name line, the wording, the hold and the away threshold are
   admin-configurable
-  (`site_settings.splash_*`, Settings → Public Site → Opening Splash), and
+  (`site_settings.splash_*`, Settings → Your website → Public site → Opening Splash), and
   `splash_brand_line` is blank by default and falls back to `site_name`, so
   the greeting and the navbar say one thing until an admin deliberately
   parts them - it is the one text setting where blank is a value rather than
@@ -796,7 +796,7 @@ Eight pages from one design system, the word budgets, why every photograph carri
   CD-009 seeds a 35-minute category and reads it back.
 - **The footer's social icons are only the ones an admin filled in, and each
   opens in a new tab.** Five optional `site_settings` columns
-  (Settings -> Brand & Contact -> Social Media Links); blank hides that icon,
+  (Settings -> Your website -> Brand & contact -> Social Media Links); blank hides that icon,
   and none filled in draws no row at all - an icon leading nowhere is worse
   than no icon, the same reading the footer gives a placeholder phone
   number. `src/lib/socialLinks.ts` is the one rule (https only, on the

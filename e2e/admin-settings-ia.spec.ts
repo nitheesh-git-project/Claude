@@ -78,34 +78,28 @@ test.describe("CFG -- Settings information architecture", () => {
     await context.addCookies(await browserCookiesFor(QA_EMAILS.admin));
   });
 
-  test("CFG-001 the sidebar groups the eleven screens under four captions", async ({ page }) => {
-    // The captioned sidebar is the 2xl (1536px+) layout; below that the
-    // admin shell is an icon rail with the section's screens as a strip,
-    // which has no room for captions. Checked where the sidebar exists.
-    await page.setViewportSize({ width: 1600, height: 900 });
-    await openSettings(page, "brand");
-    // Sentence case in the DOM; the uppercase is CSS, and innerText would
-    // report the transformed text -- so match the source casing.
-    for (const caption of ["Your website", "How the clinic runs", "Who gets in", "Technical"]) {
-      await expect(onScreen(page, caption).first()).toBeVisible();
+  test("CFG-001 Settings is five tabs, and every old screen is a chip inside one", async ({ page }) => {
+    // Six dashboard loads, each a full server render.
+    test.setTimeout(300_000);
+    // The four captions the old Settings list was grouped under became its
+    // tabs (plus History, the log); each old screen is a chip of its tab.
+    const tabs: Record<string, string[]> = {
+      website: ["Brand & contact", "Public site", "Cookie consent"],
+      clinic: ["Booking rules", "Offers & discounts", "Programmes & home visits", "Clinical questions", "Health Profile layout", "Announcements"],
+      access: ["User access", "Sign-in & security"],
+      technical: ["System health", "Emails", "WhatsApp", "Advanced", "Developer messages"],
+      history: ["All activity", "Signed in as", "Archive & clear"],
+    };
+    await openSettings(page, "website");
+    for (const label of ["Your website", "How the clinic runs", "Who gets in", "Technical", "History"]) {
+      await expect(page.getByRole("button", { name: new RegExp(`^${label}`) }).filter({ visible: true }).first()).toBeVisible();
     }
-    for (const label of [
-      "Brand & Contact",
-      "Public Site",
-      "Cookie consent",
-      "Booking Rules",
-      "Offers & Discounts",
-      "Programmes & Home Visits",
-      "Clinical Questions",
-      "User Access",
-      "Sign-in & Security",
-      "System Health",
-      "Emails",
-      "WhatsApp",
-      "Advanced",
-      "Developer messages",
-    ]) {
-      await expect(onScreen(page, label).first()).toBeVisible();
+    for (const [tab, chips] of Object.entries(tabs)) {
+      await openSettings(page, tab);
+      const row = page.getByTestId("admin-sub-chips").filter({ visible: true });
+      for (const chip of chips) {
+        await expect(row.getByRole("button", { name: new RegExp(`^${chip}`) }), `${tab}: ${chip}`).toBeVisible();
+      }
     }
   });
 

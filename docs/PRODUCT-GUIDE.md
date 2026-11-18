@@ -575,19 +575,21 @@ Every dashboard section is a **real route** with its own `page.tsx` and its
 own `loading.tsx`, not an anchor on one long scroll - see "Error and loading
 states" above.
 
-**Admin:** `/admin/login`, `/admin/dashboard`, organised into eight sections
-(defined once in `src/lib/adminNav.ts`):
+**Admin:** `/admin/login`, `/admin/dashboard`, organised into six sections in
+the **Morning Brief** layout (defined once in `src/lib/adminNav.ts`). A tab
+that holds several screens shows them as chips under the tab bar; every
+screen the dashboard had before is still there, and every old link opens it
+(`LEGACY_SCREENS`). Who may open what is unchanged: a screen keeps its own
+scope wherever it sits in the menu.
 
-| Section | Screens | Answers |
+| Section | Tabs (chips) | Answers |
 | --- | --- | --- |
-| **Today** | Today · Approvals · Health Profile reviews · Risk · Activity | What is waiting on me right now. **Activity** is the one feed scoped by desk: a limited scope reads entries whose action belongs to a section it can work *and* whose actor sits at that desk; a Master Admin reads the whole log under **Logs**. |
-| **Sessions** | Schedule · All Sessions · Roster · Delivery · New Booking | What is being delivered, and by whom. All Sessions has a **Programme** filter (a programme ID such as `PED_PKG001`, an old SP/HS code, or `any`) and each programme session shows its programme's ID with progress. |
-| **Programmes** | All Programmes · Recommendations | Every recommended and bought programme from the therapist's recommendation to its last session. **All Programmes** is the pipeline (Waiting approval → With patient → Paid - nothing booked → In progress → Completed, plus Declined / Not approved / Withdrawn / Lapsed / Expired / Refunded), one list with each programme's ID and progress (`PED_PKG001-2/6` = 2 of 6 done), filters kept in the URL, and a drawer with the whole story, its sessions, its money (Money scope) and its controls. **Recommendations** is the review queue - a therapist's care plan waits here before the patient sees it, and it is also where an admin writes one on a clinician's behalf. Old Sessions → Recommendations and Catalog → Purchases links land here. |
-| **People** | Patients · Therapists · Partners · Declined · Abandoned checkouts | Who is this person, and their whole history - who was declined and why - and who started a booking but never paid |
-| **Money** | Summary · Business Health · Transactions · Payouts · Owed by Patients · Costs · Breakdown · Your Numbers | What came in, what goes out, what it costs, what is still owed, and how the business reads against the standard finance figures. Each screen states what it is and gives one example, under its heading. |
-| **Catalog** | Conditions · Service Areas · Countries & currency | What we sell, at what price, where. Each condition carries a **Programme code** (PED), the prefix of its programme IDs. |
-| **Logs** | All Activity · Archive & Clear | Who did what, and when. **Master Admin only** - the three limited desks read their own desk's history on Today → Activity. |
-| **Settings** | *Your website:* Brand & Contact · Public Site — *How the clinic runs:* Booking Rules · Offers & Discounts · Programmes & Home Visits · Clinical Questions — *Who gets in:* User Access · Sign-in & Security — *Technical:* System Health · Advanced · Developer messages | How the product behaves. Every screen here states what it is and gives one example, under its heading, and the sidebar groups the eleven under four captions - eleven flat labels is a list nobody reads top to bottom. **Developer messages** is the developer's own inbox: the messages left through the footer's "Contact me" link, a note and a contacted flag per message, the switch that shows the credit (it asks before changing in either direction) and the email published on the contact page. |
+| **Home** | Today · To-do (Approvals, Health Profile reviews) · Risk & safety · Your desk's activity | What is waiting on me right now. **Today** opens on a sentence, the most urgent jobs (each with an Open button) and today's sessions, then the figures, queues, recommendations, activity and quick actions. **Your desk's activity** is shown to the three limited desks only; a Master Admin reads the whole log under Settings → History. |
+| **Sessions** | Calendar · All sessions · Programmes (All programmes, Recommendations) · Therapist rota · How it's going · Book a session | What is being delivered, by whom, and how it is going. Programmes keeps its own `programmes` scope: All programmes is the pipeline with IDs such as `PED_PKG001-2/6`; Recommendations is the review queue (manage desks only). |
+| **People** | Patients · Therapists · Hospitals · Requests (Data requests, Abandoned checkouts, Declined) | Who is this person, their whole history, and who asked for something or left half-way. |
+| **Money** | Overview (Where it went, By treatment & therapist) · Pay therapists · Patients owe · Payments & refunds (Payments, Refunds) · Costs & offers · For your accountant (Business health, Your numbers) | Overview opens on one sentence and a bar of where every rupee of net revenue went (therapists, partners, payment fees, running costs, kept), each part tappable for what it means, above the same figures as before. |
+| **Prices & areas** | Conditions & prices · Home-visit areas · Other countries | What we sell, at what price, where. |
+| **Settings** | Your website (Brand & contact, Public site, Cookie consent) · How the clinic runs (Booking rules, Offers & discounts, Programmes & home visits, Clinical questions, Health Profile layout, Announcements) · Who gets in (User access, Sign-in & security) · Technical (System health, Emails, WhatsApp, Advanced, Developer messages) · History (All activity, Signed in as, Archive & clear) | How the product behaves, and the record of who did what. Everything here is Master Admin only; History keeps the `logs` scope. |
 
 Three admin records have a route of their own as well as a place on that
 grid - `/admin/dashboard/patients/[id]`, `/therapists/[id]` and
@@ -2416,7 +2418,7 @@ screen's own state alone, unlike a browser reload.
 Your Sessions · Packages · Payments · Health Profile · Edit Profile.
 Therapist: Overview · Availability · Sessions · Earnings · My Patients ·
 Edit Profile. Hospital: Overview · Refer a Patient · Your Referrals ·
-Earnings · Edit Profile. Admin keeps its eight sections
+Earnings · Edit Profile. Admin keeps its six sections
 (`src/lib/adminNav.ts`).
 
 These lists are the result of repeatedly merging entries that answered the

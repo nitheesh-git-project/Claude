@@ -411,7 +411,7 @@ export default function SessionDetailDrawer({
   // assign dialog -- used to change the screen underneath while the drawer
   // stayed on top. Leaving the screen closes it.
   const searchParams = useSearchParams();
-  const screenKey = `${searchParams.get("section") ?? ""}|${searchParams.get("tab") ?? ""}`;
+  const screenKey = `${searchParams.get("section") ?? ""}|${searchParams.get("tab") ?? ""}|${searchParams.get("sub") ?? ""}`;
   const [openedOn] = useState(screenKey);
   useEffect(() => {
     if (screenKey !== openedOn) onClose();
