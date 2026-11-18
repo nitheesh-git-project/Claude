@@ -44,7 +44,13 @@ export default function AdminMorningBrief({
   const ordered = [...sessions].sort((a, b) => a.slotTime.localeCompare(b.slotTime));
 
   return (
-    <div className="mt-4 grid gap-4 lg:grid-cols-2" data-testid="admin-morning-brief">
+    // Arranges itself by the room it has, not by the window: two columns
+    // side by side when each can be at least 22rem, one under the other
+    // otherwise. A card, like the blocks around it.
+    <div
+      className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,22rem),1fr))] gap-x-6 gap-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"
+      data-testid="admin-morning-brief"
+    >
       <section aria-labelledby="brief-urgent" className="min-w-0">
         <h2 id="brief-urgent" className="text-xs font-bold uppercase tracking-wide text-slate-500">
           Most urgent
@@ -107,7 +113,7 @@ export default function AdminMorningBrief({
                     : { text: "Upcoming", cls: "bg-slate-100 text-slate-700" };
               return (
                 <li key={s.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3.5 py-2.5">
-                  <span className="w-16 shrink-0 text-sm font-semibold tabular-nums text-slate-700">
+                  <span className="w-[4.75rem] shrink-0 whitespace-nowrap text-sm font-semibold tabular-nums text-slate-700">
                     {formatClinicTime(s.slotTime)}
                   </span>
                   <span className="min-w-0 flex-1 text-sm">

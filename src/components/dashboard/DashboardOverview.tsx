@@ -90,9 +90,10 @@ export default function DashboardOverview({
               {headline}
             </div>
           )}
-          {brief}
         </div>
       )}
+
+      {brief && <div className="ov-brief">{brief}</div>}
 
       <div className="ov-strip">
         <StatStrip cells={cells} footer={stripFooter} />
