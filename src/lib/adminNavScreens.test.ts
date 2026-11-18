@@ -109,6 +109,13 @@ describe("the Morning Brief layout keeps every old screen", () => {
     expect(landed.size).toBe(OLD_SCREENS.length);
   });
 
+  it("sends a retired section's bare or unknown link to its first screen, as before", () => {
+    const all = sectionsForScope("full");
+    expect(findTab("logs", null, all)).toEqual({ section: "settings", tab: "history", sub: "all" });
+    expect(findTab("logs", "activity", all)).toEqual({ section: "settings", tab: "history", sub: "all" });
+    expect(findTab("programmes", "nonsense", all)).toEqual({ section: "sessions", tab: "programmes", sub: "all" });
+  });
+
   it("opens the limited desks' own activity screen for them", () => {
     const ops = sectionsForScope("operations");
     const opsManage = ops.filter((s) => scopeCanManage("operations", s));

@@ -62,12 +62,12 @@ export default function AdminMorningBrief({
                   job.urgent ? "border-l-4 border-red-200 border-l-red-500" : "border-l-4 border-slate-200 border-l-amber-500"
                 }`}
               >
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-semibold text-slate-900">
+                <div className="min-w-0 flex-1 basis-48">
+                  <p className="text-sm font-semibold text-slate-900 [overflow-wrap:anywhere]">
                     {job.count} · {job.label}
-                  </span>
-                  {job.hint && <span className="block text-[13px] text-slate-500">{job.hint}</span>}
-                </span>
+                  </p>
+                  {job.hint && <p className="text-[13px] text-slate-500 [overflow-wrap:anywhere]">{job.hint}</p>}
+                </div>
                 <AdminScreenLink
                   href={adminScreenHref(job.section, job.tab, job.view)}
                   className="inline-flex min-h-11 items-center rounded-lg bg-teal-700 px-4 text-sm font-semibold text-white transition hover:bg-teal-800"

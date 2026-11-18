@@ -115,7 +115,11 @@ export default function AdminLogsTab({
   // address bar is always a link to what is on screen. replaceState: a
   // keystroke in a search box is not a step Back should walk through.
   const onThisScreen =
-    searchParams.get("section") === "logs" && (searchParams.get("tab") ?? "all") === "all";
+    // Settings -> History -> All activity (the log moved there in the Morning
+    // Brief layout; an old ?section=logs link is rewritten to it on load).
+    searchParams.get("section") === "settings" &&
+    searchParams.get("tab") === "history" &&
+    (searchParams.get("sub") ?? "all") === "all";
   useEffect(() => {
     if (!onThisScreen) return;
     const params = new URLSearchParams(window.location.search);

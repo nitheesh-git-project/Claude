@@ -9,7 +9,7 @@ import { AdminScreenNavigationProvider } from "@/lib/adminScreenNavigation";
 import AdminGlobalSearch, { type SearchEntity } from "@/components/admin/AdminGlobalSearch";
 import RefreshButton from "@/components/dashboard/RefreshButton";
 import { useLeavingPage } from "@/lib/useLeavingPage";
-import { ADMIN_SECTIONS, currentAddress, findTab, visibleSections, visibleSubs, type AdminSectionKey, LEGACY_SCREENS } from "@/lib/adminNav";
+import { ADMIN_SECTIONS, currentAddress, findTab, visibleSections, visibleSubs, type AdminSectionKey } from "@/lib/adminNav";
 import { adminShortcuts, filterAdminScreens } from "@/lib/adminMobileNav";
 
 // Every base table this page's Promise.all queries (src/app/admin/dashboard/
@@ -354,7 +354,7 @@ export default function AdminShell({
       // A screen that moved (Sessions -> Recommendations, Catalog ->
       // Purchases) answers with where it lives now, in the address bar too,
       // so the link an admin copies next is the current one.
-      if (LEGACY_SCREENS[`${params.get("section") ?? ""}:${params.get("tab") ?? ""}`]) {
+      if (currentAddress(params.get("section") ?? "", params.get("tab") ?? "")) {
         params.set("section", found.section);
         params.set("tab", found.tab);
         if (found.sub) params.set("sub", found.sub);

@@ -339,7 +339,7 @@ test.describe("Suite S: scoped admin dashboards", () => {
 
       // It opens and stays open: a section this scope could not reach would
       // fall back to Today rather than render.
-      await expect(onScreen(page, "All Sessions").first()).toBeVisible({ timeout: 60_000 });
+      await expect(onScreen(page, "All sessions").first()).toBeVisible({ timeout: 60_000 });
 
       // The screens that are nothing but actions are not offered at all --
       // hiding every control on those leaves a heading over an empty page.
@@ -355,11 +355,13 @@ test.describe("Suite S: scoped admin dashboards", () => {
       // Programmes is read-only for finance too: the list, never the
       // approval queue, which is nothing but decisions.
       const programmeHrefs = await page
-        .locator('[href*="section=programmes"]')
+        .locator('[href*="tab=programmes"], [href*="section=programmes"]')
         .evaluateAll((els) => els.map((e) => e.getAttribute("href") ?? ""));
       for (const href of programmeHrefs) {
-        expect(href, "finance was offered the approval queue").not.toContain("tab=review");
+        expect(href, "finance was offered the approval queue").not.toMatch(/(sub|tab)=review/);
       }
+      // ...and the chip row under Programmes has no Recommendations chip.
+      await expect(page.getByRole("button", { name: /^Recommendations/ }).filter({ visible: true })).toHaveCount(0);
 
       // And the routes refuse regardless of what any screen shows.
       const cookie = await cookieHeaderFor(QA_EMAILS.admin);

@@ -139,7 +139,12 @@ export default function AdminProgrammesTab({
   // Keep the URL in step while this screen is the one on show, so the
   // address bar is always a link to what is on screen. replaceState: a
   // keystroke in the search box is not a step Back should walk through.
-  const onThisScreen = searchParams.get("section") === "programmes" && (searchParams.get("tab") ?? "all") === "all";
+  // Sessions -> Programmes -> All programmes (an old ?section=programmes
+  // link is rewritten to it on load).
+  const onThisScreen =
+    searchParams.get("section") === "sessions" &&
+    searchParams.get("tab") === "programmes" &&
+    (searchParams.get("sub") ?? "all") === "all";
   useEffect(() => {
     if (!onThisScreen) return;
     const params = new URLSearchParams(window.location.search);
@@ -609,7 +614,7 @@ function ProgrammeDrawer({
   // Same as the session drawer: leaving the screen closes it, so a link out
   // never changes the page underneath while this stays on top.
   const searchParams = useSearchParams();
-  const screenKey = `${searchParams.get("section") ?? ""}|${searchParams.get("tab") ?? ""}`;
+  const screenKey = `${searchParams.get("section") ?? ""}|${searchParams.get("tab") ?? ""}|${searchParams.get("sub") ?? ""}`;
   const [openedOn] = useState(screenKey);
   useEffect(() => {
     if (screenKey !== openedOn) onClose();

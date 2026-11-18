@@ -724,8 +724,19 @@ export function visibleSections(
 
 /** Where an old `section:tab` lives now, or the address unchanged. */
 export function currentAddress(section: string, tab: string): ScreenAddress | null {
-  return LEGACY_SCREENS[`${section}:${tab}`] ?? null;
+  const exact = LEGACY_SCREENS[`${section}:${tab}`];
+  if (exact) return exact;
+  // A section that no longer has a menu entry, named with no tab or a tab it
+  // never had (?section=logs): before the move that opened the section's
+  // first screen, so it still does.
+  return RETIRED_SECTIONS[section] ?? null;
 }
+
+/** Where a retired section's own link lands: its first screen. */
+const RETIRED_SECTIONS: Record<string, ScreenAddress> = {
+  programmes: { section: "sessions", tab: "programmes", sub: "all" },
+  logs: { section: "settings", tab: "history", sub: "all" },
+};
 
 // Resolves whatever is in the URL to a real screen. A stale bookmark, a
 // hand-edited query string, or a screen this admin's scope can't open all
