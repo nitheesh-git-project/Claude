@@ -61,6 +61,10 @@ test("EML-001: the routes refuse other roles, a bad body and a test address as t
 });
 
 test("EML-002: the master switch and test mode save from the screen and are logged", async ({ page }) => {
+  // Two saves each refresh the whole admin dashboard (12-20s against a
+  // hosted project), on top of the first load: the 30s default is less than
+  // the screen needs (docs/rules/testing.md).
+  test.setTimeout(180_000);
   const startedAt = new Date().toISOString();
   const screen = await openEmails(page);
   await screen.getByRole("switch", { name: "Send emails" }).click();
