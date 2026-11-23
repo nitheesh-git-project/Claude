@@ -14,7 +14,7 @@ import HomeVisitPurchaseDetailModal from "@/components/admin/HomeVisitPurchaseDe
 import { usePagedList } from "@/lib/usePagedList";
 import { rowActivationProps } from "@/lib/rowActivation";
 import { useDialogChrome } from "@/lib/useDialogChrome";
-import { adminScreenHref } from "@/lib/adminNav";
+import { adminScreenHref, adminScreenKey } from "@/lib/adminNav";
 import { formatClinicDate, formatClinicDateTime } from "@/lib/formatDateTime";
 import { formatRupees } from "@/lib/formatMoney";
 import { programmeProgress } from "@/lib/programmeId";
@@ -614,7 +614,7 @@ function ProgrammeDrawer({
   // Same as the session drawer: leaving the screen closes it, so a link out
   // never changes the page underneath while this stays on top.
   const searchParams = useSearchParams();
-  const screenKey = `${searchParams.get("section") ?? ""}|${searchParams.get("tab") ?? ""}|${searchParams.get("sub") ?? ""}`;
+  const screenKey = adminScreenKey(searchParams);
   const [openedOn] = useState(screenKey);
   useEffect(() => {
     if (screenKey !== openedOn) onClose();

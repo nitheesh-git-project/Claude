@@ -741,6 +741,22 @@ export function currentAddress(section: string, tab: string): ScreenAddress | nu
   return RETIRED_SECTIONS[section] ?? null;
 }
 
+/**
+ * The screen a query string names, as one comparable key: an old address and
+ * the new one it is rewritten to give the same key. A drawer remembers the key
+ * it opened on and closes when the key changes; comparing the raw text closed
+ * it when the shell rewrote an old link (?section=programmes&tab=all) to its
+ * new address a moment after the drawer opened, which is a rename, not the
+ * admin leaving the screen.
+ */
+export function adminScreenKey(params: { get(name: string): string | null }): string {
+  const section = params.get("section") ?? "";
+  const tab = params.get("tab") ?? "";
+  const moved = currentAddress(section, tab);
+  if (moved) return `${moved.section}|${moved.tab}|${moved.sub ?? ""}`;
+  return `${section}|${tab}|${params.get("sub") ?? ""}`;
+}
+
 /** Where a retired section's own link lands: its first screen. */
 const RETIRED_SECTIONS: Record<string, ScreenAddress> = {
   programmes: { section: "sessions", tab: "programmes", sub: "all" },
