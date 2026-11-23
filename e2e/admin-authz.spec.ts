@@ -37,6 +37,7 @@ const GET_ONLY = new Set([
   "/api/admin/home-visit-purchase-detail",
   "/api/admin/cookie-consents",
   "/api/admin/data-requests",
+  "/api/admin/session-ratings",
 ]);
 
 // Routes that answer 404 rather than 401/403 to an unauthorised caller, on
