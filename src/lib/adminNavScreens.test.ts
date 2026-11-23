@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ADMIN_SECTIONS, LEGACY_SCREENS, findTab, pickScreens, visibleScreenKeys } from "@/lib/adminNav";
+import { ADMIN_SECTIONS, LEGACY_SCREENS, adminScreenKey, findTab, pickScreens, visibleScreenKeys } from "@/lib/adminNav";
 import { sectionsForScope, scopeCanManage } from "@/lib/adminScope";
 
 function keysFor(scope: "full" | "finance" | "operations" | "clinical") {
@@ -127,5 +127,21 @@ describe("the Morning Brief layout keeps every old screen", () => {
       const [section, tab] = k.split(":");
       return !ADMIN_SECTIONS.find((s) => s.key === section)?.tabs.some((t) => t.key === tab);
     })).toBe(true);
+  });
+});
+
+describe("adminScreenKey", () => {
+  const q = (s: string) => new URLSearchParams(s);
+  it("gives an old address and the address it is rewritten to the same key", () => {
+    expect(adminScreenKey(q("section=programmes&tab=all"))).toBe(
+      adminScreenKey(q("section=sessions&tab=programmes&sub=all"))
+    );
+    expect(adminScreenKey(q("section=logs&tab=all"))).toBe(adminScreenKey(q("section=settings&tab=history&sub=all")));
+  });
+  it("still tells two different screens apart", () => {
+    expect(adminScreenKey(q("section=sessions&tab=programmes&sub=all"))).not.toBe(
+      adminScreenKey(q("section=sessions&tab=programmes&sub=review"))
+    );
+    expect(adminScreenKey(q("section=sessions&tab=all"))).not.toBe(adminScreenKey(q("section=sessions&tab=schedule")));
   });
 });
