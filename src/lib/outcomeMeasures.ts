@@ -645,7 +645,7 @@ export const OUTCOME_MEASURES: readonly OutcomeMeasure[] = [
     licence: "free",
     enabledByDefault: true,
     videoUse: "home_measured",
-    // Orthopaedic since phase 7a: the knee-pain guided video assessment's
+    // Orthopaedic since phase 7a: the knee-pain guided check's
     // walk (sessionProtocols.ts), on the path the family marked out. To be
     // verified by a senior physiotherapist against its source.
     profileKinds: ["neuro", "neuro_parkinsons", "ortho"],
@@ -992,7 +992,7 @@ export const OUTCOME_MEASURES: readonly OutcomeMeasure[] = [
     licence: "free",
     enabledByDefault: true,
     videoUse: "with_helper",
-    // Orthopaedic since phase 7a: the knee-pain guided video assessment's
+    // Orthopaedic since phase 7a: the knee-pain guided check's
     // 30-second chair stand (sessionProtocols.ts). The CDC age-and-sex norm is
     // the same line whoever stands. To be verified by a senior
     // physiotherapist against its source.

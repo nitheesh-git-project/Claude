@@ -73,7 +73,7 @@ export default function RedFlagsTool({
                     <span className="font-semibold">Next:</span>
                     {onEnd && (
                       <button type="button" onClick={onEnd} className="min-h-[44px] font-bold underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600">
-                        End the assessment
+                        End the guided check
                       </button>
                     )}
                     {onWatch &&

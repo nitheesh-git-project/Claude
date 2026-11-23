@@ -275,7 +275,7 @@ export default async function TherapistPatientHealthProfilePage({
   const needsOnboarding = !questions.some((q) => currentData[q.key]?.trim());
   const specialtyDef = CONDITION_SPECIALTIES.find((s) => s.key === specialty);
   const adminSettings = parseAdminSettings(settingsRow);
-  // The guided video assessment's door: for the assigned therapist with a
+  // The guided check's door: for the assigned therapist with a
   // session that has started or been delivered. A check that could not be run
   // offers nothing here (the cockpit page says so if it is opened).
   const startedSession =
@@ -748,7 +748,7 @@ export default async function TherapistPatientHealthProfilePage({
         {startedSession && (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-teal-200 bg-teal-50/60 p-4">
             <div className="min-w-0">
-              <p className="text-sm font-bold text-slate-900">Guided video assessment</p>
+              <p className="text-sm font-bold text-slate-900">Guided check</p>
               <p className="text-xs text-slate-700">Lead the checks live over the video call, one step at a time, from a second screen.</p>
             </div>
             <Link
@@ -757,7 +757,7 @@ export default async function TherapistPatientHealthProfilePage({
               className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-teal-700 px-5 text-sm font-bold text-white hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
             >
               <i className="fa-solid fa-clipboard-check" aria-hidden="true" />
-              Start guided assessment
+              Start guided check
             </Link>
           </div>
         )}

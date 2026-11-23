@@ -1,4 +1,4 @@
-// Finishing a session from the end of a guided assessment (B3): the session
+// Finishing a session from the end of a guided check (B3): the session
 // note and the patient's summary start from what the run already knows,
 // but only where the physiotherapist has written nothing. Their own text is
 // never replaced, and what is filled is a starting point they edit - the
@@ -25,7 +25,7 @@ export function fillEmptyOnly<T extends Record<string, string | null>>(current: 
 const TREATED_MAX = 600;
 
 /**
- * "Guided video assessment (Knee pain: video assessment): Safety check all
+ * "Guided check (Knee pain: video assessment): Safety check all
  * clear; Sit to stand for 30 seconds 12 stands; Walking speed skipped." -
  * the note's "What did you treat today?" from the run's own results. Null
  * when nothing was recorded.
@@ -35,7 +35,7 @@ export function treatedLineFromRun(protocolTitle: string, rows: readonly ResultR
     .filter((r) => r.tone !== "todo")
     .map((r) => (r.tone === "done" ? `${r.label} ${lowerFirst(r.value)}` : `${r.label}: ${lowerFirst(r.value)}`));
   if (parts.length === 0) return null;
-  const text = `Guided video assessment (${protocolTitle}): ${parts.join("; ")}.`;
+  const text = `Guided check (${protocolTitle}): ${parts.join("; ")}.`;
   return text.length <= TREATED_MAX ? text : `${text.slice(0, TREATED_MAX - 1).trimEnd()}…`;
 }
 

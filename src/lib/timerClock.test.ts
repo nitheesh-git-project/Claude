@@ -22,10 +22,10 @@ describe("displayForTimerEvent", () => {
     expect(byTool("counter_60s")[0].clock).toEqual({ kind: "countdown", seconds: 60 });
   });
 
-  it("finish is Done and abort is Rest, and neither starts a clock", () => {
+  it("finish is Done and abort (a redo) is Get ready, and neither starts a clock", () => {
     for (const s of steps.filter((x) => x.clock)) {
       expect(displayForTimerEvent(s, "finish")).toMatchObject({ phase: "done", startClock: false });
-      expect(displayForTimerEvent(s, "abort")).toMatchObject({ phase: "rest", startClock: false });
+      expect(displayForTimerEvent(s, "abort")).toMatchObject({ key: "ready", phase: "ready", startClock: false });
     }
   });
 

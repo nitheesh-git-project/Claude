@@ -161,7 +161,7 @@ export const DEFAULT_SPLASH_CONFIG: SplashConfig = {
 
 /**
  * Pages the greeting never covers. The patient's companion screen during a
- * guided video assessment is display only and dark: a splash dissolving over
+ * guided check is display only and dark: a splash dissolving over
  * it printed a ghost of the brand phrase behind the picture and the clock.
  */
 export const SPLASH_SKIP_PATH = "/patient/dashboard/session";

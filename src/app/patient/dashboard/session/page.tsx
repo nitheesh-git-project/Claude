@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 // The patient's companion screen (Health Profile redesign, phase 7b):
 // display only, dark, large. It shows the step the physiotherapist is on
-// during a guided video assessment, and a calm waiting screen otherwise. The
+// during a guided check, and a calm waiting screen otherwise. The
 // first paint is the patient's own display row, read with their own
 // row-level-scoped client (`assessment_live_display_select_own` is the gate);
 // after that the screen follows it live and falls back to polling. A row that

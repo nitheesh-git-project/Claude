@@ -55,7 +55,7 @@ Every route below is covered by at least one test. The rightmost column names th
 | `/therapist/dashboard/earnings` | Earnings, payout requests, receipts | `THR-EARN-001` |
 | `/therapist/dashboard/health-profile` | My Patients (Patients / Programmes toggle) | `THR-PAT-001` |
 | `/therapist/dashboard/health-profile/[patientId]` | One patient's chart: intake, Pain Map (orthopaedic) or neurological examination, care plans, notes | `THR-HP-001`, `THR-HP-005b` |
-| `/therapist/dashboard/assessment/[patientId]` | The session cockpit for a guided video assessment: a standalone second screen next to Google Meet (steps, one card, Stop test / Skip / Save and next, results, a preview of the patient's screen). **Not in the sidebar**: reached from *Start guided assessment* on a video session's card and on the chart | `THR-HP-005r` |
+| `/therapist/dashboard/assessment/[patientId]` | The session cockpit for a guided check: a standalone second screen next to Google Meet (steps, one safety strip, one card, Stop test / Skip / Save and next, results, a preview of the patient's screen). **Not in the sidebar**: reached from *Start guided check* on a video session's card and on the chart | `THR-HP-005r` |
 | `/therapist/dashboard/profile` | Edit Profile | `THR-PROF-001` |
 
 ### 3.5 Hospital portal

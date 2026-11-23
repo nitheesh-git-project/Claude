@@ -135,12 +135,58 @@ function Scene({ picture, standing }: { picture: PatientPicture; standing: boole
           <circle cx="86" cy="49" r="3.5" fill={INK} />
         </>
       );
+    default:
+      // The scales are drawn by ScalePicture, never as a scene.
+      return null;
   }
 }
 
+// The two answer scales (P5): numbers the patient says out loud, drawn large.
+// Fixed text only; nothing is ever marked on them, so no answer reaches this
+// screen. Green to red runs from the best answer to the worst.
+const SCALES = {
+  scale_0_10: {
+    stops: ["#86efac", "#a7f3a0", "#bef264", "#d9f99d", "#fef08a", "#fde047", "#fdba74", "#fb923c", "#f87171", "#ef4444", "#dc2626"],
+    ends: ["None", "Worst"] as const,
+    labels: null,
+  },
+  scale_0_4: {
+    stops: ["#fca5a5", "#fdba74", "#fde047", "#bef264", "#86efac"],
+    ends: null,
+    labels: ["Unable", "Very hard", "Hard", "A little hard", "Easy"],
+  },
+} as const;
+
+function ScalePicture({ picture }: { picture: "scale_0_10" | "scale_0_4" }) {
+  const scale = SCALES[picture];
+  return (
+    <div role="img" aria-label={PICTURE_DESCRIPTIONS[picture]} data-picture={picture} className="w-[min(92vw,760px)] shrink-0">
+      <div className="grid gap-[clamp(3px,0.8vw,8px)]" style={{ gridTemplateColumns: `repeat(${scale.stops.length}, minmax(0, 1fr))` }}>
+        {scale.stops.map((bg, n) => (
+          <div
+            key={n}
+            className="flex flex-col items-center justify-center rounded-[clamp(6px,1vw,12px)] py-[clamp(8px,1.6vw,16px)] text-[#0f172a]"
+            style={{ backgroundColor: bg }}
+          >
+            <span className="font-display text-[clamp(18px,3.4vw,40px)] font-extrabold leading-none">{n}</span>
+            {scale.labels && <span className="mt-1 text-[clamp(10px,1.4vw,16px)] font-semibold leading-tight">{scale.labels[n]}</span>}
+          </div>
+        ))}
+      </div>
+      {scale.ends && (
+        <div className="mt-2 flex justify-between text-[clamp(14px,2vw,22px)] font-semibold text-[#cbd5e1]">
+          <span>{scale.ends[0]}</span>
+          <span>{scale.ends[1]}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** The picture for a step; the chair stand sits until *go*, then stands. It describes itself to a screen reader; the words
- *  on the screen carry the instruction, the picture only shows the position. */
+ *  on the screen carry the instruction, the picture only shows the position (or, for a scale, the numbers to choose from). */
 export default function PositionPicture({ picture, phase }: { picture: PatientPicture; phase?: LivePhase }) {
+  if (picture === "scale_0_10" || picture === "scale_0_4") return <ScalePicture picture={picture} />;
   return (
     <svg
       viewBox={picture === "lying" ? "0 64 200 90" : "0 0 200 170"}

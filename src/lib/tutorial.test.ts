@@ -158,7 +158,7 @@ describe("the onboarding guide", () => {
   });
 });
 
-describe("the first-visit tour and the guided assessment", () => {
+describe("the first-visit tour and the guided check", () => {
   it("never opens by itself over the live screens, and does everywhere else", () => {
     expect(tutorialMayAutoStart("/patient/dashboard/session")).toBe(false);
     expect(tutorialMayAutoStart("/therapist/dashboard/assessment/abc")).toBe(false);

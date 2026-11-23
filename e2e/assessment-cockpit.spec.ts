@@ -95,7 +95,8 @@ test("AC-001: with no run the patient's screen waits calmly and has nothing but 
   await page.goto(`${BASE}/patient/dashboard/session`);
   const waiting = page.getByTestId("companion-waiting");
   await expect(waiting).toBeVisible(SEEN);
-  await expect(waiting).toContainText("Your physiotherapist will start the guided check soon");
+  // Two lines (P4): who will start, and keep the call open.
+  await expect(waiting).toContainText("Your physiotherapist will start soon");
   // For the patient whose video call is on their phone: do not close it.
   await expect(page.getByTestId("companion-keep-call")).toHaveText("Keep your video call open.");
   // No result, no clinic word, nothing to press but the way back to the dashboard.
@@ -105,14 +106,28 @@ test("AC-001: with no run the patient's screen waits calmly and has nothing but 
   await context.close();
 });
 
-test("AC-002: the chart offers Start guided assessment, and the cockpit opens on the safety step with three actions", async ({ page }) => {
+test("AC-002: the chart offers Start guided check, and the cockpit opens on the safety step with three actions", async ({ page }) => {
   await asTherapist(page);
   await page.goto(`${BASE}/therapist/dashboard/health-profile/${patient!.id}`);
   await page.getByTestId("chart-start-guided-assessment").click(SEEN);
   await expect(page).toHaveURL(new RegExp(`/therapist/dashboard/assessment/${patient!.id}`));
 
-  await page.getByTestId("start-assessment").click(SEEN);
+  // The start panel (T6): the assessment chosen for the condition, the
+  // optional patient screen folded under the one big button.
+  await expect(page.getByTestId("start-protocol")).toContainText("Knee pain", SEEN);
+  await expect(page.getByTestId("share-screen-step")).not.toHaveAttribute("open", /.*/);
+  await page.getByRole("button", { name: "Start guided check" }).click(SEEN);
   await expect(page.getByTestId("session-cockpit")).toBeVisible(SEEN);
+
+  // One safety strip (T3), and one line about the patient's screen (T4) with
+  // its manual controls folded away: the screen follows the test by itself (T2).
+  await expect(page.getByTestId("safety-strip")).toContainText("Safety questions not asked yet");
+  await expect(page.getByTestId("safety-strip")).toContainText("Stop at once if");
+  await expect(page.getByTestId("bar-screen-status")).toBeVisible();
+  await expect(page.getByTestId("patient-screen-controls")).toHaveCount(0);
+  await page.getByTestId("patient-screen-toggle").click();
+  await expect(page.getByTestId("patient-screen-controls").getByRole("button", { name: "Get ready" })).toBeVisible();
+  await page.getByTestId("patient-screen-toggle").click();
 
   // The steps across the top: nine (Home exercises is the eighth), the first the current one.
   const steps = page.getByTestId("step-bar").getByRole("button");
@@ -175,7 +190,9 @@ test("AC-004: Stop test saves nothing and writes only a stopped event", async ({
   for (let i = 0; i < (await questions.count()); i++) await questions.nth(i).getByRole("button", { name: "No" }).click();
 
   await page.getByTestId("action-stop").click();
-  await page.getByRole("dialog").getByRole("button", { name: "Started again" }).click();
+  // A false start is the timer's Redo (T5), so Stop test does not offer it.
+  await expect(page.getByRole("dialog").getByRole("button", { name: "Started again" })).toHaveCount(0);
+  await page.getByRole("dialog").getByRole("button", { name: "The patient asked to stop" }).click();
   await expect(page.getByTestId("cockpit-notice")).toContainText("Nothing from that attempt was kept", SEEN);
   // The answers are thrown away with it.
   await expect(page.getByTestId("action-save")).toBeDisabled();
@@ -214,13 +231,17 @@ test("AC-005: the patient's screen shows only the step counter, its name and one
   await context.close();
 });
 
-test("AC-005b: while a check is live every patient screen says how to use a second device, and that one device is fine", async ({ browser }) => {
+test("AC-005b: while a check is live every patient screen shows one line and Open, with the second-device help one tap away", async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 390, height: 800 } });
   await context.addCookies(await browserCookiesFor(patient!.email));
   const page = await context.newPage();
   await page.goto(`${BASE}/patient/dashboard`);
   const bar = page.getByTestId("guided-check-bar");
   await expect(bar).toBeVisible(SEEN);
+  // One line and Open (P3); the second-screen help is folded until asked for.
+  await expect(page.getByTestId("guided-check-link")).toContainText("Your physiotherapist has started your check");
+  await expect(page.getByTestId("guided-check-help")).toBeHidden();
+  await page.getByText("Use a bigger screen").click();
   await expect(page.getByTestId("guided-check-help")).toHaveText(
     "Open this on a laptop, tablet or TV and keep your video call on your phone. Only one device? That's fine \u2014 your physiotherapist will talk you through it."
   );

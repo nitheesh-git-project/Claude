@@ -1,5 +1,5 @@
 // "Before you start" (B5): what the physiotherapist should have in mind before
-// the guided assessment's first question, from what is already on record -
+// the guided check's first question, from what is already on record -
 // the last session note's plan and its "Anything to watch", the precautions
 // the intake rules in (sternal, a high risk of falling, cannot stand), the
 // affected side, and on a Parkinson's run the usual medicine times with the

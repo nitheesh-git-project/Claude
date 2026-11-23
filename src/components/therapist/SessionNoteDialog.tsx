@@ -100,7 +100,7 @@ export default function SessionNoteDialog({
   completeOnSave?: boolean;
   /** The session's start, for "updated during this session". */
   sessionStartIso?: string | null;
-  /** Words to start from (the end of a guided assessment): written only into
+  /** Words to start from (the end of a guided check): written only into
    *  fields that are blank, never over the physiotherapist's own text, and the
    *  summary only when none was shared yet (fillEmptyOnly). */
   prefill?: { note?: Partial<Record<string, string | null>>; summary?: Partial<SessionSummaryText> };

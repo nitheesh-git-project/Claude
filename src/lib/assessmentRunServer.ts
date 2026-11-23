@@ -39,7 +39,7 @@ import { SESSION_SUMMARY_SELECT, summaryForDialog, type SessionSummaryRow, type 
 import { isProfileActiveAndApproved, profileCheckUnavailable } from "@/lib/supabase/requireActiveProfile";
 import { isTherapistAssignedToPatient } from "@/lib/conditionAccess";
 
-// The server half of the guided video assessment (phase 7a): the reads every
+// The server half of the guided check (phase 7a): the reads every
 // screen uses and the gate every run route shares. The shapes and the rules
 // are assessmentRun.ts (pure, tested); this file only reads and answers.
 //
@@ -59,7 +59,7 @@ const MISSING_TABLE = new Set(["42P01", "PGRST205"]);
 
 export function databaseNotReady(): NextResponse {
   return NextResponse.json(
-    { error: "This database has not been updated for guided video assessments yet.", code: "not_migrated" },
+    { error: "This database has not been updated for guided checks yet.", code: "not_migrated" },
     { status: 503 }
   );
 }
@@ -280,7 +280,7 @@ export async function requireOpenRun(
     gate.therapistId,
     run.patientId,
     nowMs,
-    "A guided assessment runs inside a session you've started with this patient."
+    "A guided check runs inside a session you've started with this patient."
   );
   if (notStarted) return { ok: false, response: notStarted };
 

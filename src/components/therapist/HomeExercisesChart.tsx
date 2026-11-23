@@ -68,7 +68,7 @@ export default function HomeExercisesChart({ read }: { read: HomeExercisesChartR
     return (
       <SurfaceCard title={title} icon="fa-person-walking" subtitle={subtitle}>
         <p className="text-sm text-slate-700" data-testid="chart-exercises-state" data-state="empty">
-          No home exercises yet. They are set in a guided video assessment, on its Home exercises step.
+          No home exercises yet. They are set in a guided check, on its Home exercises step.
         </p>
       </SurfaceCard>
     );

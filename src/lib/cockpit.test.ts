@@ -25,6 +25,9 @@ import {
   timerStartBlock,
   toolMode,
   toolSlots,
+  screenStatusLine,
+  STOP_OPTIONS,
+  COCKPIT_KEY_HINT,
 } from "@/lib/cockpit";
 import { runStateFromEvents, type RunEvent } from "@/lib/assessmentRun";
 import type { MeasurementPoint } from "@/lib/outcomeSeries";
@@ -373,5 +376,28 @@ describe("the resting check preview (E14)", () => {
     expect(bloodPressureFromItems(JSON.stringify({ systolic: 130, diastolic: 80 }))).toEqual({ systolic: 130, diastolic: 80 });
     expect(bloodPressureFromItems(null)).toEqual({ systolic: null, diastolic: null });
     expect(bloodPressureFromItems("{bad")).toEqual({ systolic: null, diastolic: null });
+  });
+});
+
+describe("the patient screen's one status line (T4)", () => {
+  it("is one dot and one sentence: a failed write first, then the heartbeat", () => {
+    expect(screenStatusLine("failed", "open", "Priya")).toEqual({ tone: "bad", text: "Priya's screen did not update." });
+    expect(screenStatusLine("live", "open", "Priya")).toEqual({ tone: "ok", text: "Priya is following on their screen" });
+    expect(screenStatusLine("live", "not_yet", "Priya").tone).toBe("wait");
+    expect(screenStatusLine("live", "not_yet", "Priya").text).toContain("talk them through");
+  });
+  it("never says 'not open' when it could not check", () => {
+    expect(screenStatusLine("idle", "unknown", "Priya")).toEqual({ tone: "idle", text: "Couldn't check Priya's screen" });
+    expect(screenStatusLine("idle", null, "Priya").text).toBe("Checking Priya's screen…");
+  });
+});
+
+describe("Stop test's reasons (T5)", () => {
+  it("does not offer 'Started again': a false start is the timer's Redo", () => {
+    expect(STOP_OPTIONS.map((o) => o.key)).not.toContain("redo");
+    expect(STOP_OPTIONS.map((o) => o.key)).toEqual(expect.arrayContaining(["symptoms", "near_fall", "patient_asked"]));
+  });
+  it("keeps the key hint to one short line", () => {
+    expect(COCKPIT_KEY_HINT).toBe("N next · Esc stop · Space counts");
   });
 });

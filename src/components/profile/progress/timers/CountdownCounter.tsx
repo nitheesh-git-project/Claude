@@ -164,7 +164,7 @@ export default function CountdownCounter({
               }}
               className="min-h-[48px] flex-1 rounded-xl border border-red-300 text-sm font-semibold text-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"
             >
-              Discard this attempt
+              Redo this attempt
             </button>
           </div>
         </>
