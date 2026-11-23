@@ -10,11 +10,11 @@ import type { ProtocolStep } from "@/lib/sessionProtocols";
 export const HELPER_STILL_LABEL = "Helper still beside them";
 
 /**
- * The current step as one card: where we are, the set-up checklist (real
- * checkboxes; every required one must be ticked before Save and next
- * unlocks), a red-bordered safety line when another adult has to stand
- * beside the patient, then what to say to the patient in large type with the
- * step's own tool directly under it.
+ * The current step as one card (T11): where we are, then what to say to the
+ * patient in large type - the thing the physiotherapist reads most - then the
+ * set-up checklist (real checkboxes; every required one must be ticked before
+ * Save and next unlocks) and the step's own tool. The "someone must stand
+ * beside them" rule is said once, in the cockpit's safety strip.
  *
  * Beside Google Meet the card is narrow, so once the set-up is ticked it
  * folds into one line ("3/3 set up ✓ · Edit") and the script and the tool
@@ -96,6 +96,16 @@ export default function StepCard({
         </p>
       )}
 
+      <div className="flex items-start gap-3 rounded-xl bg-teal-50 px-4 py-3">
+        <i aria-hidden="true" className="fa-solid fa-comment-dots mt-1 shrink-0 text-lg text-teal-800" />
+        <div className="min-w-0">
+          <p className="text-xs font-bold uppercase tracking-wider text-teal-800">Say to the patient</p>
+          <p data-testid="step-script" className="mt-1 text-lg font-medium leading-relaxed text-slate-900 sm:text-[1.1875rem]">
+            {step.script}
+          </p>
+        </div>
+      </div>
+
       {!folded && (
         <fieldset
           disabled={!!locked}
@@ -147,26 +157,6 @@ export default function StepCard({
           )}
         </fieldset>
       )}
-
-      {step.needsHelper && (
-        <div
-          data-testid="helper-warning"
-          role="note"
-          className="rounded-xl border-2 border-red-600 bg-red-50 px-3.5 py-2 text-[15px] leading-snug text-red-950"
-        >
-          <strong>Safety:</strong> someone must stand beside the patient for this test. Do not start until you have seen them on camera.
-        </div>
-      )}
-
-      <div className="flex items-start gap-3 rounded-xl bg-teal-50 px-4 py-3">
-        <i aria-hidden="true" className="fa-solid fa-comment-dots mt-1 shrink-0 text-lg text-teal-800" />
-        <div className="min-w-0">
-          <p className="text-xs font-bold uppercase tracking-wider text-teal-800">Say to the patient</p>
-          <p data-testid="step-script" className="mt-1 text-lg font-medium leading-relaxed text-slate-900 sm:text-[1.1875rem]">
-            {step.script}
-          </p>
-        </div>
-      </div>
 
       <div>{children}</div>
     </div>

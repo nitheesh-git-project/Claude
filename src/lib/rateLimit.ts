@@ -338,7 +338,7 @@ export const RATE_LIMITS = {
   },
 
   /**
-   * The guided video assessment's live display: the therapist's cockpit
+   * The guided check's live display: the therapist's cockpit
    * telling the patient's companion screen which step, phase and clock to
    * show (/api/therapist/assessment-runs/display).
    *
@@ -358,7 +358,7 @@ export const RATE_LIMITS = {
   },
 
   /**
-   * The guided video assessment's other writes: start, the step events
+   * The guided check's other writes: start, the step events
    * (set-up, safety, saved, skipped, stopped, opened) and end. Keyed on the
    * therapist's account. A run is tens of events, so the ceiling bounds the
    * tables, not a person. Fails open (the default).

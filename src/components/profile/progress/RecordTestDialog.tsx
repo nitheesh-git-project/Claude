@@ -241,7 +241,7 @@ export default function RecordTestDialog({
   /** Called after a reading is saved, instead of closing the dialog. */
   onSaved?: (saved: { measureKey: string; conditions: ConditionDraft }) => void;
   onClose: () => void;
-  /** Rendered inline as a guided assessment step's tool; see EmbeddedRecorder. */
+  /** Rendered inline as a guided check step's tool; see EmbeddedRecorder. */
   embedded?: EmbeddedRecorder;
 }) {
   const router = useRouter();

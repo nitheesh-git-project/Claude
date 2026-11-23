@@ -36,7 +36,7 @@ export function painChangeWords(previousPercent: number, nowPercent: number): st
 export type PainArea = { region: string; side: "left" | "right" | "na" };
 
 /**
- * The area a guided assessment's pain step starts on, so the physiotherapist
+ * The area a guided check's pain step starts on, so the physiotherapist
  * is not asked what the record already says: the area of the latest Pain Map
  * exam, else the worst area the patient marked in their intake, else the
  * protocol's own joint (the knee assessment's knee). Always changeable.

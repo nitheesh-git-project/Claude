@@ -332,7 +332,7 @@ export default function PainExamDialog({
                   <p id={painLabelId} className="mb-1 block text-sm font-bold text-slate-800">
                     Overall pain for this area, 0 to 10
                   </p>
-                  {/* The same eleven buttons as the guided assessment's pain
+                  {/* The same eleven buttons as the guided check's pain
                       step: out of ten, the way the patient rates their own
                       pain, and stored times ten as every reading is. */}
                   <p className="mb-3 text-[13px] text-slate-600">Tap the number the patient gives: 0 is no pain, 10 the worst they can imagine.</p>

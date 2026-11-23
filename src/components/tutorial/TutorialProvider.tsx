@@ -59,7 +59,7 @@ export default function TutorialProvider({
       .catch(() => false)
       .then((open) => {
         if (cancelled || !open || started.current) return;
-        // Never over the guided assessment's live screens.
+        // Never over the guided check's live screens.
         if (!tutorialMayAutoStart(window.location.pathname)) return;
         started.current = true;
         // A beat after the page paints, so the tour arrives over the

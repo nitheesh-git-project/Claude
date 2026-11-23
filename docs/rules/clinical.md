@@ -1393,7 +1393,7 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   video stays on Google Meet (the app embeds none); the therapist works from a
   second-screen cockpit, one step at a time, with exactly three actions -
   Stop test, Skip, Save and next; the patient's companion is display-only.
-  Ten rules:
+  Eleven rules:
   1. **One ordered protocol per profile kind, checked at load.**
      `src/lib/sessionProtocols.ts`: `ortho_knee` (the approved cockpit's
      Safety, Pain, Everyday tasks, Knee bend, Straightening the knee, Sit to
@@ -1522,14 +1522,22 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      **Save and next**, disabled until the set-up (the helper named on its own),
      the safety answers and a result are all in, with the line underneath
      saying which is missing (`saveReadiness`, `cockpit.ts`). **Beside Meet
-     (640-800px) the card stays short:** the *Stop at once if* line sits under
-     the step bar at every width, the set-up folds to one line (*3/3 set up ✓ ·
-     Edit*) once ticked, the tool sits directly under the script (the result
-     before *How it was done*, unless ON/OFF is required), and the patient's
-     screen controls are a segmented control in the sticky bar. **A timer's
+     (640-800px) the card stays short:** one **safety strip** sits under the
+     step bar at every width (`SafetyStrip`, T3: where the run stands on
+     safety, this step's "someone beside them" rule, *Stop at once if*, the
+     resting check's *no exercise today* and the *Before you start* line - one
+     place, green when clear, red only when something needs action), the card
+     opens on *Say to the patient* (T11) with the set-up under it, the set-up
+     folds to one line (*3/3 set up ✓ · Edit*) once ticked, the tool sits
+     directly under that (the result before *How it was done*, unless ON/OFF is
+     required), and **the patient's screen follows the test by itself** (T2): a
+     step opens on Get ready, a timer's start is Go, its end Done, the timer's
+     *Redo this attempt* Get ready again, Stop test Rest - so the sticky bar
+     holds one status line and the three actions, with the manual controls
+     folded behind *Patient screen: Auto*. **A timer's
      Start stays off, saying why, until the step's helper is ticked and the
      resting check is clear** (`timerStartBlock`; the server is still the
-     gate on the save). **Keys:** N is Save and next when it is on, Esc is
+     gate on the save). **Keys** (hint *N next · Esc stop · Space counts*): N is Save and next when it is on, Esc is
      Stop test - never while typing, with a dialog open, on a key repeat or
      with a modifier (`cockpitShortcut`) - and the counter takes the focus
      when it starts, so Space or Enter counts a stand; a one-line hint sits
@@ -1593,7 +1601,7 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      unticked), with a preview of `preExerciseCheck` on the numbers as typed,
      labelled *Preview only: the server checks on save* (`restingPreview`);
      the server's check on the saved readings is still the only gate.
-     Entry: *Start guided assessment* on a video session's card (from the join
+     Entry: *Start guided check* on a video session's card (from the join
      window, judged on the debug clock) and on the chart (assigned, with a
      started session).
   10. **The companion is display-only, dark and large, and counts against
@@ -1609,7 +1617,8 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      the row's start time and length read against the loader's `serverNow`
      (`clockShown`), never a client-trusted timer, and it never announces
      itself per second to a screen reader. With no run it says *Your
-     physiotherapist will start the guided check soon*; *All done* shows for
+     physiotherapist will start soon* and *Keep your video call open.* (two
+     lines, P4); *All done* shows for
      fifteen minutes after a run ends, then it waits again. **A read that
      failed is not "nothing to show":** when the screen has no live check to
      draw and the last read failed (or the row failed the patient-safe
@@ -1625,12 +1634,34 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      best effort, silent on a database without the table), the screen reads
      every twenty seconds even while realtime is up, and the cockpit asks
      `/api/therapist/assessment-runs/companion-seen` (the therapist's own
-     client; rate limited `assessmentCompanionSeen`) every fifteen seconds:
-     *Open on Priya's side* within 45 seconds of a heartbeat, *Not open on
-     Priya's side yet* otherwise, *Couldn't check Priya's side* on a failed
-     read (`companionSeenState`). The preview's *Sent* means only that the
-     server stored it. The Start panel's **Step 0, Share the patient screen**,
-     gives the short link and the words to read aloud (`shareScreenScript`).
+     client; rate limited `assessmentCompanionSeen`) every fifteen seconds
+     (`companionSeenState`). **The cockpit says it as one line, one dot**
+     (`screenStatusLine`, T4): *Priya is following on their screen* within 45
+     seconds of a heartbeat, *Priya's screen isn't open · talk them through on
+     the call* otherwise - a normal way to work, not an error - *Couldn't
+     check Priya's screen* on a failed read (never "not open"), and *Priya's
+     screen did not update.* with Try again when the display write failed.
+     The patient screen is **optional**: the Start panel (T6) shows who, the
+     assessment chosen for the condition (with *Change* when the condition has
+     more than one), *Before you start* as one line that opens, and one
+     **Start guided check** button; *Patient screen (optional)* - the short
+     link and the words to read aloud (`shareScreenScript`) - is folded under
+     it. **One link everywhere** (T7): the start panel, the cockpit's preview
+     and the patient's bar all give `/screen` (`companionShortLink`).
+  11. **Answer scales are pictures (P5).** `PATIENT_PICTURES` holds two fixed
+     scales besides the positions: `scale_0_10` on every step that asks for a
+     number from 0 to 10 (pain, breathlessness) and `scale_0_4` on the knee's
+     everyday tasks (0 unable to 4 easy). The companion draws the numbers
+     large, green to red; nothing on a scale is ever picked or marked, so no
+     answer reaches the patient's screen, and the picture is still the step's
+     own (`validateLiveDisplay`). **A redo is not a stop (T5):** a timer's
+     *Redo this attempt* (it was *Discard this attempt*) puts Get ready on the
+     patient's screen (`displayForTimerEvent`), and Stop test no longer offers
+     *Started again* (`STOP_OPTIONS`; the `redo` key stays valid on the server
+     for the stops already recorded with it). **One name per thing (T10):**
+     *Guided check* on both sides (buttons, titles, the summary draft and the
+     note's prefill), *Patient screen* for the display, *Health Profile* for
+     the way back.
   `src/lib/sessionProtocols.test.ts`, `assessmentRun.test.ts`,
   `assessmentSummaryDraft.test.ts`, `cockpit.test.ts`, `companionScreen.test.ts`,
   `latestWins.test.ts`, `guidedAssessmentEntry.test.ts`;

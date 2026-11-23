@@ -1,4 +1,4 @@
-// Where "Start guided assessment" is offered (Health Profile redesign, phase
+// Where "Start guided check" is offered (Health Profile redesign, phase
 // 7b). The cockpit itself and the start route are the gate (assigned
 // therapist, a session that has started or been delivered); this only decides
 // whether the door is shown, so a therapist is not offered a button the
@@ -23,7 +23,7 @@ export function offersGuidedAssessment(input: {
   nowMs: number;
   joinWindowMinutes: number;
 }): boolean {
-  // A guided video assessment belongs to a video session.
+  // A guided check belongs to a video session.
   if (input.isHomeVisit || input.noShow || input.slotTimeMs === null || !Number.isFinite(input.slotTimeMs)) return false;
   const opensAt = input.slotTimeMs - Math.max(0, input.joinWindowMinutes) * 60_000;
   if (input.status === "confirmed") return input.nowMs >= opensAt;

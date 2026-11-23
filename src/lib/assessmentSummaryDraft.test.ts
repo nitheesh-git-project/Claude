@@ -73,7 +73,7 @@ describe("assessmentSummaryDraft", () => {
   it("says a red flag stopped the tests, and a layer step is named without a number", () => {
     const flagged = [ev("safety", "safety_confirmed", { gate: "red_flags", answers: { unwell_or_fever: true }, flagged: ["unwell_or_fever"] })];
     expect(assessmentSummaryDraft({ run: RUN, protocol: knee, events: flagged, measurements: [], profileKind: "ortho", voice: "clinician" })).toBe(
-      "Guided video assessment: no tests recorded. A red-flag question was answered yes, so testing stopped."
+      "Guided check: no tests recorded. A red-flag question was answered yes, so testing stopped."
     );
     const pain = [clear, ev("pain", "saved", { layer: "pain_map", recordId: "x" })];
     expect(assessmentSummaryDraft({ run: RUN, protocol: knee, events: pain, measurements: [], profileKind: "ortho", voice: "clinician" })).toContain(

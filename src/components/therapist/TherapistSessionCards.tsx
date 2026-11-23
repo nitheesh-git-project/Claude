@@ -91,7 +91,7 @@ function finishProps(d: TherapistDashboardData, a: TherapistDashboardData["appoi
 /**
  * The Overview's "Next up" (B9): the session in progress (until half an hour
  * after its end, time for the note) or else the next one, as a card with
- * what can be done with it now - Join and Start guided assessment decide in
+ * what can be done with it now - Join and Start guided check decide in
  * the browser on the debug clock and render only inside the join window,
  * Done only for a confirmed session that has started, the chart always. The
  * time is the clinic's (formatDateTime), never the runtime's.
@@ -212,7 +212,7 @@ export function renderTherapistSessionCard(
             status={a.status}
             durationMinutes={a.duration_minutes}
           />
-          {/* The guided video assessment: the cockpit for this session, from
+          {/* The guided check: the cockpit for this session, from
               the moment the join window opens. The route behind it makes the
               same started-session check, so this only decides whether the
               door is shown. */}

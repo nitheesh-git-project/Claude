@@ -64,7 +64,7 @@ import ResultsPanel from "@/components/therapist/assessment/ResultsPanel";
 import StepBar from "@/components/therapist/assessment/StepBar";
 import StepCard from "@/components/therapist/assessment/StepCard";
 import ToolArea from "@/components/therapist/assessment/ToolArea";
-import BeforeYouStart from "@/components/therapist/assessment/BeforeYouStart";
+import SafetyStrip, { type SafetyState } from "@/components/therapist/assessment/SafetyStrip";
 import type { Briefing } from "@/lib/cockpitBriefing";
 import type { FinishContext } from "@/lib/assessmentRunServer";
 import type { OxygenStopLimit } from "@/lib/cardioSafety";
@@ -75,7 +75,6 @@ import { postEnd, postEvent } from "@/components/therapist/assessment/api";
 import type { QuickPainSave } from "@/components/therapist/assessment/LayerTool";
 import { useDisplaySender } from "@/components/therapist/assessment/useDisplaySender";
 import { useCompanionSeen } from "@/components/therapist/assessment/useCompanionSeen";
-import { companionSeenLabel } from "@/lib/companionScreen";
 
 function mergeById<T extends { id: string }>(fromServer: readonly T[], local: readonly T[]): T[] {
   const byId = new Map<string, T>();
@@ -284,7 +283,6 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
   const patientScreen = useDisplaySender({ runId: run.id, protocol, startingText, onFailure: setFailure });
   const pushDisplay = patientScreen.push;
   const seenState = useCompanionSeen(run.id, !ended);
-  const seenLabel = seenState ? companionSeenLabel(seenState, firstName) : undefined;
 
   // Tell the patient's screen where we are as soon as the page opens.
   const firstPush = useRef(false);
@@ -470,7 +468,7 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
         const done = await postEnd({ runId: run.id, outcome: "completed" });
         if (!done.ok) return setFailure(done.failure);
         setEnded({ outcome: "completed", reason: null, draft: done.data.summaryDraft, readable: done.data.summaryDraftReadable });
-        show("Assessment saved");
+        show("Guided check saved");
         router.refresh();
         return;
       }
@@ -627,12 +625,7 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const flagged = redFlagsRaised(state);
-  const safetyChip = !state.redFlags
-    ? { text: "Safety questions not asked yet", tone: "bg-slate-100 text-slate-800" }
-    : flagged
-      ? { text: "A safety concern was noted", tone: "bg-red-100 text-red-900" }
-      : { text: "Safety check passed", tone: "bg-emerald-50 text-emerald-900" };
+  const safetyState: SafetyState = !state.redFlags ? "not_asked" : redFlagsRaised(state) ? "flagged" : "clear";
 
   return (
     <div className="flex flex-col gap-3.5" data-testid="session-cockpit">
@@ -642,9 +635,6 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
           <span className="text-sm text-slate-700">{props.headline}</span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span data-testid="safety-chip" className={`rounded-full px-3 py-1.5 text-[13px] font-semibold ${safetyChip.tone}`}>
-            {safetyChip.text}
-          </span>
           <Link
             href={chartHref}
             className="inline-flex min-h-[44px] items-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-900 hover:border-teal-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
@@ -659,25 +649,23 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
               disabled={!!busy}
               className="min-h-[44px] rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-900 hover:border-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 disabled:opacity-60"
             >
-              End assessment
+              End guided check
             </button>
           )}
         </div>
-        {props.briefing && !ended && <BeforeYouStart briefing={props.briefing} compact />}
       </header>
 
       {!ended && <StepBar items={nav} onPick={openStep} />}
 
       {!ended && (
-        <p data-testid="stop-at-once" className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-[13px] leading-snug text-amber-950 sm:text-sm">
-          <strong>Stop at once if</strong> {protocol.stopAtOnce.map((s) => s.toLowerCase()).join(", ")}.
-        </p>
-      )}
-
-      {preExercise === "stop" && (
-        <p role="alert" data-testid="no-exercise-banner" className="rounded-xl border-2 border-red-600 bg-red-50 px-4 py-3 text-[15px] font-semibold text-red-950">
-          The resting check says not to exercise today. Skip the exercise steps and contact the patient{"'"}s doctor.
-        </p>
+        <SafetyStrip
+          state={safetyState}
+          stopAtOnce={protocol.stopAtOnce}
+          needsHelper={step.needsHelper === true}
+          firstName={firstName}
+          noExercise={preExercise === "stop"}
+          briefing={props.briefing}
+        />
       )}
 
       <div className="flex flex-col gap-3.5 lg:flex-row lg:items-start">
@@ -835,7 +823,7 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
                     <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
                       <span className="font-semibold">Next:</span>
                       <button type="button" onClick={() => setDialog("end")} className="min-h-[44px] font-bold underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600">
-                        End the assessment
+                        End the guided check
                       </button>
                       {watchLines.includes(stopFollowUp.line) ? (
                         <span className="font-semibold text-teal-900">Added to Anything to watch</span>
@@ -876,7 +864,7 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
                   status: patientScreen.status,
                   onControl: (c) => pushDisplay(step.id, c, true),
                   onRetry: patientScreen.retry,
-                  seen: seenLabel,
+                  seen: seenState,
                 }}
               />
             </>
@@ -901,7 +889,8 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
                 view={ended ? null : patientScreen.view}
                 serverOffsetMs={patientScreen.offsetMs}
                 status={patientScreen.status}
-                seen={ended ? null : seenLabel}
+                seen={ended ? null : seenState}
+                ended={!!ended}
                 onRetry={patientScreen.retry}
               />
             </div>
@@ -934,7 +923,7 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
       )}
       {dialog === "end" && (
         <ReasonDialog
-          title="End the assessment now?"
+          title="End the guided check now?"
           body="What you have saved stays on the record. The patient's screen says All done. Why are you ending it?"
           options={Object.entries(END_REASONS).map(([key, label]) => ({ key, label }))}
           confirmTone="danger"

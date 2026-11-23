@@ -8,7 +8,7 @@ import WaitingState from "@/components/patient/session/WaitingState";
 import { useLiveDisplay, type LiveDisplayInitial } from "@/components/patient/session/useLiveDisplay";
 
 /**
- * The patient's companion screen for a guided video assessment: dark, high
+ * The patient's companion screen for a guided check: dark, high
  * contrast, display only. It follows the physiotherapist live (realtime, with
  * a three-second poll as the fallback) and otherwise waits calmly. The only
  * thing on it that can be pressed is the way back to the dashboard, and that
