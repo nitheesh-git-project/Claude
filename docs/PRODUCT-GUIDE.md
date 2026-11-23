@@ -2823,9 +2823,9 @@ everything else.
   done, before next time, the home exercises and the next session. Rules:
   `docs/rules/clinical.md`.
 
-  **Home exercises (phase 7d).** After the checks, every guided
-  video assessment has a *Home exercises* step, just before the summary. The
-  physiotherapist picks exercises from the clinic's library
+  **Home exercises (phase 7d).** After the summary, every guided
+  check ends with a *Home exercises* step, taught now or *Later* (which
+  finishes the check). The physiotherapist picks up to three exercises from the clinic's library
   (`src/lib/exerciseLibrary.ts`: a starter set for each condition type, each
   with a plain name, a demo picture, three to five short steps, a default dose
   and a safety line, every one marked to be verified by a senior

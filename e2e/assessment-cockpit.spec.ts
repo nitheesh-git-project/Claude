@@ -129,9 +129,12 @@ test("AC-002: the chart offers Start guided check, and the cockpit opens on the 
   await expect(page.getByTestId("patient-screen-controls").getByRole("button", { name: "Get ready" })).toBeVisible();
   await page.getByTestId("patient-screen-toggle").click();
 
-  // The steps across the top: nine (Home exercises is the eighth), the first the current one.
+  // The steps across the top: nine, the summary eighth and Home exercises
+  // last (version 4: taught now or later, after the check), the first the current one.
   const steps = page.getByTestId("step-bar").getByRole("button");
   await expect(steps).toHaveCount(9);
+  await expect(steps.nth(7)).toContainText("Summary");
+  await expect(steps.nth(8)).toContainText("Home exercises");
   await expect(steps.first()).toHaveAttribute("aria-current", "step");
 
   // The card: where we are, what to say, the set-up, the helper rule only where it applies.

@@ -1411,10 +1411,11 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      **in-person-only (`videoUse: "no"`) measure in a video protocol**, a
      helper measure on a step not marked as needing one (or a helper step with
      no helper item to tick), an exertion measure on a step not marked
-     exertion, a first step that is not the red-flag check, a last that is not
-     the summary, a protocol without exactly one Home exercises step just
-     before the summary (phase 7d, version 2 - see "Home exercises" below), an
-     optional set-up item that is not that step's helper, a heart and lung
+     exertion, a first step that is not the red-flag check, a protocol that
+     does not end with the summary and then exactly one Home exercises step
+     (version 4 - see "Home exercises" below), an optional set-up item that is
+     not that step's helper, a helper item marked as a tip, a safety step with
+     no room check to tick, a heart and lung
      exertion step before the resting check, or
      a clinic word ("triage", "case", "patient", "geriatric"...) in what the
      patient sees, or **a tab label that is not the start of its step's
@@ -1425,7 +1426,22 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      from the list; set-up that belongs to one test lives in that test's step
      (the sturdy chair in the chair stand, the camera in the angle steps, the
      heart and lung devices in the resting check); a run on version 2 is
-     `protocol_changed` and can be ended (`checkRunAbandon`). The six-minute walk is in person only, so the heart and lung
+     `protocol_changed` and can be ended (`checkRunAbandon`). **Version 4**
+     (simplification phase 3, signed off by the clinic's physiotherapist):
+     **only safety is ticked** - the room check on the safety step, the helper,
+     the chair against a wall (or with arms) on a stand test, the support
+     beside a balance test, the rest before a heart and lung test, the
+     oximeter on during exertion; every other set-up item is a **tip**
+     (`SetupItem.tip`: one *Tip:* line on the card, never a checkbox, never
+     required by `requiredSetupItems` or `validateSetupDetails`), and the two
+     ceremony items (*Asked before any exercise today*, *The results look
+     right*) are gone, so the pain step and the summary have no set-up at all.
+     A step still confirms its set-up (an empty list when nothing is ticked)
+     before a save, so the server's order of checks is unchanged. **Home
+     exercises come after the summary**, as the last step: the step opens on a
+     choice, **Teach home exercises now** or **Later** (a skip without a
+     reason), and saving or skipping it ends the run; the summary ends it
+     itself when nothing after it is open (a safety yes). The six-minute walk is in person only, so the heart and lung
      protocol uses the one-minute sit-to-stand (the handbook's video stand-in);
      the chair stand and the 10-metre walk were opened to the orthopaedic
      profile for the knee protocol. **Every step, script, red-flag question and
@@ -1511,9 +1527,9 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      next to Google Meet: steps across the top as 44px-plus buttons (a tick
      once saved, a step the order keeps shut is disabled and says why), the
      current step as **one** card - *Step n of N*, the title, *Say to the
-     patient* in large type, *Set up first* as real checkboxes that must **all**
-     be ticked, a red-bordered safety line where another adult has to stand
-     beside the patient, then the step's tool - and at the bottom, sticky on
+     patient* in large type, the step's safety ticks as real checkboxes that
+     must **all** be ticked (*Room ready* on the safety step, *Safety first*
+     after it) and one *Tip:* line for the rest, then the step's tool - and at the bottom, sticky on
      every width, exactly **Stop test** (an emergency stop: the first tap stops
      the clock and puts Rest on the patient's screen at once, then asks for an
      optional reason; it throws this step's reading away and
@@ -1751,11 +1767,12 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      sentences, contact-scanned (surface `exercise_plan_note`). No admin
      door.
   4. **Teaching is a protocol step, and keeps the three actions.** Every
-     protocol (version 2) has a *Home exercises* step (tool
-     `teach_exercises`) just before the summary: exertion (so on the heart
+     protocol (version 4) ends with a *Home exercises* step (tool
+     `teach_exercises`) after the summary - taught now or *Later*: exertion (so on the heart
      and lung protocol the pre-exercise check stands in front of it),
-     skippable with a fixed reason, its set-up the whole body in view, a
-     clear space and **an optional helper item** - the only optional set-up
+     skippable (with a fixed reason, or none from *Later*), its set-up the
+     whole body in view and a clear space as tips and **an optional helper
+     item** - the only optional set-up
      item anywhere, and required on the paediatric step, where a parent is
      beside the child for every exercise. Stop test, Skip and Save and next
      stay the only three actions; **Save and next is refused until every
@@ -1818,8 +1835,12 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   10. **The screens (7d-2) add no new authority.** The cockpit's teach tool
   (`src/components/therapist/assessment/teach/`, pure half
   `src/lib/teachTool.ts`) only calls the two routes: Show the demo, Your turn,
-  then ONE row of three marks (*Did it correctly*, *Needs practice* with one
-  cue, *Not attempted* with one reason), and Save and next stays locked until
+  then ONE row of three marks (*Did it well*, *Needs help* with one
+  cue, *Couldn't do it* with one reason - the buttons' words since phase 3;
+  the record keeps its outcome keys and the chart its wording), up to
+  **three** exercises a plan (`PLAN_PICK_MAX`), each on the library's own
+  dose with the steppers and the note folded behind *Change how often, or
+  add a note*, and Save and next stays locked until
   every exercise is marked. **The picker opens on this patient's area**
   (`suggestedArea`: the knee assessment's knee, else the worst intake area,
   else what the kind works on first - balance, walking, breathing), suitable
