@@ -45,9 +45,14 @@ test.describe("Requesting a specialist from their profile", () => {
 
   test("TR-001: the profile dialog's book button carries the therapist", async ({ page }) => {
     await page.goto(`${BASE}/team`);
-    await page.getByText(therapistName, { exact: false }).first().click();
     const dialog = page.getByRole("dialog");
-    await expect(dialog).toBeVisible();
+    // The card's click handler arrives with hydration, so a click sent the
+    // moment the text is painted can land on nothing: click again until the
+    // dialog opens.
+    await expect(async () => {
+      await page.getByText(therapistName, { exact: false }).first().click();
+      await expect(dialog).toBeVisible({ timeout: 3_000 });
+    }).toPass({ timeout: 30_000 });
     await expect(dialog.locator(`a[href="/book?therapist=${therapistId}"]`)).toBeVisible();
   });
 

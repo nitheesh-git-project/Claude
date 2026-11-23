@@ -325,6 +325,15 @@ Eight pages from one design system, the word budgets, why every photograph carri
   (not on a page load or Back, and not for a `#` link). `ScrollHint` hops
   while there is more below and, at the foot of the page, turns into "Back
   to top". Guards: `e2e/section-nav.spec.ts` SN-003 and SN-008.
+- **Every public hero but the home page's ends in a "Scroll for more" cue, on
+  large screens only.** On a laptop or desktop the hero is a finished
+  composition, and a page that ends there reads as a landing page with nothing
+  below it (visitors said so of /conditions, /faq and the rest); a phone never
+  has this problem because the hero runs past the fold. `HeroScrollCue` is a
+  fixed-height row at the hero's foot from `lg` (1024px) up, so it cannot cover
+  the overlay card or the figures at any width; it hops, goes quiet once the
+  visitor scrolls, and the corner `ScrollHint` stays out of the way while it
+  shows. `PageHero scrollCue` defaults on; the home page passes `false`.
 - **Every catalog card has a cover slot, and one component owns the empty
   state.** Programmes, session packages and home-visit packages are all
   admin-created rows with a nullable `image_url`, so all three need an answer

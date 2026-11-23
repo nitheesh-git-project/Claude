@@ -171,6 +171,26 @@ Same as above for `QA Therapist A`. **Expected Result.** The therapist can sign 
 * The list ends in the standard pager: a **Show N per page** field (default **25** on this screen - it is the one an admin lives on, where ten rows made every working day a paging exercise; other lists keep the shared default of 10, remembered per browser under this list's own key), Previous/Next that grey out at the ends, and an "x–y of n" count. There is **no arbitrary row cap with a "Show all" escape hatch** - that was the old behaviour, and "Show all" then painted every row anyway, which is the thing the pager replaced.
 * Filtering, sorting, totals and **both exports** always run over the **whole filtered set** - only what is painted is paged. Otherwise a range total would start describing a page.
 
+#### `ADM-SESS-006` - Ratings & feedback lists every rating, with every ID · P1 **[UI] [API]**
+
+**Feature.** **Sessions → Ratings & feedback** is the one place to read what patients and therapists said about sessions. The two rating columns on All Sessions show the same ratings as chips; this screen shows each in full. One card per rating, so a session rated by both sides has two cards.
+
+**Preconditions.** At least one completed session rated by the patient and one by the therapist (`SF-001`), and one rated 1 or 2 stars with a note.
+**Steps.**
+1. Open **Sessions → Ratings & feedback**.
+2. Read one card from each side.
+3. Search by a session ID (`SS0004`), a patient ID (`PT0001`), a therapist ID (`TH0002`), a name and a word from a note. Then try the *Left by*, *stars*, *Counted and set aside* filters, *With feedback only*, and tap the **1-2 stars** figure.
+4. On a card, **Exclude from average**; then **Include in average**. On another, **Clear so they can rate again**, and confirm.
+5. Download the CSV.
+6. Sign in as a Finance, Operations and Clinical admin and open the screen.
+**Expected Result.**
+* Step 2: stars and number, the quick picks as chips and the note as a quote, who rated and about whom (name, **Patient ID / Therapist ID**, the underlying record ID, email and phone), and the **Session ID**, session record ID, time, mode, treatment, length and status. A patient's card reads *Patient rated the session*; a therapist's reads *Therapist rated the patient*.
+* Step 3: every search finds the card; the figures above the list (average, count, 1-2 stars) follow the filters.
+* Step 4: an excluded card turns amber, reads *Set aside, not in the average*, and the average above drops it (the public average drops it too). A cleared rating leaves the list and the person can rate again. Both leave a log row (`rating.exclude` and the clear).
+* Step 5: one row per card in view, with every ID column.
+* Step 6: every desk that can read Sessions sees the list; **only a desk that manages Sessions sees the Exclude and Clear buttons**.
+**Negative:** the list reads the latest 2,000 rated sessions and says so when it hits that. A failed load shows *Try again* rather than an empty list.
+
 #### `ADM-SESS-002` - Assign a therapist · P0
 
 **Steps**

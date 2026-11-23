@@ -81,6 +81,7 @@ Every route below is covered by at least one test. The rightmost column names th
 | Today | `risk` | Risk | `ADM-RISK-001` |
 | Sessions | `schedule` | Schedule (calendar) | `ADM-SCHED-001` |
 | Sessions | `all` | All Sessions | `ADM-SESS-001` |
+| Sessions | `ratings` | Ratings & feedback | `ADM-SESS-006` |
 | Sessions | `new` | New Booking | `ADM-SESS-NEW-001` |
 | Sessions | `roster` | Roster | `ADM-ROST-001` |
 | Sessions | `delivery` | Delivery (operational rates) | `ADM-DELIV-001` |

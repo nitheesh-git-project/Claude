@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { Reveal, MotionButton } from "@/components/motion/primitives";
 import { photo, type PhotoId } from "@/lib/marketingPhotos";
+import HeroScrollCue from "@/components/marketing/HeroScrollCue";
 
 /** `value` is a node so a price can be a `<Price>`, which follows the
  *  visitor's currency. */
@@ -33,6 +34,7 @@ export default function PageHero({
   size = "default",
   extras,
   shortPhotoOnMobile = false,
+  scrollCue = true,
 }: {
   eyebrow: string;
   title: React.ReactNode;
@@ -52,12 +54,16 @@ export default function PageHero({
   /** On a phone, crop the photograph to a short 16:9 band so the figures
    *  below it stay in the first screens. From lg it is the full photograph. */
   shortPhotoOnMobile?: boolean;
+  /** A bobbing "scroll for more" arrow under the hero, on large screens only.
+   *  On by default: every public page but the home page needs it (the home
+   *  page has its own corner arrow and a much taller opening). */
+  scrollCue?: boolean;
 }) {
   const img = photo(photoId);
   const large = size === "large";
 
   return (
-    <div className="relative overflow-hidden border-b border-slate-100 bg-gradient-to-b from-teal-50/80 via-white to-white">
+    <div data-page-hero="" className="relative overflow-hidden border-b border-slate-100 bg-gradient-to-b from-teal-50/80 via-white to-white">
       {/* Two soft washes rather than the old animated orbs: the hero now
           carries a photograph, and moving shapes behind it competed with
           the one thing the visitor is meant to look at. */}
@@ -187,6 +193,8 @@ export default function PageHero({
 
       {/* Breathing room for the overlay card, which hangs past the photo. */}
       {overlay && <div className="h-6" />}
+
+      {scrollCue && <HeroScrollCue />}
     </div>
   );
 }

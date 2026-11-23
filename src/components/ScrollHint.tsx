@@ -46,14 +46,24 @@ export default function ScrollHint() {
       const scrollable = document.documentElement.scrollHeight > window.innerHeight + 80;
       const nearBottom =
         window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 48;
-      setVisible(scrollable);
+      // While a page's own hero cue is showing (lg and up, at the top) the
+      // corner arrow would be a second arrow saying the same thing.
+      const heroCueShowing =
+        window.scrollY < 120 &&
+        window.matchMedia("(min-width: 1024px)").matches &&
+        document.querySelector("[data-hero-scroll-cue]") !== null;
+      setVisible(scrollable && !heroCueShowing);
       setAtBottom(scrollable && nearBottom);
     }
 
     update();
+    // On a client navigation this runs before the new page has painted its
+    // hero, so look again once it has.
+    const settle = window.setTimeout(update, 400);
     window.addEventListener("scroll", update, { passive: true });
     window.addEventListener("resize", update);
     return () => {
+      window.clearTimeout(settle);
       window.removeEventListener("scroll", update);
       window.removeEventListener("resize", update);
     };

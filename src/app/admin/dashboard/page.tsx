@@ -21,6 +21,7 @@ import { buildAdminFeed, queueRollup } from "@/lib/dashboardFeed";
 import AdminMorningBrief from "@/components/admin/AdminMorningBrief";
 import AdminInboxQueues from "@/components/admin/AdminInboxQueues";
 import AdminAllSessionsTab from "@/components/admin/AdminAllSessionsTab";
+import AdminRatingsTab from "@/components/admin/AdminRatingsTab";
 import AdminNewBookingTab from "@/components/admin/AdminNewBookingTab";
 import AdminUserAccessTab, { type AdminRow } from "@/components/admin/AdminUserAccessTab";
 import AdminActivityLogTab, { type ActivityRow } from "@/components/admin/AdminActivityLogTab";
@@ -5888,6 +5889,7 @@ export default async function AdminDashboardPage({
     "today:risk": todayRiskTab,
     "sessions:schedule": calendarTab,
     "sessions:all": allSessionsTab,
+    "sessions:ratings": <AdminRatingsTab canManageSessions={canManageSessions} />,
     "sessions:roster": rosterTab,
     "sessions:new": newBookingTab,
     "people:patients": patientsTab,
