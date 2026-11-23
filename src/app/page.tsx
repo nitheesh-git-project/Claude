@@ -276,6 +276,9 @@ export default async function Home() {
           and its own wizard. */}
       <PageHero
         size="large"
+        // The home page keeps the corner arrow alone: its hero is the tallest
+        // on the site and the band below already shows.
+        scrollCue={false}
         eyebrow="Licensed physiotherapy"
         title={
           <>

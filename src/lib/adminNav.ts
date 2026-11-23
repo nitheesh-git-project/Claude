@@ -208,6 +208,15 @@ export const ADMIN_SECTIONS: AdminSectionDef[] = [
         blurb: "Every session ever booked, with search, filters and a download.",
         example: "Find every home visit Dr Arjun gave last month.",
       },
+      // What patients and therapists said about each session: the stars, the
+      // quick picks and the note, with every ID. Reads the same ratings as the
+      // two rating columns on All sessions, in full.
+      {
+        key: "ratings",
+        label: "Ratings & feedback",
+        blurb: "Every rating and note a patient or therapist left on a session, with who, about whom, and every ID.",
+        example: "Find every 1-2 star rating this month and see which therapist and session it was.",
+      },
       // A programme from the therapist's recommendation to its last session,
       // under Sessions because a programme is a run of sessions. Its own
       // scope still decides who sees it, and who may decide on one.
