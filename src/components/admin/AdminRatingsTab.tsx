@@ -59,22 +59,24 @@ export default function AdminRatingsTab({ canManageSessions }: { canManageSessio
   const [actionError, setActionError] = useState<string | null>(null);
   const { confirm, dialog } = useConfirm();
 
-  const fetchRows = useCallback(async () => {
-    try {
-      const res = await fetch("/api/admin/session-ratings", { cache: "no-store" });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setLoad({ state: "error", message: data.error ?? "Could not load the ratings." });
-        return;
-      }
-      setLoad({ state: "ready", rows: data.rows ?? [], truncated: !!data.truncated });
-    } catch {
-      setLoad({ state: "error", message: "Could not reach the server. Check your connection and try again." });
-    }
-  }, []);
+  // Reads the list. Only ever sets state from a promise callback (never
+  // synchronously), so it is safe to call from an effect.
+  const fetchRows = useCallback(
+    () =>
+      fetch("/api/admin/session-ratings", { cache: "no-store" })
+        .then(async (res) => {
+          const data = await res.json().catch(() => ({}));
+          setLoad(
+            res.ok
+              ? { state: "ready", rows: data.rows ?? [], truncated: !!data.truncated }
+              : { state: "error", message: data.error ?? "Could not load the ratings." }
+          );
+        })
+        .catch(() => setLoad({ state: "error", message: "Could not reach the server. Check your connection and try again." })),
+    []
+  );
 
   useEffect(() => {
-    // The fetch's setState runs after an await, not synchronously in the effect.
     void fetchRows();
   }, [fetchRows]);
 
