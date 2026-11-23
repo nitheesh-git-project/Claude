@@ -167,9 +167,9 @@ describe("the marks", () => {
   });
 
   it("words a mark in plain terms", () => {
-    expect(markText({ outcome: "performed_correctly", cueKey: null, reasonKey: null })).toBe("Did it correctly");
-    expect(markText({ outcome: "needs_practice", cueKey: "slow_down", reasonKey: null })).toBe("Needs practice: Go slower and keep it smooth.");
-    expect(markText({ outcome: "not_attempted", cueKey: null, reasonKey: "no_space" })).toBe("Not attempted: Not enough space");
+    expect(markText({ outcome: "performed_correctly", cueKey: null, reasonKey: null })).toBe("Did it well");
+    expect(markText({ outcome: "needs_practice", cueKey: "slow_down", reasonKey: null })).toBe("Needs help: Go slower and keep it smooth.");
+    expect(markText({ outcome: "not_attempted", cueKey: null, reasonKey: "no_space" })).toBe("Couldn't do it: Not enough space");
   });
 
   it("finds the next exercise with no mark, round the list", () => {

@@ -171,7 +171,7 @@ export function saveReadiness(input: {
   return { ready: true, missing: null };
 }
 
-export const READY_NOTE = "Nothing is saved until Save and next.";
+export const READY_NOTE = "Nothing is saved until you save.";
 
 // --- Which tool a step shows ---------------------------------------------------------------
 
@@ -381,7 +381,7 @@ const BY_RUN_CODE: Record<RunRefusalCode, { message: string; fix: string | null 
   no_clock: { message: "This step has no clock.", fix: "Use Get ready or Go without the clock." },
   exercises_not_marked: {
     message: "Not every exercise in the plan is marked yet.",
-    fix: "Mark each one Did it correctly, Needs practice or Not attempted, or skip the step.",
+    fix: "Mark each one Did it well, Needs help or Couldn't do it, or skip the step.",
   },
 };
 
@@ -617,7 +617,9 @@ export function summaryRows<T extends SummaryMilestoneRecord>(
       rows.push({
         id: `${step.id}:${m.id}`,
         measurementId: m.id,
-        label: `${measure?.label ?? m.measureKey}${q ? ` (${q})` : ""}`,
+        // The step's own name where it records one test ("Knee bend", "Straightening
+        // the knee"): two angle steps both read "Goniometry" by the measure's name.
+        label: `${step.measures.length === 1 ? step.title : measure?.label ?? m.measureKey}${q ? ` (${q})` : ""}`,
         first: line && line.points.length > 0 ? fmt(line.points[0].value) : null,
         last: line && line.points.length > 1 ? fmt(line.points[line.points.length - 1].value) : null,
         now: readingValue(m),

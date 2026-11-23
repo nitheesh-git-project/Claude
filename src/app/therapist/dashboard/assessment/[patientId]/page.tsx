@@ -10,7 +10,14 @@ import { formatClinicTime } from "@/lib/formatDateTime";
 import { loadEnabledLicensedMeasures, loadGoalAndMilestones, loadMeasurements, loadPatientProfileKind } from "@/lib/outcomeServer";
 import { parseMeasurementRows, buildMeasureSeries } from "@/lib/outcomeSeries";
 import { protocolsForProfileKind, sessionProtocol } from "@/lib/sessionProtocols";
-import { loadActiveRun, loadBriefingReads, loadFinishContext, loadRunMeasurements } from "@/lib/assessmentRunServer";
+import { loadActiveRun, loadBriefingReads, loadFinishContext, loadRun, loadRunMeasurements } from "@/lib/assessmentRunServer";
+import FinishedPanel from "@/components/therapist/assessment/FinishedPanel";
+import { assessmentSummaryDraft } from "@/lib/assessmentSummaryDraft";
+import { runStateFromEvents, type AssessmentRun, type RunEvent } from "@/lib/assessmentRun";
+import { resultRows } from "@/lib/cockpit";
+import { treatedLineFromRun } from "@/lib/finishFromRun";
+import { homeExerciseNotePrefill } from "@/lib/exercisePlan";
+import { SESSION_SUMMARY_MAX_CHARS } from "@/lib/sessionSummary";
 import { loadPatientReadiness } from "@/lib/sessionPrepServer";
 import { cockpitBriefing } from "@/lib/cockpitBriefing";
 import { resolveOxygenStopLimit } from "@/lib/cardioSafety";
@@ -40,6 +47,70 @@ function nowTimestamp() {
   return Date.now();
 }
 
+/**
+ * The wrap-up of a run that has ended, drawn by the server (T8): the same
+ * FinishedPanel the cockpit shows at the end, so a refresh - the note's own
+ * save refreshes the page - never drops the physiotherapist back on the start
+ * panel with the session still open. The draft and the note's blank fields
+ * are rebuilt from what the run saved; lines added to "Anything to watch"
+ * during the run live only in the cockpit and are not rebuilt.
+ */
+async function wrapUpBody(input: {
+  admin: ReturnType<typeof createAdminClient>;
+  therapistId: string;
+  patientId: string;
+  patientName: string;
+  chartHref: string;
+  read: { run: AssessmentRun; events: RunEvent[] };
+}): Promise<ReactNode> {
+  const { admin } = input;
+  const run = input.read.run;
+  const protocol = sessionProtocol(run.protocolKey);
+  const [measured, teaching, planRead, finish] = await Promise.all([
+    loadRunMeasurements(admin, input.read.events),
+    loadTeachingEvents(admin, run.id),
+    loadActiveExercisePlan(admin, input.patientId),
+    loadFinishContext(admin, { therapistId: input.therapistId, patientId: input.patientId, appointmentId: run.appointmentId, nowMs: nowTimestamp() }),
+  ]);
+  const readable = measured.status === "ok" && teaching.status !== "unreadable";
+  const measurements = measured.status === "ok" ? measured.measurements : [];
+  const draft =
+    protocol && readable
+      ? assessmentSummaryDraft({
+          run,
+          protocol,
+          events: input.read.events,
+          measurements,
+          profileKind: run.profileKind,
+          voice: "patient",
+          teaching: teaching.status === "ok" ? teaching.events : [],
+        })
+      : null;
+  const rows = protocol ? resultRows(protocol, runStateFromEvents(input.read.events), measurements) : [];
+  const plan = planRead.status === "ok" ? planRead.plan : null;
+  return (
+    <div className="mx-auto w-full max-w-3xl">
+      <FinishedPanel
+        patientId={input.patientId}
+        patientName={input.patientName}
+        profileKind={run.profileKind}
+        outcome={run.status === "completed" ? "completed" : "abandoned"}
+        reason={run.endedReason ?? null}
+        summaryDraft={draft}
+        draftReadable={!protocol || readable}
+        chartHref={input.chartHref}
+        finish={finish}
+        prefill={{
+          treated: protocol ? treatedLineFromRun(protocol.title, rows) : null,
+          homeExercise: plan && plan.items.length > 0 ? homeExerciseNotePrefill(plan) : null,
+          watch: null,
+          whatWeDid: draft ? draft.slice(0, SESSION_SUMMARY_MAX_CHARS) : null,
+        }}
+      />
+    </div>
+  );
+}
+
 function Notice({ title, children, back }: { title: string; children: ReactNode; back: string }) {
   return (
     <div className="mx-auto max-w-xl space-y-4 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6" data-testid="cockpit-notice-page">
@@ -65,6 +136,9 @@ export default async function AssessmentCockpitPage({
   const { patientId } = await params;
   const query = await searchParams;
   const appointmentParam = typeof query.appointment === "string" && query.appointment ? query.appointment : null;
+  // The run that just ended, so the wrap-up survives a refresh (the cockpit
+  // puts it in the address when the run ends).
+  const wrapupParam = typeof query.wrapup === "string" && query.wrapup ? query.wrapup : null;
 
   const supabase = await createClient();
   const {
@@ -93,7 +167,22 @@ export default async function AssessmentCockpitPage({
   if (!patient || !assigned) notFound();
   const patientName = (patient.full_name as string | null) ?? "Patient";
 
-  const [kind, active] = await Promise.all([loadPatientProfileKind(admin, patientId), loadActiveRun(admin, patientId)]);
+  const [kind, active, wrapRead] = await Promise.all([
+    loadPatientProfileKind(admin, patientId),
+    loadActiveRun(admin, patientId),
+    wrapupParam ? loadRun(admin, wrapupParam) : Promise.resolve(null),
+  ]);
+  // A run of this therapist's for this patient that ended in the last twelve
+  // hours: its wrap-up is drawn instead of the start panel.
+  const wrapRun =
+    wrapRead?.status === "ok" &&
+    wrapRead.run.status !== "in_progress" &&
+    wrapRead.run.patientId === patientId &&
+    wrapRead.run.therapistId === user.id &&
+    !!wrapRead.run.endedAt &&
+    nowTimestamp() - Date.parse(wrapRead.run.endedAt) < 12 * 60 * 60 * 1000
+      ? wrapRead
+      : null;
 
   let body: ReactNode;
   if (active.status === "not_migrated") {
@@ -194,6 +283,8 @@ export default async function AssessmentCockpitPage({
         </div>
       );
     }
+  } else if (wrapRun) {
+    body = await wrapUpBody({ admin, therapistId: user.id, patientId, patientName, chartHref, read: wrapRun });
   } else if (kind.status === "unreadable") {
     body = (
       <Notice title="We couldn't check" back={chartHref}>
