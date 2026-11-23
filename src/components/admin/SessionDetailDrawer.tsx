@@ -19,7 +19,7 @@ import ProgrammeTherapistAssign from "@/components/admin/ProgrammeTherapistAssig
 import type { ProgrammePick } from "@/lib/sessionAssignQueue";
 import type { ProgrammeTag } from "@/lib/programmeId";
 import ProgrammeIdChip from "@/components/dashboard/ProgrammeIdChip";
-import { adminScreenHref } from "@/lib/adminNav";
+import { adminScreenHref, adminScreenKey } from "@/lib/adminNav";
 import JoinSessionButton from "@/components/JoinSessionButton";
 import { formatSlotRange } from "@/lib/formatSlotRange";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
@@ -411,7 +411,7 @@ export default function SessionDetailDrawer({
   // assign dialog -- used to change the screen underneath while the drawer
   // stayed on top. Leaving the screen closes it.
   const searchParams = useSearchParams();
-  const screenKey = `${searchParams.get("section") ?? ""}|${searchParams.get("tab") ?? ""}|${searchParams.get("sub") ?? ""}`;
+  const screenKey = adminScreenKey(searchParams);
   const [openedOn] = useState(screenKey);
   useEffect(() => {
     if (screenKey !== openedOn) onClose();

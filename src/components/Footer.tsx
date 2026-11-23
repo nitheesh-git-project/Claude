@@ -83,7 +83,7 @@ export default function Footer({
 
   return (
     <footer className="bg-slate-900 text-slate-300">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-[repeat(4,minmax(0,1fr))_auto] gap-8">
         <div>
           <div className="flex items-center space-x-3 mb-3">
             <BrandMark size={36} />
@@ -172,6 +172,24 @@ export default function Footer({
           </ul>
         </div>
 
+        {/* The legal pages, on every public page: Razorpay, the IT Rules and
+            the E-Commerce Rules all expect them one tap from anywhere. A
+            column like the others rather than a small line under them, so
+            they read as links rather than as fine print. Just before Contact, so
+            the clinic's details close the row on the right. */}
+        <nav aria-label="Legal">
+          <h4 className="text-white text-sm font-semibold mb-2">Legal</h4>
+          <ul className="text-sm">
+            {LEGAL_PAGES.map((page) => (
+              <li key={page.slug}>
+                <Link href={page.href} className={FOOTER_LINK}>
+                  {page.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
+
         <div>
           <h4 className="text-white text-sm font-semibold mb-2">Contact</h4>
           <ul className="text-sm text-slate-400">
@@ -197,23 +215,6 @@ export default function Footer({
             />
           </ul>
         </div>
-
-        {/* The legal pages, on every public page: Razorpay, the IT Rules and
-            the E-Commerce Rules all expect them one tap from anywhere. A
-            column like the others rather than a small line under them, so
-            they read as links rather than as fine print. */}
-        <nav aria-label="Legal">
-          <h4 className="text-white text-sm font-semibold mb-2">Legal</h4>
-          <ul className="text-sm">
-            {LEGAL_PAGES.map((page) => (
-              <li key={page.slug}>
-                <Link href={page.href} className={FOOTER_LINK}>
-                  {page.label}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </nav>
       </div>
       <div className="border-t border-slate-800 py-4 text-center text-[11px] text-slate-400">
         <p>
