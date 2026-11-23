@@ -338,6 +338,18 @@ export const RATE_LIMITS = {
   },
 
   /**
+   * The patient's "I'm ready" on the get-ready list before a video session
+   * (/api/patient/session-ready). One tap per session in normal use; keyed on
+   * the patient's account, its own scope on the one-scope-per-flow rule.
+   */
+  sessionReady: {
+    scope: "session-ready",
+    limit: 20,
+    windowSeconds: 3600,
+    message: "We've saved that a few times just now. Please wait a moment.",
+  },
+
+  /**
    * The guided check's live display: the therapist's cockpit
    * telling the patient's companion screen which step, phase and clock to
    * show (/api/therapist/assessment-runs/display).

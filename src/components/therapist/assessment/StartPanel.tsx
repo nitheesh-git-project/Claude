@@ -9,6 +9,8 @@ import { postEnd, startRun } from "@/components/therapist/assessment/api";
 import BeforeYouStart from "@/components/therapist/assessment/BeforeYouStart";
 import ShareScreenStep from "@/components/therapist/assessment/ShareScreenStep";
 import type { Briefing } from "@/lib/cockpitBriefing";
+import { readinessLine, type Readiness } from "@/lib/sessionPrep";
+import { formatClinicTime } from "@/lib/formatDateTime";
 
 /**
  * Before a run exists (T6): who, which assessment (chosen for the
@@ -27,6 +29,7 @@ export default function StartPanel({
   sessionNote,
   chartHref,
   briefing,
+  readiness = { status: "no_session" },
 }: {
   patientId: string;
   patientName: string;
@@ -36,12 +39,15 @@ export default function StartPanel({
   sessionNote: string | null;
   chartHref: string;
   briefing: Briefing;
+  /** Whether the patient ticked the get-ready list before the call (P1). */
+  readiness?: Readiness;
 }) {
   const router = useRouter();
   const [protocolKey, setProtocolKey] = useState(protocols[0]?.key ?? "");
   // The protocol is chosen for the patient's condition; Change opens the others (T6).
   const [picking, setPicking] = useState(false);
   const chosen = protocols.find((p) => p.key === protocolKey) ?? protocols[0];
+  const readyLine = readinessLine(readiness, patientName.split(" ")[0] || "The patient", formatClinicTime);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<CockpitFailure | null>(null);
   // Another physiotherapist's run left open: any assigned physiotherapist may end it.
@@ -100,6 +106,17 @@ export default function StartPanel({
       {sessionNote && (
         <p role="status" className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
           {sessionNote}
+        </p>
+      )}
+      {readyLine && (
+        <p
+          data-testid="start-readiness"
+          className={`flex items-start gap-2 rounded-xl border px-3.5 py-2.5 text-[15px] ${
+            readyLine.tone === "ok" ? "border-emerald-300 bg-emerald-50 text-emerald-950" : "border-slate-200 bg-slate-50 text-slate-800"
+          }`}
+        >
+          <span aria-hidden="true" className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${readyLine.tone === "ok" ? "bg-emerald-600" : "bg-slate-400"}`} />
+          <span>{readyLine.text}</span>
         </p>
       )}
       <BeforeYouStart briefing={briefing} compact />

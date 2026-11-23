@@ -1393,7 +1393,7 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   video stays on Google Meet (the app embeds none); the therapist works from a
   second-screen cockpit, one step at a time, with exactly three actions -
   Stop test, Skip, Save and next; the patient's companion is display-only.
-  Eleven rules:
+  Twelve rules:
   1. **One ordered protocol per profile kind, checked at load.**
      `src/lib/sessionProtocols.ts`: `ortho_knee` (the approved cockpit's
      Safety, Pain, Everyday tasks, Knee bend, Straightening the knee, Sit to
@@ -1581,16 +1581,19 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      is surprised, never replaces it. The patient's screen is told only a
      phase and whether the clock starts, debounced to the last tap with one
      request in flight (`latestWins.ts`); on a phone the results and the
-     preview fold away under the step. The end of a run puts the draft in the
-     existing *Where things stand* editor (`CareStatusControls summaryOnly`),
-     beside **Finish this session** (`loadFinishContext`: the run's own
-     session, this therapist's, never another): the session note opened with
+     preview fold away under the step. **The end of a run is one wrap-up form
+     in the page (T8)**: the session note and the patient's summary for the
+     run's own session (`loadFinishContext`: this therapist's, never another),
+     drawn inline (`SessionNoteDialog inline`: no backdrop, no Cancel) with
      Done's gates (`completeOnSave`), its **blank** fields started from the run
      - *What did you treat today?* from today's results (`treatedLineFromRun`),
      the home-exercise line, *Anything to watch* from lines the physiotherapist
      added, *What we did today* from the draft - and never over their own text
-     (`fillEmptyOnly`), with a three-line checklist (note, summary, session
-     closed). A failed read says it could not check. **A yes to a safety
+     (`fillEmptyOnly`), saved by one **Save and close session** (the note, then
+     the summary, then the session closed, in that order; a refusal part-way
+     says what was kept). The overall *Where things stand* is optional and
+     folded under it (`CareStatusControls summaryOnly`, the draft its starting
+     point). A failed read says it could not check. **A yes to a safety
      question, and a stop for symptoms or a near-fall, show one line of next
      actions:** *End the assessment* and *Add to Anything to watch* (the line
      waits on this page for the note; it is not stored until the note is).
@@ -1662,6 +1665,33 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      *Guided check* on both sides (buttons, titles, the summary draft and the
      note's prefill), *Patient screen* for the display, *Health Profile* for
      the way back.
+  12. **Around the call (phase 2).** **Get ready (P1):** from two days before a
+     confirmed video session until it ends (`prepWindowOpen`), the patient's
+     Overview shows the few things to have to hand for their condition type's
+     guided check (`src/lib/sessionPrep.ts`: one list per protocol, taken from
+     its set-up items, in the patient's words, no clinic word, at most six,
+     marked to be verified by a senior physiotherapist), and one **I'm ready**
+     button. `POST /api/patient/session-ready` (the signed-in patient only,
+     `parseJsonBody`, rate limited `sessionReady`; 404 for a session that is
+     not theirs, 409 `not_open` when cancelled, not by video or outside the
+     window) stores the first press in `appointments.patient_ready_at` with the
+     service role; a second press answers the first time unchanged. The
+     physiotherapist's start screen says *Priya is ready · ticked the
+     get-ready list at 5:52 PM*, or that they haven't (a fact, not a problem),
+     or *Couldn't check* on a failed read (`loadPatientReadiness`,
+     `readinessLine`). It gates nothing: the set-up is still confirmed on
+     camera. The day-before reminder email for a video session points to the
+     list (`GET_READY_LINE`) and never lists it - what someone needs to have
+     ready says something about their condition. **One device (D1):** the
+     patient's bar says *Stay on your video call - your physiotherapist will
+     talk you through it.*, Open is an outline, and the patient screen is the
+     optional extra. **Recap (P6):** for a week after a summary is shared
+     (`sessionRecap`, by its latest edit), the Overview shows *Your session
+     recap*: the summary's two fields, the home exercises as a count with
+     *See how*, and the next session (or *Book your next session*) - read with
+     the patient's own client, a failed read shows no card. Tests:
+     `sessionPrep.test.ts`, `sessionRecap.test.ts`, `bookingEmails.test.ts`;
+     `e2e/session-prep.spec.ts`.
   `src/lib/sessionProtocols.test.ts`, `assessmentRun.test.ts`,
   `assessmentSummaryDraft.test.ts`, `cockpit.test.ts`, `companionScreen.test.ts`,
   `latestWins.test.ts`, `guidedAssessmentEntry.test.ts`;

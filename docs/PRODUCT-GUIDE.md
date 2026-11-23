@@ -2777,7 +2777,8 @@ everything else.
   is marked to be verified by a senior physiotherapist. Routes:
   `/api/therapist/assessment-runs/{start,event,display,end}`, plus `runId` and
   `stepId` on `/api/therapist/measurements/submit`, and
-  `/api/patient/assessment-display` (the companion's three-second fallback).
+  `/api/patient/assessment-display` (the companion's three-second fallback),
+  and `/api/patient/session-ready` (the patient's *I'm ready*, below).
   **The two screens.** The physiotherapist's cockpit
   (`/therapist/dashboard/assessment/[patientId]`) is built to sit on a second
   screen next to Google Meet: the steps across the top, the current step as one
@@ -2806,8 +2807,21 @@ everything else.
   start soon* and *Keep your video call open.*; if it cannot load the screen it
   says *We couldn't load your screen. Trying again…* instead. While a check is
   live every patient screen carries one line - *Your physiotherapist has started
-  your check* - and **Open**, with the second-device help behind *Use a bigger
-  screen*. Rules: `docs/rules/clinical.md`.
+  your check* - with *Stay on your video call - your physiotherapist will talk
+  you through it.* and an outline **Open**, the second-device help behind *Use
+  a bigger screen*: one device is the normal case.
+  **Around the call.** From two days before a video session the patient's
+  Overview shows *Get ready for your session*: the few things to have to hand
+  for their condition (a sturdy chair against a wall, a towel, a clear path
+  for a knee check), one **I'm ready** button, and the day-before reminder
+  email points to it. The physiotherapist's start screen then says *Priya is
+  ready · ticked the get-ready list at 5:52 PM*. At the end of the check the
+  physiotherapist has **one wrap-up form** in the page - the session note and
+  the patient's summary, filled in from the check where blank - and one **Save
+  and close session**; *Where things stand* is optional, folded below. For a
+  week after, the patient's Overview shows *Your session recap*: what was
+  done, before next time, the home exercises and the next session. Rules:
+  `docs/rules/clinical.md`.
 
   **Home exercises (phase 7d).** After the checks, every guided
   video assessment has a *Home exercises* step, just before the summary. The
