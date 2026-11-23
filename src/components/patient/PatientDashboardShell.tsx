@@ -67,7 +67,7 @@ export default function PatientDashboardShell({
         "care_plan_versions",
         // A session summary lands as the therapist finishes the session.
         "session_summaries",
-        // The physiotherapist starting a guided video assessment offers the
+        // The physiotherapist starting a guided check offers the
         // companion screen without the patient reloading.
         "assessment_live_display",
         // A plan published in the session shows its Overview row without a reload.

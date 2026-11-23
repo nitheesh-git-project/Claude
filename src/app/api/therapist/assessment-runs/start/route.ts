@@ -10,8 +10,8 @@ import { ASSESSMENT_RUN_SELECT, buildLiveDisplay, parseRunRow } from "@/lib/asse
 import { couldNotCheck, databaseNotReady, loadActiveRun, writeLiveDisplay } from "@/lib/assessmentRunServer";
 import { serverError } from "@/lib/apiError";
 
-// A therapist starts a guided video assessment for a patient (phase 7a,
-// docs/rules/clinical.md "The guided video assessment").
+// A therapist starts a guided check for a patient (phase 7a,
+// docs/rules/clinical.md "The guided check").
 //
 // Gated like a measurement: signed in, an active approved therapist,
 // assigned to the patient under the clinical-access rule, with a session
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
     therapistId,
     patientId,
     nowMs,
-    "A guided assessment runs inside a session you've started with this patient. Open it once your session begins."
+    "A guided check runs inside a session you've started with this patient. Open it once your session begins."
   );
   if (notStarted) return notStarted;
 
@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "An assessment can only be filed against your own session." }, { status: 403 });
     }
     if (appt.visit_mode === "home_visit") {
-      return NextResponse.json({ error: "A guided video assessment belongs to a video session, not a home visit.", code: "not_video" }, { status: 400 });
+      return NextResponse.json({ error: "A guided check belongs to a video session, not a home visit.", code: "not_video" }, { status: 400 });
     }
     if (appt.status !== "confirmed" && appt.status !== "completed") {
       return NextResponse.json({ error: "That session is not confirmed or completed." }, { status: 400 });

@@ -36,11 +36,11 @@ export async function POST(request: NextRequest) {
     stepId?: unknown;
   }>(request);
   if (parseError) return parseError;
-  // The guided video assessment is the physiotherapist's own, live in a
+  // The guided check is the physiotherapist's own, live in a
   // session (phase 7a): the back office reads runs and has no door into one.
   if ((body.runId !== undefined && body.runId !== null) || (body.stepId !== undefined && body.stepId !== null)) {
     return NextResponse.json(
-      { error: "A guided video assessment is run by the physiotherapist in the session.", code: "run_is_therapist_only" },
+      { error: "A guided check is run by the physiotherapist in the session.", code: "run_is_therapist_only" },
       { status: 400 }
     );
   }

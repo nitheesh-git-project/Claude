@@ -7,7 +7,7 @@ import { PAIN_SCORES } from "@/lib/painScale";
  * the number the patient says. Six then five on a narrow screen, one row of
  * eleven from `sm` up. The caller stores the pick times ten
  * (`painPercentFromScore`, painScale.ts); this only picks. Used by the
- * guided assessment's pain step and by the Pain Map exam dialog, so the two
+ * guided check's pain step and by the Pain Map exam dialog, so the two
  * never show two different scales.
  */
 export default function PainScaleButtons({

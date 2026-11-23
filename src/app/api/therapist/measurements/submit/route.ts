@@ -27,7 +27,7 @@ import { checkMeasurementInRun, insertRunEvent } from "@/lib/assessmentRunServer
 // not switched on is refused, and a Parkinson's TUG or walk needs ON/OFF,
 // the last dose and all three trials. Append-only: a re-test is a new row.
 //
-// Inside a guided video assessment (phase 7a) the screen also sends `runId`
+// Inside a guided check (phase 7a) the screen also sends `runId`
 // and `stepId`. The step is then re-derived from the run's protocol and the
 // save is refused (409 with a code) unless the step's set-up was confirmed
 // in this run, a helper was confirmed where the step needs one (and the

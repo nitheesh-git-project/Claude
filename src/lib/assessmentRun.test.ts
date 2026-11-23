@@ -399,7 +399,11 @@ describe("the live display", () => {
           const b = buildLiveDisplay({ protocol: p, step: s, phase, startClock: false });
           if (!b.ok) throw new Error(`${p.key}.${s.id}`);
           expect(validateLiveDisplay(p, s.id, b.write.display).ok).toBe(true);
-          const all = Object.values(b.write.display).join(" ");
+          // The picture is a key from a fixed set (a scale is "scale_0_10"), not words on the screen.
+          const all = Object.entries(b.write.display)
+            .filter(([key]) => key !== "picture")
+            .map(([, value]) => value)
+            .join(" ");
           // No digits other than the step counter and the protocol's own scale anchors.
           expect(all.replace(/Step \d+ of \d+/, "").replace(s.patientLine, "").replace(s.title, "")).not.toMatch(/\d/);
         }

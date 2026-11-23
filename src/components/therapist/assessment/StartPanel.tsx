@@ -11,7 +11,10 @@ import ShareScreenStep from "@/components/therapist/assessment/ShareScreenStep";
 import type { Briefing } from "@/lib/cockpitBriefing";
 
 /**
- * Before a run exists: what is about to start, and one big button. The start
+ * Before a run exists (T6): who, which assessment (chosen for the
+ * condition, with Change), the "Before you start" notes as one line that
+ * opens, and one big button - readable in five seconds. The optional patient
+ * screen sits folded below the button. The start
  * route is the gate (a started session, the protocol from the patient's
  * condition type); an assessment already open for this physiotherapist is
  * simply carried on with, another's is said plainly.
@@ -36,6 +39,9 @@ export default function StartPanel({
 }) {
   const router = useRouter();
   const [protocolKey, setProtocolKey] = useState(protocols[0]?.key ?? "");
+  // The protocol is chosen for the patient's condition; Change opens the others (T6).
+  const [picking, setPicking] = useState(false);
+  const chosen = protocols.find((p) => p.key === protocolKey) ?? protocols[0];
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<CockpitFailure | null>(null);
   // Another physiotherapist's run left open: any assigned physiotherapist may end it.
@@ -73,21 +79,31 @@ export default function StartPanel({
   return (
     <div className="mx-auto max-w-xl space-y-5 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6" data-testid="start-panel">
       <div>
-        <p className="text-[13px] font-bold uppercase tracking-wider text-teal-800">Guided video assessment</p>
+        <p className="text-[13px] font-bold uppercase tracking-wider text-teal-800">Guided check</p>
         <h1 className="mt-1 font-display text-2xl font-extrabold text-slate-900">{patientName}</h1>
+        <p data-testid="start-protocol" className="mt-1 flex flex-wrap items-center gap-x-2 text-base text-slate-800">
+          <span>{chosen?.title ?? "No assessment for this condition"}</span>
+          {protocols.length > 1 && (
+            <button
+              type="button"
+              data-testid="change-protocol"
+              aria-expanded={picking}
+              aria-label={picking ? "Done choosing the assessment" : "Change the assessment"}
+              onClick={() => setPicking((v) => !v)}
+              className="min-h-[44px] rounded-lg px-1 font-semibold text-teal-800 underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
+            >
+              {picking ? "Done" : "Change"}
+            </button>
+          )}
+        </p>
       </div>
-      <p className="text-base text-slate-800">
-        You lead it live over the video call, one step at a time. This page is your second screen next to Google Meet; {patientName.split(" ")[0]} gets a
-        simple display-only screen that follows you.
-      </p>
       {sessionNote && (
         <p role="status" className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
           {sessionNote}
         </p>
       )}
-      <ShareScreenStep firstName={patientName.split(" ")[0] || "the patient"} />
-      <BeforeYouStart briefing={briefing} />
-      {protocols.length > 1 && (
+      <BeforeYouStart briefing={briefing} compact />
+      {protocols.length > 1 && picking && (
         <fieldset>
           <legend className="text-sm font-semibold text-slate-900">Which assessment?</legend>
           <div className="mt-2 flex flex-col gap-2">
@@ -105,7 +121,6 @@ export default function StartPanel({
           </div>
         </fieldset>
       )}
-      {protocols.length === 1 && <p className="text-sm font-semibold text-slate-900">{protocols[0].title}</p>}
       {failure && (
         <p role="alert" data-testid="start-failure" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-900">
           {failureText(failure)}
@@ -131,15 +146,16 @@ export default function StartPanel({
           className="inline-flex min-h-[56px] flex-1 items-center justify-center gap-2 rounded-xl bg-teal-700 px-6 text-lg font-bold text-white transition hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 disabled:opacity-60"
         >
           {busy && <Spinner />}
-          {busy ? "Starting…" : "Start the guided assessment"}
+          {busy ? "Starting…" : "Start guided check"}
         </button>
         <Link
           href={chartHref}
           className="inline-flex min-h-[56px] items-center justify-center rounded-xl border border-slate-300 px-5 text-base font-semibold text-slate-900 hover:border-teal-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
         >
-          Back to the chart
+          Back to Health Profile
         </Link>
       </div>
+      <ShareScreenStep firstName={patientName.split(" ")[0] || "the patient"} />
     </div>
   );
 }

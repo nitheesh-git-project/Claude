@@ -87,6 +87,8 @@ export const PICTURE_DESCRIPTIONS: Record<PatientPicture, string> = {
   walking: "A person walking",
   balance: "A person standing steadily, with another adult beside them",
   talking: "Two people talking",
+  scale_0_10: "A scale from 0, none, to 10, the worst",
+  scale_0_4: "A scale from 0, unable, to 4, easy",
 };
 
 /** What the screen says to a screen reader when the moment changes. */
@@ -117,20 +119,21 @@ export function showsUnreadable(moment: CompanionMoment, unreadable: boolean): b
   return unreadable && moment.kind !== "live";
 }
 
+/** The waiting screen (P4): two lines. The second is the one thing not to
+ *  do for a patient whose video call is on their phone and who has this open
+ *  on a second device: close the call. */
 export const WAITING_TEXT = {
-  title: "Your physiotherapist will start the guided check soon",
-  line: "You do not need to do anything yet. This screen will change by itself when it starts.",
-  calm: "Sit comfortably and take a slow breath.",
-  /** For the patient whose video call is on their phone and who has this
-   *  open on a second device: the one thing not to do is close the call. */
+  title: "Your physiotherapist will start soon",
   keepCallOpen: "Keep your video call open.",
 } as const;
 
 /** The patient's bar on every dashboard screen while a guided check is live
- *  (GuidedCheckBar). Written for the patient who has one device: the bar must
- *  never read as a task they cannot do. */
+ *  (GuidedCheckBar, P3): one line and Open. Written for the patient who has
+ *  one device: the bar must never read as a task they cannot do, so the
+ *  second-screen help sits behind "Use a bigger screen". */
 export const SECOND_SCREEN_HELP = {
-  title: "Your physiotherapist has started a guided check. Open the screen to follow it.",
+  title: "Your physiotherapist has started your check",
+  bigger: "Use a bigger screen",
   twoDevices:
     "Open this on a laptop, tablet or TV and keep your video call on your phone. Only one device? That's fine \u2014 your physiotherapist will talk you through it.",
   scan: "Scan with the other device, or type the short link there.",

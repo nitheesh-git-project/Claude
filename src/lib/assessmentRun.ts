@@ -17,7 +17,7 @@ import {
   type StopReason,
 } from "@/lib/sessionProtocols";
 
-// The guided video assessment's run (phase 7a): the rows, the event shapes,
+// The guided check's run (phase 7a): the rows, the event shapes,
 // the gates the server enforces and the patient's live display. Pure and
 // dependency-free; the routes (src/app/api/therapist/assessment-runs/*) and
 // the measurement route call it with what they read, so every refusal the
@@ -482,7 +482,7 @@ export function checkRunSave(input: {
     return { ok: false, refusal: refuse(409, "measure_not_in_step", `That reading is not part of ${step.title}.`) };
   }
   if (m.conditions.setting !== "video") {
-    return { ok: false, refusal: refuse(409, "not_video", "A reading in a guided video assessment is taken over video.") };
+    return { ok: false, refusal: refuse(409, "not_video", "A reading in a guided check is taken over video.") };
   }
   if (isVitalsMeasure(m.measureKey) && m.conditions.readFrom !== "patient_device_on_video") {
     return {

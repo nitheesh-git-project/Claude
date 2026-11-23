@@ -1242,7 +1242,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     // The one-line nudge every screen but Suggested Sessions carries.
     suggestedTeaser:
       screen === "suggested" ? null : buildSuggestedTeaser(activeCarePlan, pendingSuggestions.length, nowTimestamp()),
-    // The physiotherapist has a guided video assessment open for this patient
+    // The physiotherapist has a guided check open for this patient
     // right now: every screen offers the way to the companion screen. A read
     // that could not be run offers nothing (the screen itself is the check).
     guidedCheckLive: guidedCheck,

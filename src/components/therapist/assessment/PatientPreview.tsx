@@ -2,23 +2,13 @@
 
 import { useEffect, useState } from "react";
 import type { LiveDisplayText, LiveDisplayView } from "@/lib/assessmentRun";
-import { clockShown } from "@/lib/companionScreen";
+import { clockShown, companionShortLink, type CompanionSeen } from "@/lib/companionScreen";
+import { screenStatusLine } from "@/lib/cockpit";
 import { useToast } from "@/lib/toast";
 import ExercisePicture from "@/components/exercises/ExercisePicture";
 
 export type PreviewStatus = "idle" | "sending" | "live" | "failed";
 
-/** What the server accepted, never what the patient saw: "Sent" means the
- *  display route stored it. Whether the patient's screen is actually open is
- *  a separate line (companion seen, E12). */
-export const PREVIEW_STATUS_LABEL: Record<PreviewStatus, string> = {
-  idle: "Not sent yet",
-  sending: "Sending",
-  live: "Sent",
-  failed: "Not sent",
-};
-
-const PATIENT_SCREEN_PATH = "/patient/dashboard/session";
 
 /**
  * "What the patient sees": a small preview of the display-only screen and
@@ -35,6 +25,7 @@ export default function PatientPreview({
   status,
   onRetry,
   seen = null,
+  ended = false,
 }: {
   firstName: string;
   text: LiveDisplayText;
@@ -42,8 +33,10 @@ export default function PatientPreview({
   serverOffsetMs: number;
   status: PreviewStatus;
   onRetry: () => void;
-  /** Whether the patient's screen is open (E12), in words; null when ended. */
-  seen?: string | null;
+  /** Whether the patient's screen is open (E12); null while unknown or once ended. */
+  seen?: CompanionSeen | null;
+  /** The run has ended: no status line. */
+  ended?: boolean;
 }) {
   const { show } = useToast();
   // The mini clock reads the same server-corrected time as the patient's own
@@ -59,8 +52,18 @@ export default function PatientPreview({
   }, [ticking]);
   const clock = view && now !== null ? clockShown(view, now, serverOffsetMs) : null;
 
+  // The one short link everywhere (T7): the same one the start panel and the
+  // patient's own dashboard bar give.
+  const [link, setLink] = useState<{ display: string; href: string } | null>(null);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the page's own origin, read once in the browser
+    setLink(companionShortLink(window.location.origin));
+  }, []);
+  const line = screenStatusLine(status, seen, firstName);
+
   async function copyLink() {
-    const url = `${window.location.origin}${PATIENT_SCREEN_PATH}`;
+    if (!link) return;
+    const url = link.href;
     try {
       await navigator.clipboard.writeText(url);
       show("Link to the patient screen copied");
@@ -82,8 +85,7 @@ export default function PatientPreview({
             status === "failed" ? "bg-red-900 text-red-100" : "bg-[#1e293b] text-blue-200"
           }`}
         >
-          {PREVIEW_STATUS_LABEL[status]}
-          {seen ? ` · ${seen}` : ""}
+          {ended ? "All done" : line.text}
         </span>
       </div>
 
@@ -118,18 +120,19 @@ export default function PatientPreview({
       )}
 
       <p className="mt-3 text-[13px] leading-relaxed text-slate-300">
-        <strong className="text-white">Open the patient screen.</strong> {firstName} only watches; nothing on it can be pressed. Ask them to open{" "}
-        <span className="font-semibold text-white [overflow-wrap:anywhere]">{PATIENT_SCREEN_PATH}</span> on a second device or window, signed in as
-        themselves. It follows this page by itself.
+        <strong className="text-white">Optional bigger screen.</strong> {firstName} can open{" "}
+        <span data-testid="preview-short-link" className="font-semibold text-white [overflow-wrap:anywhere]">{link?.display ?? "…"}</span> on a laptop, tablet or TV,
+        signed in as themselves. It follows this page by itself; nothing on it can be pressed.
       </p>
       <button
         type="button"
         data-testid="open-patient-screen"
         onClick={() => void copyLink()}
+        disabled={!link}
         className="mt-2 min-h-[44px] rounded-lg border border-slate-600 bg-[#334155] px-3 text-sm font-semibold text-white hover:border-teal-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300"
       >
         <i aria-hidden="true" className="fa-solid fa-copy mr-1.5" />
-        Copy the patient screen link
+        Copy the link
       </button>
     </section>
   );

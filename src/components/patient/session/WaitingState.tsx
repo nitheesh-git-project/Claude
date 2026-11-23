@@ -1,7 +1,8 @@
 import { UNREADABLE_TEXT, WAITING_TEXT } from "@/lib/companionScreen";
 
 /** The calm screen before a guided check starts, between checks, and a while
- *  after one ends. Nothing to press; it changes by itself. */
+ *  after one ends. Nothing to press; it changes by itself. Waiting is two
+ *  lines (P4): who will start, and keep the call open. */
 export default function WaitingState({ ended = false, unreadable = false }: { ended?: boolean; unreadable?: boolean }) {
   return (
     <div
@@ -16,14 +17,17 @@ export default function WaitingState({ ended = false, unreadable = false }: { en
       <h1 className="max-w-[20ch] font-display text-[clamp(28px,5.5vw,56px)] font-extrabold leading-[1.15] text-white [text-wrap:balance]">
         {unreadable ? UNREADABLE_TEXT.title : ended ? "All done" : WAITING_TEXT.title}
       </h1>
-      <p className="max-w-[30ch] text-[clamp(18px,2.6vw,28px)] font-medium leading-[1.4] text-[#e2e8f0]">
-        {unreadable ? UNREADABLE_TEXT.line : ended ? "That is everything for today. Thank you." : WAITING_TEXT.line}
-      </p>
-      <p className="text-[clamp(16px,2vw,22px)] text-[#94a3b8]">{unreadable ? UNREADABLE_TEXT.calm : ended ? "You can close this screen." : WAITING_TEXT.calm}</p>
-      {!unreadable && !ended && (
-        <p data-testid="companion-keep-call" className="text-[clamp(16px,2vw,22px)] font-semibold text-[#e2e8f0]">
+      {!unreadable && !ended ? (
+        <p data-testid="companion-keep-call" className="max-w-[30ch] text-[clamp(18px,2.6vw,28px)] font-medium leading-[1.4] text-[#e2e8f0]">
           {WAITING_TEXT.keepCallOpen}
         </p>
+      ) : (
+        <>
+          <p className="max-w-[30ch] text-[clamp(18px,2.6vw,28px)] font-medium leading-[1.4] text-[#e2e8f0]">
+            {unreadable ? UNREADABLE_TEXT.line : "That is everything for today. Thank you."}
+          </p>
+          <p className="text-[clamp(16px,2vw,22px)] text-[#94a3b8]">{unreadable ? UNREADABLE_TEXT.calm : "You can close this screen."}</p>
+        </>
       )}
     </div>
   );

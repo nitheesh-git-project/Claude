@@ -95,7 +95,7 @@ export default function TapTimer({
   const [watch, setWatch] = useState<StopwatchState>(IDLE_STOPWATCH);
   const [trials, setTrials] = useState<Trial[]>([]);
   const [interrupted, setInterrupted] = useState(false);
-  // "Discard this attempt" goes away with the run: the focus goes back to the big button.
+  // "Redo this attempt" goes away with the run: the focus goes back to the big button.
   const mainRef = useRef<HTMLButtonElement>(null);
   const running = watch.status === "running";
   const clock = useRunClock(running);
@@ -181,7 +181,7 @@ export default function TapTimer({
           }}
           className="mt-2 min-h-[44px] w-full rounded-xl text-sm font-semibold text-slate-700 underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
         >
-          Discard this attempt
+          Redo this attempt
         </button>
       )}
 

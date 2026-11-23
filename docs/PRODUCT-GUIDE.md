@@ -565,7 +565,7 @@ sidebar: a bar on every patient screen offers it while a check is live).
 `/sessions`, `/availability`, `/earnings`, `/health-profile`,
 `/health-profile/[patientId]`, `/profile`; plus `/assessment/[patientId]`, the
 session cockpit for a guided video assessment (a standalone second screen, not
-in the sidebar: reached from *Start guided assessment* on a video session's card
+in the sidebar: reached from *Start guided check* on a video session's card
 and on the patient's chart).
 
 **Hospital:** `/hospital/login`, `/hospital/dashboard`, and its sections -
@@ -2781,21 +2781,33 @@ everything else.
   **The two screens.** The physiotherapist's cockpit
   (`/therapist/dashboard/assessment/[patientId]`) is built to sit on a second
   screen next to Google Meet: the steps across the top, the current step as one
-  card (what to say in large type, the set-up checklist that must be fully
-  ticked, a red safety line where another adult has to stand beside the
-  patient, and the right tool in the same place) and always the same three
-  actions - **Stop test**, **Skip** and one big **Save and next**, which stays
-  grey, with a line saying what is missing, until the set-up and a result are in.
-  Beside it: today's results so far (*Not done* until a step is saved), a small
-  preview of what the patient sees with *Get ready*, *Go*, *Done* and *Rest*,
-  and a *Stop at once if* box. On a phone the results and preview fold away
-  under the step. The patient's screen (`/patient/dashboard/session`) is dark and
-  large, shows one instruction, a picture of the position and a giant clock, has
-  nothing to press, follows the physiotherapist live and polls every three
-  seconds if the live connection is down. With no check running it says *Your
-  physiotherapist will start the guided check soon*; if it cannot load the
-  screen it says *We couldn't load your screen. Trying again…* instead. Rules:
-  `docs/rules/clinical.md`.
+  card (what to say in large type first, then the set-up checklist that must be
+  fully ticked and the right tool in the same place), one **safety strip** above
+  it (safety status, the "someone beside them" rule where a test needs it, *Stop
+  at once if* and the *Before you start* notes, red only when something needs
+  action) and always the same three actions - **Stop test**, **Skip** and one
+  big **Save and next**, which stays grey, with a line saying what is missing,
+  until the set-up and a result are in. The patient's screen follows the test by
+  itself - Get ready when a step opens, Go when a timer starts, Done when it
+  ends, Get ready again on *Redo this attempt*, Rest on Stop test - so above the
+  actions there is just one line saying whether the patient is following, with
+  the manual controls folded behind *Patient screen: Auto*. Beside it: today's
+  results so far (*Not done* until a step is saved) and a small preview of what
+  the patient sees. On a phone the results and preview fold away under the
+  step. The start screen shows who, the assessment chosen for the condition
+  (*Change* where there is a choice), *Before you start* in one line and one
+  **Start guided check** button; the patient screen is optional, folded under
+  it with the one short link, `/screen`. The patient's screen
+  (`/patient/dashboard/session`) is dark and large, shows one instruction, a
+  picture of the position (or, when the step asks for a number, the 0-10 or 0-4
+  scale, with nothing marked on it) and a giant clock, has nothing to press,
+  follows the physiotherapist live and polls every three seconds if the live
+  connection is down. With no check running it says *Your physiotherapist will
+  start soon* and *Keep your video call open.*; if it cannot load the screen it
+  says *We couldn't load your screen. Trying again…* instead. While a check is
+  live every patient screen carries one line - *Your physiotherapist has started
+  your check* - and **Open**, with the second-device help behind *Use a bigger
+  screen*. Rules: `docs/rules/clinical.md`.
 
   **Home exercises (phase 7d).** After the checks, every guided
   video assessment has a *Home exercises* step, just before the summary. The

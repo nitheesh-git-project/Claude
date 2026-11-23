@@ -6,7 +6,7 @@ import {
 } from "@/lib/outcomeMeasures";
 import { CARDIO_DO_NOT_EXERCISE_SYMPTOMS } from "@/lib/cardioSafety";
 
-// The guided video assessment (phase 7a): one ordered protocol per profile
+// The guided check (phase 7a): one ordered protocol per profile
 // kind, run LIVE in a video session and led by the physiotherapist. Every
 // measurement happens on camera while the therapist watches; nothing here
 // relies on the patient measuring alone. Video stays on Google Meet -- the
@@ -41,8 +41,20 @@ export const SESSION_PROTOCOLS_VERSION = 3;
 export const CLINICAL_REVIEW_MARK = "to be verified by a senior physiotherapist" as const;
 
 /** The position pictures the companion screen can draw. A small fixed set:
- *  the companion has no free-form imagery. */
-export type PatientPicture = "sitting" | "standing" | "lying" | "chair_stand" | "walking" | "balance" | "talking";
+ *  the companion has no free-form imagery. The two scales (P5) are pictures
+ *  too: the fixed 0-10 and 0-4 answer scales a step asks the patient to say a
+ *  number on, drawn so it is seen as well as heard. A scale is never a
+ *  result: nothing on it is picked or highlighted. */
+export type PatientPicture =
+  | "sitting"
+  | "standing"
+  | "lying"
+  | "chair_stand"
+  | "walking"
+  | "balance"
+  | "talking"
+  | "scale_0_10"
+  | "scale_0_4";
 
 export const PATIENT_PICTURES: readonly PatientPicture[] = [
   "sitting",
@@ -52,6 +64,8 @@ export const PATIENT_PICTURES: readonly PatientPicture[] = [
   "walking",
   "balance",
   "talking",
+  "scale_0_10",
+  "scale_0_4",
 ];
 
 /** Which tool the cockpit shows for a step. `counter_60s` is the one-minute
@@ -339,7 +353,7 @@ const ORTHO_KNEE: SessionProtocol = {
       short: "Pain",
       script: "From 0 to 10, how bad is the pain in your knee right now?",
       patientLine: "How is your knee right now? Say a number from 0 to 10.",
-      patientPicture: "sitting",
+      patientPicture: "scale_0_10",
       setup: [{ id: "before_exercise", label: "Asked before any exercise today" }],
       tool: "scale_0_10",
       measures: [],
@@ -355,7 +369,7 @@ const ORTHO_KNEE: SessionProtocol = {
       short: "Everyday",
       script: "I will read out some everyday tasks. Tell me how hard each one is today, from 0 for not possible to 4 for easy.",
       patientLine: "Tell us how hard each task is: 0 is unable, 4 is no difficulty.",
-      patientPicture: "talking",
+      patientPicture: "scale_0_4",
       setup: [CAN_HEAR],
       tool: "score_sheet",
       measures: [{ measureKey: "lefs" }],
@@ -471,7 +485,7 @@ const ORTHO_GENERAL: SessionProtocol = {
       short: "Pain",
       script: "From 0 to 10, how bad is the pain right now?",
       patientLine: "How is the pain right now? Say a number from 0 to 10.",
-      patientPicture: "sitting",
+      patientPicture: "scale_0_10",
       setup: [{ id: "before_exercise", label: "Asked before any exercise today" }],
       tool: "scale_0_10",
       measures: [],
@@ -897,7 +911,7 @@ const CARDIOPULMONARY: SessionProtocol = {
       short: "Breathless",
       script: "From 0 to 10, how breathless do you feel right now, sitting still?",
       patientLine: "How breathless are you now? Say a number from 0 to 10.",
-      patientPicture: "sitting",
+      patientPicture: "scale_0_10",
       setup: [CAN_HEAR],
       tool: "scale_0_10",
       measures: [{ measureKey: "breathlessness_nrs", variants: ["rest"] }],

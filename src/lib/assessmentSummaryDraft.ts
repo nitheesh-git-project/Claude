@@ -5,7 +5,7 @@ import { SKIP_REASONS, STOP_REASONS, type ProtocolStep, type SessionProtocol } f
 import { END_REASONS, runStateFromEvents, type AssessmentRun, type EndReason, type RunEvent } from "@/lib/assessmentRun";
 import { teachingSummarySentence, type TeachingEvent } from "@/lib/exercisePlan";
 
-// The "Where things stand" draft a guided video assessment leaves behind
+// The "Where things stand" draft a guided check leaves behind
 // (phase 7a; the home exercises taught were added in phase 7d): two to four
 // plain sentences, five when exercises were taught, built ONLY from what was saved in
 // the run -- a reading that was stopped is never a result, a skipped or
@@ -139,7 +139,7 @@ export function assessmentSummaryDraft(input: {
   if (voice === "patient") {
     sentences.push(done > 0 ? `In today's video session we did ${done} of the ${total} checks together.` : "In today's video session we did not get to the checks.");
   } else {
-    sentences.push(done > 0 ? `Guided video assessment: ${done} of ${total} tests recorded.` : "Guided video assessment: no tests recorded.");
+    sentences.push(done > 0 ? `Guided check: ${done} of ${total} tests recorded.` : "Guided check: no tests recorded.");
   }
 
   const shown = readings.slice(0, MAX_READINGS);

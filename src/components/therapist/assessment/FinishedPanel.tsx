@@ -64,7 +64,7 @@ export default function FinishedPanel({
       <div>
         <p className="text-[13px] font-bold uppercase tracking-wider text-teal-800">{outcome === "completed" ? "Finished" : "Ended early"}</p>
         <h2 className="mt-1 font-display text-2xl font-extrabold text-slate-900">
-          {outcome === "completed" ? "The guided assessment is saved" : "The guided assessment was ended"}
+          {outcome === "completed" ? "The guided check is saved" : "The guided check was ended"}
         </h2>
         {outcome === "abandoned" && reason && <p className="mt-1 text-base text-slate-800">{END_REASONS[reason]}. What was saved stays on the record.</p>}
         <p className="mt-1 text-sm text-slate-700">
@@ -147,7 +147,7 @@ export default function FinishedPanel({
         href={chartHref}
         className="inline-flex min-h-[48px] items-center rounded-xl border border-slate-300 px-5 text-base font-semibold text-slate-900 hover:border-teal-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
       >
-        Back to the chart
+        Back to Health Profile
       </Link>
 
       {noteOpen && finish.status === "ok" && (

@@ -19,11 +19,11 @@ import SessionCockpit from "@/components/therapist/assessment/SessionCockpit";
 import StartPanel from "@/components/therapist/assessment/StartPanel";
 
 export const metadata: Metadata = {
-  title: "Guided assessment | MoveRestore",
+  title: "Guided check | MoveRestore",
 };
 
 // The session cockpit (Health Profile redesign, phase 7b): the therapist's
-// second screen next to Google Meet for the guided video assessment. Guarded
+// second screen next to Google Meet for the guided check. Guarded
 // like the chart: reaching it needs the therapist to be assigned to this
 // patient (clinical access), and anything else is a 404, never a hint that the
 // patient exists. The started-session half is the start route's and the
@@ -48,7 +48,7 @@ function Notice({ title, children, back }: { title: string; children: ReactNode;
         href={back}
         className="inline-flex min-h-[48px] items-center rounded-xl border border-slate-300 px-5 text-base font-semibold text-slate-900 hover:border-teal-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
       >
-        Back to the chart
+        Back to Health Profile
       </Link>
     </div>
   );
@@ -98,7 +98,7 @@ export default async function AssessmentCockpitPage({
   if (active.status === "not_migrated") {
     body = (
       <Notice title="Not available yet" back={chartHref}>
-        <p>The guided assessment is not set up on this database yet. Ask the clinic to apply the latest schema.</p>
+        <p>The guided check is not set up on this database yet. Ask the clinic to apply the latest schema.</p>
       </Notice>
     );
   } else if (active.status === "unreadable") {
@@ -110,7 +110,7 @@ export default async function AssessmentCockpitPage({
   } else if (active.run && active.run.therapistId !== user.id) {
     body = (
       <Notice title="Another physiotherapist is running it" back={chartHref}>
-        <p>Another physiotherapist has a guided assessment open for {patientName} right now. Only one can run at a time.</p>
+        <p>Another physiotherapist has a guided check open for {patientName} right now. Only one can run at a time.</p>
       </Notice>
     );
   } else if (active.run) {
@@ -149,7 +149,7 @@ export default async function AssessmentCockpitPage({
       : { data: null };
     const own = appt && appt.patient_id === patientId && appt.therapist_id === user.id ? appt : null;
     const headline = [
-      (own?.concern as string | null) ?? (protocol ? protocol.title : "Guided assessment"),
+      (own?.concern as string | null) ?? (protocol ? protocol.title : "Guided check"),
       "Video",
       own?.slot_time ? formatClinicTime(own.slot_time as string) : null,
     ]

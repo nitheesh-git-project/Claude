@@ -85,8 +85,8 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
 - **The therapist's headline is a "Next up" card** (`renderTherapistNextUp`,
   `therapistNextUp.ts`): the session in progress (until half an hour after
   its end, for the note) or else the next one, with Join, Start guided
-  assessment, Done and Chart - each only when it can be used (Join and the
-  guided assessment decide on the debug clock in the browser, Done once a
+  check, Done and Chart - each only when it can be used (Join and the
+  guided check decide on the debug clock in the browser, Done once a
   confirmed session has started) - its time through `formatDateTime`.
   Availability is the last quick action, not the primary one.
 - **Every dashboard opens on the same Overview.** Patient, therapist,
@@ -545,18 +545,22 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   sidebar: they have no dashboard shell, because one is a second screen beside
   a video call and the other is a display. **The cockpit**
   (`/therapist/dashboard/assessment/[patientId]`) has no nav entry; it is
-  reached by *Start guided assessment* on a video session's card (decided in
+  reached by *Start guided check* on a video session's card (decided in
   the browser on the debug clock, `StartGuidedAssessmentLink`) and on the
   chart, and it carries its own way back (Chart). It needs no realtime
   subscription: it is the writer, and what it does it merges into its own
   state and then `router.refresh()`es. **The companion**
   (`/patient/dashboard/session`) is not in the patient's sidebar either ("a
   screen that can only ever be empty is not in the sidebar"): while a check is
-  live every patient screen carries `GuidedCheckBar` (the dashboard loader
+  live every patient screen carries `GuidedCheckBar` - one line, *Your
+  physiotherapist has started your check*, and **Open**, with the
+  second-device help, short link and QR folded behind *Use a bigger screen*
+  (P3: one device is the normal case) - (the dashboard loader
   reads the patient's own display row, `guidedCheckLive`, and the shell
   subscribes to `assessment_live_display` so the bar appears and goes by
   itself), and the cockpit tells the therapist the address to hand over
-  (*Open the patient screen*; its badge reads *Not sent yet* until the patient's screen has been sent something, never *Live*). A failed read on the companion says *We couldn't load your screen. Trying again…*, not *will start soon* (`clinical.md`). The companion reads one row, `assessment_live_display`, with the
+  (the same short `/screen` link as the bar), and says in one line whether
+  the patient is following (`screenStatusLine`, never *Live*). A failed read on the companion says *We couldn't load your screen. Trying again…*, not *will start soon* (`clinical.md`). The companion reads one row, `assessment_live_display`, with the
   patient's own client (`loadLiveDisplay`; `assessment_live_display_select_own`
   is the gate) and subscribes to it on the realtime publication filtered to
   `patient_id=eq.<their id>` - RLS decides what the socket delivers, so the
