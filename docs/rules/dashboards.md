@@ -553,7 +553,9 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   (`/patient/dashboard/session`) is not in the patient's sidebar either ("a
   screen that can only ever be empty is not in the sidebar"): while a check is
   live every patient screen carries `GuidedCheckBar` - one line, *Your
-  physiotherapist has started your check*, and **Open**, with the
+  physiotherapist has started your check*, under it *Stay on your video call
+  - your physiotherapist will talk you through it.* (one device is the normal
+  case), and an outline **Open**, with the
   second-device help, short link and QR folded behind *Use a bigger screen*
   (P3: one device is the normal case) - (the dashboard loader
   reads the patient's own display row, `guidedCheckLive`, and the shell
@@ -618,6 +620,16 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   `exercise_plans` is in the patient shell's `realtimeTables`. During the
   session the demo itself is on the companion (`assessment_live_display`,
   above), not on the dashboard. Detail: `clinical.md`, "Home exercises".
+- **Two guided-check cards sit above the patient's Overview, each only when
+  it has something to say** (phase 2, `clinical.md` rule 12). *Get ready for
+  your session* (`GetReadyCard`) from two days before a confirmed video
+  session until it ends: the things to have to hand and **I'm ready**, then
+  *Thanks. Your physiotherapist can see you're ready*. *Your session recap*
+  (`SessionRecapCard`) for a week after a summary is shared: what was done,
+  before next time, the home exercises with *See how*, and the next session.
+  Both are read with the patient's own client (`loadPatientPrep`, the
+  newest `session_summaries` row) in calls of their own started early; a
+  failed read shows no card rather than a false "nothing to do".
 - **A patient nobody has onboarded is said in three places on the
   therapist's side**, because until it is done the patient's own Health
   Profile is locked: the Home feed row, a banner above the greeting

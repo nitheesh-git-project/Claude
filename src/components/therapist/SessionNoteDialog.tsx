@@ -64,6 +64,7 @@ export default function SessionNoteDialog({
   prefill,
   onProgress,
   onClose,
+  inline = false,
 }: {
   appointmentId: string;
   patientName: string;
@@ -107,6 +108,10 @@ export default function SessionNoteDialog({
   /** What has been saved so far: the note, the summary, the session closed. */
   onProgress?: (progress: FinishProgress) => void;
   onClose: () => void;
+  /** Drawn in the page rather than over it (the guided check's one wrap-up
+   *  form, T8): no backdrop, no close button, no Cancel, no focus trap. The
+   *  same fields, the same three saves in the same order. */
+  inline?: boolean;
 }) {
   const { show } = useToast();
   const [values, setValues] = useState<SessionNoteData>(() => {
@@ -178,6 +183,7 @@ export default function SessionNoteDialog({
   });
 
   useEffect(() => {
+    if (inline) return;
     lastFocused.current = document.activeElement as HTMLElement | null;
     dialogRef.current?.focus();
     const onKey = (e: KeyboardEvent) => {
@@ -191,7 +197,7 @@ export default function SessionNoteDialog({
       document.body.style.overflow = prevOverflow;
       lastFocused.current?.focus?.();
     };
-  }, [close]);
+  }, [close, inline]);
 
   function showError(message: string, field?: string) {
     setError(message);
@@ -368,40 +374,20 @@ export default function SessionNoteDialog({
     });
   }
 
-  return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.2 }}
-        className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-0 backdrop-blur-sm sm:items-center sm:p-4"
-        onClick={requestClose}
-      >
-        <motion.div
-          ref={dialogRef}
-          tabIndex={-1}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="session-note-title"
-          initial={{ opacity: 0, y: 40, scale: 0.98 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 20 }}
-          transition={{ duration: 0.25 }}
-          onClick={(e) => e.stopPropagation()}
-          className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl bg-white shadow-xl outline-none sm:max-h-[88vh] sm:rounded-2xl"
-        >
+  const body = (
+    <>
           <div className="border-b border-slate-100 px-6 pt-5 pb-4">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-teal-700">
-                  {completeOnSave ? "Finish session · write the note" : "Session note · clinician only"}
+                  {inline ? "Wrap up" : completeOnSave ? "Finish session · write the note" : "Session note · clinician only"}
                 </p>
                 <h2 id="session-note-title" className="font-display text-lg font-bold text-slate-800">
                   {patientName}
                 </h2>
                 <p className="mt-0.5 text-xs text-slate-500">{sessionLabel}</p>
               </div>
+              {!inline && (
               <button
                 type="button"
                 onClick={requestClose}
@@ -410,6 +396,7 @@ export default function SessionNoteDialog({
               >
                 &times;
               </button>
+              )}
             </div>
             <p className="mt-3 flex items-start gap-2 rounded-xl bg-slate-50 px-3 py-2 text-[13px] leading-relaxed text-slate-600">
               <i aria-hidden className="fa-solid fa-lock mt-0.5 text-[10px] text-slate-500" />
@@ -579,7 +566,8 @@ export default function SessionNoteDialog({
               </button>
             </div>
           ) : (
-          <div className="flex items-center justify-between gap-3 border-t border-slate-100 px-6 py-4">
+          <div className={`flex items-center gap-3 border-t border-slate-100 px-6 py-4 ${inline ? "justify-end" : "justify-between"}`}>
+            {!inline && (
             <button
               type="button"
               onClick={requestClose}
@@ -587,6 +575,7 @@ export default function SessionNoteDialog({
             >
               {locked ? "Close" : "Cancel"}
             </button>
+            )}
             {!locked && (
               <button
                 type="button"
@@ -599,7 +588,9 @@ export default function SessionNoteDialog({
                   : completeOnSave
                     ? plan
                       ? "Save, finish & recommend"
-                      : "Save note & finish session"
+                      : inline
+                        ? "Save and close session"
+                        : "Save note & finish session"
                     : plan
                     ? "Save note & recommend"
                     : existing
@@ -609,6 +600,45 @@ export default function SessionNoteDialog({
             )}
           </div>
           )}
+    </>
+  );
+
+  if (inline) {
+    return (
+      <section
+        aria-labelledby="session-note-title"
+        data-testid="wrap-up-form"
+        className="flex w-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white"
+      >
+        {body}
+      </section>
+    );
+  }
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.2 }}
+        className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+        onClick={requestClose}
+      >
+        <motion.div
+          ref={dialogRef}
+          tabIndex={-1}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="session-note-title"
+          initial={{ opacity: 0, y: 40, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 20 }}
+          transition={{ duration: 0.25 }}
+          onClick={(e) => e.stopPropagation()}
+          className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl bg-white shadow-xl outline-none sm:max-h-[88vh] sm:rounded-2xl"
+        >
+          {body}
         </motion.div>
       </motion.div>
     </AnimatePresence>

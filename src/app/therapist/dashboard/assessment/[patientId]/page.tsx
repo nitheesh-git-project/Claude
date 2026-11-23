@@ -11,6 +11,7 @@ import { loadEnabledLicensedMeasures, loadGoalAndMilestones, loadMeasurements, l
 import { parseMeasurementRows, buildMeasureSeries } from "@/lib/outcomeSeries";
 import { protocolsForProfileKind, sessionProtocol } from "@/lib/sessionProtocols";
 import { loadActiveRun, loadBriefingReads, loadFinishContext, loadRunMeasurements } from "@/lib/assessmentRunServer";
+import { loadPatientReadiness } from "@/lib/sessionPrepServer";
 import { cockpitBriefing } from "@/lib/cockpitBriefing";
 import { resolveOxygenStopLimit } from "@/lib/cardioSafety";
 import { loadActiveExercisePlan, loadPatientExerciseContext, loadTeachingEvents } from "@/lib/exercisePlanServer";
@@ -207,9 +208,10 @@ export default async function AssessmentCockpitPage({
     );
   } else {
     const adminSettings = parseAdminSettings(settingsRow);
-    const [started, briefingReads] = await Promise.all([
+    const [started, briefingReads, readiness] = await Promise.all([
       hasStartedSessionWithPatient(admin, user.id, patientId, adminSettings.joinWindowMinutes, nowTimestamp()),
       loadBriefingReads(admin, patientId, nowTimestamp()),
+      loadPatientReadiness(admin, { therapistId: user.id, patientId, appointmentId: appointmentParam, nowMs: nowTimestamp() }),
     ]);
     const sessionNote =
       started === null
@@ -226,6 +228,7 @@ export default async function AssessmentCockpitPage({
         sessionNote={sessionNote}
         chartHref={chartHref}
         briefing={cockpitBriefing({ ...briefingReads, profileKind: kind.profileKind })}
+        readiness={readiness}
       />
     );
   }

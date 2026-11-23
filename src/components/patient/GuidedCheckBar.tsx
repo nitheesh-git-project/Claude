@@ -14,7 +14,9 @@ const serverOrigin = () => "";
  * check open: one line and Open (P3). It appears and goes by itself (the
  * shell refreshes on the live display table).
  *
- * One device is the normal case, so the second-screen help - the call stays
+ * One device is the normal case (D1): the bar says to stay on the call, the
+ * physiotherapist talks them through it, and Open is a quiet outline, not a
+ * task. The second-screen help - the call stays
  * on the phone, a short link to type on a laptop, tablet or TV and a QR code
  * for the same - is folded behind "Use a bigger screen". The QR is drawn in the browser from the page's own origin
  * (src/lib/qrCode.ts); until the origin is known (server render) only the
@@ -31,8 +33,13 @@ export default function GuidedCheckBar() {
           <span className="absolute inset-0 rounded-full bg-teal-500 opacity-60 motion-safe:animate-ping" />
           <span className="relative h-3 w-3 rounded-full bg-teal-700" />
         </span>
-        <span className="min-w-0 flex-1 text-base font-semibold text-slate-900">{SECOND_SCREEN_HELP.title}</span>
-        <span className="inline-flex min-h-11 shrink-0 items-center rounded-xl bg-teal-700 px-4 text-sm font-semibold text-white">
+        <span className="min-w-0 flex-1">
+          <span className="block text-base font-semibold text-slate-900">{SECOND_SCREEN_HELP.title}</span>
+          <span data-testid="guided-check-stay" className="block text-sm text-slate-700">
+            {SECOND_SCREEN_HELP.stay}
+          </span>
+        </span>
+        <span className="inline-flex min-h-11 shrink-0 items-center rounded-xl border border-teal-700 px-4 text-sm font-semibold text-teal-900">
           Open <i className="fa-solid fa-arrow-right ml-1.5 text-[13px]" aria-hidden="true" />
         </span>
       </Link>

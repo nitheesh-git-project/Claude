@@ -4,6 +4,8 @@ import PatientDashboardShell from "@/components/patient/PatientDashboardShell";
 import DashboardOverview from "@/components/dashboard/DashboardOverview";
 import InviteCard from "@/components/patient/InviteCard";
 import PayLaterWidget from "@/components/patient/PayLaterWidget";
+import GetReadyCard from "@/components/patient/GetReadyCard";
+import SessionRecapCard from "@/components/patient/SessionRecapCard";
 import { StripProgress } from "@/components/dashboard/StatStrip";
 import { loadPatientDashboard } from "@/lib/patientDashboardData";
 import { formatSlotTime } from "@/lib/formatSlotTime";
@@ -46,6 +48,20 @@ export default async function PatientDashboardPage() {
           razorpayKeyId={process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ?? null}
         />
       )}
+
+      {/* Before a video session: the few things to have to hand, and "I'm
+          ready" (guided check, phase 2). Absent outside the two days before. */}
+      {d.sessionPrep.status === "ok" && (
+        <GetReadyCard
+          appointmentId={d.sessionPrep.appointmentId}
+          slotTime={d.sessionPrep.slotTime}
+          items={d.sessionPrep.list.items}
+          readyAt={d.sessionPrep.readyAt}
+        />
+      )}
+
+      {/* The week after a session: what was done and what comes next (P6). */}
+      {d.recap && <SessionRecapCard recap={d.recap} />}
 
       {/* The nudge is dropped entirely while the record is the
           therapist's to write. An amber banner is a to-do marker, and

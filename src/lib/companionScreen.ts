@@ -133,6 +133,8 @@ export const WAITING_TEXT = {
  *  second-screen help sits behind "Use a bigger screen". */
 export const SECOND_SCREEN_HELP = {
   title: "Your physiotherapist has started your check",
+  /** One device is the normal case (D1): the call is all they need. */
+  stay: "Stay on your video call - your physiotherapist will talk you through it.",
   bigger: "Use a bigger screen",
   twoDevices:
     "Open this on a laptop, tablet or TV and keep your video call on your phone. Only one device? That's fine \u2014 your physiotherapist will talk you through it.",

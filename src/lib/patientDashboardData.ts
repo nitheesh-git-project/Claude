@@ -20,6 +20,8 @@ import { countAnswered, countedQuestions, patientIntakeGate, questionsForSpecial
 import { parseConditionSpecialty } from "@/lib/conditionSpecialty";
 import { buildPatientFeed, type HomeExercisesFeedInput } from "@/lib/dashboardFeed";
 import { loadActiveExercisePlan } from "@/lib/exercisePlanServer";
+import { loadPatientPrep } from "@/lib/sessionPrepServer";
+import { sessionRecap, type Recap } from "@/lib/sessionRecap";
 import { exercisePlanView } from "@/lib/exercisePlan";
 import { isBookedAwaitingTherapist } from "@/lib/sessionRowStatus";
 import { computePackageCounts } from "@/lib/packageProgress";
@@ -146,6 +148,22 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     supabase.from("patient_condition_profiles").select("specialty").eq("patient_id", user.id).maybeSingle()
   );
   const exercisePlanEarly = needFeed ? startEarly(loadActiveExercisePlan(supabase, user.id)) : null;
+  // The get-ready list before a video session (guided check, phase 2, P1).
+  const sessionPrepEarly = needFeed ? startEarly(loadPatientPrep(supabase, user.id, Date.now())) : null;
+  // The newest summary shared with the patient, for the recap card (P6): the
+  // patient's OWN client, so RLS (session_summaries_select_own_patient) is
+  // the gate. A failed read shows no recap.
+  const latestSummaryEarly = needFeed
+    ? startEarly(
+        supabase
+          .from("session_summaries")
+          .select(SESSION_SUMMARY_SELECT)
+          .eq("patient_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      )
+    : null;
   const inviteSettingsEarly = needFeed ? startEarly(readInviteSettings(admin)) : null;
   const payLaterEarly = needFeed || needReceipts ? startEarly(loadPatientPayLater(admin, user.id)) : null;
   const liveReadEarly = startEarly(loadLiveDisplay(supabase, user.id));
@@ -989,6 +1007,27 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     }
   }
 
+  // The recap after a session (P6): the newest shared summary, for a week.
+  let recap: Recap | null = null;
+  if (needFeed) {
+    const { data: latest, error: latestError } = await (latestSummaryEarly as NonNullable<typeof latestSummaryEarly>);
+    if (!latestError && latest) {
+      const row = latest as SessionSummaryRow;
+      let writtenBy = therapistMap.get(row.therapist_id);
+      if (!writtenBy) {
+        const { data: t } = await admin.from("profiles").select("full_name").eq("id", row.therapist_id).maybeSingle();
+        writtenBy = (t?.full_name as string | undefined) ?? "your physiotherapist";
+      }
+      recap = sessionRecap({
+        summary: { appointmentId: row.appointment_id, whatWeDid: row.what_we_did, beforeNextTime: row.before_next_time, createdAt: row.created_at, updatedAt: row.updated_at },
+        writtenBy,
+        exercises: homeExercises ? { count: homeExercises.count, parent: homeExercises.parent } : null,
+        next: nextSession?.slot_time ? { slotTime: nextSession.slot_time } : null,
+        nowMs,
+      });
+    }
+  }
+
   const patientFeed = buildPatientFeed({
     appointments: appointments.map((a) => ({
       id: a.id,
@@ -1279,6 +1318,8 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     bookingHistory,
     patientFeed,
     overviewCells,
+    sessionPrep: sessionPrepEarly ? await sessionPrepEarly : ({ status: "none" } as const),
+    recap,
     nowMs: nowMsForPackages,
   };
 }

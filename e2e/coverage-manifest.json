@@ -1969,6 +1969,23 @@
       ],
       "integration": "local",
       "destructive": false
+    },
+    "session-prep.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/dashboards.md"
+      ],
+      "integration": "local",
+      "destructive": false
     }
   },
   "flows": [
@@ -5189,6 +5206,29 @@
       "rules": [
         "docs/rules/payments.md",
         "docs/rules/admin.md"
+      ]
+    },
+    {
+      "id": "patient.session-prep",
+      "runner": "patient",
+      "title": "The guided check around the call: the get-ready list and I'm ready before a video session (saved once, the patient's own session only, video only), the physiotherapist's start screen saying so, and the recap card the week after",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "session-prep.spec.ts",
+          "tests": [
+            "GR-001",
+            "GR-002",
+            "GR-003",
+            "GR-004"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/dashboards.md"
       ]
     }
   ],

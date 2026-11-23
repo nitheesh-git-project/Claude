@@ -1303,7 +1303,10 @@ The six sections (the Morning Brief layout), scopes and levels, User Access, the
   session booked inside that window, which just had its confirmation), the
   hour-before between 90 and 15 minutes ahead (later is noise). Only a
   session that is still `confirmed` is reminded; at most 100 a run, soonest
-  first. Rules: `dueReminder()`, unit-tested in `bookingEmails.test.ts`;
+  first. The day-before reminder for a **video** session adds one line
+  pointing to the get-ready list on the dashboard (`GET_READY_LINE`; never
+  the list, which would say something about the condition). Rules:
+  `dueReminder()`, unit-tested in `bookingEmails.test.ts`;
   `e2e/admin-maintenance-sweep.spec.ts` MS-003.
 
 - **WhatsApp is built and switched off; it messages only a patient who said

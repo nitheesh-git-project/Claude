@@ -238,12 +238,20 @@ export function dueReminder(input: { slotMs: number; nowMs: number; bookedAtMs: 
   return null;
 }
 
+/** The day-before video reminder's pointer to the get-ready list. */
+export const GET_READY_LINE = "Before tomorrow, open your dashboard to see the few things to have ready for your session.";
+
 export function bookingReminderEmail(brand: EmailBrand, f: BookingFacts, event: ReminderEvent): Email {
   const soon = event === "reminder_1h";
   const subject = soon ? `Starting soon: your ${MODE_TEXT[f.mode]} at ${f.when}` : `Tomorrow: your ${MODE_TEXT[f.mode]} on ${f.when}`;
   const withWhom = f.therapistName ? ` with ${f.therapistName}` : "";
   const lead = soon ? `${sessionLine(f)}${withWhom} starts in about an hour.` : `A reminder: ${sessionLine(f)}${withWhom} is tomorrow.`;
-  const text = `Hello ${f.name},\n\n${lead}\n\n${howItWorks(f.mode)}\n\nYour dashboard: ${f.dashboardUrl}\n\nCan't make it? Cancel from your dashboard.\n\n${brand.siteName}`;
+  // The day before a video session: a pointer to the get-ready list on the
+  // dashboard (guided check, phase 2). Never the list itself - what a patient
+  // needs to have ready says something about their condition, and an email
+  // carries none of that.
+  const getReady = !soon && f.mode === "online" ? GET_READY_LINE : null;
+  const text = `Hello ${f.name},\n\n${lead}\n\n${howItWorks(f.mode)}${getReady ? `\n\n${getReady}` : ""}\n\nYour dashboard: ${f.dashboardUrl}\n\nCan't make it? Cancel from your dashboard.\n\n${brand.siteName}`;
   const html = layout(
     brand,
     soon ? "Your session starts soon" : "Your session is tomorrow",
@@ -251,6 +259,7 @@ export function bookingReminderEmail(brand: EmailBrand, f: BookingFacts, event: 
       `Hello ${escapeHtml(f.name)},`,
       escapeHtml(lead),
       escapeHtml(howItWorks(f.mode)),
+      ...(getReady ? [escapeHtml(getReady)] : []),
       button(f.dashboardUrl, soon && f.mode === "online" ? "Open my dashboard to join" : "Open my dashboard"),
       "Can't make it? Cancel from your dashboard.",
     ],

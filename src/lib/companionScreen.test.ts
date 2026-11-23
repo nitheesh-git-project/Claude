@@ -239,6 +239,8 @@ describe("the second-screen help", () => {
     expect(Object.keys(WAITING_TEXT)).toEqual(["title", "keepCallOpen"]);
     expect(SECOND_SCREEN_HELP.title).toBe("Your physiotherapist has started your check");
     expect(SECOND_SCREEN_HELP.bigger).toBe("Use a bigger screen");
+    // One device is the normal case (D1): the bar says the call is enough.
+    expect(SECOND_SCREEN_HELP.stay).toContain("Stay on your video call");
   });
   it("makes a short link a person can type and a scanner can open", () => {
     expect(companionShortLink("https://moverestore.example")).toEqual({
