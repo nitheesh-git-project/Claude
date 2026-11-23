@@ -14,6 +14,9 @@ import {
   sentenceCount,
   sessionProtocol,
   stepRecordsMeasure,
+  requiredSetupItems,
+  setupTips,
+  tickableSetupItems,
   type SessionProtocol,
 } from "./sessionProtocols";
 
@@ -35,20 +38,21 @@ describe("session protocols", () => {
       "Straightening",
       "Sit to stand",
       "Walking",
-      "Home exercises",
       "Summary",
+      "Home exercises",
     ]);
     expect(protocolStep(knee, "pain")?.layer).toBe("pain_map");
     expect(protocolStep(knee, "chair_stand")?.needsHelper).toBe(true);
     expect(protocolStep(knee, "chair_stand")?.clock).toEqual({ kind: "countdown", seconds: 30 });
   });
 
-  it("every step is marked for senior review and every protocol starts with red flags and ends with the summary", () => {
+  it("every step is marked for senior review and every protocol starts with red flags, then the summary, then Home exercises", () => {
     for (const p of SESSION_PROTOCOLS) {
       expect(p.review).toBe(CLINICAL_REVIEW_MARK);
       expect(p.steps[0].tool).toBe("red_flags");
       expect(p.steps[0].skippable).toBe(false);
-      expect(p.steps[p.steps.length - 1].tool).toBe("summary");
+      expect(p.steps[p.steps.length - 2].tool).toBe("summary");
+      expect(p.steps[p.steps.length - 1].tool).toBe("teach_exercises");
       for (const s of p.steps) {
         expect(s.review).toBe(CLINICAL_REVIEW_MARK);
         expect(sentenceCount(s.script)).toBeLessThanOrEqual(2);
@@ -152,6 +156,35 @@ describe("version 3: one name per step and a safety script that counts (C3, E14)
     }
     expect(safetyScript(5)).toBe("I'll ask five quick safety questions. Just answer yes or no.");
     expect(protocolStep(sessionProtocol("cardiopulmonary")!, "resting_check")!.setup.map((i) => i.id)).toContain("devices_ready");
-    expect(SESSION_PROTOCOLS_VERSION).toBe(3);
+    expect(SESSION_PROTOCOLS_VERSION).toBe(4);
+  });
+});
+
+describe("version 4: only safety is ticked (D2), Home exercises after the summary (D3)", () => {
+  it("keeps the room check, the helper and the chair as ticks, and makes the rest tips", () => {
+    for (const p of SESSION_PROTOCOLS) {
+      expect(requiredSetupItems(p.steps[0]).length, `${p.key} room check`).toBeGreaterThan(0);
+      for (const s of p.steps) {
+        for (const item of s.setup) if (item.helper) expect(item.tip, `${p.key}.${s.id}.${item.id}`).toBeUndefined();
+        if (s.needsHelper) expect(requiredSetupItems(s).some((i) => i.helper)).toBe(true);
+      }
+    }
+    const knee = sessionProtocol("ortho_knee")!;
+    expect(requiredSetupItems(protocolStep(knee, "chair_stand")!).map((i) => i.id)).toEqual(expect.arrayContaining(["chair_against_wall"]));
+    expect(requiredSetupItems(protocolStep(knee, "knee_bend")!)).toEqual([]);
+    expect(setupTips(protocolStep(knee, "knee_bend")!).map((i) => i.id)).toEqual(["lying_on_back", "leg_in_view", "device_steady"]);
+    expect(tickableSetupItems(protocolStep(knee, "knee_bend")!)).toEqual([]);
+  });
+  it("drops the two ceremony ticks", () => {
+    for (const p of SESSION_PROTOCOLS) {
+      for (const s of p.steps) {
+        const ids = s.setup.map((i) => i.id);
+        expect(ids).not.toContain("before_exercise");
+        expect(ids).not.toContain("results_look_right");
+      }
+    }
+  });
+  it("puts Home exercises last, after the summary", () => {
+    for (const p of SESSION_PROTOCOLS) expect(p.steps.at(-1)?.id).toBe("exercises");
   });
 });

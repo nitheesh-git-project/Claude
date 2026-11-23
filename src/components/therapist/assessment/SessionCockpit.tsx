@@ -29,7 +29,7 @@ import {
   type CarriedFacts,
   exertionBlock,
   firstOpenStepId,
-  isLastStep,
+  finishesRun,
   nextStepId,
   patientControls,
   preExerciseFromEvents,
@@ -194,6 +194,10 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
   const [teachPlan, setTeachPlan] = useState<TeachPlan | null>(props.exercises.plan);
   const [teachMarks, setTeachMarks] = useState<TeachingEvent[]>(props.exercises.marks);
   const [teachPreview, setTeachPreview] = useState<LiveDisplayText | null>(null);
+  // Home exercises come after the summary (version 4, D3) and open on a
+  // choice: teach them now, or Later (a skip that finishes the check).
+  const [teachChosen, setTeachChosen] = useState(false);
+  const teachStartedThisRun = teachMarks.some((m) => m.runId === run.id);
 
   // --- Where the person is and what they have entered --------------------------------------
   const [currentId, setCurrentId] = useState(() => firstOpenStepId(protocol, state));
@@ -352,11 +356,13 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
   });
   const outcome = state.outcomes.get(step.id);
   const alreadyDone = outcome === "saved" || outcome === "skipped";
-  const last = isLastStep(protocol, step.id);
   const upcoming = nextStepId(protocol, state, step.id);
   // A step already finished, with nothing new entered, simply moves on.
   const justMoveOn = alreadyDone && !readiness.ready && !!upcoming && availability.available && mode !== "red_flags" && mode !== "summary";
-  const primaryLabel = justMoveOn ? "Next step" : last ? "Save and finish" : "Save and next";
+  // Saving this step ends the check: the last step, or the summary with
+  // nothing open after it.
+  const finishes = finishesRun(protocol, state, step.id);
+  const primaryLabel = justMoveOn ? "Next step" : finishes ? "Save and finish" : "Save and next";
   const canPrimary = justMoveOn || readiness.ready;
   const note = justMoveOn ? "This step is already saved. Enter a new reading to record another, or go on." : readiness.ready ? READY_NOTE : readiness.missing ?? "";
 
@@ -464,12 +470,11 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
       }
 
       // 3. The summary ends the run; anything else moves on.
-      if (mode === "summary") {
-        const done = await postEnd({ runId: run.id, outcome: "completed" });
-        if (!done.ok) return setFailure(done.failure);
-        setEnded({ outcome: "completed", reason: null, draft: done.data.summaryDraft, readable: done.data.summaryDraftReadable });
-        show("Guided check saved");
-        router.refresh();
+      // The last step ends the run - Home exercises since version 4 (D3) -
+      // and so does the summary when nothing after it is open (a safety
+      // yes, which shuts every exercise).
+      if (finishes) {
+        await finishRun();
         return;
       }
       show(`${step.title} saved`);
@@ -537,6 +542,15 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
     router.refresh();
   }
 
+  /** Ends the run as completed and shows the wrap-up. */
+  async function finishRun() {
+    const done = await postEnd({ runId: run.id, outcome: "completed" });
+    if (!done.ok) return setFailure(done.failure);
+    setEnded({ outcome: "completed", reason: null, draft: done.data.summaryDraft, readable: done.data.summaryDraftReadable });
+    show("Guided check saved");
+    router.refresh();
+  }
+
   async function skipStep(reasonKey: string | null) {
     if (busy) return;
     setBusy("skip");
@@ -550,6 +564,15 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
     router.refresh();
     const target = nextStepId(protocol, state, step.id);
     if (target) openStep(target);
+    // Skipping the last step (Home exercises: "Later") ends the check.
+    else {
+      setBusy("save");
+      try {
+        await finishRun();
+      } finally {
+        setBusy(null);
+      }
+    }
   }
 
   async function endEarly(reasonKey: string | null) {
@@ -708,6 +731,35 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
                   })
                 }
               >
+                {mode === "teach" && !teachChosen && !teachStartedThisRun ? (
+                  <div data-testid="teach-intro" className="flex flex-col gap-3 rounded-xl border border-teal-200 bg-teal-50/60 p-4">
+                    <p className="text-base font-semibold text-slate-900">
+                      The check is saved. Teach {firstName}
+                      {"'"}s home exercises now, or later.
+                    </p>
+                    <div className="flex flex-wrap gap-2.5">
+                      <button
+                        type="button"
+                        data-testid="teach-now"
+                        onClick={() => setTeachChosen(true)}
+                        disabled={!!busy || !availability.available}
+                        className="inline-flex min-h-[52px] flex-[2_1_12rem] items-center justify-center rounded-xl bg-teal-700 px-5 text-base font-bold text-white hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 disabled:opacity-60"
+                      >
+                        Teach home exercises now
+                      </button>
+                      <button
+                        type="button"
+                        data-testid="teach-later"
+                        onClick={() => void skipStep(null)}
+                        disabled={!!busy}
+                        className="inline-flex min-h-[52px] flex-[1_1_8rem] items-center justify-center rounded-xl border border-slate-300 bg-white px-5 text-base font-semibold text-slate-900 hover:border-teal-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
+                      >
+                        Later
+                      </button>
+                    </div>
+                    <p className="text-[13px] text-slate-700">Later finishes the check. You can teach them in another session.</p>
+                  </div>
+                ) : (
                 <ToolArea
                   step={step}
                   locked={!availability.available}
@@ -784,6 +836,7 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
                     milestonesUnreadable: props.milestones?.status === "unreadable",
                   }}
                 />
+                )}
               </StepCard>
 
               <div aria-live="polite" className="empty:hidden">

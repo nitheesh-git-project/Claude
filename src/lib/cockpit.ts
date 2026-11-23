@@ -11,6 +11,7 @@ import {
   redFlagStep,
   stepIndex,
   needsPreExerciseCheck,
+  requiredSetupItems,
   type ProtocolStep,
   type SessionProtocol,
 } from "@/lib/sessionProtocols";
@@ -110,12 +111,21 @@ export function isLastStep(protocol: SessionProtocol, stepId: string): boolean {
   return stepIndex(protocol, stepId) === protocol.steps.length - 1;
 }
 
+/** Whether saving (or skipping) this step ends the run: the last step - Home
+ *  exercises since version 4 - or the summary when nothing after it is open
+ *  (a safety yes shuts every exercise). */
+export function finishesRun(protocol: SessionProtocol, state: RunState, stepId: string): boolean {
+  if (isLastStep(protocol, stepId)) return true;
+  return protocolStep(protocol, stepId)?.tool === "summary" && nextStepId(protocol, state, stepId) === null;
+}
+
 // --- Set-up and what is missing --------------------------------------------------------
 
 /** An optional item (the Home exercises step's helper) never holds Save and
  *  next back; it is counted only once ticked. */
 export function setupProgress(step: ProtocolStep, ticked: ReadonlySet<string>): { total: number; done: number; remaining: number; helperMissing: boolean } {
-  const required = step.setup.filter((s) => s.optional !== true);
+  // Tips are never ticked (version 4, D2); only safety counts.
+  const required = requiredSetupItems(step);
   const done = required.filter((s) => ticked.has(s.id)).length;
   return {
     total: required.length,

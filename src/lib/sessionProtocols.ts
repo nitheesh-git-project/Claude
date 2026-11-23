@@ -35,8 +35,12 @@ import { CARDIO_DO_NOT_EXERCISE_SYMPTOMS } from "@/lib/cardioSafety";
  *  that test's step (the sturdy chair, the camera, the heart and lung
  *  devices), and each tab label is the start of its step's title. A run
  *  started on an earlier version is refused as `protocol_changed` and
- *  started again (an open one can always be ended, checkRunAbandon). */
-export const SESSION_PROTOCOLS_VERSION = 3;
+ *  started again (an open one can always be ended, checkRunAbandon).
+ *  Version 4 (simplification phase 3): only safety is ticked - everything
+ *  else on a step is a tip (`SetupItem.tip`), the two ceremony items ("asked
+ *  before any exercise", "the results look right") are gone - and Home
+ *  exercises come after the summary, as the last step. */
+export const SESSION_PROTOCOLS_VERSION = 4;
 
 export const CLINICAL_REVIEW_MARK = "to be verified by a senior physiotherapist" as const;
 
@@ -116,6 +120,12 @@ export type SetupItem = {
    *  exercises flagged "needs helper", so ticking it is what lets those be
    *  taught (and published), and leaving it unticked still lets the rest. */
   optional?: boolean;
+  /** A tip, not a tick (phase 3, D2): said once on the step ("Tip: whole leg
+   *  in view from the side"), never a checkbox, never required. Only safety
+   *  stays a tick: the room check on the safety step, the helper, the chair
+   *  against a wall, the support beside a balance test, the rest before a
+   *  heart and lung test, the oximeter on during exertion. */
+  tip?: boolean;
 };
 
 /** A red-flag question the therapist asks aloud. "Yes" means the flag is
@@ -280,7 +290,7 @@ function summaryStep(): ProtocolStep {
     script: "Let me go over what we found today. Then we can agree what to work on next.",
     patientLine: "We will go over today together.",
     patientPicture: "talking",
-    setup: [{ id: "results_look_right", label: "The results look right" }],
+    setup: [],
     tool: "summary",
     measures: [],
     needsHelper: false,
@@ -290,8 +300,9 @@ function summaryStep(): ProtocolStep {
   };
 }
 
-/** The Home exercises step (phase 7d), the last before the summary in every
- *  protocol. Exertion, so on the heart and lung protocol the pre-exercise
+/** The Home exercises step (phase 7d), after the summary in every protocol
+ *  since version 4 (D3): the check is done first, then the exercises are
+ *  taught now or later. Exertion, so on the heart and lung protocol the pre-exercise
  *  check stands in front of it like any other exercise; skippable, with a
  *  fixed reason. A child is always taught with the parent beside them, so
  *  the paediatric step needs its helper; elsewhere the helper item is
@@ -305,8 +316,8 @@ function teachStep(input: { helperRequired: boolean }): ProtocolStep {
     patientLine: "We will learn some exercises for home together.",
     patientPicture: "standing",
     setup: [
-      { id: "whole_body_in_view", label: "The patient's whole body is in view" },
-      { id: "clear_space", label: "The patient is in a clear space" },
+      { id: "whole_body_in_view", label: "The patient's whole body is in view", tip: true },
+      { id: "clear_space", label: "The patient is in a clear space", tip: true },
       input.helperRequired
         ? { id: "parent_close", label: "A parent is beside the child for every exercise", helper: true }
         : { ...HELPER, label: "Another adult is beside the patient (only for exercises that need one)", optional: true },
@@ -322,8 +333,8 @@ function teachStep(input: { helperRequired: boolean }): ProtocolStep {
 
 const HELPER: SetupItem = { id: "helper_beside", label: "Another adult is standing beside the patient", helper: true };
 const CLEAR_SPACE: SetupItem = { id: "clear_space", label: "The patient is in a clear space" };
-const CAN_HEAR: SetupItem = { id: "can_hear", label: "The patient can hear you clearly" };
-const MEDICATION_NOTED: SetupItem = { id: "medication_noted", label: "ON or OFF, and the last dose time, noted" };
+const CAN_HEAR: SetupItem = { id: "can_hear", label: "The patient can hear you clearly", tip: true };
+const MEDICATION_NOTED: SetupItem = { id: "medication_noted", label: "ON or OFF, and the last dose time, noted", tip: true };
 
 // --- The protocols -------------------------------------------------------------
 
@@ -354,7 +365,7 @@ const ORTHO_KNEE: SessionProtocol = {
       script: "From 0 to 10, how bad is the pain in your knee right now?",
       patientLine: "How is your knee right now? Say a number from 0 to 10.",
       patientPicture: "scale_0_10",
-      setup: [{ id: "before_exercise", label: "Asked before any exercise today" }],
+      setup: [],
       tool: "scale_0_10",
       measures: [],
       layer: "pain_map",
@@ -386,9 +397,9 @@ const ORTHO_KNEE: SessionProtocol = {
       patientLine: "Slide your heel towards your bottom. Hold it there.",
       patientPicture: "lying",
       setup: [
-        { id: "lying_on_back", label: "The patient is lying on their back" },
-        { id: "leg_in_view", label: "The whole leg is in view from the side" },
-        { id: "device_steady", label: "The phone or laptop is steady" },
+        { id: "lying_on_back", label: "The patient is lying on their back", tip: true },
+        { id: "leg_in_view", label: "The whole leg is in view from the side", tip: true },
+        { id: "device_steady", label: "The phone or laptop is steady", tip: true },
       ],
       tool: "angle",
       measures: [{ measureKey: "joint_range", variants: ["knee_flexion_active", "knee_flexion_passive"] }],
@@ -405,8 +416,8 @@ const ORTHO_KNEE: SessionProtocol = {
       patientLine: "Let your knee drop straight, then tighten the thigh.",
       patientPicture: "lying",
       setup: [
-        { id: "towel_under_heel", label: "A rolled towel is under the heel" },
-        { id: "leg_in_view", label: "The leg is in view from the side" },
+        { id: "towel_under_heel", label: "A rolled towel is under the heel", tip: true },
+        { id: "leg_in_view", label: "The leg is in view from the side", tip: true },
       ],
       tool: "angle",
       measures: [{ measureKey: "joint_range", variants: ["knee_extension_active", "knee_extension_passive"] }],
@@ -424,7 +435,7 @@ const ORTHO_KNEE: SessionProtocol = {
       patientPicture: "chair_stand",
       setup: [
         { id: "chair_against_wall", label: "A sturdy chair without arms is against a wall, feet flat" },
-        { id: "arms_crossed", label: "Arms crossed on the chest" },
+        { id: "arms_crossed", label: "Arms crossed on the chest", tip: true },
         HELPER,
       ],
       tool: "counter_30s",
@@ -443,9 +454,9 @@ const ORTHO_KNEE: SessionProtocol = {
       patientLine: "Walk at your normal pace until we say stop.",
       patientPicture: "walking",
       setup: [
-        { id: "path_marked", label: "A 14-metre path is marked out" },
+        { id: "path_marked", label: "A 14-metre path is marked out", tip: true },
         HELPER,
-        { id: "usual_shoes_aid", label: "Usual shoes and walking aid" },
+        { id: "usual_shoes_aid", label: "Usual shoes and walking aid", tip: true },
       ],
       tool: "timed_trials",
       measures: [{ measureKey: "ten_metre_walk" }],
@@ -455,8 +466,8 @@ const ORTHO_KNEE: SessionProtocol = {
       clock: { kind: "count_up" },
       review: R,
     },
-    teachStep({ helperRequired: false }),
     summaryStep(),
+    teachStep({ helperRequired: false }),
   ],
 };
 
@@ -486,7 +497,7 @@ const ORTHO_GENERAL: SessionProtocol = {
       script: "From 0 to 10, how bad is the pain right now?",
       patientLine: "How is the pain right now? Say a number from 0 to 10.",
       patientPicture: "scale_0_10",
-      setup: [{ id: "before_exercise", label: "Asked before any exercise today" }],
+      setup: [],
       tool: "scale_0_10",
       measures: [],
       layer: "pain_map",
@@ -503,8 +514,8 @@ const ORTHO_GENERAL: SessionProtocol = {
       patientLine: "Move as far as is comfortable. Hold it there.",
       patientPicture: "standing",
       setup: [
-        { id: "joint_in_view", label: "The whole joint is in view from the side" },
-        { id: "device_steady", label: "The phone or laptop is steady" },
+        { id: "joint_in_view", label: "The whole joint is in view from the side", tip: true },
+        { id: "device_steady", label: "The phone or laptop is steady", tip: true },
       ],
       tool: "angle",
       measures: [{ measureKey: "joint_range" }],
@@ -528,8 +539,8 @@ const ORTHO_GENERAL: SessionProtocol = {
       skippable: true,
       review: R,
     },
-    teachStep({ helperRequired: false }),
     summaryStep(),
+    teachStep({ helperRequired: false }),
   ],
 };
 
@@ -560,9 +571,9 @@ const NEURO: SessionProtocol = {
       patientLine: "Walk at your normal pace. Your helper stays beside you.",
       patientPicture: "walking",
       setup: [
-        { id: "path_marked", label: "A 14-metre path is marked out" },
+        { id: "path_marked", label: "A 14-metre path is marked out", tip: true },
         HELPER,
-        { id: "usual_aid", label: "Usual shoes, splints and walking aid" },
+        { id: "usual_aid", label: "Usual shoes, splints and walking aid", tip: true },
       ],
       tool: "neuro_exam",
       measures: [],
@@ -580,7 +591,7 @@ const NEURO: SessionProtocol = {
       script: "Tell me how much help you need to walk indoors and outside.",
       patientLine: "Tell us how much help you need to walk.",
       patientPicture: "talking",
-      setup: [{ id: "watched_walk", label: "You have watched the patient walk today" }],
+      setup: [{ id: "watched_walk", label: "You have watched the patient walk today", tip: true }],
       tool: "score_sheet",
       measures: [{ measureKey: "fac" }],
       needsHelper: false,
@@ -588,8 +599,8 @@ const NEURO: SessionProtocol = {
       skippable: true,
       review: R,
     },
-    teachStep({ helperRequired: false }),
     summaryStep(),
+    teachStep({ helperRequired: false }),
   ],
 };
 
@@ -638,7 +649,7 @@ const NEURO_PARKINSONS: SessionProtocol = {
       script: "Walk at your normal pace until I say stop.",
       patientLine: "Walk at your normal pace until we say stop.",
       patientPicture: "walking",
-      setup: [{ id: "path_marked", label: "A 14-metre path is marked out" }, HELPER, MEDICATION_NOTED],
+      setup: [{ id: "path_marked", label: "A 14-metre path is marked out", tip: true }, HELPER, MEDICATION_NOTED],
       tool: "timed_trials",
       measures: [{ measureKey: "ten_metre_walk" }],
       needsHelper: true,
@@ -667,8 +678,8 @@ const NEURO_PARKINSONS: SessionProtocol = {
       clock: { kind: "count_up" },
       review: R,
     },
-    teachStep({ helperRequired: false }),
     summaryStep(),
+    teachStep({ helperRequired: false }),
   ],
 };
 
@@ -703,7 +714,7 @@ const PEDIATRICS: SessionProtocol = {
       patientPicture: "sitting",
       setup: [
         { id: "parent_with_child", label: "A parent is with the child", helper: true },
-        { id: "floor_space", label: "Clear floor space, the child in view" },
+        { id: "floor_space", label: "Clear floor space, the child in view", tip: true },
       ],
       tool: "milestone_check",
       measures: [],
@@ -738,7 +749,7 @@ const PEDIATRICS: SessionProtocol = {
       patientPicture: "walking",
       setup: [
         { id: "parent_close", label: "A parent is close enough to catch", helper: true },
-        { id: "floor_space", label: "Clear floor space, the child in view" },
+        { id: "floor_space", label: "Clear floor space, the child in view", tip: true },
       ],
       tool: "timed_trials",
       measures: [{ measureKey: "peds_independent_steps" }],
@@ -747,8 +758,8 @@ const PEDIATRICS: SessionProtocol = {
       skippable: true,
       review: R,
     },
-    teachStep({ helperRequired: true }),
     summaryStep(),
+    teachStep({ helperRequired: true }),
   ],
 };
 
@@ -796,7 +807,7 @@ const GERIATRIC: SessionProtocol = {
       patientPicture: "chair_stand",
       setup: [
         { id: "chair_against_wall", label: "A sturdy chair without arms is against a wall, feet flat" },
-        { id: "arms_crossed", label: "Arms crossed on the chest" },
+        { id: "arms_crossed", label: "Arms crossed on the chest", tip: true },
         HELPER,
       ],
       tool: "counter_30s",
@@ -830,7 +841,7 @@ const GERIATRIC: SessionProtocol = {
       script: "Walk at your normal pace until I say stop.",
       patientLine: "Walk at your normal pace until we say stop.",
       patientPicture: "walking",
-      setup: [{ id: "path_marked", label: "A 4-metre path is marked out, with room to slow down" }, HELPER],
+      setup: [{ id: "path_marked", label: "A 4-metre path is marked out, with room to slow down", tip: true }, HELPER],
       tool: "timed_trials",
       measures: [{ measureKey: "gait_speed_4m" }],
       needsHelper: true,
@@ -854,8 +865,8 @@ const GERIATRIC: SessionProtocol = {
       skippable: true,
       review: R,
     },
-    teachStep({ helperRequired: false }),
     summaryStep(),
+    teachStep({ helperRequired: false }),
   ],
 };
 
@@ -894,9 +905,9 @@ const CARDIOPULMONARY: SessionProtocol = {
       patientLine: "Sit quietly. Hold your monitor up to the camera.",
       patientPicture: "sitting",
       setup: [
-        { id: "devices_ready", label: "The patient's own oximeter and blood pressure monitor are ready" },
+        { id: "devices_ready", label: "The patient's own oximeter and blood pressure monitor are ready", tip: true },
         { id: "rested_5_min", label: "The patient has rested sitting for 5 minutes" },
-        { id: "device_in_view", label: "The device screen is readable on camera" },
+        { id: "device_in_view", label: "The device screen is readable on camera", tip: true },
       ],
       tool: "vitals",
       measures: PRE_EXERCISE_VITALS,
@@ -947,7 +958,7 @@ const CARDIOPULMONARY: SessionProtocol = {
       script: "Sit down and rest. Hold your monitor up to the camera again, and tell me how breathless you feel.",
       patientLine: "Sit and rest. Hold your monitor up to the camera.",
       patientPicture: "sitting",
-      setup: [{ id: "device_in_view", label: "The device screen is readable on camera" }],
+      setup: [{ id: "device_in_view", label: "The device screen is readable on camera", tip: true }],
       tool: "vitals",
       measures: [
         { measureKey: "lowest_spo2" },
@@ -959,8 +970,8 @@ const CARDIOPULMONARY: SessionProtocol = {
       skippable: true,
       review: R,
     },
-    teachStep({ helperRequired: false }),
     summaryStep(),
+    teachStep({ helperRequired: false }),
   ],
 };
 
@@ -1068,12 +1079,24 @@ export function helperSetupItems(step: ProtocolStep): SetupItem[] {
   return step.setup.filter((s) => s.helper === true);
 }
 
-/** The set-up items a save needs ticked (every item but an optional helper). */
+/** The set-up items a save needs ticked: every item but an optional helper
+ *  and a tip. A step with none still confirms its set-up (an empty list) so
+ *  the run records the moment, and the server's order of checks is unchanged. */
 export function requiredSetupItems(step: ProtocolStep): SetupItem[] {
-  return step.setup.filter((s) => s.optional !== true);
+  return step.setup.filter((s) => s.optional !== true && s.tip !== true);
 }
 
-/** The Home exercises step: one per protocol, just before the summary. */
+/** The items drawn as checkboxes: everything but a tip. */
+export function tickableSetupItems(step: ProtocolStep): SetupItem[] {
+  return step.setup.filter((s) => s.tip !== true);
+}
+
+/** The items said as one "Tip:" line. */
+export function setupTips(step: ProtocolStep): SetupItem[] {
+  return step.setup.filter((s) => s.tip === true);
+}
+
+/** The Home exercises step: one per protocol, the last, after the summary. */
 export function teachExercisesStep(protocol: SessionProtocol): ProtocolStep | null {
   return protocol.steps.find((s) => s.tool === "teach_exercises") ?? null;
 }
@@ -1099,7 +1122,10 @@ export function protocolProblems(protocols: readonly SessionProtocol[]): string[
     }
     if (p.steps.length < 3) problems.push(`${p.key}: too few steps`);
     if (p.steps[0]?.tool !== "red_flags") problems.push(`${p.key}: the first step must be the red-flag check`);
-    if (p.steps[p.steps.length - 1]?.tool !== "summary") problems.push(`${p.key}: the last step must be the summary`);
+    // Phase 3 (D3): the check ends at the summary, and Home exercises come
+    // after it - taught now, or skipped as "Later".
+    if (p.steps[p.steps.length - 2]?.tool !== "summary") problems.push(`${p.key}: the summary must come just before Home exercises`);
+    if (p.steps[p.steps.length - 1]?.tool !== "teach_exercises") problems.push(`${p.key}: the last step must be Home exercises`);
     if (p.steps.filter((s) => s.tool === "teach_exercises").length !== 1) problems.push(`${p.key}: needs exactly one Home exercises step`);
 
     const stepIds = new Set<string>();
@@ -1122,7 +1148,6 @@ export function protocolProblems(protocols: readonly SessionProtocol[]): string[
         const bad = containsClinicWord(text);
         if (bad) problems.push(`${where}: patient-visible text uses the clinic word "${bad}"`);
       }
-      if (s.setup.length < 1) problems.push(`${where}: no set-up checklist`);
       const setupIds = new Set<string>();
       for (const item of s.setup) {
         if (setupIds.has(item.id)) problems.push(`${where}: duplicate set-up item "${item.id}"`);
@@ -1146,9 +1171,13 @@ export function protocolProblems(protocols: readonly SessionProtocol[]): string[
         if (item.optional && !item.helper) problems.push(`${where}: only a helper item may be optional ("${item.id}")`);
         if (item.optional && s.tool !== "teach_exercises") problems.push(`${where}: only the Home exercises step has an optional item`);
       }
-      if (requiredSetupItems(s).length < 1) problems.push(`${where}: no required set-up item`);
-      if (s.tool === "teach_exercises") {
-        if (index !== p.steps.length - 2) problems.push(`${where}: Home exercises must come just before the summary`);
+      for (const item of s.setup) {
+        if (item.tip && (item.helper || item.optional)) problems.push(`${where}: a helper item is a tick, never a tip ("${item.id}")`);
+      }
+      // Only safety is ticked (D2): the room check on the safety step, and
+      // the helper on any step that needs one, are never tips.
+      if (s.tool === "red_flags" && requiredSetupItems(s).length < 1) problems.push(`${where}: the safety step needs the room check`);      if (s.tool === "teach_exercises") {
+        if (index !== p.steps.length - 1) problems.push(`${where}: Home exercises must be the last step, after the summary`);
         if (!s.exertion) problems.push(`${where}: Home exercises are exercise and the step must say so`);
         if (!s.skippable) problems.push(`${where}: Home exercises can be skipped`);
         if (s.measures.length > 0 || s.layer) problems.push(`${where}: Home exercises record no measurement`);

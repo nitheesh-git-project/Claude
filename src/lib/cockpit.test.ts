@@ -26,6 +26,7 @@ import {
   toolMode,
   toolSlots,
   screenStatusLine,
+  finishesRun,
   STOP_OPTIONS,
   COCKPIT_KEY_HINT,
 } from "@/lib/cockpit";
@@ -97,8 +98,15 @@ describe("the step bar", () => {
     const state = runStateFromEvents([clear]);
     expect(nextStepId(knee, state, "safety")).toBe("pain");
     expect(nextStepId(knee, runStateFromEvents([flagged]), "safety")).toBe("summary");
-    expect(nextStepId(knee, state, "summary")).toBeNull();
-    expect(isLastStep(knee, "summary")).toBe(true);
+    expect(nextStepId(knee, state, "summary")).toBe("exercises");
+    expect(nextStepId(knee, state, "exercises")).toBeNull();
+    expect(isLastStep(knee, "exercises")).toBe(true);
+    expect(isLastStep(knee, "summary")).toBe(false);
+    // Saving the summary moves on to Home exercises, unless a yes shut them.
+    expect(finishesRun(knee, state, "summary")).toBe(false);
+    expect(finishesRun(knee, state, "exercises")).toBe(true);
+    expect(finishesRun(knee, runStateFromEvents([flagged]), "summary")).toBe(true);
+    expect(finishesRun(knee, state, "pain")).toBe(false);
     expect(isLastStep(knee, "pain")).toBe(false);
   });
   it("explains why a step is shut", () => {
@@ -133,13 +141,15 @@ describe("what is missing before Save and next", () => {
     expect(saveReadiness({ step: chair, ticked: all, resultReady: true, blocked: "No tests today." })).toEqual({ ready: false, missing: "No tests today." });
   });
   it("counts the set-up", () => {
-    expect(setupProgress(chair, new Set())).toMatchObject({ total: chair.setup.length, done: 0, helperMissing: true });
+    // Only the safety ticks count (version 4): the chair against the wall and the helper, not "arms crossed".
+    expect(setupProgress(chair, new Set())).toMatchObject({ total: 2, done: 0, helperMissing: true });
+    expect(setupProgress(chair, new Set(["chair_against_wall", "helper_beside"]))).toMatchObject({ remaining: 0, helperMissing: false });
   });
 });
 
 describe("tools", () => {
   it("picks the tool mode from the step", () => {
-    expect(knee.steps.map((s) => toolMode(s))).toEqual(["red_flags", "layer", "measure", "measure", "measure", "measure", "measure", "teach", "summary"]);
+    expect(knee.steps.map((s) => toolMode(s))).toEqual(["red_flags", "layer", "measure", "measure", "measure", "measure", "measure", "summary", "teach"]);
   });
   it("gives a vitals step one slot per reading and keeps the variant limits", () => {
     const rest = protocolStep(cardio, "resting_check")!;

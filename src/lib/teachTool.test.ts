@@ -99,7 +99,8 @@ describe("the note", () => {
 });
 
 describe("the draft plan", () => {
-  it("starts from the library's own dose and holds at most six", () => {
+  it("starts from the library's own dose and holds at most three", () => {
+    expect(PLAN_PICK_MAX).toBe(3);
     const orthos = EXERCISE_LIBRARY.filter((e) => e.profileKinds.includes("ortho"));
     let draft: ReturnType<typeof toggleDraft>["draft"] = [];
     for (const e of orthos.slice(0, PLAN_PICK_MAX)) draft = toggleDraft(draft, e).draft;

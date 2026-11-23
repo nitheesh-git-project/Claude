@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { setupProgress } from "@/lib/cockpit";
-import type { ProtocolStep } from "@/lib/sessionProtocols";
+import { setupTips, tickableSetupItems, type ProtocolStep } from "@/lib/sessionProtocols";
 
 /** The helper item's words once another adult has already been ticked as
  *  beside the patient on an earlier step: the tick stays on every step that
@@ -44,6 +44,9 @@ export default function StepCard({
   const progress = setupProgress(step, ticked);
   const optionalOpen = step.setup.filter((i) => i.optional === true && !ticked.has(i.id)).length;
   const [editing, setEditing] = useState(false);
+  // Only safety is a tick (version 4, D2); the rest is one "Tip:" line.
+  const tickable = tickableSetupItems(step);
+  const tips = setupTips(step);
   const folded = !locked && progress.remaining === 0 && !editing;
 
   // Ticking the last box folds the list away and takes the focused checkbox
@@ -70,7 +73,7 @@ export default function StepCard({
             {step.title}
           </h2>
         </div>
-        {folded && (
+        {folded && tickable.length > 0 && (
           <p data-testid="setup-folded" className="flex min-h-[44px] items-center gap-1 rounded-xl bg-teal-50 pl-3 text-sm font-semibold text-teal-900">
             <span>
               {progress.done}/{progress.total} set up <span aria-hidden="true">✓</span>
@@ -106,7 +109,13 @@ export default function StepCard({
         </div>
       </div>
 
-      {!folded && (
+      {tips.length > 0 && (
+        <p data-testid="setup-tips" className="text-[15px] leading-snug text-slate-700">
+          <span className="font-semibold text-slate-900">Tip:</span> {tips.map((t) => t.label).join(" · ")}
+        </p>
+      )}
+
+      {!folded && tickable.length > 0 && (
         <fieldset
           disabled={!!locked}
           className="min-w-0"
@@ -119,9 +128,9 @@ export default function StepCard({
             if (next && !e.currentTarget.contains(next)) focusInList.current = false;
           }}
         >
-          <legend className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-700">Set up first</legend>
+          <legend className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-700">{step.tool === "red_flags" ? "Room ready" : "Safety first"}</legend>
           <ul className="flex flex-col gap-1.5">
-            {step.setup.map((item) => {
+            {tickable.map((item) => {
               const on = ticked.has(item.id);
               return (
                 <li key={item.id}>
