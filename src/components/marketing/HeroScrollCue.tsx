@@ -61,7 +61,8 @@ export default function HeroScrollCue({ label = "Scroll for more" }: { label?: s
         onClick={goDown}
         tabIndex={atTop ? 0 : -1}
         aria-hidden={atTop ? undefined : true}
-        aria-label="Scroll down to see more of this page"
+        // No aria-label: the visible words are the accessible name (an
+        // aria-label that does not contain them fails WCAG 2.5.3).
         className={`group flex cursor-pointer flex-col items-center gap-1.5 rounded-full px-4 py-1 text-teal-800 transition-opacity duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 ${
           atTop ? "opacity-100" : "pointer-events-none opacity-0"
         }`}
