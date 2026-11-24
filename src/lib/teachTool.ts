@@ -172,9 +172,10 @@ export function markBody(runId: string, exerciseKey: string, choice: MarkChoice)
 }
 
 export function markText(e: Pick<TeachingEvent, "outcome" | "cueKey" | "reasonKey">): string {
-  if (e.outcome === "performed_correctly") return "Did it correctly";
-  if (e.outcome === "needs_practice") return `Needs practice: ${COACHING_CUES[e.cueKey ?? "slow_down"]}`;
-  return `Not attempted: ${e.reasonKey ? NOT_ATTEMPTED_REASONS[e.reasonKey] : "no reason given"}`;
+  // The buttons' own words (phase 3); the chart keeps the record's wording.
+  if (e.outcome === "performed_correctly") return "Did it well";
+  if (e.outcome === "needs_practice") return `Needs help: ${COACHING_CUES[e.cueKey ?? "slow_down"]}`;
+  return `Couldn't do it: ${e.reasonKey ? NOT_ATTEMPTED_REASONS[e.reasonKey] : "no reason given"}`;
 }
 
 // --- Fixing a mark (phase 7d-3) -------------------------------------------------------------------

@@ -84,7 +84,7 @@ export default function PlanBuilder({
       <div>
         <p className="text-base font-semibold text-slate-900">Pick the exercises for home.</p>
         <p className="mt-0.5 text-sm text-slate-700">
-          Choose up to {PLAN_PICK_MAX}. Then set how often. <span data-testid="plan-count">{draft.length} of {PLAN_PICK_MAX} picked.</span>
+          Choose up to {PLAN_PICK_MAX}. Each starts on its usual dose. <span data-testid="plan-count">{draft.length} of {PLAN_PICK_MAX} picked.</span>
         </p>
       </div>
 

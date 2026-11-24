@@ -47,7 +47,9 @@ export default function StepCard({
   // Only safety is a tick (version 4, D2); the rest is one "Tip:" line.
   const tickable = tickableSetupItems(step);
   const tips = setupTips(step);
-  const folded = !locked && progress.remaining === 0 && !editing;
+  // Folds only once a required tick is done: a step whose one box is an
+  // optional helper (Home exercises) keeps that box in sight, never "0/0 set up".
+  const folded = !locked && progress.total > 0 && progress.remaining === 0 && !editing;
 
   // Ticking the last box folds the list away and takes the focused checkbox
   // with it: hand the focus to Edit rather than dropping it on the page.

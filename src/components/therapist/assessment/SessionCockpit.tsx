@@ -548,7 +548,18 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
     if (!done.ok) return setFailure(done.failure);
     setEnded({ outcome: "completed", reason: null, draft: done.data.summaryDraft, readable: done.data.summaryDraftReadable });
     show("Guided check saved");
-    router.refresh();
+    rememberWrapUp();
+  }
+
+  /** Puts the ended run in the address, without a reload: the page has no
+   *  run in progress any more, so a refresh (the note's own save refreshes)
+   *  would otherwise draw the start panel and drop the wrap-up. With it, the
+   *  server draws the same wrap-up (`wrapup`, page.tsx). */
+  function rememberWrapUp() {
+    const url = new URL(window.location.href);
+    url.searchParams.set("wrapup", run.id);
+    if (run.appointmentId && !url.searchParams.get("appointment")) url.searchParams.set("appointment", run.appointmentId);
+    window.history.replaceState(null, "", url.toString());
   }
 
   async function skipStep(reasonKey: string | null) {
@@ -584,7 +595,7 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
     setDialog(null);
     if (!r.ok) return setFailure(r.failure);
     setEnded({ outcome: "abandoned", reason: reasonKey as EndReason, draft: r.data.summaryDraft, readable: r.data.summaryDraftReadable });
-    router.refresh();
+    rememberWrapUp();
   }
 
   // An embedded timer started, finished or was thrown away: the patient's

@@ -1609,7 +1609,16 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      the summary, then the session closed, in that order; a refusal part-way
      says what was kept). The overall *Where things stand* is optional and
      folded under it (`CareStatusControls summaryOnly`, the draft its starting
-     point). A failed read says it could not check. **A yes to a safety
+     point). **The wrap-up survives a refresh:** ending a run puts
+     `?wrapup=<runId>` in the address without a reload, and the page draws the
+     same wrap-up from the server for a run of this therapist's for this
+     patient that ended in the last twelve hours (the note's own save
+     refreshes the page, which used to land on the start panel with the
+     session still open - found running a knee check on staging). Lines added
+     to *Anything to watch* during the run are not rebuilt after a refresh.
+     The summary table names a one-test step by the step (*Knee bend*,
+     *Straightening the knee*), not the measure (both read *Goniometry*). A
+     failed read says it could not check. **A yes to a safety
      question, and a stop for symptoms or a near-fall, show one line of next
      actions:** *End the assessment* and *Add to Anything to watch* (the line
      waits on this page for the note; it is not stored until the note is).

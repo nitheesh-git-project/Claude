@@ -184,7 +184,7 @@ test("AC-003: Save and next stays disabled until the set-up is ticked and every 
   expect(count).toBeGreaterThan(0);
   for (let i = 0; i < count; i++) await questions.nth(i).getByRole("button", { name: "No" }).click();
   await expect(save).toBeEnabled();
-  await expect(note).toContainText("Nothing is saved until Save and next");
+  await expect(note).toContainText("Nothing is saved until you save");
 });
 
 test("AC-004: Stop test saves nothing and writes only a stopped event", async ({ page }) => {

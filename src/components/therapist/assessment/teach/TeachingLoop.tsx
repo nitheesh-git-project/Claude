@@ -160,7 +160,7 @@ export default function TeachingLoop({
       const next = nextUnmarked(keys, after, index + 1);
       setMessage({
         tone: "ok",
-        text: `${exercise!.name} marked: ${markText(event).toLowerCase()}.${next === null ? ` All ${keys.length} exercises are marked.` : ""}`,
+        text: `${exercise!.name} marked: ${markText(event).toLowerCase().replace(/\.$/, "")}.${next === null ? ` All ${keys.length} exercises are marked.` : ""}`,
       });
       if (next !== null) setSelected(next);
     } finally {

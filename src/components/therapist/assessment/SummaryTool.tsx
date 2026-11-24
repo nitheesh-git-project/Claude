@@ -115,7 +115,7 @@ export default function SummaryTool({
         </p>
       )}
       <p className="text-sm text-slate-700">
-        Save and finish ends the assessment and gives you a draft of {"“"}Where things stand{"”"} to put into your own words.
+        Save and next keeps the check, then you teach the home exercises now or later. Finishing gives you the wrap-up: the note and {"“"}Where things stand{"”"}, started from today, to put into your own words.
       </p>
     </div>
   );
