@@ -1,6 +1,6 @@
 // The therapist Overview's "Next up" (B9): the session in progress now, if
 // there is one, else the next one booked. A session that has started is the
-// one the therapist needs Join, the guided assessment and Done for - the old
+// one the therapist needs Join, the guided check and Done for - the old
 // headline only ever named the next FUTURE slot, so during a session it
 // pointed at the one after. Dependency-free; `nowMs` is required so the
 // debug clock reaches it.

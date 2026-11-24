@@ -36,8 +36,10 @@ import type { ProfileKind } from "@/lib/outcomeMeasures";
 // and single fix for every refusal. The screens only draw what this decides.
 
 /** The cockpit offers this many exercises in a plan; the server allows more
- *  (PLAN_ITEMS_MAX) but a plan the patient can keep up with is a short one. */
-export const PLAN_PICK_MAX = 6;
+ *  (PLAN_ITEMS_MAX) but a plan the patient can keep up with is a short one.
+ *  Three since the simplification's phase 3 (D3): taught in one sitting at
+ *  the end of a call, more than three is not learnt. */
+export const PLAN_PICK_MAX = 3;
 
 // --- The dose, with big steppers ---------------------------------------------------------
 
@@ -157,9 +159,9 @@ export type MarkChoice =
   | { outcome: "not_attempted"; reasonKey: NotAttemptedReason };
 
 export const MARK_BUTTONS: { outcome: TeachingOutcome; label: string; follow: string | null }[] = [
-  { outcome: "performed_correctly", label: "Did it correctly", follow: null },
-  { outcome: "needs_practice", label: "Needs practice", follow: "Pick one thing to remind them." },
-  { outcome: "not_attempted", label: "Not attempted", follow: "Why not?" },
+  { outcome: "performed_correctly", label: "Did it well", follow: null },
+  { outcome: "needs_practice", label: "Needs help", follow: "Pick one thing to remind them." },
+  { outcome: "not_attempted", label: "Couldn't do it", follow: "Why not?" },
 ];
 
 export const COACHING_CUE_OPTIONS = (Object.entries(COACHING_CUES) as [CoachingCue, string][]).map(([key, label]) => ({ key, label }));
@@ -170,9 +172,10 @@ export function markBody(runId: string, exerciseKey: string, choice: MarkChoice)
 }
 
 export function markText(e: Pick<TeachingEvent, "outcome" | "cueKey" | "reasonKey">): string {
-  if (e.outcome === "performed_correctly") return "Did it correctly";
-  if (e.outcome === "needs_practice") return `Needs practice: ${COACHING_CUES[e.cueKey ?? "slow_down"]}`;
-  return `Not attempted: ${e.reasonKey ? NOT_ATTEMPTED_REASONS[e.reasonKey] : "no reason given"}`;
+  // The buttons' own words (phase 3); the chart keeps the record's wording.
+  if (e.outcome === "performed_correctly") return "Did it well";
+  if (e.outcome === "needs_practice") return `Needs help: ${COACHING_CUES[e.cueKey ?? "slow_down"]}`;
+  return `Couldn't do it: ${e.reasonKey ? NOT_ATTEMPTED_REASONS[e.reasonKey] : "no reason given"}`;
 }
 
 // --- Fixing a mark (phase 7d-3) -------------------------------------------------------------------

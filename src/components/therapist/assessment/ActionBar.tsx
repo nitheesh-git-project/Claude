@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import Spinner from "@/components/system/Spinner";
-import type { PatientControl } from "@/lib/cockpit";
-import { PREVIEW_STATUS_LABEL, type PreviewStatus } from "@/components/therapist/assessment/PatientPreview";
+import { screenStatusLine, type PatientControl } from "@/lib/cockpit";
+import type { PreviewStatus } from "@/components/therapist/assessment/PatientPreview";
+import type { CompanionSeen } from "@/lib/companionScreen";
 
 const SKIP_REASON = "This step cannot be skipped";
 
@@ -16,9 +18,11 @@ const SKIP_REASON = "This step cannot be skipped";
  * why in a line of its own (a title alone is read by neither a phone nor a
  * screen reader, and a disabled button cannot be focused to find it).
  *
- * Above them, in a group of its own so the three stay three, the patient's
- * screen as a compact segmented control (Get ready, Go, Done, Rest): beside
- * Google Meet the preview is folded away, and these are pressed mid-test.
+ * Above them, one line says whether the patient can see their screen (one
+ * dot, one sentence: `screenStatusLine`). The patient's screen follows the
+ * test by itself - a step opens on Get ready, a timer's start is Go, its end
+ * Done, a redo Get ready again, Stop test Rest - so the manual controls sit
+ * folded behind "Patient screen: Auto", for the rare override.
  */
 export default function ActionBar({
   skippable,
@@ -52,62 +56,15 @@ export default function ActionBar({
     status: PreviewStatus;
     onControl: (control: PatientControl) => void;
     onRetry: () => void;
-    /** "Open on Priya's side", "Not open on Priya's side yet", "Couldn't check Priya's side". */
-    seen?: string;
+    /** Whether the patient's screen is open (E12); null while not yet known. */
+    seen: CompanionSeen | null;
   };
   /** The one-line keyboard hint; shown from `md` up (a keyboard is likely). */
   keyHint?: string;
 }) {
   return (
     <div className="sticky bottom-0 z-20 -mx-3 space-y-1.5 bg-slate-50 px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 sm:-mx-1 sm:px-1">
-      {screen && (
-        <div className="flex items-center gap-x-2.5 rounded-2xl border border-slate-200 bg-white px-2 py-1.5 sm:px-3">
-          <span id="patient-screen-label" className="sr-only text-[13px] font-bold text-slate-800 sm:not-sr-only sm:shrink-0">
-            {screen.firstName}
-            {"'"}s screen
-          </span>
-          <div
-            role="group"
-            aria-labelledby="patient-screen-label"
-            data-testid="patient-screen-controls"
-            className="flex min-w-0 flex-1 overflow-x-auto rounded-xl border border-slate-300 bg-slate-100 p-0.5"
-          >
-            {screen.controls.map((c) => (
-              <button
-                key={c.key}
-                type="button"
-                data-testid={`patient-${c.key}`}
-                aria-pressed={screen.active === c.key}
-                onClick={() => screen.onControl(c)}
-                className={`min-h-[44px] flex-1 whitespace-nowrap rounded-lg px-2.5 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 ${
-                  screen.active === c.key ? "bg-teal-700 text-white" : "text-slate-900 hover:bg-white"
-                }`}
-              >
-                {c.label}
-              </button>
-            ))}
-          </div>
-          <span
-            data-testid="bar-screen-status"
-            className={`shrink-0 text-[13px] font-semibold ${screen.status === "failed" ? "text-red-800" : "text-slate-700"}`}
-          >
-            {PREVIEW_STATUS_LABEL[screen.status]}
-            {screen.seen && <span data-testid="bar-screen-seen"> · {screen.seen}</span>}
-            {screen.status === "failed" && (
-              <>
-                {" · "}
-                <button
-                  type="button"
-                  onClick={screen.onRetry}
-                  className="min-h-[44px] font-bold underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"
-                >
-                  Try again
-                </button>
-              </>
-            )}
-          </span>
-        </div>
-      )}
+      {screen && <ScreenRow screen={screen} />}
       <div role="group" aria-label="Step actions" className="flex gap-2 rounded-2xl border border-slate-200 bg-white p-2 sm:gap-2.5 sm:p-3">
         <button
           type="button"
@@ -153,6 +110,64 @@ export default function ActionBar({
         <p data-testid="key-hint" className="hidden px-1 text-center text-xs text-slate-600 md:block">
           {keyHint}
         </p>
+      )}
+    </div>
+  );
+}
+
+type ScreenProps = NonNullable<Parameters<typeof ActionBar>[0]["screen"]>;
+
+/** The status line and the folded manual controls for the patient's screen. */
+function ScreenRow({ screen }: { screen: ScreenProps }) {
+  const [open, setOpen] = useState(false);
+  const line = screenStatusLine(screen.status, screen.seen, screen.firstName);
+  const DOT: Record<typeof line.tone, string> = { ok: "bg-emerald-600", wait: "bg-amber-500", bad: "bg-red-600", idle: "bg-slate-400" };
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white px-2 py-1 sm:px-3">
+      <div className="flex flex-wrap items-center justify-between gap-x-3">
+        <p data-testid="bar-screen-status" className={`flex min-h-[40px] min-w-0 items-center gap-2 text-[13px] font-semibold ${line.tone === "bad" ? "text-red-800" : "text-slate-800"}`}>
+          <span aria-hidden="true" className={`h-2.5 w-2.5 shrink-0 rounded-full ${DOT[line.tone]}`} />
+          <span className="min-w-0">{line.text}</span>
+          {screen.status === "failed" && (
+            <button type="button" onClick={screen.onRetry} className="min-h-[44px] font-bold underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600">
+              Try again
+            </button>
+          )}
+        </p>
+        <button
+          type="button"
+          data-testid="patient-screen-toggle"
+          aria-expanded={open}
+          aria-controls="patient-screen-controls"
+          onClick={() => setOpen((v) => !v)}
+          className="min-h-[44px] rounded-lg px-2 text-[13px] font-semibold text-slate-700 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
+        >
+          Patient screen: Auto <span aria-hidden="true">{open ? "▴" : "▾"}</span>
+        </button>
+      </div>
+      {open && (
+        <div
+          id="patient-screen-controls"
+          role="group"
+          aria-label={`${screen.firstName}'s screen`}
+          data-testid="patient-screen-controls"
+          className="mb-1 flex min-w-0 overflow-x-auto rounded-xl border border-slate-300 bg-slate-100 p-0.5"
+        >
+          {screen.controls.map((c) => (
+            <button
+              key={c.key}
+              type="button"
+              data-testid={`patient-${c.key}`}
+              aria-pressed={screen.active === c.key}
+              onClick={() => screen.onControl(c)}
+              className={`min-h-[44px] flex-1 whitespace-nowrap rounded-lg px-2.5 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 ${
+                screen.active === c.key ? "bg-teal-700 text-white" : "text-slate-900 hover:bg-white"
+              }`}
+            >
+              {c.label}
+            </button>
+          ))}
+        </div>
       )}
     </div>
   );

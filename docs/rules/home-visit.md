@@ -16,7 +16,7 @@ A delivery mode rather than a parallel booking system: service areas, the travel
   or, far the commonest cause, the OAuth consent screen left in **Testing**,
   where Google expires refresh tokens after seven days -- every session fails
   at once with `invalid_grant`. Nothing said so. Each failure appeared as its
-  own row in Settings -> System Health -> Session Links with a raw error string
+  own row in Settings -> Technical -> System health -> Session Links with a raw error string
   and a Retry button that could never succeed, so the screen read "a few
   sessions failed" when the truth was "no session will get a link again". The
   one line naming the fix was a `console.error` no clinic owner reads.
@@ -102,7 +102,7 @@ A delivery mode rather than a parallel booking system: service areas, the travel
   visit on purpose: there is nothing to join, the therapist is coming to the
   address. Three readers nonetheless used `meet_link is null` as their
   definition of an unsynced session, and every confirmed home visit therefore
-  (1) sat in Settings -> System Health -> Session Links for ever, (2) was
+  (1) sat in Settings -> Technical -> System health -> Session Links for ever, (2) was
   answered `502 "Retry failed"` by the Retry button -- whose success test was
   also `meet_link` -- on the runs where the event had in fact been created,
   and (3) got a **brand new calendar event on every click**, because
@@ -246,7 +246,7 @@ A delivery mode rather than a parallel booking system: service areas, the travel
   cancel -- a separate read rather than a sum of the per-area map, because it
   has to count a purchase whose address carries **no** area, which the map
   must skip and which is exactly the purchase most likely to be forgotten.
-  Settings -> Programmes & Home Visits states it beside the switch and asks
+  Settings -> How the clinic runs -> Programmes & home visits states it beside the switch and asks
   before it goes off; the confirmation is on the **off** direction only, since
   turning a service on takes nothing from anybody and a prompt there is the
   dialog nobody reads. `describeHomeVisitCommitment` answers three ways rather
@@ -279,7 +279,7 @@ A delivery mode rather than a parallel booking system: service areas, the travel
   "Home Visit" section in docs/PRODUCT-GUIDE.md for the full flow.
 
 - **A home visit is one visit of a condition, at one of two prices.**
-  Catalog -> Conditions -> Home visits holds one **clinic-wide** price and,
+  Prices & areas -> Conditions & prices -> Home visits holds one **clinic-wide** price and,
   for any condition, its **own** price; there is no visit count, no validity
   and no days to set, and travel is still added per visit from Service Areas.
   They are `home_visit_packages` rows -- `visit_count = 1`,
@@ -305,7 +305,7 @@ A delivery mode rather than a parallel booking system: service areas, the travel
   follow-up).
 
 - **Outside India home visits are not offered, unless an admin allows it.**
-  One switch on Catalog -> Countries & currency (`home_visit_outside_india`,
+  One switch on Prices & areas -> Other countries (`home_visit_outside_india`,
   default off) decides it for every country but India. The routes that sell
   a visit refuse on their own - `home-visit/create-order`, `home-visit/book-cash`
   and a home-visit care plan in `care-plan/create-order` answer 403 with

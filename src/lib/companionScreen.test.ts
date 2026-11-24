@@ -22,7 +22,7 @@ import {
   showsUnreadable,
 } from "@/lib/companionScreen";
 import { companionSeenLabel, companionSeenState, shareScreenScript } from "@/lib/companionScreen";
-import { PATIENT_PICTURES, containsClinicWord } from "@/lib/sessionProtocols";
+import { PATIENT_PICTURES, SESSION_PROTOCOLS, containsClinicWord } from "@/lib/sessionProtocols";
 
 const NOW = Date.parse("2026-10-26T12:00:00.000Z");
 
@@ -235,6 +235,13 @@ describe("the second-screen help", () => {
     expect(SECOND_SCREEN_HELP.twoDevices).toContain("keep your video call on your phone");
     expect(WAITING_TEXT.keepCallOpen).toBe("Keep your video call open.");
   });
+  it("keeps the waiting screen to two lines and the bar to one (P3, P4)", () => {
+    expect(Object.keys(WAITING_TEXT)).toEqual(["title", "keepCallOpen"]);
+    expect(SECOND_SCREEN_HELP.title).toBe("Your physiotherapist has started your check");
+    expect(SECOND_SCREEN_HELP.bigger).toBe("Use a bigger screen");
+    // One device is the normal case (D1): the bar says the call is enough.
+    expect(SECOND_SCREEN_HELP.stay).toContain("Stay on your video call");
+  });
   it("makes a short link a person can type and a scanner can open", () => {
     expect(companionShortLink("https://moverestore.example")).toEqual({
       display: "moverestore.example/screen",
@@ -259,5 +266,17 @@ describe("whether the patient's screen is open (E12)", () => {
     expect(companionSeenLabel("not_yet", "Priya")).toBe("Not open on Priya's side yet");
     expect(companionSeenLabel("unknown", "Priya")).toBe("Couldn't check Priya's side");
     expect(shareScreenScript("moverestore.in/screen")).toMatch(/^Please open moverestore\.in\/screen on a laptop/);
+  });
+});
+
+describe("the answer scales (P5)", () => {
+  it("shows the 0-10 scale on every step that asks for a number from 0 to 10, and the 0-4 scale on the knee's everyday tasks", () => {
+    const steps = SESSION_PROTOCOLS.flatMap((p) => p.steps.map((s) => ({ p: p.key, s })));
+    const tens = steps.filter(({ s }) => /from 0 to 10/.test(s.patientLine));
+    expect(tens.length).toBeGreaterThanOrEqual(3);
+    for (const { p, s } of tens) expect(s.patientPicture, `${p}.${s.id}`).toBe("scale_0_10");
+    for (const { p, s } of steps.filter(({ s }) => /0 is unable, 4 is no difficulty/.test(s.patientLine))) {
+      expect(s.patientPicture, `${p}.${s.id}`).toBe("scale_0_4");
+    }
   });
 });

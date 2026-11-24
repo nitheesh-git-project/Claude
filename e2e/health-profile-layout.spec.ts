@@ -190,15 +190,24 @@ test("HPL-007: Settings finds one patient by name, changes their own layout with
   await finder.getByLabel(/^Why/).fill("E2E: physiotherapist says not needed");
   await panel.locator('[data-widget="reports_scans"]').getByRole("switch").click();
   await expect(panel.locator('[data-widget="reports_scans"]')).toContainText("E2E: physiotherapist says not needed", SEEN);
+  // The row shows the change optimistically, before the save lands: wait for
+  // the saved row itself before closing the page, or the close can cancel
+  // the request still in flight.
+  await expect
+    .poll(
+      async () =>
+        (
+          await db
+            .from("patient_profile_widget_overrides")
+            .select("visible, reason")
+            .eq("patient_id", ortho!.id)
+            .eq("widget_key", "reports_scans")
+            .maybeSingle()
+        ).data,
+      { timeout: 30_000 }
+    )
+    .toEqual({ visible: false, reason: "E2E: physiotherapist says not needed" });
   await context.close();
-
-  const { data: row } = await db
-    .from("patient_profile_widget_overrides")
-    .select("visible, reason")
-    .eq("patient_id", ortho!.id)
-    .eq("widget_key", "reports_scans")
-    .maybeSingle();
-  expect(row).toEqual({ visible: false, reason: "E2E: physiotherapist says not needed" });
 
   const own = await pageAs(browser, ortho!.email, "/patient/dashboard/health-profile");
   await expect(own.page.getByTestId("ortho-profile")).toBeVisible(SEEN);

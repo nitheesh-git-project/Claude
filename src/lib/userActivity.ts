@@ -135,14 +135,14 @@ export const USER_ACTIVITY_META = {
   "patient_diary.corrected": { label: "Said a diary entry was a mistake", group: "clinical", verb: "said a diary entry was saved by mistake" },
   "patient_diary.confirmed": { label: "Confirmed a diary entry", group: "clinical", verb: "confirmed a patient's diary entry" },
   "assessment_run.started": {
-    label: "Started a guided video assessment",
+    label: "Started a guided check",
     group: "clinical",
-    verb: "started a guided video assessment",
+    verb: "started a guided check",
   },
   "assessment_run.ended": {
-    label: "Ended a guided video assessment",
+    label: "Ended a guided check",
     group: "clinical",
-    verb: "ended a guided video assessment",
+    verb: "ended a guided check",
   },
   "exercise_plan.published": {
     label: "Published a home exercise plan",

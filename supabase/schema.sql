@@ -21579,3 +21579,17 @@ revoke all on function public.phone_login_account(text) from public;
 revoke all on function public.phone_login_account(text) from anon;
 revoke all on function public.phone_login_account(text) from authenticated;
 grant execute on function public.phone_login_account(text) to service_role;
+
+-- ---------------------------------------------------------------------------
+-- Guided check, phase 2 (P1): the patient's "I'm ready".
+--
+-- Two days before a video session the patient's dashboard shows a short
+-- get-ready list (src/lib/sessionPrep.ts) with one button, "I'm ready". The
+-- moment they press it is kept here, once, so the physiotherapist's start
+-- screen can say "Priya is ready · ticked the get-ready list at 5:52 PM".
+-- Written only by POST /api/patient/session-ready with the service role,
+-- after it has checked the session is the signed-in patient's own, still
+-- confirmed, by video and not yet over (appointments has no client UPDATE
+-- grant). Read by the existing appointments policies. It gates nothing.
+-- ---------------------------------------------------------------------------
+alter table appointments add column if not exists patient_ready_at timestamptz;

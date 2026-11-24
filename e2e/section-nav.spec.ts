@@ -141,11 +141,38 @@ test.describe("Section rail and scroll arrow on the public pages", () => {
     await page.getByRole("link", { name: /FAQ/i }).first().click();
     await page.waitForURL(/\/faq$/);
     await expect(rail(page).first()).toBeVisible();
+    // At the very top of a public page its own hero cue ("Scroll for more")
+    // stands in for the corner arrow; a little way down, the corner arrow is
+    // the one in play, and it is the one that carries the swapped list.
+    await page.evaluate(() => window.scrollTo(0, 300));
+    await expect(arrow(page)).toBeVisible();
     const before = await scrollY(page);
     await arrow(page).click();
     await settle(page);
     expect(await scrollY(page)).toBeGreaterThan(before);
     await expect(activePill(page)).toHaveCount(1);
+  });
+
+  test("SN-009: on a large screen a public page opens with its own Scroll for more cue, and the corner arrow waits", async ({
+    page,
+  }) => {
+    await page.goto(`${BASE}/faq`);
+    await waitForSplashToClear(page);
+    const cue = page.getByRole("button", { name: "Scroll for more" });
+    await expect(cue).toBeVisible();
+    await expect(arrow(page)).toHaveCount(0);
+    // The handler arrives with hydration, so click until the page moves.
+    await expect(async () => {
+      await cue.click({ timeout: 3_000 });
+      await expect.poll(() => scrollY(page), { timeout: 3_000 }).toBeGreaterThan(300);
+    }).toPass({ timeout: 30_000 });
+    await settle(page);
+    await expect(arrow(page)).toBeVisible();
+    // The home page keeps the corner arrow alone.
+    await page.goto(`${BASE}/`);
+    await waitForSplashToClear(page);
+    await expect(page.getByRole("button", { name: "Scroll for more" })).toHaveCount(0);
+    await expect(arrow(page)).toBeVisible();
   });
 
   test("SN-008: a tab tapped from far down a page opens the next page at its very top", async ({ page }) => {

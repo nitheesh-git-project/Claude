@@ -24,8 +24,8 @@ import {
  * Choose the patient's home exercises from the clinic's library: chips for the
  * body area, a card per exercise (tiny picture, plain name, a "Needs a
  * helper" badge, or the reason it is not suitable for this patient), up to
- * six picked. Each pick then has its dose as big steppers and an optional
- * short note. Use this plan saves it as a new version.
+ * three picked. Each pick starts on the library's own dose; its steppers
+ * and an optional short note are folded behind "Change how often". Use this plan saves it as a new version.
  *
  * It opens on the patient's own area (`suggested`: the knee for the knee
  * assessment, the worst area on record, or what the kind works on first),
@@ -84,7 +84,7 @@ export default function PlanBuilder({
       <div>
         <p className="text-base font-semibold text-slate-900">Pick the exercises for home.</p>
         <p className="mt-0.5 text-sm text-slate-700">
-          Choose up to {PLAN_PICK_MAX}. Then set how often. <span data-testid="plan-count">{draft.length} of {PLAN_PICK_MAX} picked.</span>
+          Choose up to {PLAN_PICK_MAX}. Each starts on its usual dose. <span data-testid="plan-count">{draft.length} of {PLAN_PICK_MAX} picked.</span>
         </p>
       </div>
 
@@ -180,6 +180,15 @@ export default function PlanBuilder({
                     Take out<span className="sr-only"> {e.name}</span>
                   </button>
                 </div>
+                {/* The library's own dose is the starting point (phase 3, D3):
+                    changing it, or adding a note, is one tap away rather than
+                    on screen while the patient waits. */}
+                <details className="group" data-testid={`dose-${d.exerciseKey}`}>
+                  <summary className="inline-flex min-h-[44px] cursor-pointer items-center gap-1 text-sm font-semibold text-teal-900 underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
+                    Change how often, or add a note
+                    <span aria-hidden="true" className="group-open:rotate-180">▾</span>
+                  </summary>
+                <div className="mt-2 space-y-3">
                 <div className="flex flex-wrap gap-x-5 gap-y-3">
                   {doseFieldsFor(e.doseKind).map((f) => (
                     <DoseStepper
@@ -208,6 +217,8 @@ export default function PlanBuilder({
                     {noteIssue ?? "One or two short sentences, in plain words. No phone numbers or links."}
                   </span>
                 </label>
+                </div>
+                </details>
               </div>
             );
           })}

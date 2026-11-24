@@ -105,7 +105,7 @@ test.describe("Admin reach over recommendations", () => {
   // Recommendations moved to Programmes with the purchases they become. An
   // old Sessions -> Recommendations link still lands on the screen, and the
   // address bar is rewritten to where it lives now.
-  test("ACP-007: the Recommendations screen is on Programmes, and the old link lands on it", async ({ browser }) => {
+  test("ACP-007: the Recommendations screen is under Sessions -> Programmes, and the old link lands on it", async ({ browser }) => {
     // An admin dashboard load is 12-15s against a hosted project; this case
     // waits up to 30s for its content, the whole default budget (testing.md).
     test.setTimeout(90_000);
@@ -117,9 +117,9 @@ test.describe("Admin reach over recommendations", () => {
     await expect
       .poll(() => {
         const landed = new URL(page.url()).searchParams;
-        return `${landed.get("section")}/${landed.get("tab")}`;
+        return `${landed.get("section")}/${landed.get("tab")}/${landed.get("sub")}`;
       })
-      .toBe("programmes/review");
+      .toBe("sessions/programmes/review");
     await ctx.close();
   });
 });

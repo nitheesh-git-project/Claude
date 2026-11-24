@@ -25,6 +25,10 @@ import {
   timerStartBlock,
   toolMode,
   toolSlots,
+  screenStatusLine,
+  finishesRun,
+  STOP_OPTIONS,
+  COCKPIT_KEY_HINT,
 } from "@/lib/cockpit";
 import { runStateFromEvents, type RunEvent } from "@/lib/assessmentRun";
 import type { MeasurementPoint } from "@/lib/outcomeSeries";
@@ -94,8 +98,15 @@ describe("the step bar", () => {
     const state = runStateFromEvents([clear]);
     expect(nextStepId(knee, state, "safety")).toBe("pain");
     expect(nextStepId(knee, runStateFromEvents([flagged]), "safety")).toBe("summary");
-    expect(nextStepId(knee, state, "summary")).toBeNull();
-    expect(isLastStep(knee, "summary")).toBe(true);
+    expect(nextStepId(knee, state, "summary")).toBe("exercises");
+    expect(nextStepId(knee, state, "exercises")).toBeNull();
+    expect(isLastStep(knee, "exercises")).toBe(true);
+    expect(isLastStep(knee, "summary")).toBe(false);
+    // Saving the summary moves on to Home exercises, unless a yes shut them.
+    expect(finishesRun(knee, state, "summary")).toBe(false);
+    expect(finishesRun(knee, state, "exercises")).toBe(true);
+    expect(finishesRun(knee, runStateFromEvents([flagged]), "summary")).toBe(true);
+    expect(finishesRun(knee, state, "pain")).toBe(false);
     expect(isLastStep(knee, "pain")).toBe(false);
   });
   it("explains why a step is shut", () => {
@@ -130,13 +141,15 @@ describe("what is missing before Save and next", () => {
     expect(saveReadiness({ step: chair, ticked: all, resultReady: true, blocked: "No tests today." })).toEqual({ ready: false, missing: "No tests today." });
   });
   it("counts the set-up", () => {
-    expect(setupProgress(chair, new Set())).toMatchObject({ total: chair.setup.length, done: 0, helperMissing: true });
+    // Only the safety ticks count (version 4): the chair against the wall and the helper, not "arms crossed".
+    expect(setupProgress(chair, new Set())).toMatchObject({ total: 2, done: 0, helperMissing: true });
+    expect(setupProgress(chair, new Set(["chair_against_wall", "helper_beside"]))).toMatchObject({ remaining: 0, helperMissing: false });
   });
 });
 
 describe("tools", () => {
   it("picks the tool mode from the step", () => {
-    expect(knee.steps.map((s) => toolMode(s))).toEqual(["red_flags", "layer", "measure", "measure", "measure", "measure", "measure", "teach", "summary"]);
+    expect(knee.steps.map((s) => toolMode(s))).toEqual(["red_flags", "layer", "measure", "measure", "measure", "measure", "measure", "summary", "teach"]);
   });
   it("gives a vitals step one slot per reading and keeps the variant limits", () => {
     const rest = protocolStep(cardio, "resting_check")!;
@@ -373,5 +386,28 @@ describe("the resting check preview (E14)", () => {
     expect(bloodPressureFromItems(JSON.stringify({ systolic: 130, diastolic: 80 }))).toEqual({ systolic: 130, diastolic: 80 });
     expect(bloodPressureFromItems(null)).toEqual({ systolic: null, diastolic: null });
     expect(bloodPressureFromItems("{bad")).toEqual({ systolic: null, diastolic: null });
+  });
+});
+
+describe("the patient screen's one status line (T4)", () => {
+  it("is one dot and one sentence: a failed write first, then the heartbeat", () => {
+    expect(screenStatusLine("failed", "open", "Priya")).toEqual({ tone: "bad", text: "Priya's screen did not update." });
+    expect(screenStatusLine("live", "open", "Priya")).toEqual({ tone: "ok", text: "Priya is following on their screen" });
+    expect(screenStatusLine("live", "not_yet", "Priya").tone).toBe("wait");
+    expect(screenStatusLine("live", "not_yet", "Priya").text).toContain("talk them through");
+  });
+  it("never says 'not open' when it could not check", () => {
+    expect(screenStatusLine("idle", "unknown", "Priya")).toEqual({ tone: "idle", text: "Couldn't check Priya's screen" });
+    expect(screenStatusLine("idle", null, "Priya").text).toBe("Checking Priya's screen…");
+  });
+});
+
+describe("Stop test's reasons (T5)", () => {
+  it("does not offer 'Started again': a false start is the timer's Redo", () => {
+    expect(STOP_OPTIONS.map((o) => o.key)).not.toContain("redo");
+    expect(STOP_OPTIONS.map((o) => o.key)).toEqual(expect.arrayContaining(["symptoms", "near_fall", "patient_asked"]));
+  });
+  it("keeps the key hint to one short line", () => {
+    expect(COCKPIT_KEY_HINT).toBe("N next · Esc stop · Space counts");
   });
 });

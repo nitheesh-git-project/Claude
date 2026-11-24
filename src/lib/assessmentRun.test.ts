@@ -389,7 +389,8 @@ describe("the live display", () => {
     expect(validateLiveDisplay(knee, "chair_stand", { ...built.write.display, result: 9 }).ok).toBe(false);
     expect(validateLiveDisplay(knee, "chair_stand", { ...built.write.display, progress: "Step 9 of 8" }).ok).toBe(false);
     expect(validateLiveDisplay(knee, "chair_stand", endedLiveDisplay(knee).display).ok).toBe(false);
-    expect(validateLiveDisplay(knee, "summary", endedLiveDisplay(knee).display).ok).toBe(true);
+    // The run ends on its last step, Home exercises (version 4).
+    expect(validateLiveDisplay(knee, "exercises", endedLiveDisplay(knee).display).ok).toBe(true);
   });
 
   it("every protocol's every phase passes its own validator", () => {
@@ -399,7 +400,11 @@ describe("the live display", () => {
           const b = buildLiveDisplay({ protocol: p, step: s, phase, startClock: false });
           if (!b.ok) throw new Error(`${p.key}.${s.id}`);
           expect(validateLiveDisplay(p, s.id, b.write.display).ok).toBe(true);
-          const all = Object.values(b.write.display).join(" ");
+          // The picture is a key from a fixed set (a scale is "scale_0_10"), not words on the screen.
+          const all = Object.entries(b.write.display)
+            .filter(([key]) => key !== "picture")
+            .map(([, value]) => value)
+            .join(" ");
           // No digits other than the step counter and the protocol's own scale anchors.
           expect(all.replace(/Step \d+ of \d+/, "").replace(s.patientLine, "").replace(s.title, "")).not.toMatch(/\d/);
         }
@@ -438,9 +443,9 @@ describe("the Home exercises step (phase 7d)", () => {
   const peds = sessionProtocol("pediatrics")!;
   const sit = exerciseByKey("sit_to_stand")!;
 
-  it("sits just before the summary in every protocol, with an optional helper except for a child", () => {
+  it("comes last, after the summary, in every protocol, with an optional helper except for a child", () => {
     for (const p of SESSION_PROTOCOLS) {
-      expect(p.steps[p.steps.length - 2].tool).toBe("teach_exercises");
+      expect(p.steps[p.steps.length - 1].tool).toBe("teach_exercises");
       expect(p.version).toBe(SESSION_PROTOCOLS_VERSION);
     }
     expect(teach.setup.find((i) => i.helper)?.optional).toBe(true);
@@ -453,7 +458,8 @@ describe("the Home exercises step (phase 7d)", () => {
     expect(without).toEqual({ ok: true, details: { items: ["whole_body_in_view", "clear_space"], helperPresent: false } });
     const withHelper = validateSetupDetails(teach, { items: ["whole_body_in_view", "clear_space", "helper_beside"] });
     expect(withHelper.ok && withHelper.details.helperPresent).toBe(true);
-    expect(validateSetupDetails(teach, { items: ["clear_space"] }).ok).toBe(false);
+    // The camera and the space are tips since version 4: nothing but the helper is a tick here.
+    expect(validateSetupDetails(teach, { items: [] }).ok).toBe(true);
     const pedsTeach = protocolStep(peds, "exercises")!;
     expect(validateSetupDetails(pedsTeach, { items: ["whole_body_in_view", "clear_space"] }).ok).toBe(false);
   });
@@ -471,7 +477,7 @@ describe("the Home exercises step (phase 7d)", () => {
     expect(built.write.clock).toBeNull();
     expect(built.write.phase).toBe("demo");
     expect(built.write.display).toEqual({
-      progress: "Step 8 of 9",
+      progress: "Step 9 of 9",
       title: "Sit to stand",
       line: "Watch how it is done.",
       sub: "Then you will try it while we watch.",

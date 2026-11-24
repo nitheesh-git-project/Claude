@@ -55,7 +55,7 @@ describe("legal emails", () => {
 
   it("links the officer to the queue", () => {
     const a = officerAlertEmail(brand, { kind: "deletion", reference: "DEL-ABC234", name: "Asha", email: "a@b.co", role: "patient", reason: null });
-    expect(a.text).toContain("https://moverestorephysio.com/admin/dashboard?section=people&tab=data-requests");
+    expect(a.text).toContain("https://moverestorephysio.com/admin/dashboard?section=people&tab=requests&sub=data-requests");
     expect(a.subject).toMatch(/30 days/);
   });
 });

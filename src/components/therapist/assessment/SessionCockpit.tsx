@@ -29,7 +29,7 @@ import {
   type CarriedFacts,
   exertionBlock,
   firstOpenStepId,
-  isLastStep,
+  finishesRun,
   nextStepId,
   patientControls,
   preExerciseFromEvents,
@@ -64,7 +64,7 @@ import ResultsPanel from "@/components/therapist/assessment/ResultsPanel";
 import StepBar from "@/components/therapist/assessment/StepBar";
 import StepCard from "@/components/therapist/assessment/StepCard";
 import ToolArea from "@/components/therapist/assessment/ToolArea";
-import BeforeYouStart from "@/components/therapist/assessment/BeforeYouStart";
+import SafetyStrip, { type SafetyState } from "@/components/therapist/assessment/SafetyStrip";
 import type { Briefing } from "@/lib/cockpitBriefing";
 import type { FinishContext } from "@/lib/assessmentRunServer";
 import type { OxygenStopLimit } from "@/lib/cardioSafety";
@@ -75,7 +75,6 @@ import { postEnd, postEvent } from "@/components/therapist/assessment/api";
 import type { QuickPainSave } from "@/components/therapist/assessment/LayerTool";
 import { useDisplaySender } from "@/components/therapist/assessment/useDisplaySender";
 import { useCompanionSeen } from "@/components/therapist/assessment/useCompanionSeen";
-import { companionSeenLabel } from "@/lib/companionScreen";
 
 function mergeById<T extends { id: string }>(fromServer: readonly T[], local: readonly T[]): T[] {
   const byId = new Map<string, T>();
@@ -195,6 +194,10 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
   const [teachPlan, setTeachPlan] = useState<TeachPlan | null>(props.exercises.plan);
   const [teachMarks, setTeachMarks] = useState<TeachingEvent[]>(props.exercises.marks);
   const [teachPreview, setTeachPreview] = useState<LiveDisplayText | null>(null);
+  // Home exercises come after the summary (version 4, D3) and open on a
+  // choice: teach them now, or Later (a skip that finishes the check).
+  const [teachChosen, setTeachChosen] = useState(false);
+  const teachStartedThisRun = teachMarks.some((m) => m.runId === run.id);
 
   // --- Where the person is and what they have entered --------------------------------------
   const [currentId, setCurrentId] = useState(() => firstOpenStepId(protocol, state));
@@ -284,7 +287,6 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
   const patientScreen = useDisplaySender({ runId: run.id, protocol, startingText, onFailure: setFailure });
   const pushDisplay = patientScreen.push;
   const seenState = useCompanionSeen(run.id, !ended);
-  const seenLabel = seenState ? companionSeenLabel(seenState, firstName) : undefined;
 
   // Tell the patient's screen where we are as soon as the page opens.
   const firstPush = useRef(false);
@@ -354,11 +356,13 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
   });
   const outcome = state.outcomes.get(step.id);
   const alreadyDone = outcome === "saved" || outcome === "skipped";
-  const last = isLastStep(protocol, step.id);
   const upcoming = nextStepId(protocol, state, step.id);
   // A step already finished, with nothing new entered, simply moves on.
   const justMoveOn = alreadyDone && !readiness.ready && !!upcoming && availability.available && mode !== "red_flags" && mode !== "summary";
-  const primaryLabel = justMoveOn ? "Next step" : last ? "Save and finish" : "Save and next";
+  // Saving this step ends the check: the last step, or the summary with
+  // nothing open after it.
+  const finishes = finishesRun(protocol, state, step.id);
+  const primaryLabel = justMoveOn ? "Next step" : finishes ? "Save and finish" : "Save and next";
   const canPrimary = justMoveOn || readiness.ready;
   const note = justMoveOn ? "This step is already saved. Enter a new reading to record another, or go on." : readiness.ready ? READY_NOTE : readiness.missing ?? "";
 
@@ -466,12 +470,11 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
       }
 
       // 3. The summary ends the run; anything else moves on.
-      if (mode === "summary") {
-        const done = await postEnd({ runId: run.id, outcome: "completed" });
-        if (!done.ok) return setFailure(done.failure);
-        setEnded({ outcome: "completed", reason: null, draft: done.data.summaryDraft, readable: done.data.summaryDraftReadable });
-        show("Assessment saved");
-        router.refresh();
+      // The last step ends the run - Home exercises since version 4 (D3) -
+      // and so does the summary when nothing after it is open (a safety
+      // yes, which shuts every exercise).
+      if (finishes) {
+        await finishRun();
         return;
       }
       show(`${step.title} saved`);
@@ -539,6 +542,26 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
     router.refresh();
   }
 
+  /** Ends the run as completed and shows the wrap-up. */
+  async function finishRun() {
+    const done = await postEnd({ runId: run.id, outcome: "completed" });
+    if (!done.ok) return setFailure(done.failure);
+    setEnded({ outcome: "completed", reason: null, draft: done.data.summaryDraft, readable: done.data.summaryDraftReadable });
+    show("Guided check saved");
+    rememberWrapUp();
+  }
+
+  /** Puts the ended run in the address, without a reload: the page has no
+   *  run in progress any more, so a refresh (the note's own save refreshes)
+   *  would otherwise draw the start panel and drop the wrap-up. With it, the
+   *  server draws the same wrap-up (`wrapup`, page.tsx). */
+  function rememberWrapUp() {
+    const url = new URL(window.location.href);
+    url.searchParams.set("wrapup", run.id);
+    if (run.appointmentId && !url.searchParams.get("appointment")) url.searchParams.set("appointment", run.appointmentId);
+    window.history.replaceState(null, "", url.toString());
+  }
+
   async function skipStep(reasonKey: string | null) {
     if (busy) return;
     setBusy("skip");
@@ -552,6 +575,15 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
     router.refresh();
     const target = nextStepId(protocol, state, step.id);
     if (target) openStep(target);
+    // Skipping the last step (Home exercises: "Later") ends the check.
+    else {
+      setBusy("save");
+      try {
+        await finishRun();
+      } finally {
+        setBusy(null);
+      }
+    }
   }
 
   async function endEarly(reasonKey: string | null) {
@@ -563,7 +595,7 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
     setDialog(null);
     if (!r.ok) return setFailure(r.failure);
     setEnded({ outcome: "abandoned", reason: reasonKey as EndReason, draft: r.data.summaryDraft, readable: r.data.summaryDraftReadable });
-    router.refresh();
+    rememberWrapUp();
   }
 
   // An embedded timer started, finished or was thrown away: the patient's
@@ -627,12 +659,7 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const flagged = redFlagsRaised(state);
-  const safetyChip = !state.redFlags
-    ? { text: "Safety questions not asked yet", tone: "bg-slate-100 text-slate-800" }
-    : flagged
-      ? { text: "A safety concern was noted", tone: "bg-red-100 text-red-900" }
-      : { text: "Safety check passed", tone: "bg-emerald-50 text-emerald-900" };
+  const safetyState: SafetyState = !state.redFlags ? "not_asked" : redFlagsRaised(state) ? "flagged" : "clear";
 
   return (
     <div className="flex flex-col gap-3.5" data-testid="session-cockpit">
@@ -642,9 +669,6 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
           <span className="text-sm text-slate-700">{props.headline}</span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span data-testid="safety-chip" className={`rounded-full px-3 py-1.5 text-[13px] font-semibold ${safetyChip.tone}`}>
-            {safetyChip.text}
-          </span>
           <Link
             href={chartHref}
             className="inline-flex min-h-[44px] items-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-900 hover:border-teal-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
@@ -659,25 +683,23 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
               disabled={!!busy}
               className="min-h-[44px] rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-900 hover:border-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 disabled:opacity-60"
             >
-              End assessment
+              End guided check
             </button>
           )}
         </div>
-        {props.briefing && !ended && <BeforeYouStart briefing={props.briefing} compact />}
       </header>
 
       {!ended && <StepBar items={nav} onPick={openStep} />}
 
       {!ended && (
-        <p data-testid="stop-at-once" className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-[13px] leading-snug text-amber-950 sm:text-sm">
-          <strong>Stop at once if</strong> {protocol.stopAtOnce.map((s) => s.toLowerCase()).join(", ")}.
-        </p>
-      )}
-
-      {preExercise === "stop" && (
-        <p role="alert" data-testid="no-exercise-banner" className="rounded-xl border-2 border-red-600 bg-red-50 px-4 py-3 text-[15px] font-semibold text-red-950">
-          The resting check says not to exercise today. Skip the exercise steps and contact the patient{"'"}s doctor.
-        </p>
+        <SafetyStrip
+          state={safetyState}
+          stopAtOnce={protocol.stopAtOnce}
+          needsHelper={step.needsHelper === true}
+          firstName={firstName}
+          noExercise={preExercise === "stop"}
+          briefing={props.briefing}
+        />
       )}
 
       <div className="flex flex-col gap-3.5 lg:flex-row lg:items-start">
@@ -720,6 +742,35 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
                   })
                 }
               >
+                {mode === "teach" && !teachChosen && !teachStartedThisRun ? (
+                  <div data-testid="teach-intro" className="flex flex-col gap-3 rounded-xl border border-teal-200 bg-teal-50/60 p-4">
+                    <p className="text-base font-semibold text-slate-900">
+                      The check is saved. Teach {firstName}
+                      {"'"}s home exercises now, or later.
+                    </p>
+                    <div className="flex flex-wrap gap-2.5">
+                      <button
+                        type="button"
+                        data-testid="teach-now"
+                        onClick={() => setTeachChosen(true)}
+                        disabled={!!busy || !availability.available}
+                        className="inline-flex min-h-[52px] flex-[2_1_12rem] items-center justify-center rounded-xl bg-teal-700 px-5 text-base font-bold text-white hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 disabled:opacity-60"
+                      >
+                        Teach home exercises now
+                      </button>
+                      <button
+                        type="button"
+                        data-testid="teach-later"
+                        onClick={() => void skipStep(null)}
+                        disabled={!!busy}
+                        className="inline-flex min-h-[52px] flex-[1_1_8rem] items-center justify-center rounded-xl border border-slate-300 bg-white px-5 text-base font-semibold text-slate-900 hover:border-teal-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
+                      >
+                        Later
+                      </button>
+                    </div>
+                    <p className="text-[13px] text-slate-700">Later finishes the check. You can teach them in another session.</p>
+                  </div>
+                ) : (
                 <ToolArea
                   step={step}
                   locked={!availability.available}
@@ -796,6 +847,7 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
                     milestonesUnreadable: props.milestones?.status === "unreadable",
                   }}
                 />
+                )}
               </StepCard>
 
               <div aria-live="polite" className="empty:hidden">
@@ -835,7 +887,7 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
                     <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
                       <span className="font-semibold">Next:</span>
                       <button type="button" onClick={() => setDialog("end")} className="min-h-[44px] font-bold underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600">
-                        End the assessment
+                        End the guided check
                       </button>
                       {watchLines.includes(stopFollowUp.line) ? (
                         <span className="font-semibold text-teal-900">Added to Anything to watch</span>
@@ -876,7 +928,7 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
                   status: patientScreen.status,
                   onControl: (c) => pushDisplay(step.id, c, true),
                   onRetry: patientScreen.retry,
-                  seen: seenLabel,
+                  seen: seenState,
                 }}
               />
             </>
@@ -901,7 +953,8 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
                 view={ended ? null : patientScreen.view}
                 serverOffsetMs={patientScreen.offsetMs}
                 status={patientScreen.status}
-                seen={ended ? null : seenLabel}
+                seen={ended ? null : seenState}
+                ended={!!ended}
                 onRetry={patientScreen.retry}
               />
             </div>
@@ -934,7 +987,7 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
       )}
       {dialog === "end" && (
         <ReasonDialog
-          title="End the assessment now?"
+          title="End the guided check now?"
           body="What you have saved stays on the record. The patient's screen says All done. Why are you ending it?"
           options={Object.entries(END_REASONS).map(([key, label]) => ({ key, label }))}
           confirmTone="danger"

@@ -99,7 +99,8 @@ describe("the note", () => {
 });
 
 describe("the draft plan", () => {
-  it("starts from the library's own dose and holds at most six", () => {
+  it("starts from the library's own dose and holds at most three", () => {
+    expect(PLAN_PICK_MAX).toBe(3);
     const orthos = EXERCISE_LIBRARY.filter((e) => e.profileKinds.includes("ortho"));
     let draft: ReturnType<typeof toggleDraft>["draft"] = [];
     for (const e of orthos.slice(0, PLAN_PICK_MAX)) draft = toggleDraft(draft, e).draft;
@@ -166,9 +167,9 @@ describe("the marks", () => {
   });
 
   it("words a mark in plain terms", () => {
-    expect(markText({ outcome: "performed_correctly", cueKey: null, reasonKey: null })).toBe("Did it correctly");
-    expect(markText({ outcome: "needs_practice", cueKey: "slow_down", reasonKey: null })).toBe("Needs practice: Go slower and keep it smooth.");
-    expect(markText({ outcome: "not_attempted", cueKey: null, reasonKey: "no_space" })).toBe("Not attempted: Not enough space");
+    expect(markText({ outcome: "performed_correctly", cueKey: null, reasonKey: null })).toBe("Did it well");
+    expect(markText({ outcome: "needs_practice", cueKey: "slow_down", reasonKey: null })).toBe("Needs help: Go slower and keep it smooth.");
+    expect(markText({ outcome: "not_attempted", cueKey: null, reasonKey: "no_space" })).toBe("Couldn't do it: Not enough space");
   });
 
   it("finds the next exercise with no mark, round the list", () => {

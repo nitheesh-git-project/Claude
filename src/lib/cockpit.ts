@@ -11,6 +11,7 @@ import {
   redFlagStep,
   stepIndex,
   needsPreExerciseCheck,
+  requiredSetupItems,
   type ProtocolStep,
   type SessionProtocol,
 } from "@/lib/sessionProtocols";
@@ -110,12 +111,21 @@ export function isLastStep(protocol: SessionProtocol, stepId: string): boolean {
   return stepIndex(protocol, stepId) === protocol.steps.length - 1;
 }
 
+/** Whether saving (or skipping) this step ends the run: the last step - Home
+ *  exercises since version 4 - or the summary when nothing after it is open
+ *  (a safety yes shuts every exercise). */
+export function finishesRun(protocol: SessionProtocol, state: RunState, stepId: string): boolean {
+  if (isLastStep(protocol, stepId)) return true;
+  return protocolStep(protocol, stepId)?.tool === "summary" && nextStepId(protocol, state, stepId) === null;
+}
+
 // --- Set-up and what is missing --------------------------------------------------------
 
 /** An optional item (the Home exercises step's helper) never holds Save and
  *  next back; it is counted only once ticked. */
 export function setupProgress(step: ProtocolStep, ticked: ReadonlySet<string>): { total: number; done: number; remaining: number; helperMissing: boolean } {
-  const required = step.setup.filter((s) => s.optional !== true);
+  // Tips are never ticked (version 4, D2); only safety counts.
+  const required = requiredSetupItems(step);
   const done = required.filter((s) => ticked.has(s.id)).length;
   return {
     total: required.length,
@@ -161,7 +171,7 @@ export function saveReadiness(input: {
   return { ready: true, missing: null };
 }
 
-export const READY_NOTE = "Stop test throws this reading away. Nothing is saved until Save and next.";
+export const READY_NOTE = "Nothing is saved until you save.";
 
 // --- Which tool a step shows ---------------------------------------------------------------
 
@@ -200,6 +210,31 @@ export function patientControls(step: ProtocolStep): PatientControl[] {
   controls.push({ key: "done", label: "Done", phase: "done", startClock: false });
   controls.push({ key: "rest", label: "Rest", phase: "rest", startClock: false });
   return controls;
+}
+
+/** How the last write to the patient's screen went (`useDisplaySender`). */
+export type ScreenSendStatus = "idle" | "sending" | "live" | "failed";
+/** Whether the patient's screen is open, from its heartbeat (E12). */
+export type ScreenSeen = "open" | "not_yet" | "unknown";
+
+/**
+ * The one line the cockpit says about the patient's screen (T4): one dot and
+ * one sentence, instead of a send status beside an open status. A failed
+ * write is the only thing that needs doing; otherwise the heartbeat decides.
+ * A screen that is not open is not an error - the physiotherapist talks the
+ * patient through on the call - and a read that failed is "couldn't check",
+ * never "not open".
+ */
+export function screenStatusLine(
+  status: ScreenSendStatus,
+  seen: ScreenSeen | null,
+  firstName: string
+): { tone: "ok" | "wait" | "bad" | "idle"; text: string } {
+  if (status === "failed") return { tone: "bad", text: `${firstName}'s screen did not update.` };
+  if (seen === "open") return { tone: "ok", text: `${firstName} is following on their screen` };
+  if (seen === "not_yet") return { tone: "wait", text: `${firstName}'s screen isn't open · talk them through on the call` };
+  if (seen === "unknown") return { tone: "idle", text: `Couldn't check ${firstName}'s screen` };
+  return { tone: "idle", text: `Checking ${firstName}'s screen…` };
 }
 
 // --- Today's results --------------------------------------------------------------------------
@@ -346,7 +381,7 @@ const BY_RUN_CODE: Record<RunRefusalCode, { message: string; fix: string | null 
   no_clock: { message: "This step has no clock.", fix: "Use Get ready or Go without the clock." },
   exercises_not_marked: {
     message: "Not every exercise in the plan is marked yet.",
-    fix: "Mark each one Did it correctly, Needs practice or Not attempted, or skip the step.",
+    fix: "Mark each one Did it well, Needs help or Couldn't do it, or skip the step.",
   },
 };
 
@@ -393,7 +428,12 @@ export function failureText(f: CockpitFailure): string {
 // --- Skip and stop reasons ----------------------------------------------------------------------------
 
 export const SKIP_OPTIONS = Object.entries(SKIP_REASONS).map(([key, label]) => ({ key, label }));
-export const STOP_OPTIONS = Object.entries(STOP_REASONS).map(([key, label]) => ({ key, label }));
+/** Stop test's reasons. "Started again" is not offered (T5): a false start
+ *  is the timer's own Redo this attempt, not an emergency stop. The key stays
+ *  valid on the server for the stops already recorded with it. */
+export const STOP_OPTIONS = Object.entries(STOP_REASONS)
+  .filter(([key]) => key !== "redo")
+  .map(([key, label]) => ({ key, label }));
 
 /** The step the person is on, or the first step if the id is stale. */
 export function currentStep(protocol: SessionProtocol, stepId: string): ProtocolStep {
@@ -451,7 +491,7 @@ export function timerStartBlock(
 
 /** The one-line hint under the action bar. Space and Enter are the focused
  *  button's own keys (the counter takes the focus when it starts). */
-export const COCKPIT_KEY_HINT = "Keys: Space or Enter taps the focused button (the counter, once started) · N saves and moves on · Esc stops the test";
+export const COCKPIT_KEY_HINT = "N next · Esc stop · Space counts";
 
 const TYPING_INPUT_TYPES = new Set(["text", "number", "search", "email", "tel", "url", "password", "date", "time", "datetime-local"]);
 
@@ -577,7 +617,9 @@ export function summaryRows<T extends SummaryMilestoneRecord>(
       rows.push({
         id: `${step.id}:${m.id}`,
         measurementId: m.id,
-        label: `${measure?.label ?? m.measureKey}${q ? ` (${q})` : ""}`,
+        // The step's own name where it records one test ("Knee bend", "Straightening
+        // the knee"): two angle steps both read "Goniometry" by the measure's name.
+        label: `${step.measures.length === 1 ? step.title : measure?.label ?? m.measureKey}${q ? ` (${q})` : ""}`,
         first: line && line.points.length > 0 ? fmt(line.points[0].value) : null,
         last: line && line.points.length > 1 ? fmt(line.points[line.points.length - 1].value) : null,
         now: readingValue(m),

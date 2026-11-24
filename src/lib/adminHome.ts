@@ -1,5 +1,5 @@
 import {
-  ADMIN_SECTIONS,
+  SCOPE_SECTIONS,
   adminScreenHref,
   type AdminQueueDomain,
   type AdminSectionKey,
@@ -604,11 +604,11 @@ function accessNoteFor(scope: AdminScope): AdminAccessNote | null {
   const allowed = sectionsForScope(scope);
   return {
     blurb: ADMIN_SCOPE_BLURBS[scope],
-    sections: ADMIN_SECTIONS.filter((s) => scopeCanManage(scope, s.key)).map((s) => s.label),
-    readOnly: ADMIN_SECTIONS.filter(
+    sections: SCOPE_SECTIONS.filter((s) => scopeCanManage(scope, s.key)).map((s) => s.label),
+    readOnly: SCOPE_SECTIONS.filter(
       (s) => allowed.includes(s.key) && !scopeCanManage(scope, s.key)
     ).map((s) => s.label),
-    withheld: ADMIN_SECTIONS.filter((s) => !allowed.includes(s.key)).map((s) => s.label),
+    withheld: SCOPE_SECTIONS.filter((s) => !allowed.includes(s.key)).map((s) => s.label),
   };
 }
 

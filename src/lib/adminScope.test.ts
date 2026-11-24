@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ADMIN_SECTIONS } from "@/lib/adminNav";
+import { SCOPE_SECTIONS } from "@/lib/adminNav";
 import {
   ACCESS_LEVELS,
   ADMIN_CAPABILITY_GROUPS,
@@ -26,14 +26,14 @@ describe("the section grid", () => {
     // A missing pair would fall back to `full`'s, which is the one direction
     // a permissions gap must never fail in.
     for (const scope of ADMIN_SCOPES) {
-      for (const section of ADMIN_SECTIONS) {
+      for (const section of SCOPE_SECTIONS) {
         expect(ACCESS_LEVELS).toContain(sectionAccess(scope, section.key));
       }
     }
   });
 
   it("lets a full admin manage everything, and only a full admin reach Settings", () => {
-    for (const section of ADMIN_SECTIONS) {
+    for (const section of SCOPE_SECTIONS) {
       expect(scopeCanManage("full", section.key)).toBe(true);
     }
     for (const scope of ADMIN_SCOPES) {
@@ -68,7 +68,7 @@ describe("scopeCanOpen vs scopeCanManage", () => {
     // requireAdminScope asks the second and the sidebar asks the first; a
     // pair where manage outran open would be a route reachable from nowhere.
     for (const scope of ADMIN_SCOPES) {
-      for (const section of ADMIN_SECTIONS) {
+      for (const section of SCOPE_SECTIONS) {
         if (scopeCanManage(scope, section.key)) {
           expect(scopeCanOpen(scope, section.key)).toBe(true);
         }
@@ -79,7 +79,7 @@ describe("scopeCanOpen vs scopeCanManage", () => {
   it("lists exactly the sections that are not `none`", () => {
     for (const scope of ADMIN_SCOPES) {
       const listed = sectionsForScope(scope);
-      for (const section of ADMIN_SECTIONS) {
+      for (const section of SCOPE_SECTIONS) {
         expect(listed.includes(section.key)).toBe(sectionAccess(scope, section.key) !== "none");
       }
     }
@@ -90,7 +90,7 @@ describe("the capability matrix", () => {
   it("names a real section on every row", () => {
     // The matrix is derived from the grid; a row pointing at a section that
     // does not exist would silently render as "no access" for everybody.
-    const keys = ADMIN_SECTIONS.map((s) => s.key);
+    const keys = SCOPE_SECTIONS.map((s) => s.key);
     for (const group of ADMIN_CAPABILITY_GROUPS) {
       expect(keys).toContain(group.section);
       for (const cap of group.capabilities) {
@@ -104,7 +104,7 @@ describe("the capability matrix", () => {
 
   it("covers every section, so the screen never silently omits one", () => {
     const covered = new Set(ADMIN_CAPABILITY_GROUPS.map((g) => g.section));
-    for (const section of ADMIN_SECTIONS) {
+    for (const section of SCOPE_SECTIONS) {
       expect(covered.has(section.key)).toBe(true);
     }
   });

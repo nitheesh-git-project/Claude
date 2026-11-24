@@ -134,7 +134,7 @@ export default function AdminGlobalSearch({
               {screenResults.map((r) => (
                 <li key={r.key} className="border-b border-slate-100 last:border-b-0">
                   <AdminScreenLink
-                    href={adminScreenHref(r.section, r.tab)}
+                    href={adminScreenHref(r.section, r.tab, undefined, r.sub)}
                     onClick={() => {
                       setOpen(false);
                       setQuery("");

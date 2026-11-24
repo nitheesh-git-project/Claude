@@ -192,7 +192,7 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   multi-select with a "None" option that forgot to declare it.
 - **One authoring implementation, three doors.** A therapist writes their own
   recommendation from the session note dialog; an admin writes one on their
-  behalf from Programmes → Recommendations when that therapist cannot reach the
+  behalf from Sessions → Programmes → Recommendations when that therapist cannot reach the
   dashboard (on leave, off sick, gone, with a patient still waiting to hear);
   and an admin approving a queued one with different numbers writes a third,
   which is the same act again rather than an edit. All three call
@@ -348,7 +348,7 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      (`buildCourseSnapshot()` in `src/lib/carePlans.ts`): the condition's
      own `treatment_categories.price_paise` for video sessions, the
      condition's home-visit price (`src/lib/homeVisitRates.ts`: its own
-     price, else the clinic-wide one, set under Catalog -> Conditions -> Home
+     price, else the clinic-wide one, set under Prices & areas -> Conditions & prices -> Home
      visits -- never another condition's) when **Needs hands-on treatment**
      is ticked - which is the *only* switch between video and home visits
      (`offerKindFor()`), so a plan can never say hands-on and sell video.
@@ -804,7 +804,7 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
     since phase 6a made geriatric a condition type.
   - **The six-minute walk equation is the clinic's choice.**
     `site_settings.six_minute_walk_equation` (nullable text) is set on
-    Settings -> Clinical Questions (`admin.md`). Null, an unknown key and
+    Settings -> How the clinic runs -> Clinical questions (`admin.md`). Null, an unknown key and
     the placeholder all mean "formula not chosen yet": the guide says so and
     shows no percentage of predicted; an unreadable setting says "we
     couldn't check". `predictedSixMinuteWalk()` takes the key with no
@@ -1393,7 +1393,7 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   video stays on Google Meet (the app embeds none); the therapist works from a
   second-screen cockpit, one step at a time, with exactly three actions -
   Stop test, Skip, Save and next; the patient's companion is display-only.
-  Ten rules:
+  Twelve rules:
   1. **One ordered protocol per profile kind, checked at load.**
      `src/lib/sessionProtocols.ts`: `ortho_knee` (the approved cockpit's
      Safety, Pain, Everyday tasks, Knee bend, Straightening the knee, Sit to
@@ -1411,10 +1411,11 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      **in-person-only (`videoUse: "no"`) measure in a video protocol**, a
      helper measure on a step not marked as needing one (or a helper step with
      no helper item to tick), an exertion measure on a step not marked
-     exertion, a first step that is not the red-flag check, a last that is not
-     the summary, a protocol without exactly one Home exercises step just
-     before the summary (phase 7d, version 2 - see "Home exercises" below), an
-     optional set-up item that is not that step's helper, a heart and lung
+     exertion, a first step that is not the red-flag check, a protocol that
+     does not end with the summary and then exactly one Home exercises step
+     (version 4 - see "Home exercises" below), an optional set-up item that is
+     not that step's helper, a helper item marked as a tip, a safety step with
+     no room check to tick, a heart and lung
      exertion step before the resting check, or
      a clinic word ("triage", "case", "patient", "geriatric"...) in what the
      patient sees, or **a tab label that is not the start of its step's
@@ -1425,7 +1426,22 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      from the list; set-up that belongs to one test lives in that test's step
      (the sturdy chair in the chair stand, the camera in the angle steps, the
      heart and lung devices in the resting check); a run on version 2 is
-     `protocol_changed` and can be ended (`checkRunAbandon`). The six-minute walk is in person only, so the heart and lung
+     `protocol_changed` and can be ended (`checkRunAbandon`). **Version 4**
+     (simplification phase 3, signed off by the clinic's physiotherapist):
+     **only safety is ticked** - the room check on the safety step, the helper,
+     the chair against a wall (or with arms) on a stand test, the support
+     beside a balance test, the rest before a heart and lung test, the
+     oximeter on during exertion; every other set-up item is a **tip**
+     (`SetupItem.tip`: one *Tip:* line on the card, never a checkbox, never
+     required by `requiredSetupItems` or `validateSetupDetails`), and the two
+     ceremony items (*Asked before any exercise today*, *The results look
+     right*) are gone, so the pain step and the summary have no set-up at all.
+     A step still confirms its set-up (an empty list when nothing is ticked)
+     before a save, so the server's order of checks is unchanged. **Home
+     exercises come after the summary**, as the last step: the step opens on a
+     choice, **Teach home exercises now** or **Later** (a skip without a
+     reason), and saving or skipping it ends the run; the summary ends it
+     itself when nothing after it is open (a safety yes). The six-minute walk is in person only, so the heart and lung
      protocol uses the one-minute sit-to-stand (the handbook's video stand-in);
      the chair stand and the 10-metre walk were opened to the orthopaedic
      profile for the knee protocol. **Every step, script, red-flag question and
@@ -1511,9 +1527,9 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      next to Google Meet: steps across the top as 44px-plus buttons (a tick
      once saved, a step the order keeps shut is disabled and says why), the
      current step as **one** card - *Step n of N*, the title, *Say to the
-     patient* in large type, *Set up first* as real checkboxes that must **all**
-     be ticked, a red-bordered safety line where another adult has to stand
-     beside the patient, then the step's tool - and at the bottom, sticky on
+     patient* in large type, the step's safety ticks as real checkboxes that
+     must **all** be ticked (*Room ready* on the safety step, *Safety first*
+     after it) and one *Tip:* line for the rest, then the step's tool - and at the bottom, sticky on
      every width, exactly **Stop test** (an emergency stop: the first tap stops
      the clock and puts Rest on the patient's screen at once, then asks for an
      optional reason; it throws this step's reading away and
@@ -1522,14 +1538,22 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      **Save and next**, disabled until the set-up (the helper named on its own),
      the safety answers and a result are all in, with the line underneath
      saying which is missing (`saveReadiness`, `cockpit.ts`). **Beside Meet
-     (640-800px) the card stays short:** the *Stop at once if* line sits under
-     the step bar at every width, the set-up folds to one line (*3/3 set up ✓ ·
-     Edit*) once ticked, the tool sits directly under the script (the result
-     before *How it was done*, unless ON/OFF is required), and the patient's
-     screen controls are a segmented control in the sticky bar. **A timer's
+     (640-800px) the card stays short:** one **safety strip** sits under the
+     step bar at every width (`SafetyStrip`, T3: where the run stands on
+     safety, this step's "someone beside them" rule, *Stop at once if*, the
+     resting check's *no exercise today* and the *Before you start* line - one
+     place, green when clear, red only when something needs action), the card
+     opens on *Say to the patient* (T11) with the set-up under it, the set-up
+     folds to one line (*3/3 set up ✓ · Edit*) once ticked, the tool sits
+     directly under that (the result before *How it was done*, unless ON/OFF is
+     required), and **the patient's screen follows the test by itself** (T2): a
+     step opens on Get ready, a timer's start is Go, its end Done, the timer's
+     *Redo this attempt* Get ready again, Stop test Rest - so the sticky bar
+     holds one status line and the three actions, with the manual controls
+     folded behind *Patient screen: Auto*. **A timer's
      Start stays off, saying why, until the step's helper is ticked and the
      resting check is clear** (`timerStartBlock`; the server is still the
-     gate on the save). **Keys:** N is Save and next when it is on, Esc is
+     gate on the save). **Keys** (hint *N next · Esc stop · Space counts*): N is Save and next when it is on, Esc is
      Stop test - never while typing, with a dialog open, on a key repeat or
      with a modifier (`cockpitShortcut`) - and the counter takes the focus
      when it starts, so Space or Enter counts a stand; a one-line hint sits
@@ -1573,16 +1597,28 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      is surprised, never replaces it. The patient's screen is told only a
      phase and whether the clock starts, debounced to the last tap with one
      request in flight (`latestWins.ts`); on a phone the results and the
-     preview fold away under the step. The end of a run puts the draft in the
-     existing *Where things stand* editor (`CareStatusControls summaryOnly`),
-     beside **Finish this session** (`loadFinishContext`: the run's own
-     session, this therapist's, never another): the session note opened with
+     preview fold away under the step. **The end of a run is one wrap-up form
+     in the page (T8)**: the session note and the patient's summary for the
+     run's own session (`loadFinishContext`: this therapist's, never another),
+     drawn inline (`SessionNoteDialog inline`: no backdrop, no Cancel) with
      Done's gates (`completeOnSave`), its **blank** fields started from the run
      - *What did you treat today?* from today's results (`treatedLineFromRun`),
      the home-exercise line, *Anything to watch* from lines the physiotherapist
      added, *What we did today* from the draft - and never over their own text
-     (`fillEmptyOnly`), with a three-line checklist (note, summary, session
-     closed). A failed read says it could not check. **A yes to a safety
+     (`fillEmptyOnly`), saved by one **Save and close session** (the note, then
+     the summary, then the session closed, in that order; a refusal part-way
+     says what was kept). The overall *Where things stand* is optional and
+     folded under it (`CareStatusControls summaryOnly`, the draft its starting
+     point). **The wrap-up survives a refresh:** ending a run puts
+     `?wrapup=<runId>` in the address without a reload, and the page draws the
+     same wrap-up from the server for a run of this therapist's for this
+     patient that ended in the last twelve hours (the note's own save
+     refreshes the page, which used to land on the start panel with the
+     session still open - found running a knee check on staging). Lines added
+     to *Anything to watch* during the run are not rebuilt after a refresh.
+     The summary table names a one-test step by the step (*Knee bend*,
+     *Straightening the knee*), not the measure (both read *Goniometry*). A
+     failed read says it could not check. **A yes to a safety
      question, and a stop for symptoms or a near-fall, show one line of next
      actions:** *End the assessment* and *Add to Anything to watch* (the line
      waits on this page for the note; it is not stored until the note is).
@@ -1593,7 +1629,7 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      unticked), with a preview of `preExerciseCheck` on the numbers as typed,
      labelled *Preview only: the server checks on save* (`restingPreview`);
      the server's check on the saved readings is still the only gate.
-     Entry: *Start guided assessment* on a video session's card (from the join
+     Entry: *Start guided check* on a video session's card (from the join
      window, judged on the debug clock) and on the chart (assigned, with a
      started session).
   10. **The companion is display-only, dark and large, and counts against
@@ -1609,7 +1645,8 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      the row's start time and length read against the loader's `serverNow`
      (`clockShown`), never a client-trusted timer, and it never announces
      itself per second to a screen reader. With no run it says *Your
-     physiotherapist will start the guided check soon*; *All done* shows for
+     physiotherapist will start soon* and *Keep your video call open.* (two
+     lines, P4); *All done* shows for
      fifteen minutes after a run ends, then it waits again. **A read that
      failed is not "nothing to show":** when the screen has no live check to
      draw and the last read failed (or the row failed the patient-safe
@@ -1625,12 +1662,61 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      best effort, silent on a database without the table), the screen reads
      every twenty seconds even while realtime is up, and the cockpit asks
      `/api/therapist/assessment-runs/companion-seen` (the therapist's own
-     client; rate limited `assessmentCompanionSeen`) every fifteen seconds:
-     *Open on Priya's side* within 45 seconds of a heartbeat, *Not open on
-     Priya's side yet* otherwise, *Couldn't check Priya's side* on a failed
-     read (`companionSeenState`). The preview's *Sent* means only that the
-     server stored it. The Start panel's **Step 0, Share the patient screen**,
-     gives the short link and the words to read aloud (`shareScreenScript`).
+     client; rate limited `assessmentCompanionSeen`) every fifteen seconds
+     (`companionSeenState`). **The cockpit says it as one line, one dot**
+     (`screenStatusLine`, T4): *Priya is following on their screen* within 45
+     seconds of a heartbeat, *Priya's screen isn't open · talk them through on
+     the call* otherwise - a normal way to work, not an error - *Couldn't
+     check Priya's screen* on a failed read (never "not open"), and *Priya's
+     screen did not update.* with Try again when the display write failed.
+     The patient screen is **optional**: the Start panel (T6) shows who, the
+     assessment chosen for the condition (with *Change* when the condition has
+     more than one), *Before you start* as one line that opens, and one
+     **Start guided check** button; *Patient screen (optional)* - the short
+     link and the words to read aloud (`shareScreenScript`) - is folded under
+     it. **One link everywhere** (T7): the start panel, the cockpit's preview
+     and the patient's bar all give `/screen` (`companionShortLink`).
+  11. **Answer scales are pictures (P5).** `PATIENT_PICTURES` holds two fixed
+     scales besides the positions: `scale_0_10` on every step that asks for a
+     number from 0 to 10 (pain, breathlessness) and `scale_0_4` on the knee's
+     everyday tasks (0 unable to 4 easy). The companion draws the numbers
+     large, green to red; nothing on a scale is ever picked or marked, so no
+     answer reaches the patient's screen, and the picture is still the step's
+     own (`validateLiveDisplay`). **A redo is not a stop (T5):** a timer's
+     *Redo this attempt* (it was *Discard this attempt*) puts Get ready on the
+     patient's screen (`displayForTimerEvent`), and Stop test no longer offers
+     *Started again* (`STOP_OPTIONS`; the `redo` key stays valid on the server
+     for the stops already recorded with it). **One name per thing (T10):**
+     *Guided check* on both sides (buttons, titles, the summary draft and the
+     note's prefill), *Patient screen* for the display, *Health Profile* for
+     the way back.
+  12. **Around the call (phase 2).** **Get ready (P1):** from two days before a
+     confirmed video session until it ends (`prepWindowOpen`), the patient's
+     Overview shows the few things to have to hand for their condition type's
+     guided check (`src/lib/sessionPrep.ts`: one list per protocol, taken from
+     its set-up items, in the patient's words, no clinic word, at most six,
+     marked to be verified by a senior physiotherapist), and one **I'm ready**
+     button. `POST /api/patient/session-ready` (the signed-in patient only,
+     `parseJsonBody`, rate limited `sessionReady`; 404 for a session that is
+     not theirs, 409 `not_open` when cancelled, not by video or outside the
+     window) stores the first press in `appointments.patient_ready_at` with the
+     service role; a second press answers the first time unchanged. The
+     physiotherapist's start screen says *Priya is ready · ticked the
+     get-ready list at 5:52 PM*, or that they haven't (a fact, not a problem),
+     or *Couldn't check* on a failed read (`loadPatientReadiness`,
+     `readinessLine`). It gates nothing: the set-up is still confirmed on
+     camera. The day-before reminder email for a video session points to the
+     list (`GET_READY_LINE`) and never lists it - what someone needs to have
+     ready says something about their condition. **One device (D1):** the
+     patient's bar says *Stay on your video call - your physiotherapist will
+     talk you through it.*, Open is an outline, and the patient screen is the
+     optional extra. **Recap (P6):** for a week after a summary is shared
+     (`sessionRecap`, by its latest edit), the Overview shows *Your session
+     recap*: the summary's two fields, the home exercises as a count with
+     *See how*, and the next session (or *Book your next session*) - read with
+     the patient's own client, a failed read shows no card. Tests:
+     `sessionPrep.test.ts`, `sessionRecap.test.ts`, `bookingEmails.test.ts`;
+     `e2e/session-prep.spec.ts`.
   `src/lib/sessionProtocols.test.ts`, `assessmentRun.test.ts`,
   `assessmentSummaryDraft.test.ts`, `cockpit.test.ts`, `companionScreen.test.ts`,
   `latestWins.test.ts`, `guidedAssessmentEntry.test.ts`;
@@ -1690,11 +1776,12 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      sentences, contact-scanned (surface `exercise_plan_note`). No admin
      door.
   4. **Teaching is a protocol step, and keeps the three actions.** Every
-     protocol (version 2) has a *Home exercises* step (tool
-     `teach_exercises`) just before the summary: exertion (so on the heart
+     protocol (version 4) ends with a *Home exercises* step (tool
+     `teach_exercises`) after the summary - taught now or *Later*: exertion (so on the heart
      and lung protocol the pre-exercise check stands in front of it),
-     skippable with a fixed reason, its set-up the whole body in view, a
-     clear space and **an optional helper item** - the only optional set-up
+     skippable (with a fixed reason, or none from *Later*), its set-up the
+     whole body in view and a clear space as tips and **an optional helper
+     item** - the only optional set-up
      item anywhere, and required on the paediatric step, where a parent is
      beside the child for every exercise. Stop test, Skip and Save and next
      stay the only three actions; **Save and next is refused until every
@@ -1757,8 +1844,12 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   10. **The screens (7d-2) add no new authority.** The cockpit's teach tool
   (`src/components/therapist/assessment/teach/`, pure half
   `src/lib/teachTool.ts`) only calls the two routes: Show the demo, Your turn,
-  then ONE row of three marks (*Did it correctly*, *Needs practice* with one
-  cue, *Not attempted* with one reason), and Save and next stays locked until
+  then ONE row of three marks (*Did it well*, *Needs help* with one
+  cue, *Couldn't do it* with one reason - the buttons' words since phase 3;
+  the record keeps its outcome keys and the chart its wording), up to
+  **three** exercises a plan (`PLAN_PICK_MAX`), each on the library's own
+  dose with the steppers and the note folded behind *Change how often, or
+  add a note*, and Save and next stays locked until
   every exercise is marked. **The picker opens on this patient's area**
   (`suggestedArea`: the knee assessment's knee, else the worst intake area,
   else what the kind works on first - balance, walking, breathing), suitable
@@ -1925,7 +2016,7 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   stay on the clinician's graph and are named), and the admin's record draws
   everything with the hidden ones named. One patient's own layout is set
   from either door with the same panel and route: their record (People) or
-  **Settings -> Health Profile layout -> Sections for one patient**, which
+  **Settings -> How the clinic runs -> Health Profile layout -> Sections for one patient**, which
   finds a patient by name or patient ID (`GET
   /api/admin/profile-widgets/patient?q=`, the text through
   `cleanPatientSearch()` before it reaches a filter), lists only their own

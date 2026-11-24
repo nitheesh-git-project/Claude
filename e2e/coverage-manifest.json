@@ -1969,6 +1969,23 @@
       ],
       "integration": "local",
       "destructive": false
+    },
+    "session-prep.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/dashboards.md"
+      ],
+      "integration": "local",
+      "destructive": false
     }
   },
   "flows": [
@@ -4811,7 +4828,7 @@
     {
       "id": "therapist.assessment-cockpit",
       "runner": "therapist",
-      "title": "The guided video assessment's two screens: the chart offers Start guided assessment and the therapist's session cockpit opens on the safety step with the step bar, the card and exactly three actions; Save and next stays disabled until the set-up is ticked and every safety question answered, and says what is missing, with the next step shut until then; Stop test writes a stopped event and saves nothing; the patient's companion waits calmly with no run, then shows only the step counter, the step name and one patient-safe line with nothing to press; neither screen scrolls sideways at 390 px and the three actions stay on screen; an unassigned therapist gets a 404",
+      "title": "The guided check's two screens: the chart offers Start guided check and the therapist's session cockpit opens on the safety step with the step bar, one safety strip, one patient-screen status line, the card and exactly three actions; Save and next stays disabled until the set-up is ticked and every safety question answered, and says what is missing, with the next step shut until then; Stop test writes a stopped event and saves nothing; the patient's companion waits calmly with no run, then shows only the step counter, the step name and one patient-safe line with nothing to press; neither screen scrolls sideways at 390 px and the three actions stay on screen; an unassigned therapist gets a 404",
       "required": true,
       "status": "covered",
       "coverage": [
@@ -5189,6 +5206,29 @@
       "rules": [
         "docs/rules/payments.md",
         "docs/rules/admin.md"
+      ]
+    },
+    {
+      "id": "patient.session-prep",
+      "runner": "patient",
+      "title": "The guided check around the call: the get-ready list and I'm ready before a video session (saved once, the patient's own session only, video only), the physiotherapist's start screen saying so, and the recap card the week after",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "session-prep.spec.ts",
+          "tests": [
+            "GR-001",
+            "GR-002",
+            "GR-003",
+            "GR-004"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
+        "docs/rules/clinical.md",
+        "docs/rules/dashboards.md"
       ]
     }
   ],

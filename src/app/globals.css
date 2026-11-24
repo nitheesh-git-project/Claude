@@ -498,13 +498,16 @@ input::-ms-clear {
   grid-template-columns: minmax(0, 1fr);
   /* "queues" sits before "feed" on a phone: what is waiting on you is read
      before the log of what happened. Absent on the other dashboards, where
-     the empty area costs nothing. */
-  grid-template-areas: "banner" "head" "strip" "queues" "feed" "side";
+     the empty area costs nothing. "brief" is the admin's Morning Brief (most
+     urgent jobs, today's sessions): always a full-width row of its own, so it
+     is never squeezed into the narrow side column on a wide screen. */
+  grid-template-areas: "banner" "head" "brief" "strip" "queues" "feed" "side";
   align-items: start;
 }
 .overview-grid > * { margin-bottom: 1.25rem; min-width: 0; }
 .overview-grid > .ov-banner { grid-area: banner; }
 .overview-grid > .ov-head { grid-area: head; }
+.overview-grid > .ov-brief { grid-area: brief; }
 .overview-grid > .ov-strip { grid-area: strip; }
 .overview-grid > .ov-feed { grid-area: feed; }
 .overview-grid > .ov-side { grid-area: side; }
@@ -512,17 +515,22 @@ input::-ms-clear {
 @media (min-width: 1024px) {
   .overview-grid {
     grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
-    /* The feed spans the side column's two blocks (quick actions, queues). */
-    grid-template-areas: "banner banner" "head head" "strip strip" "feed side" "feed queues";
+    /* The feed spans the side column's two blocks (quick actions, queues).
+       The last row takes whatever height the feed adds beyond them, so the
+       quick actions and the queues stay stacked together at the top of
+       their column instead of being pulled apart by a long feed. */
+    grid-template-areas: "banner banner" "head head" "brief brief" "strip strip" "feed side" "feed queues";
+    grid-template-rows: auto auto auto auto auto 1fr;
   }
 }
 @media (min-width: 1536px) {
+  /* Same rows as a laptop, a fixed side column. The headline used to sit
+     beside the figures here, which made that whole row as tall as the
+     headline and left a gap under the figures on every wide screen; on its
+     own full-width row above them, each block is only as tall as itself. */
   .overview-grid {
     grid-template-columns: minmax(0, 1fr) 380px;
-    grid-template-areas: "banner banner" "strip head" "feed side" "feed queues";
   }
-  /* Stretched so its edges line up with the figures beside it. */
-  .overview-grid > .ov-head { align-self: stretch; }
 }
 
 /* SessionCalendarTab: stacked below 2xl; month beside the chosen day from

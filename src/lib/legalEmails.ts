@@ -139,7 +139,7 @@ export function officerAlertEmail(
     | { kind: "grievance"; reference: string; name: string; email: string; category: GrievanceCategory; message: string }
     | { kind: "deletion"; reference: string; name: string; email: string; role: string; reason: string | null }
 ): Email {
-  const queue = `${brand.siteUrl.replace(/\/$/, "")}/admin/dashboard?section=people&tab=data-requests`;
+  const queue = `${brand.siteUrl.replace(/\/$/, "")}/admin/dashboard?section=people&tab=requests&sub=data-requests`;
   if (a.kind === "grievance") {
     const subject = `New complaint ${a.reference}: acknowledge within ${GRIEVANCE_ACK_HOURS} hours`;
     const text =

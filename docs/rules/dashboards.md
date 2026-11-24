@@ -85,8 +85,8 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
 - **The therapist's headline is a "Next up" card** (`renderTherapistNextUp`,
   `therapistNextUp.ts`): the session in progress (until half an hour after
   its end, for the note) or else the next one, with Join, Start guided
-  assessment, Done and Chart - each only when it can be used (Join and the
-  guided assessment decide on the debug clock in the browser, Done once a
+  check, Done and Chart - each only when it can be used (Join and the
+  guided check decide on the debug clock in the browser, Done once a
   confirmed session has started) - its time through `formatDateTime`.
   Availability is the last quick action, not the primary one.
 - **Every dashboard opens on the same Overview.** Patient, therapist,
@@ -144,8 +144,8 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   screen agree; amounts only for a scope that can open Money; no link for
   one that cannot open Programmes. Each event leads with the programme's ID
   and progress (`PED_PKG001-0/6`) and links to that programme on
-  Programmes -> All Programmes (`?view=code:...`); one waiting for approval
-  links to Programmes -> Recommendations for a desk that manages it, and to
+  Sessions -> Programmes -> All programmes (`?view=code:...`); one waiting for approval
+  links to Sessions -> Programmes -> Recommendations for a desk that manages it, and to
   the Waiting approval stage for one that only reads. The paid-unbooked
   inbox row opens the stage narrowed to the same two days
   (`?view=late:48`).
@@ -545,18 +545,24 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   sidebar: they have no dashboard shell, because one is a second screen beside
   a video call and the other is a display. **The cockpit**
   (`/therapist/dashboard/assessment/[patientId]`) has no nav entry; it is
-  reached by *Start guided assessment* on a video session's card (decided in
+  reached by *Start guided check* on a video session's card (decided in
   the browser on the debug clock, `StartGuidedAssessmentLink`) and on the
   chart, and it carries its own way back (Chart). It needs no realtime
   subscription: it is the writer, and what it does it merges into its own
   state and then `router.refresh()`es. **The companion**
   (`/patient/dashboard/session`) is not in the patient's sidebar either ("a
   screen that can only ever be empty is not in the sidebar"): while a check is
-  live every patient screen carries `GuidedCheckBar` (the dashboard loader
+  live every patient screen carries `GuidedCheckBar` - one line, *Your
+  physiotherapist has started your check*, under it *Stay on your video call
+  - your physiotherapist will talk you through it.* (one device is the normal
+  case), and an outline **Open**, with the
+  second-device help, short link and QR folded behind *Use a bigger screen*
+  (P3: one device is the normal case) - (the dashboard loader
   reads the patient's own display row, `guidedCheckLive`, and the shell
   subscribes to `assessment_live_display` so the bar appears and goes by
   itself), and the cockpit tells the therapist the address to hand over
-  (*Open the patient screen*; its badge reads *Not sent yet* until the patient's screen has been sent something, never *Live*). A failed read on the companion says *We couldn't load your screen. Trying again…*, not *will start soon* (`clinical.md`). The companion reads one row, `assessment_live_display`, with the
+  (the same short `/screen` link as the bar), and says in one line whether
+  the patient is following (`screenStatusLine`, never *Live*). A failed read on the companion says *We couldn't load your screen. Trying again…*, not *will start soon* (`clinical.md`). The companion reads one row, `assessment_live_display`, with the
   patient's own client (`loadLiveDisplay`; `assessment_live_display_select_own`
   is the gate) and subscribes to it on the realtime publication filtered to
   `patient_id=eq.<their id>` - RLS decides what the socket delivers, so the
@@ -614,6 +620,16 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   `exercise_plans` is in the patient shell's `realtimeTables`. During the
   session the demo itself is on the companion (`assessment_live_display`,
   above), not on the dashboard. Detail: `clinical.md`, "Home exercises".
+- **Two guided-check cards sit above the patient's Overview, each only when
+  it has something to say** (phase 2, `clinical.md` rule 12). *Get ready for
+  your session* (`GetReadyCard`) from two days before a confirmed video
+  session until it ends: the things to have to hand and **I'm ready**, then
+  *Thanks. Your physiotherapist can see you're ready*. *Your session recap*
+  (`SessionRecapCard`) for a week after a summary is shared: what was done,
+  before next time, the home exercises with *See how*, and the next session.
+  Both are read with the patient's own client (`loadPatientPrep`, the
+  newest `session_summaries` row) in calls of their own started early; a
+  failed read shows no card rather than a false "nothing to do".
 - **A patient nobody has onboarded is said in three places on the
   therapist's side**, because until it is done the patient's own Health
   Profile is locked: the Home feed row, a banner above the greeting
@@ -753,7 +769,7 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   video call open.* `e2e/assessment-cockpit.spec.ts` AC-001 / AC-005b.
 - **Announcements are read once by the layout and drawn by the shell: a
   banner on the dashboard's home, one line everywhere else.** An admin posts
-  one on Settings -> Announcements (`announcements`, `announcement_receipts`;
+  one on Settings -> How the clinic runs -> Announcements (`announcements`, `announcement_receipts`;
   every judgement is in `src/lib/announcements.ts`). Each role's
   `dashboard/layout.tsx` mounts `DashboardExtrasGate`, which works out who is
   looking, reads what is live for that role with the service role (the same

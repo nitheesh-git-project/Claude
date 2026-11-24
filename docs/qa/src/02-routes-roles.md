@@ -16,7 +16,7 @@ Every route below is covered by at least one test. The rightmost column names th
 | `/mission` | Mission, vision, four promises, testimonials | Public | `PUB-NAV-001` |
 | `/faq` | Admin-managed FAQ accordion | Public | `PUB-FAQ-001` |
 | `/hospitals` | Partner pitch plus the hospital enquiry form | Public | `HOS-LEAD-001` |
-| `/developer` | "Say hello!" - the developer credit's landing card. Reached only from the footer's "Contact me" link; not in the nav. **404s while Settings → Developer messages has the credit switched off** | Public | `PUB-DEV-001` |
+| `/developer` | "Say hello!" - the developer credit's landing card. Reached only from the footer's "Contact me" link; not in the nav. **404s while Settings → Technical → Developer messages has the credit switched off** | Public | `PUB-DEV-001` |
 | `/developer/lets-talk` | "Let's talk" - the contact form (name, email, optional number, message). **404s while the credit is switched off** | Public | `PUB-DEV-001`, `PUB-DEV-002` |
 | `/get-started` | Role hub - where a signed-in user of the wrong role is sent | Public | `SEC-ROUTE-003` |
 
@@ -55,7 +55,7 @@ Every route below is covered by at least one test. The rightmost column names th
 | `/therapist/dashboard/earnings` | Earnings, payout requests, receipts | `THR-EARN-001` |
 | `/therapist/dashboard/health-profile` | My Patients (Patients / Programmes toggle) | `THR-PAT-001` |
 | `/therapist/dashboard/health-profile/[patientId]` | One patient's chart: intake, Pain Map (orthopaedic) or neurological examination, care plans, notes | `THR-HP-001`, `THR-HP-005b` |
-| `/therapist/dashboard/assessment/[patientId]` | The session cockpit for a guided video assessment: a standalone second screen next to Google Meet (steps, one card, Stop test / Skip / Save and next, results, a preview of the patient's screen). **Not in the sidebar**: reached from *Start guided assessment* on a video session's card and on the chart | `THR-HP-005r` |
+| `/therapist/dashboard/assessment/[patientId]` | The session cockpit for a guided check: a standalone second screen next to Google Meet (steps, one safety strip, one card, Stop test / Skip / Save and next, results, a preview of the patient's screen). **Not in the sidebar**: reached from *Start guided check* on a video session's card and on the chart | `THR-HP-005r` |
 | `/therapist/dashboard/profile` | Edit Profile | `THR-PROF-001` |
 
 ### 3.5 Hospital portal
@@ -81,6 +81,7 @@ Every route below is covered by at least one test. The rightmost column names th
 | Today | `risk` | Risk | `ADM-RISK-001` |
 | Sessions | `schedule` | Schedule (calendar) | `ADM-SCHED-001` |
 | Sessions | `all` | All Sessions | `ADM-SESS-001` |
+| Sessions | `ratings` | Ratings & feedback | `ADM-SESS-006` |
 | Sessions | `new` | New Booking | `ADM-SESS-NEW-001` |
 | Sessions | `roster` | Roster | `ADM-ROST-001` |
 | Sessions | `delivery` | Delivery (operational rates) | `ADM-DELIV-001` |
@@ -151,7 +152,7 @@ The application exposes 150+ POST route handlers under `/api`, grouped by audien
 | --- | --- | --- |
 | `patient` | Self-registers (at `/patient/register`, or inside either booking wizard) | `approved` + `active`. **Exception:** a genuine payment attempt auto-approves a patient (see below). |
 | `therapist` | Self-applies at `/therapist/login` → **Apply to Join** | Admin approval, then `active` |
-| `hospital` | Provisioned by an admin (People → Partners → onboard) | `active` |
+| `hospital` | Provisioned by an admin (People → Hospitals → onboard) | `active` |
 | `admin` | Promoted by hand in Supabase, or minted by a Master Admin | `active` only - **`approved` is deliberately not checked for admins** |
 
 ### 4.2 The two flags
@@ -168,9 +169,9 @@ A test that only proves the UI hides something has not proved the rule. Every au
 A patient who signs up **inside a booking wizard** (online session or home visit) has an account at once, but it is **locked** - `approved = false`, no dashboard - until one of two things happens:
 
 * **a payment is captured** (online verify, home-visit verify, the webhook, a free booking, or a booked cash visit), or
-* **they have tried and failed to pay** `payment_tries_before_access` times (Settings -> Booking Rules, default 3). A try is the payment window closed, a payment failed, or our own server error; a refusal the patient can fix (slot taken, lead time) is not a try.
+* **they have tried and failed to pay** `payment_tries_before_access` times (Settings -> How the clinic runs -> Booking rules, default 3). A try is the payment window closed, a payment failed, or our own server error; a refusal the patient can fix (slot taken, lead time) is not a try.
 
-Before that, the wizard offers no way to the dashboard and says "your slot is still held". The try that unlocks the account says **Your account is ready** with **Go to Dashboard**. Signing in while locked shows the finish-booking screen, not the generic waiting-approval one. A locked account that never pays and never uses up its tries is **deleted** after `abandoned_booking_account_days` (default 3) and is listed meanwhile under People -> Abandoned checkouts, never in Pending Approvals.
+Before that, the wizard offers no way to the dashboard and says "your slot is still held". The try that unlocks the account says **Your account is ready** with **Go to Dashboard**. Signing in while locked shows the finish-booking screen, not the generic waiting-approval one. A locked account that never pays and never uses up its tries is **deleted** after `abandoned_booking_account_days` (default 3) and is listed meanwhile under People -> Requests -> Abandoned checkouts, never in Pending Approvals.
 
 Standalone registration at `/patient/register` is unchanged: it always waits for a human admin, and is never deleted by this.
 

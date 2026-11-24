@@ -29,7 +29,7 @@ import { serverError } from "@/lib/apiError";
 import { allExercisesMarked } from "@/lib/exercisePlan";
 import { exercisesCouldNotCheck, exercisesNotMigrated, loadActiveExercisePlan, loadTeachingEvents } from "@/lib/exercisePlanServer";
 
-// One step event in a guided video assessment (phase 7a). The cockpit sends
+// One step event in a guided check (phase 7a). The cockpit sends
 // what the physiotherapist did; the server re-derives the step from the
 // run's protocol and refuses what the clinical order does not allow
 // (assessmentRun.ts checkStepAction): nothing after step 1 until the red

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { setupProgress } from "@/lib/cockpit";
-import type { ProtocolStep } from "@/lib/sessionProtocols";
+import { setupTips, tickableSetupItems, type ProtocolStep } from "@/lib/sessionProtocols";
 
 /** The helper item's words once another adult has already been ticked as
  *  beside the patient on an earlier step: the tick stays on every step that
@@ -10,11 +10,11 @@ import type { ProtocolStep } from "@/lib/sessionProtocols";
 export const HELPER_STILL_LABEL = "Helper still beside them";
 
 /**
- * The current step as one card: where we are, the set-up checklist (real
- * checkboxes; every required one must be ticked before Save and next
- * unlocks), a red-bordered safety line when another adult has to stand
- * beside the patient, then what to say to the patient in large type with the
- * step's own tool directly under it.
+ * The current step as one card (T11): where we are, then what to say to the
+ * patient in large type - the thing the physiotherapist reads most - then the
+ * set-up checklist (real checkboxes; every required one must be ticked before
+ * Save and next unlocks) and the step's own tool. The "someone must stand
+ * beside them" rule is said once, in the cockpit's safety strip.
  *
  * Beside Google Meet the card is narrow, so once the set-up is ticked it
  * folds into one line ("3/3 set up ✓ · Edit") and the script and the tool
@@ -44,7 +44,12 @@ export default function StepCard({
   const progress = setupProgress(step, ticked);
   const optionalOpen = step.setup.filter((i) => i.optional === true && !ticked.has(i.id)).length;
   const [editing, setEditing] = useState(false);
-  const folded = !locked && progress.remaining === 0 && !editing;
+  // Only safety is a tick (version 4, D2); the rest is one "Tip:" line.
+  const tickable = tickableSetupItems(step);
+  const tips = setupTips(step);
+  // Folds only once a required tick is done: a step whose one box is an
+  // optional helper (Home exercises) keeps that box in sight, never "0/0 set up".
+  const folded = !locked && progress.total > 0 && progress.remaining === 0 && !editing;
 
   // Ticking the last box folds the list away and takes the focused checkbox
   // with it: hand the focus to Edit rather than dropping it on the page.
@@ -70,7 +75,7 @@ export default function StepCard({
             {step.title}
           </h2>
         </div>
-        {folded && (
+        {folded && tickable.length > 0 && (
           <p data-testid="setup-folded" className="flex min-h-[44px] items-center gap-1 rounded-xl bg-teal-50 pl-3 text-sm font-semibold text-teal-900">
             <span>
               {progress.done}/{progress.total} set up <span aria-hidden="true">✓</span>
@@ -96,7 +101,23 @@ export default function StepCard({
         </p>
       )}
 
-      {!folded && (
+      <div className="flex items-start gap-3 rounded-xl bg-teal-50 px-4 py-3">
+        <i aria-hidden="true" className="fa-solid fa-comment-dots mt-1 shrink-0 text-lg text-teal-800" />
+        <div className="min-w-0">
+          <p className="text-xs font-bold uppercase tracking-wider text-teal-800">Say to the patient</p>
+          <p data-testid="step-script" className="mt-1 text-lg font-medium leading-relaxed text-slate-900 sm:text-[1.1875rem]">
+            {step.script}
+          </p>
+        </div>
+      </div>
+
+      {tips.length > 0 && (
+        <p data-testid="setup-tips" className="text-[15px] leading-snug text-slate-700">
+          <span className="font-semibold text-slate-900">Tip:</span> {tips.map((t) => t.label).join(" · ")}
+        </p>
+      )}
+
+      {!folded && tickable.length > 0 && (
         <fieldset
           disabled={!!locked}
           className="min-w-0"
@@ -109,9 +130,9 @@ export default function StepCard({
             if (next && !e.currentTarget.contains(next)) focusInList.current = false;
           }}
         >
-          <legend className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-700">Set up first</legend>
+          <legend className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-700">{step.tool === "red_flags" ? "Room ready" : "Safety first"}</legend>
           <ul className="flex flex-col gap-1.5">
-            {step.setup.map((item) => {
+            {tickable.map((item) => {
               const on = ticked.has(item.id);
               return (
                 <li key={item.id}>
@@ -147,26 +168,6 @@ export default function StepCard({
           )}
         </fieldset>
       )}
-
-      {step.needsHelper && (
-        <div
-          data-testid="helper-warning"
-          role="note"
-          className="rounded-xl border-2 border-red-600 bg-red-50 px-3.5 py-2 text-[15px] leading-snug text-red-950"
-        >
-          <strong>Safety:</strong> someone must stand beside the patient for this test. Do not start until you have seen them on camera.
-        </div>
-      )}
-
-      <div className="flex items-start gap-3 rounded-xl bg-teal-50 px-4 py-3">
-        <i aria-hidden="true" className="fa-solid fa-comment-dots mt-1 shrink-0 text-lg text-teal-800" />
-        <div className="min-w-0">
-          <p className="text-xs font-bold uppercase tracking-wider text-teal-800">Say to the patient</p>
-          <p data-testid="step-script" className="mt-1 text-lg font-medium leading-relaxed text-slate-900 sm:text-[1.1875rem]">
-            {step.script}
-          </p>
-        </div>
-      </div>
 
       <div>{children}</div>
     </div>

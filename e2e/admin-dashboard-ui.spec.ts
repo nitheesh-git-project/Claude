@@ -89,8 +89,8 @@ test.describe("Suites A/B/C/K: the admin dashboard in a browser", () => {
 
   test("B-003: Back walks the tab history", async ({ page }) => {
     await page.getByRole("button", { name: /^Sessions/ }).first().click();
-    await page.getByRole("button", { name: /^Roster/ }).first().click();
-    await page.getByRole("button", { name: /^Catalog/ }).first().click();
+    await page.getByRole("button", { name: /^Therapist rota/ }).first().click();
+    await page.getByRole("button", { name: /^Prices & areas/ }).first().click();
     await expect(page).toHaveURL(/section=catalog/);
 
     await page.goBack();

@@ -10,6 +10,7 @@ import {
   cancelRefundOf,
   cancellationIsWorthEmailing,
   sessionModeOf,
+  GET_READY_LINE,
   type BookingFacts,
 } from "@/lib/bookingEmails";
 
@@ -133,6 +134,16 @@ describe("reminders", () => {
     expect(soon.subject).toBe("Starting soon: your home visit at 24 Nov 2026, 6:00 pm IST");
     expect(soon.text).toContain("starts in about an hour");
     expect(soon.text).toContain("come to the address you gave");
+  });
+
+  it("points a video patient to the get-ready list the day before, and never lists it", () => {
+    const tomorrow = bookingReminderEmail(brand, facts, "reminder_24h");
+    expect(facts.mode).toBe("online");
+    expect(tomorrow.text).toContain(GET_READY_LINE);
+    expect(tomorrow.html).toContain("the few things to have ready");
+    for (const word of ["chair", "towel", "oxygen", "medicine", "knee"]) expect(tomorrow.text.toLowerCase()).not.toContain(word);
+    expect(bookingReminderEmail(brand, facts, "reminder_1h").text).not.toContain(GET_READY_LINE);
+    expect(bookingReminderEmail(brand, { ...facts, mode: "home_visit" }, "reminder_24h").text).not.toContain(GET_READY_LINE);
   });
 });
 

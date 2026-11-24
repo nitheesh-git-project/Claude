@@ -1,6 +1,6 @@
 # The admin back office
 
-The eight sections, scopes and levels, User Access, the Settings information architecture, System Health, the activity log, exports, and how a count links to its own rows.
+The six sections (the Morning Brief layout), scopes and levels, User Access, the Settings information architecture, System Health, the activity log, exports, and how a count links to its own rows.
 
 **Mostly lives in:** src/lib/adminNav.ts · adminScope.ts · adminHome.ts · systemHealth.ts · activityLog.ts
 
@@ -25,9 +25,21 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   a visit, named for it ("How far ahead a home visit must be booked", "Free
   cancellation window for a home visit").
 - **The admin dashboard's information architecture lives in
-  `src/lib/adminNav.ts`** - eight sections (Today, Sessions, Programmes,
-  People, Money, Catalog, Logs, Settings), each with its own screens. The sidebar, the URL
-  (`?section=&tab=`), the content map in the dashboard page, and the scope
+  `src/lib/adminNav.ts`** - six sections in the Morning Brief layout (Home,
+  Sessions, People, Money, Prices & areas, Settings; URL keys `today`,
+  `sessions`, `people`, `money`, `catalog`, `settings`), each with its own
+  tabs. A tab that holds several old screens lists them as **chips**
+  (`AdminTabDef.subs`, URL `&sub=`, screen key `section:tab/sub`); every chip
+  is an old screen kept whole, so a merge never drops a control.
+  **Access is per screen scope, not per menu position**: a tab or chip's
+  `scope` (default: its section) is what `visibleTabs`/`visibleSubs` check,
+  so Programmes (under Sessions) keeps the `programmes` grant and History
+  (under Settings) keeps `logs` -- Master Admin only. API routes are
+  untouched: they guard with the same `requireAdminScope` section as before.
+  Every old address is in `LEGACY_SCREENS` and `adminScreenHref` resolves it
+  for every call site; `adminNavScreens.test.ts` opens all 48 old addresses
+  and checks each lands on its own screen. The sidebar, the URL
+  (`?section=&tab=&sub=`), the content map in the dashboard page, and the scope
   check all read that one list, so adding a screen is one entry there plus
   one entry in the page's `screens` map. Tab state is written with the
   History API, never `router.push`: the dashboard is a single Server
@@ -60,7 +72,7 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   what is already recorded rather than a new event table.** The session
   drawer's "Session history" and the "Activity log" on a patient's or
   therapist's profile (and **View activity** on a hospital's card under
-  People -> Partners) read `/api/admin/timeline` (`sessions` scope for a
+  People -> Hospitals) read `/api/admin/timeline` (`sessions` scope for a
   session, `people` for a person), which `src/lib/activityTimelineServer.ts`
   assembles from the appointment row's own timestamps,
   `appointment_reassignment_log`, `admin_activity_log` (labelled with
@@ -75,15 +87,15 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   replaced the drawer's reassignment-only history and the dashboard query
   that fed it. A new kind of action needs a line here only if it leaves a
   row nothing above reads.
-- **People -> Abandoned checkouts is a list of leads, never approvals.** It
+- **People -> Requests -> Abandoned checkouts is a list of leads, never approvals.** It
   reads `abandoned_booking_accounts()` (service role only): patients who
   signed up inside a booking wizard and have not paid, so their account is
   locked (`booking.md`). Each card names the contact details, the session
   they wanted, tries used of `payment_tries_before_access`, and the date
   `purge_abandoned_booking_accounts` (the maintenance sweep) removes the
   account if it stays unpaid -- `abandoned_booking_account_days` after
-  signup, both set under Settings -> Booking Rules. **The same ids are
-  filtered out of Today -> Approvals**: nobody reviews these accounts, and
+  signup, both set under Settings -> How the clinic runs -> Booking rules. **The same ids are
+  filtered out of Home -> To-do -> Approvals**: nobody reviews these accounts, and
   approving one would hand a dashboard to somebody who has not paid. A
   failed read is said ("couldn't be loaded") and leaves the approvals queue
   unfiltered rather than empty. Read-only on purpose. The purge deletes only
@@ -121,7 +133,7 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   expiry (Authentication settings); raise it there if a day is needed.
   A password a person chose is a bcrypt hash and can never be shown.
 - **User Access is where the access model is read, and it is derived.**
-  Settings → User Access is one screen doing what two half-screens did: the
+  Settings → Who gets in → User access is one screen doing what two half-screens did: the
   back-office directory (who can sign in, at what level, and whether they
   still can) and the **matrix** - rows are the jobs people describe, columns
   are the four desks, cells come out of `ADMIN_CAPABILITY_GROUPS` +
@@ -259,15 +271,12 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   level, manage never outruns open, every section has a capability group, and
   every group has at least one read-only row, without which a group cannot
   show the difference between `view` and `none`.
-- **Settings is eleven screens under four captions, and the captions are part
-  of the definition.** `AdminTabDef.group` (`src/lib/adminNav.ts`) names the
-  caption a screen sits under, and `AdminShell` draws one whenever the group
-  changes -- so screens sharing a caption must be **adjacent** in that array
-  or the caption is drawn twice. Four: *Your website*, *How the clinic runs*,
-  *Who gets in*, *Technical*. A flat list of eleven labels is one nobody reads
-  top to bottom, which is the same failure the per-screen blurb fixes one
-  level down. Sections with a short screen list name no groups and render
-  exactly as before.
+- **Settings is five tabs, and each old screen is a chip inside one.** The
+  four captions it used to be grouped under became its tabs -- *Your website*,
+  *How the clinic runs*, *Who gets in*, *Technical* -- plus *History*, the
+  log (scope `logs`). A flat list of sixteen labels is one nobody reads top to
+  bottom; five tabs with a chip row each is read in two glances. Each chip
+  keeps its own blurb and example, shown under the heading when it is open.
   Two screens moved in the same change, both because the label on the door
   was wrong about what was inside. **Sign-in & Security** (was *Account
   Security*, one button to email yourself a reset) now also carries the idle
@@ -358,7 +367,7 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   reason: five screens named with abstract nouns ("Summary", "Breakdown",
   "Costs") make an owner open three of them to find the one answering the
   question they arrived with. The worst case of that was a dead end rather
-  than a detour -- promo codes rendered on Money -> Summary while Settings ->
+  than a detour -- promo codes rendered on Money -> Overview while Settings ->
   Offers, the README and the QA plan all said Money -> Costs, so following
   that note landed on a screen with no promo codes anywhere on it. A campaign
   belongs beside the figure it costs (*Discounts given*), which is where it
@@ -721,7 +730,7 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   `ops-security.md`).
 - **An audit entry is read months later, so it says what changed from what.**
   Tapping a row in the Logs section -- or on a limited desk's
-  Today -> Activity -- opens the whole entry
+  Home -> Your desk's activity -- opens the whole entry
   (`ActivityDetailDialog`), and `src/lib/activityDetails.ts` turns the
   route's `details` blob into it. Four rules:
   1. **The before/after pair is found, not required.** Routes name it five
@@ -769,7 +778,7 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   Finance holds People (and Sessions, Programmes) at `view`
   (`adminScope.ts`), and every control that changes a person, an
   application or a partner is `requireAdminScope("people")`. So the patient
-  and therapist pages, Today -> Approvals, People -> Partners and the
+  and therapist pages, Home -> To-do -> Approvals, People -> Hospitals and the
   Health Profile screen key every such control off
   `scopeCanManage(scope, "people")` (sessions controls off
   `scopeCanManage(scope, "sessions")` -- the person pages used
@@ -781,7 +790,7 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   are worked with `people:manage`), and `visibleQueueTotal`, the queue list
   and the Today figures all count by it -- Finance is not told two accounts
   are waiting on it.
-- **Today -> Health Profile reviews lists the rows the Today counts
+- **Home -> To-do -> Health Profile reviews lists the rows the Today counts
   counted.** Pending intake answers (`condition_change_requests`) and
   therapist access requests (`condition_access_grants`) are rows -- patient,
   who filled it in or asked, how long it has waited, overdue after
@@ -815,7 +824,7 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   (`AdminPeopleDirectory`: Waiting on review, Awaiting first record, Draft,
   Complete; condition type), not a second "Patient Conditions" list, which is
   gone along with its fold-out question editor. The question wording is
-  Settings -> Clinical Questions; Master Admin sees a link to it from the
+  Settings -> How the clinic runs -> Clinical questions; Master Admin sees a link to it from the
   directory.
 - **Partner referrals filter by status, and a count opens what it
   counted.** Each referral row carries `group = status`, so the chips
@@ -838,7 +847,7 @@ The eight sections, scopes and levels, User Access, the Settings information arc
 - **Phone order, and the screens that put work first.** On a phone Today
   reads: banner, headline, figures, **queues**, then the activity feed
   (`DashboardOverview`'s `queues` block; from a laptop up the queues sit
-  under the quick actions as before). Money -> Payouts opens on the open
+  under the quick actions as before). Money -> Pay therapists opens on the open
   payout requests with **Pay** on the row
   (`TherapistPayoutButton`, `money`), then the balances table, then the
   completed requests; the long how-it-is-worked-out paragraph is behind an
@@ -868,15 +877,15 @@ The eight sections, scopes and levels, User Access, the Settings information arc
 - **A decline says why, and the person stays listed.** Decline used to be
   a bare confirm: a signup's account was deleted and a hospital inquiry's
   status flipped, and nothing said why or kept the person anywhere but one
-  log line. Decline on a pending patient or therapist (Today -> Approvals)
-  and on a B2B lead (People -> Partners) now opens
+  log line. Decline on a pending patient or therapist (Home -> To-do -> Approvals)
+  and on a B2B lead (People -> Hospitals) now opens
   `DeclineApplicationDialog`: a required reason from chips offered per kind
   of applicant, and a note -- required (ten characters) only for "Other".
   `decline_pending_account()` and `decline_b2b_lead()` write a snapshot of
   the applicant (contact details, credentials/specialisation or the
   inquiry, when they applied, the reason, who declined) to
   `declined_applications` in the same statement as the decline, so there is
-  no decline without its record. **People -> Declined** lists every row,
+  no decline without its record. **People -> Requests -> Declined** lists every row,
   filterable by Patients / Therapists / Hospitals. The account is still
   deleted, so the person can apply again -- and when the same email or phone
   turns up in Approvals or as a new lead, the row says "Declined before"
@@ -939,7 +948,7 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   blank means "no icon" rather than a default, and which are read in their
   own guarded call, never through `SITE_SETTINGS_SELECT`) - and the
   Home page walkthrough's per-step rotation seconds, where 0 means "don't
-  rotate" - and the mission and vision lines on Settings -> Public Site, where
+  rotate" - and the mission and vision lines on Settings -> Your website -> Public site, where
   blank means "use the wording in `src/lib/mission.ts`", and the promises and
   limits on that same screen, where an empty band means the same - and the
   opening splash's five settings - on/off, the name above
@@ -948,7 +957,7 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   means "first load only" - and the two contact controls,
   `contact_scan_mode` and `contact_masking_enabled`, on Settings → Team &
   Access, and `risk_signals_enabled` with the per-detector thresholds in
-  `risk_rules`, on Today → Risk - and `enabled_intake_specialties`, which
+  `risk_rules`, on Home → Risk & safety - and `enabled_intake_specialties`, which
   condition types triage offers - and `enabled_licensed_measures`, which
   licensed outcome scales the clinic holds a licence for (read in its own
   call, failing closed - see the rule below) - and `six_minute_walk_equation`,
@@ -975,10 +984,10 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   `update-setting`'s compare-and-swap compares the previous value as JSON
   text, which a `text[]` column answers with a malformed-literal error. The
   control (`LicensedMeasureSettings` -> `LicensedMeasureToggles`) renders
-  only on Settings -> Clinical Questions - Master Admin only, the scope
+  only on Settings -> How the clinic runs -> Clinical questions - Master Admin only, the scope
   `/api/admin/update-setting` (`requireAdminScope("settings")`, the generic
   `setting.update` audit row with from and to) accepts - and deliberately
-  **not** beside the question banks on Catalog -> Conditions, which other
+  **not** beside the question banks on Prices & areas -> Conditions & prices, which other
   scopes open. The route normalises the list against the registry
   (`normaliseLicensedMeasureSelection`, `src/lib/licensedMeasures.ts`): a key
   that is not a licensed scale is a 400, never a save that switches nothing
@@ -1029,7 +1038,7 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   the "we've changed some of these questions" banner for every neurological
   record without it (`clinical.md`).
 - **Strength and balance care and Heart and lung rehabilitation are
-  switched on by an admin (phase 6a).** Settings -> Clinical Questions'
+  switched on by an admin (phase 6a).** Settings -> How the clinic runs -> Clinical questions'
   *Condition types offered at triage* lists all five; **Geriatric** and
   **Cardiopulmonary** start unticked, because `enabled_intake_specialties`
   means "what triage offers" and its default - and what an unreadable read
@@ -1042,7 +1051,7 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   tab (listed from the code; no template rows are seeded), editable while
   the type is off; the cardiopulmonary tab notes its three follow-ups
   ("Asked only when ..."), and the geriatric carer pair is an optional
-  pre-step. Catalog -> Conditions' *Condition type* picker offers both, so
+  pre-step. Prices & areas -> Conditions & prices' *Condition type* picker offers both, so
   a programme can be grouped under them in the recommendation picker.
   Patients never see that tag. The public showcase is unchanged: it has no
   sample for either type, so switching one on does not change the public
@@ -1081,7 +1090,7 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   published to realtime on purpose -- a row per tap would refresh the
   dashboard for every patient paying.
 
-- **Catalog -> Conditions is the one catalogue, and there is no Packages
+- **Prices & areas -> Conditions & prices is the one catalogue, and there is no Packages
   screen.** The Session Packages and Home Visit Packages editors are gone,
   with their create/update/delete routes and validators: a recommendation is
   priced per session from the condition (`loadRecommendableRates`), so a
@@ -1126,7 +1135,7 @@ The eight sections, scopes and levels, User Access, the Settings information arc
     on, a visitor abroad can choose India and pay the Indian price. Turning
     the picker off leaves location alone in charge.
 
-- **Appearance (Settings -> Public Site) is three choices: Light, Dark, or
+- **Appearance (Settings -> Your website -> Public site) is three choices: Light, Dark, or
   Based on the visitor's device**, each a card with its own preview (Device
   is the page split light and dark). Saved through `update-setting`
   (`site_theme`), which revalidates the root layout because the decision is
@@ -1142,7 +1151,7 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   and graph lines built from the measure registry (plain name, unit, which
   direction is better). `profileWidgetGuide.test.ts` fails if any option
   is left without one. Guard: `admin-dashboard-ui` K-HPL.
-- **Settings -> Health Profile layout chooses what every patient of a
+- **Settings -> How the clinic runs -> Health Profile layout chooses what every patient of a
   condition kind sees; one patient's own choice is made on their record or
   from the same screen.** The
   Settings screen (`ProfileWidgetSettings`, self-fetching) lists every
@@ -1165,7 +1174,7 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   and hiding a locked one (400), and an unreadable setting is "we couldn't
   check" on the screen, never a row of switches. Rules: `clinical.md`.
 - **Announcements is a Settings screen, so only a Master Admin posts one.**
-  Settings -> Announcements (`AnnouncementSettings`, self-fetching like the
+  Settings -> How the clinic runs -> Announcements (`AnnouncementSettings`, self-fetching like the
   Health Profile layout; `AdminAnnouncementsManager`) lists what is live,
   scheduled, in draft and ended, and builds one with a live preview that
   opens the real pop-up component. Every route under
@@ -1184,7 +1193,7 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   live. A new screen or a moved control updates that list;
   `adminSearchTopics.test.ts` fails on a topic pointing at a screen that
   does not exist. Guard: `e2e/admin-find-and-money.spec.ts` FIND-001.
-- **Logs -> Signed in as is the record of every session swap.** Each
+- **Settings -> History -> Signed in as is the record of every session swap.** Each
   `admin_impersonation_sessions` window joined to the `impersonation.action`
   rows written inside it (`src/lib/impersonationLog.ts`): who, whose
   dashboard, the reason typed, when, how long, whether it was exited or
@@ -1192,7 +1201,7 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   account, words in the name or reason, day, and "only where something was
   changed". The reason was always saved; it was only ever readable as one
   line in All Activity.
-- **Money -> Refunds and the Payouts columns.** Refunds lists
+- **Money -> Payments & refunds -> Refunds and the Payouts columns.** Refunds lists
   `razorpay_refunds` (`docs/rules/payments.md`), badged with the ones that
   need a person; "Mark as dealt with" (`/api/admin/refunds/review`,
   `requireAdminScope("money")`, logged as `refund.review`, which moves no
@@ -1200,7 +1209,7 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   request ("Asked to be paid", with a filter) and their last payout with how
   it was paid; the therapist's own Earnings rows show the date and the payout
   each paid session went out in (`describePayout`).
-- **People -> Abandoned checkouts removes what it says it removes.** The
+- **People -> Requests -> Abandoned checkouts removes what it says it removes.** The
   list (`abandoned_checkout_accounts`) and the purge share one rule,
   `abandoned_checkout_kept_reason()`: money taken, something bought, a
   session paid, assigned or under way, or every payment try used. Anything
@@ -1210,7 +1219,7 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   caught the error and moved on). A kept account says why on its card
   instead of showing a removal date that would never come.
 
-- **People -> Data requests is the legal queue, with its deadlines on every
+- **People -> Requests -> Data requests is the legal queue, with its deadlines on every
   case.** `DataRequestsTab` (self-fetching: `GET /api/admin/data-requests`,
   any desk that can open People; `POST /api/admin/data-requests/update`,
   `requireAdminScope("people")`) lists **account deletion requests** (due 30
@@ -1238,7 +1247,7 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   moment the case closes. The log records whether the email was `sent`,
   `skipped` or `failed`, never its text.
 
-- **Every email goes through Settings -> Emails, and a test address is never
+- **Every email goes through Settings -> Technical -> Emails, and a test address is never
   mailed.** `sendEmail(to, email, { kind })` (`emailServer.ts`) asks
   `decideDelivery()` (`src/lib/emailControls.ts`, pure and unit-tested)
   before every send, in this order: a test address (`example.test`,
@@ -1294,7 +1303,10 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   session booked inside that window, which just had its confirmation), the
   hour-before between 90 and 15 minutes ahead (later is noise). Only a
   session that is still `confirmed` is reminded; at most 100 a run, soonest
-  first. Rules: `dueReminder()`, unit-tested in `bookingEmails.test.ts`;
+  first. The day-before reminder for a **video** session adds one line
+  pointing to the get-ready list on the dashboard (`GET_READY_LINE`; never
+  the list, which would say something about the condition). Rules:
+  `dueReminder()`, unit-tested in `bookingEmails.test.ts`;
   `e2e/admin-maintenance-sweep.spec.ts` MS-003.
 
 - **WhatsApp is built and switched off; it messages only a patient who said
@@ -1319,7 +1331,7 @@ The eight sections, scopes and levels, User Access, the Settings information arc
   usable number), stored append-only by trigger; a STOP reply through `POST
   /api/whatsapp/webhook` (HMAC over the raw body with `WHATSAPP_APP_SECRET`;
   GET is Meta's verify-token check) records a withdrawn row for every patient
-  with that number. Settings -> WhatsApp (`POST /api/admin/whatsapp/settings`,
+  with that number. Settings -> Technical -> WhatsApp (`POST /api/admin/whatsapp/settings`,
   `requireAdminScope("settings")`, audit `whatsapp_controls.set` with a test
   number kept to its last three digits) shows set-up status, the consent
   count, the templates to submit and the last 100 attempts (`whatsapp_log`,

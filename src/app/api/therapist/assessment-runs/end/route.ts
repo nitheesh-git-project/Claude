@@ -15,7 +15,7 @@ import {
 import { serverError } from "@/lib/apiError";
 import { loadTeachingEvents } from "@/lib/exercisePlanServer";
 
-// The physiotherapist ends a guided video assessment (phase 7a): completed,
+// The physiotherapist ends a guided check (phase 7a): completed,
 // or abandoned with one of the fixed reasons (END_REASONS; no free text).
 // The end is a compare-and-set on status = 'in_progress', and the trigger
 // sets the end time itself; a run that already ended is a 409. The

@@ -105,7 +105,7 @@ Every one of these is a separate test in Section 15:
 
 ### 9.6 Prices outside India
 
-Configured on **Catalog -> Countries & currency**. Use the debug bar's **Country** dropdown to test as a visitor from anywhere; it is honoured by the browser and by every checkout route while the bar exists.
+Configured on **Prices & areas -> Other countries**. Use the debug bar's **Country** dropdown to test as a visitor from anywhere; it is honoured by the browser and by every checkout route while the bar exists.
 
 | Step | Expected | Test |
 | --- | --- | --- |

@@ -16,7 +16,7 @@ export type Shortcut = { section: string; tab: string; label: string; icon: stri
 // it, so a Finance desk does not get a shortcut it would be refused.
 const SHORTCUT_CANDIDATES: { section: string; tab: string; label: string; icon: string }[] = [
   { section: "today", tab: "overview", label: "Today", icon: "fa-inbox" },
-  { section: "today", tab: "approvals", label: "Approvals", icon: "fa-user-check" },
+  { section: "today", tab: "todo", label: "To-do", icon: "fa-user-check" },
   { section: "sessions", tab: "all", label: "Sessions", icon: "fa-calendar-check" },
   { section: "money", tab: "summary", label: "Money", icon: "fa-indian-rupee-sign" },
   { section: "people", tab: "patients", label: "Patients", icon: "fa-users" },

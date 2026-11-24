@@ -565,7 +565,7 @@ sidebar: a bar on every patient screen offers it while a check is live).
 `/sessions`, `/availability`, `/earnings`, `/health-profile`,
 `/health-profile/[patientId]`, `/profile`; plus `/assessment/[patientId]`, the
 session cockpit for a guided video assessment (a standalone second screen, not
-in the sidebar: reached from *Start guided assessment* on a video session's card
+in the sidebar: reached from *Start guided check* on a video session's card
 and on the patient's chart).
 
 **Hospital:** `/hospital/login`, `/hospital/dashboard`, and its sections -
@@ -575,19 +575,21 @@ Every dashboard section is a **real route** with its own `page.tsx` and its
 own `loading.tsx`, not an anchor on one long scroll - see "Error and loading
 states" above.
 
-**Admin:** `/admin/login`, `/admin/dashboard`, organised into eight sections
-(defined once in `src/lib/adminNav.ts`):
+**Admin:** `/admin/login`, `/admin/dashboard`, organised into six sections in
+the **Morning Brief** layout (defined once in `src/lib/adminNav.ts`). A tab
+that holds several screens shows them as chips under the tab bar; every
+screen the dashboard had before is still there, and every old link opens it
+(`LEGACY_SCREENS`). Who may open what is unchanged: a screen keeps its own
+scope wherever it sits in the menu.
 
-| Section | Screens | Answers |
+| Section | Tabs (chips) | Answers |
 | --- | --- | --- |
-| **Today** | Today · Approvals · Health Profile reviews · Risk · Activity | What is waiting on me right now. **Activity** is the one feed scoped by desk: a limited scope reads entries whose action belongs to a section it can work *and* whose actor sits at that desk; a Master Admin reads the whole log under **Logs**. |
-| **Sessions** | Schedule · All Sessions · Roster · Delivery · New Booking | What is being delivered, and by whom. All Sessions has a **Programme** filter (a programme ID such as `PED_PKG001`, an old SP/HS code, or `any`) and each programme session shows its programme's ID with progress. |
-| **Programmes** | All Programmes · Recommendations | Every recommended and bought programme from the therapist's recommendation to its last session. **All Programmes** is the pipeline (Waiting approval → With patient → Paid - nothing booked → In progress → Completed, plus Declined / Not approved / Withdrawn / Lapsed / Expired / Refunded), one list with each programme's ID and progress (`PED_PKG001-2/6` = 2 of 6 done), filters kept in the URL, and a drawer with the whole story, its sessions, its money (Money scope) and its controls. **Recommendations** is the review queue - a therapist's care plan waits here before the patient sees it, and it is also where an admin writes one on a clinician's behalf. Old Sessions → Recommendations and Catalog → Purchases links land here. |
-| **People** | Patients · Therapists · Partners · Declined · Abandoned checkouts | Who is this person, and their whole history - who was declined and why - and who started a booking but never paid |
-| **Money** | Summary · Business Health · Transactions · Payouts · Owed by Patients · Costs · Breakdown · Your Numbers | What came in, what goes out, what it costs, what is still owed, and how the business reads against the standard finance figures. Each screen states what it is and gives one example, under its heading. |
-| **Catalog** | Conditions · Service Areas · Countries & currency | What we sell, at what price, where. Each condition carries a **Programme code** (PED), the prefix of its programme IDs. |
-| **Logs** | All Activity · Archive & Clear | Who did what, and when. **Master Admin only** - the three limited desks read their own desk's history on Today → Activity. |
-| **Settings** | *Your website:* Brand & Contact · Public Site — *How the clinic runs:* Booking Rules · Offers & Discounts · Programmes & Home Visits · Clinical Questions — *Who gets in:* User Access · Sign-in & Security — *Technical:* System Health · Advanced · Developer messages | How the product behaves. Every screen here states what it is and gives one example, under its heading, and the sidebar groups the eleven under four captions - eleven flat labels is a list nobody reads top to bottom. **Developer messages** is the developer's own inbox: the messages left through the footer's "Contact me" link, a note and a contacted flag per message, the switch that shows the credit (it asks before changing in either direction) and the email published on the contact page. |
+| **Home** | Today · To-do (Approvals, Health Profile reviews) · Risk & safety · Your desk's activity | What is waiting on me right now. **Today** opens on a sentence, the most urgent jobs (each with an Open button) and today's sessions, then the figures, queues, recommendations, activity and quick actions. **Your desk's activity** is shown to the three limited desks only; a Master Admin reads the whole log under Settings → History. |
+| **Sessions** | Calendar · All sessions · Programmes (All programmes, Recommendations) · Therapist rota · How it's going · Book a session | What is being delivered, by whom, and how it is going. Programmes keeps its own `programmes` scope: All programmes is the pipeline with IDs such as `PED_PKG001-2/6`; Recommendations is the review queue (manage desks only). |
+| **People** | Patients · Therapists · Hospitals · Requests (Data requests, Abandoned checkouts, Declined) | Who is this person, their whole history, and who asked for something or left half-way. |
+| **Money** | Overview (Where it went, By treatment & therapist) · Pay therapists · Patients owe · Payments & refunds (Payments, Refunds) · Costs & offers · For your accountant (Business health, Your numbers) | Overview opens on one sentence and a bar of where every rupee of net revenue went (therapists, partners, payment fees, running costs, kept), each part tappable for what it means, above the same figures as before. |
+| **Prices & areas** | Conditions & prices · Home-visit areas · Other countries | What we sell, at what price, where. |
+| **Settings** | Your website (Brand & contact, Public site, Cookie consent) · How the clinic runs (Booking rules, Offers & discounts, Programmes & home visits, Clinical questions, Health Profile layout, Announcements) · Who gets in (User access, Sign-in & security) · Technical (System health, Emails, WhatsApp, Advanced, Developer messages) · History (All activity, Signed in as, Archive & clear) | How the product behaves, and the record of who did what. Everything here is Master Admin only; History keeps the `logs` scope. |
 
 Three admin records have a route of their own as well as a place on that
 grid - `/admin/dashboard/patients/[id]`, `/therapists/[id]` and
@@ -2416,7 +2418,7 @@ screen's own state alone, unlike a browser reload.
 Your Sessions · Packages · Payments · Health Profile · Edit Profile.
 Therapist: Overview · Availability · Sessions · Earnings · My Patients ·
 Edit Profile. Hospital: Overview · Refer a Patient · Your Referrals ·
-Earnings · Edit Profile. Admin keeps its eight sections
+Earnings · Edit Profile. Admin keeps its six sections
 (`src/lib/adminNav.ts`).
 
 These lists are the result of repeatedly merging entries that answered the
@@ -2775,29 +2777,55 @@ everything else.
   is marked to be verified by a senior physiotherapist. Routes:
   `/api/therapist/assessment-runs/{start,event,display,end}`, plus `runId` and
   `stepId` on `/api/therapist/measurements/submit`, and
-  `/api/patient/assessment-display` (the companion's three-second fallback).
+  `/api/patient/assessment-display` (the companion's three-second fallback),
+  and `/api/patient/session-ready` (the patient's *I'm ready*, below).
   **The two screens.** The physiotherapist's cockpit
   (`/therapist/dashboard/assessment/[patientId]`) is built to sit on a second
   screen next to Google Meet: the steps across the top, the current step as one
-  card (what to say in large type, the set-up checklist that must be fully
-  ticked, a red safety line where another adult has to stand beside the
-  patient, and the right tool in the same place) and always the same three
-  actions - **Stop test**, **Skip** and one big **Save and next**, which stays
-  grey, with a line saying what is missing, until the set-up and a result are in.
-  Beside it: today's results so far (*Not done* until a step is saved), a small
-  preview of what the patient sees with *Get ready*, *Go*, *Done* and *Rest*,
-  and a *Stop at once if* box. On a phone the results and preview fold away
-  under the step. The patient's screen (`/patient/dashboard/session`) is dark and
-  large, shows one instruction, a picture of the position and a giant clock, has
-  nothing to press, follows the physiotherapist live and polls every three
-  seconds if the live connection is down. With no check running it says *Your
-  physiotherapist will start the guided check soon*; if it cannot load the
-  screen it says *We couldn't load your screen. Trying again…* instead. Rules:
+  card (what to say in large type first, then the set-up checklist that must be
+  fully ticked and the right tool in the same place), one **safety strip** above
+  it (safety status, the "someone beside them" rule where a test needs it, *Stop
+  at once if* and the *Before you start* notes, red only when something needs
+  action) and always the same three actions - **Stop test**, **Skip** and one
+  big **Save and next**, which stays grey, with a line saying what is missing,
+  until the set-up and a result are in. The patient's screen follows the test by
+  itself - Get ready when a step opens, Go when a timer starts, Done when it
+  ends, Get ready again on *Redo this attempt*, Rest on Stop test - so above the
+  actions there is just one line saying whether the patient is following, with
+  the manual controls folded behind *Patient screen: Auto*. Beside it: today's
+  results so far (*Not done* until a step is saved) and a small preview of what
+  the patient sees. On a phone the results and preview fold away under the
+  step. The start screen shows who, the assessment chosen for the condition
+  (*Change* where there is a choice), *Before you start* in one line and one
+  **Start guided check** button; the patient screen is optional, folded under
+  it with the one short link, `/screen`. The patient's screen
+  (`/patient/dashboard/session`) is dark and large, shows one instruction, a
+  picture of the position (or, when the step asks for a number, the 0-10 or 0-4
+  scale, with nothing marked on it) and a giant clock, has nothing to press,
+  follows the physiotherapist live and polls every three seconds if the live
+  connection is down. With no check running it says *Your physiotherapist will
+  start soon* and *Keep your video call open.*; if it cannot load the screen it
+  says *We couldn't load your screen. Trying again…* instead. While a check is
+  live every patient screen carries one line - *Your physiotherapist has started
+  your check* - with *Stay on your video call - your physiotherapist will talk
+  you through it.* and an outline **Open**, the second-device help behind *Use
+  a bigger screen*: one device is the normal case.
+  **Around the call.** From two days before a video session the patient's
+  Overview shows *Get ready for your session*: the few things to have to hand
+  for their condition (a sturdy chair against a wall, a towel, a clear path
+  for a knee check), one **I'm ready** button, and the day-before reminder
+  email points to it. The physiotherapist's start screen then says *Priya is
+  ready · ticked the get-ready list at 5:52 PM*. At the end of the check the
+  physiotherapist has **one wrap-up form** in the page - the session note and
+  the patient's summary, filled in from the check where blank - and one **Save
+  and close session**; *Where things stand* is optional, folded below. For a
+  week after, the patient's Overview shows *Your session recap*: what was
+  done, before next time, the home exercises and the next session. Rules:
   `docs/rules/clinical.md`.
 
-  **Home exercises (phase 7d).** After the checks, every guided
-  video assessment has a *Home exercises* step, just before the summary. The
-  physiotherapist picks exercises from the clinic's library
+  **Home exercises (phase 7d).** After the summary, every guided
+  check ends with a *Home exercises* step, taught now or *Later* (which
+  finishes the check). The physiotherapist picks up to three exercises from the clinic's library
   (`src/lib/exerciseLibrary.ts`: a starter set for each condition type, each
   with a plain name, a demo picture, three to five short steps, a default dose
   and a safety line, every one marked to be verified by a senior

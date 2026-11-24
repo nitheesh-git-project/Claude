@@ -58,7 +58,7 @@ export default function CareStatusControls({
    *  without the physiotherapist pressing Save). */
   summaryDraft?: string | null;
   endpoint?: string;
-  /** Only "Where things stand", open: the end of a guided assessment, where
+  /** Only "Where things stand", open: the end of a guided check, where
    *  the draft from the run is waiting to be put into the physiotherapist's
    *  own words. The phase and the overrule are not offered there. */
   summaryOnly?: boolean;

@@ -695,7 +695,7 @@ const ROLE_BASE: Record<TutorialRole, string> = {
   hospital: "/hospital/dashboard",
 };
 
-/** Screens a first-visit tour must never open over: the guided assessment's
+/** Screens a first-visit tour must never open over: the guided check's
  *  two live screens (the physiotherapist's cockpit and the patient's display).
  *  The tour is still there from any (i); it just does not arrive by itself on
  *  top of a test in progress. */
