@@ -1,3 +1,4 @@
+import { pickHomeProgramme, pickSameAgain } from "@/lib/patientHomeCards";
 import { startEarly } from "@/lib/startEarly";
 import "server-only";
 import { readProgrammeCodes, tagsForPurchases } from "@/lib/programmeTagsServer";
@@ -92,6 +93,8 @@ function emptyRows<T>(): Promise<{ data: T[] }> {
 export type PatientScreen =
   | "overview"
   | "book"
+  // Chat to book: the Book hub's catalog, plus the names "Same again?" offers.
+  | "chat"
   | "sessions"
   | "home-visits"
   | "packages"
@@ -103,13 +106,13 @@ export type PatientScreen =
   | "profile";
 
 export async function loadPatientDashboard(screen: PatientScreen = "overview") {
-  const needHub = screen === "book";
+  const needHub = screen === "book" || screen === "chat";
   const needReceipts = screen === "receipts";
   const needPackageDetail = screen === "packages";
   const needFeed = screen === "overview";
   // Session cards name their therapist; so does the Overview's feed.
   const needTherapistNames =
-    screen === "overview" || screen === "sessions" || screen === "home-visits";
+    screen === "overview" || screen === "sessions" || screen === "home-visits" || screen === "chat";
   const supabase = await createClient();
   const {
     data: { user },
@@ -1251,6 +1254,24 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
   const liveRead = await liveReadEarly;
   const guidedCheck = liveRead.status === "ok" && companionMoment(liveRead.display, nowTimestamp()).kind === "live";
 
+  // Home's two shortcut cards (patientHomeCards.ts). Overview only: no other
+  // screen draws them, so no other screen pays for them.
+  const homeSameAgain = needFeed || screen === "chat"
+    ? pickSameAgain(appointments ?? [], activeCategoryMap, therapistMap as Map<string, string>)
+    : null;
+  const homeProgramme = needFeed
+    ? pickHomeProgramme(
+        ownedPackagesForDisplay,
+        completedCountByPurchase,
+        scheduledCountByPurchase,
+        (p) =>
+          (p.package_id ? ownedPackageInfoMap.get(p.package_id)?.title : undefined) ??
+          (p.category_id ? activeCategoryMap.get(p.category_id) : undefined) ??
+          "Your programme",
+        therapistMap as Map<string, string>
+      )
+    : null;
+
   return {
     // The one read every screen here is built from. A failure renders the
     // load banner rather than "no sessions yet" -- see AdminDataLoadBanner.
@@ -1315,6 +1336,8 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     intakeSpecialty,
     nextSession,
     joinSession,
+    homeSameAgain,
+    homeProgramme,
     bookingHistory,
     patientFeed,
     overviewCells,

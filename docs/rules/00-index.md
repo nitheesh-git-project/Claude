@@ -178,11 +178,15 @@ rg -i "<the thing you are seeing>" docs/rules/
 - A session rating is a card, and its quick picks live in the feedback text
 - Hospital referral list wording
 - The patient side has one word per concept
+- Under the headline, Home is the shortest way to the next booking
+- Chat to book is the booking asked as a tap-only chat, and nothing more
+- The therapist's Home lists today, in the clinic's day
 - Home puts the Join button where a patient looks for it
 - Patient text floor: 16px body, 14px secondary, nothing under 13px
 - A patient waiting on approval is not made to wait
 - The guided-check bar is written for a patient with one device
 - Announcements are read once by the layout and drawn by the shell: a banner on the dashboard's home, one line everywhere else
+- The notebook button is small, says what it is for, and never covers anything
 - The notebook teaches itself in three tips, the first time it opens
 - The notebook is private to its owner, and that is enforced in three places
 - A dashboard's reads start as soon as their inputs are known, and nothing in a dashboard layout waits for data

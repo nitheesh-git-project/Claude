@@ -365,6 +365,7 @@ export default function Analytics() {
             role="region"
             aria-labelledby="cookie-consent-title"
             data-testid="cookie-consent"
+            data-notebook-avoid=""
             data-leaving={leaving || undefined}
             className="mr-cookie pointer-events-auto flex w-full max-w-[440px] flex-col gap-3.5 rounded-3xl bg-[#0b3b37] px-5 pb-5 pt-[22px] text-white shadow-[0_24px_60px_rgba(15,23,42,0.35)]"
           >

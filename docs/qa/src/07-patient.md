@@ -124,7 +124,9 @@ The patient portal's Overview is the screen a patient lands on after every sign-
 7. Tap the **Next session** figure.
 8. Tap the browser's Back button, then tap the **Programme sessions left** figure (it exists only for a patient who owns a programme; with none the strip has three figures and no "0 sessions left / you don't own a package yet" tile).
 9. Tap Back again. Read the activity feed under the strip.
-10. Read the four quick actions at the foot: **Book a session**, the health-profile action, **Your sessions**, **Your payments**.
+10. Read the shortcuts under the headline: on the first run **Book your first session** plus the **Something new** / **Chat to book** tiles; on the second run (a completed single session behind Patient A) a **Same again?** card naming that care and the physiotherapist, with **Book this again**, and - if Patient A owns a programme - a **My programme** card with its ring and `N paid sessions left to book`.
+11. Read the three quick actions at the foot: the health-profile action, **Your sessions**, **Your payments**.
+12. On a phone (390 × 844), find the small notebook in the bottom-right corner above the tab bar; on a first visit a dark tip beside it reads `Use me for quick notes. A few words, short and to the point.` and fades by itself.
 
 **Expected Result.**
 * The tour appears **only on the first visit**, and uses dummy data only (Priya, Dr Ananya) - nothing of Patient A's. Step 3 writes `profiles.onboarding_seen_at` through `/api/dashboard/tutorial-seen`, so the reload at step 4 shows no tour, and it never opens by itself again. **Skip** asks `Skip the tour?` once and then does the same thing as **Done**. Any (i) replays its own chapter at any time and never re-marks anything.
@@ -134,9 +136,34 @@ The patient portal's Overview is the screen a patient lands on after every sign-
 * With no history the feed reads `Bookings, payments and health-profile updates show up here as they happen.` Once there is history, items still waiting on the patient (`needsYou`) are **pinned above** everything else regardless of date, and no single title repeats more than the cap allows.
 * The health-profile quick action changes wording with state: `See your health profile` / `Your therapist fills this in at your first session` while locked, `Finish your health profile` / `N questions left, about 2 minutes` while partly answered, `Review your health profile` while complete.
 * **Conditional banners.** While the profile is the patient's to write and unfinished, an amber banner reads `You're N of M questions into your health profile.` (or the `Add to your health profile…` wording at zero) with a progress bar and `Finish it →`. While a recommendation or a proposed time is waiting, a teal card reads `Your therapist has recommended a programme` or `Your therapist has proposed a time` and links to `/patient/dashboard/suggested` - the cards themselves live there, never duplicated here.
+* **Same again?** opens `/book?from=dashboard&category=<that care>&therapist=<that physiotherapist>`, the wizard opening on that care with the physiotherapist shown as requested; it never appears for a programme session, a no-show, a cancelled session or a service the clinic has switched off. **My programme** opens `/patient/dashboard/packages`.
+* The notebook button never sits on the tab bar, a toast or the booking wizard's pinned Pay bar: it lifts above them (or tucks into the right edge when it would have to climb half the screen).
 * If invites are enabled (`ADM-SET-023`'s neighbour, `invite_rewards_enabled`), the invite card renders **below** the overview, never as a banner over it, and its claim field is gone once any session has been paid for.
 * No console error. No horizontal scroll at 390 × 844.
 **Cleanup.** None. Stay signed in.
+
+
+#### `PAT-DASH-003` - Chat to book · P1
+
+**Feature.** Chat to book (`/patient/dashboard/chat`). **Role.** Patient.
+**Purpose.** Confirm the chat offers exactly what the Book hub offers and hands off to the real wizard with the answers filled in.
+**Preconditions.** Signed in as Patient A. Home visits switched on with at least one condition that has a home-visit price.
+**Test Data.** None entered.
+
+**Steps**
+1. Open **Chat to book** from the sidebar (on a phone: **More → Chat to book**, or the tile on Home).
+2. Read the first message and the answer chips.
+3. Tap a care that also has a home-visit price; then tap **Video consultation**.
+4. If asked `Would you like <physiotherapist> again?`, tap **Yes**.
+5. Read the summary card and tap **Pick a time**.
+6. Go back, tap **Start over**, choose the same care and **Home visit**, then **Pick a time**.
+
+**Expected Result.**
+* The chips are the Book hub's catalog in the same order; prices match the hub's cards for each mode. A care with no home-visit price is not asked "video or home" - the chat says it is a video consultation.
+* Each answer appears on the right as the patient's bubble, a short typing indicator shows, then the next question. Nothing can be typed.
+* Step 5 opens `/book?from=dashboard&category=<id>` (plus `&therapist=<id>` after step 4) on Step 1 with that care chosen. Step 6 opens `/book-home-visit?category=<id>`.
+* No console error. No horizontal scroll at 390 × 844.
+**Cleanup.** None.
 
 #### `PAT-DASH-002` - The booking hub inside the portal · P1
 

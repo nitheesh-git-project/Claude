@@ -728,6 +728,47 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   for a patient who owns a programme. Change a label here and change it in
   `src/lib/tutorial.ts` and `patientScenes.tsx` in the same commit; the
   therapist, hospital and admin dashboards keep their own words.
+- **Under the headline, Home is the shortest way to the next booking.**
+  `DashboardOverview` takes a `lead` (its own grid area, `.ov-lead`, full
+  width under the headline and above the figures). The patient's is
+  `PatientHomeLead`: **My programme** (the active programme with the most
+  paid sessions left to book, its ring of done / total and "N paid sessions
+  left to book", one tap to My programme where credits are scheduled),
+  **Same again?** (the care they last had, with the physiotherapist they had
+  it with, opening `/book?from=dashboard&category=…&therapist=…` -- the
+  therapist is a *request*, and the card says the clinic confirms who is
+  free), and two tiles, **Something new** (the wizard) and **Chat to book**.
+  A patient with neither a programme nor a past session sees one
+  **Book your first session** card. The choices are `pickHomeProgramme` and
+  `pickSameAgain` (`src/lib/patientHomeCards.ts`): only single sessions are
+  rebooked (programme sessions are already paid for and scheduled from My
+  programme), never a no-show, a cancellation or a service the clinic has
+  switched off, and a physiotherapist is only requested when they can be
+  named. The headline card above it keeps the Join button, so a call that
+  is due still comes first. Quick actions no longer repeat "Book a session".
+  Guard: `e2e/dashboard-home-shortcuts.spec.ts` HS-001/HS-002.
+- **Chat to book is the booking asked as a tap-only chat, and nothing more.**
+  `/patient/dashboard/chat` (`ChatToBook`, data from
+  `chatCareOptions`, `src/lib/chatToBook.ts`) asks what the patient needs
+  help with (the Book hub's catalog, in its order), then video or a home
+  visit (only where the clinic has a home-visit price for that care), then
+  -- for video, when "Same again?" has a physiotherapist for that same care
+  -- whether to ask for them again. **Pick a time** then opens the existing
+  wizard for that mode with the answers filled in (`chatBookingHref`), so
+  slots, lead time, prices, consent, the pincode check and payment are
+  decided in one place. It is a sidebar entry after Book a Session; on a
+  phone it is in More (the bar stays Home, Sessions, Book, My progress) and
+  on Home's tile. Guard: HS-003.
+- **The therapist's Home lists today, in the clinic's day.** Under Next up,
+  `TherapistToday` lists every non-cancelled session on today's date in
+  Asia/Kolkata (`todaysSessions`, `src/lib/therapistToday.ts`), in time
+  order, each with one word -- Done, No-show, Now, Next, Later, Awaiting
+  clinic, or **Mark complete** for a past session nobody closed -- and a
+  progress bar of the day. Rows open the patient's Health Profile; Join,
+  Done and no-show stay on Next up and Sessions. The **Today** figure is the
+  same list's length: it used to compare dates in the server's zone, so on a
+  UTC host a 9 AM IST session counted as yesterday until 5:30 AM. Guard:
+  `src/lib/therapistToday.test.ts`, HS-004.
 - **Home puts the Join button where a patient looks for it.** The headline card
   carries `JoinSessionButton size="hero"` for `joinSession`
   (`pickJoinSession`, `src/lib/joinHeadline.ts`): the soonest booked online
@@ -812,6 +853,21 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
     picture the banner is the title on a brand strip.
   Guard: `e2e/announcements-notebook.spec.ts` ANN-001..006,
   `src/lib/announcements.test.ts`.
+- **The notebook button is small, says what it is for, and never covers
+  anything.** It is a 44 x 52 closed notebook (50 x 60 from `lg`) in the
+  bottom-right corner, above the phone's tab bar through
+  `--app-bottom-inset`. Anything else that claims the bottom of the screen
+  carries `data-notebook-avoid` -- every toast, the cookie card, the
+  live-updates banner, the booking wizard's pinned Continue / Pay bars, the
+  assessment's action bar -- and the button lifts to sit just above it, or
+  tucks into the right edge when lifting would take half the screen
+  (`placeNotebook`, `src/lib/notebookPlacement.ts`; re-measured on scroll,
+  resize and DOM changes). **A new pinned bottom element adds the
+  attribute.** For its first three visits, and on hover or focus, a small
+  tip beside it says *Use me for quick notes. A few words, short and to the
+  point.*; it fades by itself, has a close button, and never shows again
+  once the notebook has been opened (`mr-notebook-hint-v1`, read in a mount
+  effect). Guard: `src/lib/notebookPlacement.test.ts`, NB-003.
 - **The notebook teaches itself in three tips, the first time it opens.**
   `NotebookTour`: Write anything / Pages, like a real notebook / It saves
   itself, each ringing the real control it names (the page, the page

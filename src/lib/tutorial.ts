@@ -146,13 +146,19 @@ const PATIENT: TutorialChapter[] = [
     id: "patient-booking",
     title: "Booking a session",
     icon: "fa-calendar-plus",
-    sections: ["book", "sessions", "session", "card:session-status"],
+    sections: ["book", "chat", "sessions", "session", "card:session-status"],
     steps: [
       {
         id: "book",
         scene: "patient-book",
         title: "Book in four taps",
         body: "Pick what you need help with, video or a home visit, a day and a time - then pay securely. You can add a promo code before paying.",
+      },
+      {
+        id: "chat",
+        scene: "patient-book",
+        title: "Or just chat",
+        body: "Chat to book asks the same questions one at a time. Tap your answers - there is nothing to type - then pick a time and pay as usual.",
       },
       {
         id: "journey",

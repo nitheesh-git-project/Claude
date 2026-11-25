@@ -1986,6 +1986,21 @@
       ],
       "integration": "local",
       "destructive": false
+    },
+    "dashboard-home-shortcuts.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "browser",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/dashboards.md"
+      ],
+      "integration": "local",
+      "destructive": false
     }
   },
   "flows": [
@@ -5018,7 +5033,7 @@
     {
       "id": "dashboards.notebook",
       "runner": "platform",
-      "title": "The notebook opens on every dashboard, saves by itself, keeps its pages, and a page is read by its owner and nobody else (route and RLS)",
+      "title": "The notebook opens on every dashboard, saves by itself, keeps its pages, and a page is read by its owner and nobody else (route and RLS); its button stays clear of anything else pinned to the bottom of the screen",
       "required": true,
       "status": "covered",
       "coverage": [
@@ -5026,7 +5041,8 @@
           "spec": "announcements-notebook.spec.ts",
           "tests": [
             "NB-001",
-            "NB-002"
+            "NB-002",
+            "NB-003"
           ],
           "level": "browser"
         }
@@ -5228,6 +5244,28 @@
       ],
       "rules": [
         "docs/rules/clinical.md",
+        "docs/rules/dashboards.md"
+      ]
+    },
+    {
+      "id": "dashboards.home-shortcuts",
+      "runner": "patient",
+      "title": "Home offers the first session, or the same care again with the same physiotherapist; Chat to book ends on a link into the real wizard; the therapist's Home lists today",
+      "required": false,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "dashboard-home-shortcuts.spec.ts",
+          "tests": [
+            "HS-001",
+            "HS-002",
+            "HS-003",
+            "HS-004"
+          ],
+          "level": "browser"
+        }
+      ],
+      "rules": [
         "docs/rules/dashboards.md"
       ]
     }

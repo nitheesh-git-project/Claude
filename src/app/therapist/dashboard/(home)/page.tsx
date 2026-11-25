@@ -4,6 +4,7 @@ import DashboardOverview from "@/components/dashboard/DashboardOverview";
 import { loadTherapistDashboard } from "@/lib/therapistDashboardData";
 import OnboardingNeededBanner from "@/components/therapist/OnboardingNeededBanner";
 import { renderTherapistNextUp } from "@/components/therapist/TherapistSessionCards";
+import TherapistToday from "@/components/therapist/TherapistToday";
 
 export const metadata: Metadata = {
   title: "Therapist Dashboard | MoveRestore",
@@ -60,6 +61,14 @@ export default async function TherapistDashboardPage() {
         // be done with it now (renderTherapistNextUp).
         headline={
           renderTherapistNextUp(d) ?? "No sessions booked yet - keep your availability open and the clinic assigns work to it."
+        }
+        // Today's sessions in order, right under Next up: the shape of the
+        // day without opening Sessions.
+        lead={
+          <TherapistToday
+            rows={d.todayRows}
+            names={new Map([...d.patientMap].map(([id, p]) => [id, p.full_name ?? "A patient"]))}
+          />
         }
         cells={d.overviewCells}
         feed={d.therapistFeed}

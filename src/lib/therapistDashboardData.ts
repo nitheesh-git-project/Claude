@@ -1,3 +1,4 @@
+import { todaysSessions } from "@/lib/therapistToday";
 import { startEarly } from "@/lib/startEarly";
 import "server-only";
 import { formatClinicTime } from "@/lib/formatDateTime";
@@ -609,17 +610,11 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
     )
     .sort((a, b) => new Date(a.slot_time!).getTime() - new Date(b.slot_time!).getTime());
   const nextSession = upcomingSessions[0] ?? null;
-  const todayCount = (appointments ?? []).filter((a) => {
-    if (!a.slot_time) return false;
-    const slot = new Date(a.slot_time);
-    const today = new Date(nowMsForOverview);
-    return (
-      slot.getFullYear() === today.getFullYear() &&
-      slot.getMonth() === today.getMonth() &&
-      slot.getDate() === today.getDate() &&
-      a.status !== "cancelled"
-    );
-  }).length;
+  // The clinic's today, not the server's: compared through the clinic-zone
+  // formatter, so on a UTC host a 9 AM IST session is not "yesterday" until
+  // 5:30 AM (it used to be, and the count disagreed with the Today list).
+  const todayRows = todaysSessions(appointments ?? [], nowMsForOverview);
+  const todayCount = todayRows.length;
   // A session whose slot has passed but which nobody has marked complete
   // is the therapist's own to-do -- the payout can't count it until then.
   const awaitingCompletion = (appointments ?? []).filter(
@@ -1045,6 +1040,7 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
     notesOwed,
     therapistFeed,
     overviewCells,
+    todayRows,
     nextSession,
     homeVisitPerVisitFeeByPurchaseId,
     nowMs: nowMsForOverview,

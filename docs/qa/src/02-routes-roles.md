@@ -33,8 +33,9 @@ Every route below is covered by at least one test. The rightmost column names th
 | --- | --- | --- |
 | `/patient/login` | Sign In / Register Account tabs plus Forgot password | `PAT-AUTH-001` |
 | `/patient/register` | Standalone registration (always waits for admin approval) | `PAT-AUTH-004` |
-| `/patient/dashboard` | Overview: four figures, activity feed, quick actions | `PAT-DASH-001` |
+| `/patient/dashboard` | Home: next session, the booking shortcuts (My programme, Same again?, Something new, Chat to book), four figures, activity feed, quick actions | `PAT-DASH-001` |
 | `/patient/dashboard/book` | Booking hub inside the portal | `PAT-DASH-002` |
+| `/patient/dashboard/chat` | Chat to book: the booking questions as a tap-only chat, ending on **Pick a time** into the wizard. Sidebar after Book a Session; in More on a phone | `PAT-DASH-003` |
 | `/patient/dashboard/suggested` | Suggested Sessions - therapist recommendations and proposed times. **Only in the sidebar when something is waiting** | `PAT-SUGG-001` |
 | `/patient/dashboard/suggested/checkout?plan=<version id>` | Review & pay for a recommended programme: address (home visits), promo code, server-quoted total, Pay. Reached from **Accept & pay**, never from the sidebar | `PAT-CARE-002`, `PAT-CARE-005` |
 | `/patient/dashboard/sessions` | All sessions, List/Calendar toggle, Upcoming/Past/Cancelled + Video/Home visit filters | `PAT-SESS-001` |

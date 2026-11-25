@@ -42,6 +42,11 @@ export function buildPatientNavItems({
     // now" screen for patient, therapist, hospital and admin.
     { id: "overview", label: "Home", short: "Home", icon: "fa-gauge-high", href: "/patient/dashboard" },
     { id: "book", label: "Book a Session", short: "Book", icon: "fa-plus", href: "/patient/dashboard/book" },
+    // The same booking asked as a short tap-only chat, which then opens the
+    // wizard with the answers filled in. Its own entry, not a tab: the phone
+    // bar keeps Home, Sessions, Book and My progress, so on a phone this sits
+    // in More (Home also carries a Chat to book tile).
+    { id: "chat", label: "Chat to book", short: "Chat", icon: "fa-comment-medical", href: "/patient/dashboard/chat" },
     // One entry for every session -- video or home visit, list or calendar.
     // These were three entries over the same rows, which made "what's
     // next?" a three-screen question. The calendar is a view switch on the
