@@ -1041,6 +1041,8 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
     therapistFeed,
     overviewCells,
     todayRows,
+    // The Sessions tab's summary reads the same count Home's figure shows.
+    notesOwedCount: notesOwed.length,
     nextSession,
     homeVisitPerVisitFeeByPurchaseId,
     nowMs: nowMsForOverview,

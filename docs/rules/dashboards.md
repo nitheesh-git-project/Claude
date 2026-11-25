@@ -769,6 +769,30 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   same list's length: it used to compare dates in the server's zone, so on a
   UTC host a 9 AM IST session counted as yesterday until 5:30 AM. Guard:
   `src/lib/therapistToday.test.ts`, HS-004.
+- **Every dashboard tab opens with its answer.** Each patient and therapist
+  tab starts with a `TabSummary` (`src/components/dashboard/`): the one
+  question the tab exists for, answered in a line, with its one action and
+  at most four small figures -- Sessions (the next session; upcoming / done /
+  cancelled), Recommendations (what is waiting, only when something is), My
+  programme (paid sessions left to book, the same pick as Home), Payments
+  (the latest payment; counts of payments, refunds and failures), My progress
+  ("Am I getting better?" from the same series the charts draw), the
+  therapist's Sessions (next session; today, upcoming, notes to write),
+  Availability (hours a week, the next date that differs, time off),
+  Earnings (owed to you, inside the loaded branch only) and My Patients
+  (onboarding, profiles not opened, active programmes). Long tabs add
+  `JumpChips`, plain anchors to each section; `.dash-content [id]` keeps a
+  jumped-to section below the phone's sticky header. Everything the tab held
+  before is still below, unchanged. Three rules hold the figures honest:
+  **a count is made by the list's own rule** (`sessionsSummary` uses
+  `sessionBucket`, so the card can never disagree with the list under it);
+  **Payments shows counts, never totals** (a sum over part refunds and
+  programme-covered sessions is the figure that disagrees with the list;
+  the latest payment's amount is that one receipt's own); and **a trend
+  needs two readings** and never alarms (`trendSentence`, `progressHeadline`
+  in `src/lib/tabSummaries.ts`: a reading that went the wrong way is
+  "Worth raising at your next session"). Guard: `tabSummaries.test.ts`,
+  HS-005/HS-006.
 - **Home puts the Join button where a patient looks for it.** The headline card
   carries `JoinSessionButton size="hero"` for `joinSession`
   (`pickJoinSession`, `src/lib/joinHeadline.ts`): the soonest booked online

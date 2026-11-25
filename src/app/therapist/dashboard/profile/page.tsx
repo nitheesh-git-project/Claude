@@ -1,3 +1,4 @@
+import { JumpChips } from "@/components/dashboard/TabSummary";
 import type { Metadata } from "next";
 import ProfileLoadFailed from "@/components/profile/ProfileLoadFailed";
 import { createClient } from "@/lib/supabase/server";
@@ -112,6 +113,14 @@ export default async function TherapistProfilePage() {
       headerSubtitle="Update your public details, credentials, and account security."
     >
       <div className="max-w-2xl mx-auto">
+      <JumpChips
+        items={[
+          { id: "public-details", label: "Public details" },
+          { id: "credentials", label: "Credentials" },
+          { id: "account-security", label: "Security" },
+          { id: "your-data", label: "Your data" },
+        ]}
+      />
       {profileUnreadable ? (
         <ProfileLoadFailed
           title="We couldn't load your profile"

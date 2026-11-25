@@ -181,6 +181,7 @@ rg -i "<the thing you are seeing>" docs/rules/
 - Under the headline, Home is the shortest way to the next booking
 - Chat to book is the booking asked as a tap-only chat, and nothing more
 - The therapist's Home lists today, in the clinic's day
+- Every dashboard tab opens with its answer
 - Home puts the Join button where a patient looks for it
 - Patient text floor: 16px body, 14px secondary, nothing under 13px
 - A patient waiting on approval is not made to wait

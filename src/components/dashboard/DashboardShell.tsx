@@ -578,7 +578,7 @@ export default function DashboardShell({
 
       {/* The notebook floats in the corner, so the page ends a little lower
           and its last row can always be scrolled clear of the button. */}
-      <div className="pb-[calc(10.5rem+env(safe-area-inset-bottom))] lg:pb-28 lg:pl-[88px] 2xl:pl-64">
+      <div className="dash-content pb-[calc(10.5rem+env(safe-area-inset-bottom))] lg:pb-28 lg:pl-[88px] 2xl:pl-64">
         <div className="px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
           {/* Whatever the clinic is announcing to this role, above the page
               itself: the banner on the dashboard's home, one line everywhere

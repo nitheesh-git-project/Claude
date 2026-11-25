@@ -1,3 +1,4 @@
+import TabSummary from "@/components/dashboard/TabSummary";
 import type { Metadata } from "next";
 import { loadProgrammeTags } from "@/lib/programmeTagsServer";
 import Link from "next/link";
@@ -279,6 +280,28 @@ export default async function TherapistHealthProfilesPage() {
       headerTitle="My Patients"
       headerSubtitle="Everyone assigned to you, soonest session first - with what you recorded last time, so you can walk in prepared. Switch to Programmes for package patients by purchase."
     >
+      <div className="mx-auto max-w-2xl">
+        <TabSummary
+          testId="patients-summary"
+          eyebrow="Your patients"
+          tone={onboardingCount > 0 ? "plain" : "hero"}
+          title={`${sortedPatients.length} ${sortedPatients.length === 1 ? "patient" : "patients"}`}
+          detail={
+            onboardingCount > 0
+              ? `${onboardingCount} ${onboardingCount === 1 ? "needs" : "need"} onboarding at their first session - their Health Profile stays locked to them until then.`
+              : "Soonest session first, with what you recorded last time."
+          }
+          facts={[
+            { label: "Need onboarding", value: String(onboardingCount), tone: onboardingCount > 0 ? "amber" : "slate" },
+            { label: "Profile not opened yet", value: String(newPatientCount), tone: "teal" },
+            {
+              label: "Active programmes",
+              value: String(programmePurchases.filter((p) => p.status === "active").length),
+              tone: "green",
+            },
+          ]}
+        />
+      </div>
       <div className="max-w-2xl mx-auto bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <TherapistPatientsView
           patientCount={sortedPatients.length}

@@ -156,7 +156,7 @@
       "razorpay-refund-webhook.spec.ts": 35,
       "admin-find-and-money.spec.ts": 90,
       "debug-test-accounts.spec.ts": 60,
-      "dashboard-home-shortcuts.spec.ts": 60
+      "dashboard-home-shortcuts.spec.ts": 110
     }
   }
 }

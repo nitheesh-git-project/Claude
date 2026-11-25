@@ -1988,7 +1988,7 @@
       "destructive": false
     },
     "dashboard-home-shortcuts.spec.ts": {
-      "runner": "patient",
+      "runner": "therapist",
       "levels": [
         "browser",
         "db"
@@ -5249,8 +5249,8 @@
     },
     {
       "id": "dashboards.home-shortcuts",
-      "runner": "patient",
-      "title": "Home offers the first session, or the same care again with the same physiotherapist; Chat to book ends on a link into the real wizard; the therapist's Home lists today",
+      "runner": "therapist",
+      "title": "Home offers the first session, or the same care again with the same physiotherapist; Chat to book ends on a link into the real wizard; the therapist's Home lists today; every patient and therapist tab opens with its summary, on a phone, without sideways scroll",
       "required": false,
       "status": "covered",
       "coverage": [
@@ -5260,7 +5260,9 @@
             "HS-001",
             "HS-002",
             "HS-003",
-            "HS-004"
+            "HS-004",
+            "HS-005",
+            "HS-006"
           ],
           "level": "browser"
         }

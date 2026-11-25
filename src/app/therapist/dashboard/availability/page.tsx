@@ -1,3 +1,6 @@
+import TabSummary, { JumpChips } from "@/components/dashboard/TabSummary";
+import { availabilitySummary } from "@/lib/tabSummaries";
+import { formatClinicDate } from "@/lib/formatDateTime";
 import type { Metadata } from "next";
 import TherapistDashboardShell from "@/components/therapist/TherapistDashboardShell";
 import { loadTherapistDashboard } from "@/lib/therapistDashboardData";
@@ -14,6 +17,11 @@ export const metadata: Metadata = {
 export default async function Page() {
   const d = await loadTherapistDashboard("availability");
   const weekly = templateToWeekly(d.availabilitySlots ?? []);
+  const avail = availabilitySummary(d.availabilitySlots ?? [], d.upcomingOverrides ?? []);
+  const onLeave = d.onLeaveProfile?.on_leave ?? false;
+  // An exception's date is a wall-clock day with no instant behind it; noon
+  // in the clinic's zone formats as that same day for every reader.
+  const dayLabel = (ymd: string) => formatClinicDate(`${ymd}T12:00:00+05:30`);
 
   return (
     <TherapistDashboardShell
@@ -34,7 +42,43 @@ export default async function Page() {
         </SurfaceCard>
       ) : (
       <div id="availability" className="space-y-4">
+        <TabSummary
+          testId="availability-summary"
+          eyebrow="Your week"
+          tone={onLeave ? "plain" : "hero"}
+          title={
+            onLeave
+              ? "You're on time off"
+              : avail.hoursPerWeek > 0
+                ? `${avail.hoursPerWeek} hours a week, over ${avail.workingDays} ${avail.workingDays === 1 ? "day" : "days"}`
+                : "No weekly hours set yet"
+          }
+          detail={
+            onLeave
+              ? "No new bookings come to you until it ends. Sessions already booked stay as they are."
+              : "The clinic assigns bookings into these hours. Nothing is booked by this page itself."
+          }
+          facts={[
+            { label: "Hours a week", value: String(avail.hoursPerWeek), tone: "teal" },
+            {
+              label: "Next date that differs",
+              value: avail.nextException ? dayLabel(avail.nextException.date) : "None",
+              note: avail.nextException ? (avail.nextException.available ? "Extra hours" : "Not working") : undefined,
+              tone: avail.nextException ? "amber" : "slate",
+            },
+            { label: "Time off", value: onLeave ? "On" : "Off", tone: onLeave ? "amber" : "slate" },
+          ]}
+        />
+        <JumpChips
+          className=""
+          items={[
+            { id: "weekly-hours", label: "Weekly hours" },
+            { id: "exceptions", label: "Dates that differ" },
+            { id: "time-off", label: "Time off" },
+          ]}
+        />
         <SurfaceCard
+          id="weekly-hours"
           title="Your schedule"
           icon="fa-clock"
           subtitle="Set it once and it repeats every week. It tells the clinic when to expect you; it doesn't book anything by itself."
@@ -50,6 +94,7 @@ export default async function Page() {
         </SurfaceCard>
 
         <SurfaceCard
+          id="exceptions"
           title="Exceptions"
           icon="fa-calendar-day"
         >
@@ -68,7 +113,7 @@ export default async function Page() {
           />
         </SurfaceCard>
 
-        <SurfaceCard title="Time off" icon="fa-plane-departure">
+        <SurfaceCard id="time-off" title="Time off" icon="fa-plane-departure">
           <LeavePanel
             endpoint="/api/therapist/set-on-leave"
             onLeave={d.onLeaveProfile?.on_leave ?? false}

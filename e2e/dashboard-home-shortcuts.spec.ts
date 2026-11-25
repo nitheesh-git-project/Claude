@@ -111,3 +111,57 @@ test("HS-004: the therapist's Home lists today", async ({ page }) => {
   await expect(today).toBeVisible({ timeout: 60_000 });
   await expect(today.getByRole("link", { name: "All sessions" })).toHaveAttribute("href", "/therapist/dashboard/sessions");
 });
+
+// Every tab opens with its answer (TabSummary). The summary's figures are
+// unit-tested in src/lib/tabSummaries.test.ts; here, that each tab's real
+// page renders one, on a phone, without pushing the page sideways.
+const PATIENT_TABS: [string, string | null][] = [
+  ["/patient/dashboard/sessions", "sessions-summary"],
+  ["/patient/dashboard/payments", "payments-summary"],
+  ["/patient/dashboard/health-profile", "progress-summary"],
+  // Recommendations and My programme only summarise what exists; a patient
+  // with neither has no card there, so they are checked for the page alone.
+  ["/patient/dashboard/profile", null],
+];
+
+test("HS-005: each patient tab opens with its answer", async ({ page }) => {
+  test.setTimeout(180_000);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.context().addCookies(await browserCookiesFor(returning.email));
+  for (const [path, testId] of PATIENT_TABS) {
+    await page.goto(`${BASE}${path}`, { waitUntil: "domcontentloaded" });
+    await waitForSplashToClear(page);
+    if (testId) await expect(page.getByTestId(testId), path).toBeVisible({ timeout: 60_000 });
+    else await expect(page.getByRole("navigation", { name: "On this page" })).toBeVisible({ timeout: 60_000 });
+    const sideways = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    expect(sideways, `${path} scrolls sideways`).toBeLessThanOrEqual(1);
+  }
+  // The Sessions card counts the returning patient's past session as done
+  // only once it is completed; it is confirmed and past, so it is Past, not
+  // Upcoming, on both the card and the list (sessionBucket).
+  await page.goto(`${BASE}/patient/dashboard/sessions`, { waitUntil: "domcontentloaded" });
+  await waitForSplashToClear(page);
+  await expect(page.getByTestId("sessions-summary")).toContainText("Nothing coming up", { timeout: 60_000 });
+});
+
+test("HS-006: each therapist tab opens with its answer", async ({ page }) => {
+  test.setTimeout(180_000);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.context().addCookies(await browserCookiesFor(QA_EMAILS.therapistA));
+  for (const [path, testId] of [
+    ["/therapist/dashboard/sessions", "therapist-sessions-summary"],
+    ["/therapist/dashboard/availability", "availability-summary"],
+    ["/therapist/dashboard/earnings", "earnings-summary"],
+    ["/therapist/dashboard/health-profile", "patients-summary"],
+  ] as const) {
+    await page.goto(`${BASE}${path}`, { waitUntil: "domcontentloaded" });
+    await waitForSplashToClear(page);
+    await expect(page.getByTestId(testId), path).toBeVisible({ timeout: 60_000 });
+    const sideways = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    expect(sideways, `${path} scrolls sideways`).toBeLessThanOrEqual(1);
+  }
+  await page.goto(`${BASE}/therapist/dashboard/profile`, { waitUntil: "domcontentloaded" });
+  await waitForSplashToClear(page);
+  await page.getByRole("navigation", { name: "On this page" }).getByRole("link", { name: "Credentials" }).click();
+  await expect(page.locator("#credentials")).toBeInViewport();
+});
