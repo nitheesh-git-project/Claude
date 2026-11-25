@@ -60,8 +60,8 @@ function ProgrammeCard({ programme, wide }: { programme: HomeProgramme; wide: bo
     >
       {/* Ring and words stay side by side at every width; only the button
           moves -- beside them on a full-width card, under them on a half. */}
-      <div className="flex min-w-0 flex-1 items-center gap-4">
-      <svg width="88" height="88" viewBox="0 0 88 88" aria-hidden="true" className="shrink-0">
+      <div className="flex min-w-0 flex-1 flex-col gap-3 min-[400px]:flex-row min-[400px]:items-center min-[400px]:gap-4">
+      <svg width="88" height="88" viewBox="0 0 88 88" aria-hidden="true" className="h-[72px] w-[72px] shrink-0 min-[400px]:h-[88px] min-[400px]:w-[88px]">
         <circle cx="44" cy="44" r={RING_R} fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="9" />
         <circle
           className="mr-ring-fill"
@@ -175,7 +175,7 @@ function Tile({ href, icon, title, hint, delay }: { href: string; icon: string; 
     <ProgressLink
       href={href}
       style={{ "--d": `${delay}ms` } as CSSProperties}
-      className="mr-rise group flex min-h-[88px] flex-col justify-between gap-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-md sm:flex-row sm:items-center sm:justify-start sm:gap-3"
+      className="mr-rise group flex min-h-[88px] flex-col justify-start gap-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-md sm:flex-row sm:items-center sm:justify-start sm:gap-3"
     >
       <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-teal-50 text-teal-700">
         <i aria-hidden className={`fa-solid ${icon}`} />

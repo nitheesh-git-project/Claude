@@ -45,6 +45,17 @@ describe("placeNotebook", () => {
     expect(placeNotebook(button, [cookieCard], VH)).toEqual({ lift: 0, tucked: true });
   });
 
+  it("tucks into the edge while it would cover something to tap", () => {
+    expect(placeNotebook(button, [], VH, true)).toEqual({ lift: 0, tucked: true });
+  });
+
+  it("keeps its lift when it tucks over a control above a pinned bar", () => {
+    const payBar: Box = { top: VH - 72, bottom: VH, left: 0, right: 390 };
+    const p = placeNotebook(button, [payBar], VH, true);
+    expect(p.tucked).toBe(true);
+    expect(p.lift).toBeGreaterThan(0);
+  });
+
   it("ignores hidden and off-screen elements", () => {
     const empty: Box = { top: 700, bottom: 700, left: 0, right: 390 };
     const below: Box = { top: VH + 10, bottom: VH + 60, left: 0, right: 390 };

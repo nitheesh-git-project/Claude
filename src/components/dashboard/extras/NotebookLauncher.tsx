@@ -19,6 +19,10 @@ const NotebookDialog = dynamic(() => import("./NotebookDialog"), { ssr: false })
 /** How long after landing the hint appears, and how long it stays. */
 const HINT_DELAY_MS = 1200;
 const HINT_SHOW_MS = 7000;
+/** How much of the notebook stays on screen when it steps into the edge:
+ *  inside the page's own side margin, so the strip never touches a card --
+ *  16px on a phone, 24px from `sm`. */
+const TUCK_VISIBLE_PX = { phone: 11, wide: 22 };
 
 /**
  * The notebook's floating button: a small closed notebook in the bottom-right
@@ -80,7 +84,7 @@ function Launcher({ ownerFirstName }: { ownerFirstName: string | null }) {
   const [open, setOpen] = useState(false);
   const [hint, setHint] = useState(false);
   const [hover, setHover] = useState(false);
-  const [placement, setPlacement] = useState({ lift: 0, tucked: false });
+  const [placement, setPlacement] = useState({ lift: 0, tucked: false, overControl: false, tuckShift: 0 });
   const anchorRef = useRef<HTMLDivElement>(null);
 
   // The first-visits hint.
@@ -98,6 +102,26 @@ function Launcher({ ownerFirstName }: { ownerFirstName: string | null }) {
     };
   }, []);
 
+  // The tip is a nudge, never in the way: the moment the person scrolls or
+  // taps anywhere else, it goes, so it can't sit over something they are
+  // reading or reaching for.
+  useEffect(() => {
+    if (!hint) return;
+    const startY = window.scrollY;
+    const onScroll = () => {
+      if (Math.abs(window.scrollY - startY) > 24) setHint(false);
+    };
+    const onPointer = (e: PointerEvent) => {
+      if (!anchorRef.current?.contains(e.target as Node)) setHint(false);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("pointerdown", onPointer);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("pointerdown", onPointer);
+    };
+  }, [hint]);
+
   // Keep out of the way of anything else pinned to the bottom of the screen.
   const measure = useCallback(() => {
     const anchor = anchorRef.current;
@@ -107,8 +131,41 @@ function Launcher({ ownerFirstName }: { ownerFirstName: string | null }) {
     document.querySelectorAll<HTMLElement>("[data-notebook-avoid]").forEach((el) => {
       obstacles.push(toBox(el.getBoundingClientRect()));
     });
-    const next = placeNotebook(rest, obstacles, window.innerHeight);
-    setPlacement((prev) => (prev.lift === next.lift && prev.tucked === next.tucked ? prev : next));
+    // What is under the button where it would sit (lifted, not tucked): the
+    // first thing at its centre and at its left edge that is not the
+    // notebook itself. A link, a button or a field there means it would
+    // cover something the person can tap.
+    const lifted = placeNotebook(rest, obstacles, window.innerHeight);
+    // A 3 x 3 grid over its whole face, reaching a few px past the box: the
+    // notebook is drawn tilted, so its corners poke out of its rectangle,
+    // and a control can clip just a corner.
+    const xs = [rest.left - 3, (rest.left + rest.right) / 2, rest.right + 3];
+    const ys = [rest.top - 3, (rest.top + rest.bottom) / 2, rest.bottom + 3].map((v) => v - lifted.lift);
+    const coversControl = xs.flatMap((x) => ys.map((py) => [x, py])).some(([x, py]) => {
+      const under = document.elementsFromPoint(x, py).find((el) => !anchorRef.current?.contains(el));
+      return !!under?.closest("a[href], button, input, select, textarea, [role='button'], [data-notebook-avoid]");
+    });
+    const next = {
+      ...(coversControl ? placeNotebook(rest, obstacles, window.innerHeight, true) : lifted),
+      // Tucked only because of what is under it (not because a pinned bar
+      // left no room): the first-visit tip may hold it out for a moment.
+      overControl: coversControl && !lifted.tucked,
+      // How far to slide right so that exactly TUCK_VISIBLE_PX of it stays on
+      // screen, measured from where it rests -- it rests further from the
+      // edge on a tablet or laptop than on a phone.
+      tuckShift: Math.max(
+        0,
+        Math.round(window.innerWidth - rest.left - (window.innerWidth < 640 ? TUCK_VISIBLE_PX.phone : TUCK_VISIBLE_PX.wide))
+      ),
+    };
+    setPlacement((prev) =>
+      prev.lift === next.lift &&
+      prev.tucked === next.tucked &&
+      prev.overControl === next.overControl &&
+      prev.tuckShift === next.tuckShift
+        ? prev
+        : next
+    );
   }, []);
 
   useEffect(() => {
@@ -142,8 +199,10 @@ function Launcher({ ownerFirstName }: { ownerFirstName: string | null }) {
     setOpen(true);
   }
 
-  const tucked = placement.tucked && !hover;
-  const bubbleVisible = (hint || hover) && !open && !placement.tucked;
+  // While the first-visit tip is up it stays out so the tip can be read; the
+  // tip itself goes on the first scroll or tap, and then the tuck applies.
+  const tucked = placement.tucked && !hover && !(hint && placement.overControl);
+  const bubbleVisible = (hint || hover) && !open && !tucked;
 
   return (
     <>
@@ -154,7 +213,7 @@ function Launcher({ ownerFirstName }: { ownerFirstName: string | null }) {
       >
         <div
           className="pointer-events-auto absolute inset-0 motion-safe:transition-transform motion-safe:duration-300 motion-safe:ease-out"
-          style={{ transform: `translate(${tucked ? "62%" : "0"}, ${-placement.lift}px)` }}
+          style={{ transform: `translate(${tucked ? `${placement.tuckShift}px` : "0"}, ${-placement.lift}px)` }}
           onMouseEnter={() => setHover(true)}
           onMouseLeave={() => setHover(false)}
           onFocus={() => setHover(true)}

@@ -30,7 +30,7 @@ export default function TherapistToday({ rows, names }: { rows: TodayRow[]; name
         <h2 id="therapist-today-title" className="text-lg font-bold text-slate-900">
           Today
         </h2>
-        <ProgressLink href="/therapist/dashboard/sessions" className="text-sm font-semibold text-teal-700 hover:text-teal-800">
+        <ProgressLink href="/therapist/dashboard/sessions" className="-mr-2 inline-flex min-h-11 items-center rounded-lg px-2 text-sm font-semibold text-teal-700 hover:bg-teal-50 hover:text-teal-800">
           All sessions
         </ProgressLink>
       </div>
@@ -67,20 +67,25 @@ export default function TherapistToday({ rows, names }: { rows: TodayRow[]; name
                 <li key={r.id} className="mr-rise" style={{ "--d": `${i * 40}ms` } as CSSProperties}>
                   <Link
                     href={`/therapist/dashboard/health-profile/${r.patientId}`}
-                    className={`flex min-h-[64px] items-center gap-3 rounded-lg px-1 py-2 transition hover:bg-slate-50 ${settledRow ? "opacity-70" : ""}`}
+                    title={[name, r.concern].filter(Boolean).join(" · ")}
+                    className={`flex min-h-[64px] items-start gap-3 rounded-lg px-1 py-2.5 transition hover:bg-slate-50 sm:items-center ${settledRow ? "opacity-70" : ""}`}
                   >
-                    <span className="w-[4.5rem] shrink-0 font-display text-sm font-bold text-slate-900">
+                    <span className="w-16 shrink-0 pt-0.5 font-display text-sm font-bold text-slate-900 sm:w-[4.5rem] sm:pt-0">
                       {formatClinicTime(r.slotTime)}
                     </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[15px] font-semibold text-slate-900">{name}</span>
-                      <span className="block truncate text-[13px] text-slate-500">
-                        {[r.concern, r.homeVisit ? "Home visit" : "Video"].filter(Boolean).join(" · ")}
+                    {/* On a small phone the status sits under the name, so the
+                        name gets the row's full width; from sm it sits beside. */}
+                    <span className="flex min-w-0 flex-1 flex-col items-start gap-1.5 sm:flex-row sm:items-center sm:gap-3">
+                      <span className="min-w-0 sm:flex-1">
+                        <span className="text-[15px] font-semibold leading-snug text-slate-900 line-clamp-2">{name}</span>
+                        <span className="text-[13px] leading-snug text-slate-500 line-clamp-2">
+                          {[r.concern, r.homeVisit ? "Home visit" : "Video"].filter(Boolean).join(" · ")}
+                        </span>
                       </span>
-                    </span>
-                    <span className={`shrink-0 rounded-full px-2.5 py-1 text-[12px] font-bold ${s.className}`}>
-                      {r.state === "done" && <i aria-hidden className="fa-solid fa-check mr-1 text-[10px]" />}
-                      {s.label}
+                      <span className={`shrink-0 rounded-full px-2.5 py-1 text-[12px] font-bold ${s.className}`}>
+                        {r.state === "done" && <i aria-hidden className="fa-solid fa-check mr-1 text-[10px]" />}
+                        {s.label}
+                      </span>
                     </span>
                   </Link>
                 </li>

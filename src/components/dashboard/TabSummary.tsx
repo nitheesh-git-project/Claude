@@ -97,7 +97,10 @@ export default function TabSummary({
         )}
       </div>
       {facts && facts.length > 0 && (
-        <dl className={`mt-4 grid gap-2.5 ${facts.length >= 4 ? "grid-cols-2 lg:grid-cols-4" : facts.length === 3 ? "grid-cols-3" : "grid-cols-2"}`}>
+        // As many boxes per row as fit at about 9rem each: two on a phone,
+        // three or four from a tablet up -- never a fixed count that squeezes
+        // a label onto three lines at 320px.
+        <dl className="mt-4 grid gap-2.5" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 8.75rem), 1fr))" }}>
           {facts.map((f, i) => {
             const body = (
               <>
@@ -105,7 +108,7 @@ export default function TabSummary({
                   <span aria-hidden className={`h-2 w-2 shrink-0 rounded-full ${hero ? "bg-teal-200" : DOT[f.tone ?? "teal"]}`} />
                   {f.label}
                 </dt>
-                <dd className="mt-0.5 font-display text-lg font-extrabold leading-tight sm:text-xl">{f.value}</dd>
+                <dd className="mt-0.5 break-words font-display text-lg font-extrabold leading-tight sm:text-xl">{f.value}</dd>
                 {f.note && (
                   <dd className={`mt-0.5 text-[13px] leading-snug ${hero ? "text-teal-50" : "text-slate-500"}`}>{f.note}</dd>
                 )}
@@ -147,7 +150,7 @@ export function JumpChips({
 }) {
   if (items.length < 2) return null;
   return (
-    <nav aria-label="On this page" className={`-mx-1 mb-5 overflow-x-auto px-1 pb-1 ${className}`}>
+    <nav aria-label="On this page" className={`mb-5 overflow-x-auto py-1 ${className}`}>
       <ul className="flex w-max gap-2">
         {items.map((it, i) => (
           <li key={it.id} className="mr-rise" style={{ "--d": `${120 + i * 40}ms` } as CSSProperties}>
