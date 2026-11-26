@@ -21593,3 +21593,35 @@ grant execute on function public.phone_login_account(text) to service_role;
 -- grant). Read by the existing appointments policies. It gates nothing.
 -- ---------------------------------------------------------------------------
 alter table appointments add column if not exists patient_ready_at timestamptz;
+
+-- ---------------------------------------------------------------------------
+-- How a booking was priced outside India, kept on the booking.
+--
+-- A session priced for another country is charged the rupee equal of a local
+-- price: the Indian list price raised by that country's markup, converted and
+-- rounded up to .99 (src/lib/countryPricing.ts). `list_price_paise` already
+-- holds that raised figure, which is what discounts work on. What was not
+-- kept is the Indian price it was raised FROM -- so the therapist's share
+-- (a percentage of the amount paid) was taken on the markup too: 60% of
+-- Rs 1,059 instead of 60% of Rs 499. The owner's decision is that the share is
+-- worked out on the rupee list price and the markup stays with the clinic.
+--
+--   home_list_price_paise   the Indian list price before country pricing;
+--                           null for a rupee booking (it equals list_price_paise)
+--   pricing_country         ISO 3166-1 alpha-2 the booking was priced for
+--   pricing_currency        the currency the patient was shown
+--   pricing_markup_percent  the country's markup at that moment, 0-500
+--
+-- Written once, at the moment of pricing, by the routes that already write
+-- list_price_paise. Read by the share maths through the same isolated read
+-- as the frozen completion rates (frozenTherapistRatesServer.ts), so a
+-- database without these columns pays exactly as before.
+-- ---------------------------------------------------------------------------
+alter table appointments add column if not exists home_list_price_paise integer
+  check (home_list_price_paise is null or home_list_price_paise >= 0);
+alter table appointments add column if not exists pricing_country text
+  check (pricing_country is null or pricing_country ~ '^[A-Z]{2}$');
+alter table appointments add column if not exists pricing_currency text
+  check (pricing_currency is null or pricing_currency ~ '^[A-Z]{3}$');
+alter table appointments add column if not exists pricing_markup_percent numeric(6, 2)
+  check (pricing_markup_percent is null or pricing_markup_percent between 0 and 500);

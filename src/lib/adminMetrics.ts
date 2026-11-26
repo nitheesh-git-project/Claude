@@ -4,9 +4,10 @@
 
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { sessionAmountPaise } from "@/lib/sessionAmount";
+import { shareBasePaise, type ShareBaseFacts } from "@/lib/shareBase";
 import { refundedPaiseOf } from "@/lib/refundState";
 
-export type MetricsAppointment = {
+export type MetricsAppointment = ShareBaseFacts & {
   id: string;
   status: string;
   payment_status: string;
@@ -519,7 +520,9 @@ export function moneyLineFor(
           ? homeShare ?? onlineShare
           : onlineShare;
     const travelPaise = isHomeVisit ? Math.max(0, a.travel_fee_paise ?? 0) : 0;
-    therapistCutPaise = Math.round((paidPaise * effectiveShare) / 100) + travelPaise;
+    // On the rupee list price's part of what was paid, never the country
+    // markup (shareBase.ts) -- the same base the payout maths uses.
+    therapistCutPaise = Math.round((shareBasePaise(paidPaise, a) * effectiveShare) / 100) + travelPaise;
   }
 
   const hospitalCutPaise = partner.cutPaise;

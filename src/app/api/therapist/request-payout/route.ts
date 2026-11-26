@@ -8,7 +8,7 @@ import {
   type PayoutAppointment,
 } from "@/lib/therapistPayouts";
 import { readAllRows } from "@/lib/supabase/readAllRows";
-import { readFrozenTherapistRates } from "@/lib/frozenTherapistRatesServer";
+import { frozenShareFacts, readFrozenTherapistRates } from "@/lib/frozenTherapistRatesServer";
 
 export async function POST() {
   const supabase = await createClient();
@@ -122,7 +122,7 @@ export async function POST() {
       ...a,
       payment_terms: termsById.get(a.id)?.payment_terms ?? null,
       amount_due_paise: termsById.get(a.id)?.amount_due_paise ?? null,
-      therapist_share_percent_at_completion: frozenRates.byId.get(a.id) ?? null,
+      ...frozenShareFacts(frozenRates, a.id),
     })) as PayoutAppointment[],
     Date.now(),
     profile.home_visit_revenue_share_percent ?? null

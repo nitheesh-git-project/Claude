@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
   // travelling.
   // The visitor's country: an online programme is priced for it, and a home
   // visit is refused outside India unless an admin has allowed it.
-  const requestPricing = await pricingForRequest(admin, request);
+  const requestPricing = await pricingForRequest(admin, request, { patientId: user.id });
 
   let resolvedAddress: ResolvedHomeVisitAddress | null = null;
   if (offerKind === "home_visit_package") {

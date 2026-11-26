@@ -404,7 +404,7 @@ export async function POST(request: NextRequest) {
   // below price with it, so they cannot disagree.
   const needsPricing = body.withQuote === true || Boolean(body.startPayment);
   const { pricing } = needsPricing
-    ? await pricingForRequest(admin, request)
+    ? await pricingForRequest(admin, request, { patientId: user.id })
     : { pricing: null };
   let quote = null;
   if (body.withQuote === true) {

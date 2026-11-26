@@ -260,7 +260,13 @@ export function resolveCountry(args: {
   chosen: string | null | undefined;
   detected: string | null | undefined;
   pickerAllowed: boolean;
+  /** A signed-in patient's own country (accountCountry.ts). Wins over the
+   *  visitor's pick and the location header when it is a listed country:
+   *  an account says where someone is from better than an IP does. */
+  account?: string | null;
 }): string {
+  const account = normaliseCountryCode(args.account);
+  if (account && countryInfo(account)) return account;
   const chosen = normaliseCountryCode(args.chosen);
   if (args.pickerAllowed && chosen && countryInfo(chosen)) return chosen;
   const detected = normaliseCountryCode(args.detected);

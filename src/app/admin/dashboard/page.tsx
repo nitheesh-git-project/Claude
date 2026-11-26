@@ -86,6 +86,7 @@ import {
   readUnallocatedSettlements,
   readWriteOffReconciliation,
 } from "@/lib/payLaterSettlementServer";
+import { readAllShareBases } from "@/lib/frozenTherapistRatesServer";
 import { reconcileSettlements, settlementWaitDays } from "@/lib/payLaterSettlement";
 import {
   computeClinicReceivable,
@@ -327,6 +328,9 @@ export default async function AdminDashboardPage({
   // Confirmed pay-later payments, for Money in and the receipts log. Started
   // now, awaited where Payment History is built.
   const settlementsForMoneyInRead = readSettlementsForMoneyIn(admin);
+  // Completed sessions priced abroad: the therapist's share is taken on the
+  // Indian list price (shareBase.ts). Started now, awaited at the merge.
+  const shareBasesRead = readAllShareBases(admin);
 
   // Runs before the big read below so this same request already sees any
   // purchase this sweep just flipped to 'expired' -- see the helper's own
@@ -1916,6 +1920,7 @@ export default async function AdminDashboardPage({
     (completionRateRows ?? []).map((r) => [r.id, r])
   );
 
+  const shareBases = await shareBasesRead;
   const appointmentsWithSessionCode = mergeMeetLinks(
     mergeSessionCodes(
       appointments ?? [],
@@ -1953,6 +1958,7 @@ export default async function AdminDashboardPage({
           hospital_share_percent_at_completion:
             frozenRates.hospital_share_percent_at_completion,
           hospital_id_at_completion: frozenRates.hospital_id_at_completion,
+          ...(shareBases.get(a.id) ?? {}),
         }
       : withTerms;
     const withRefund = refund

@@ -107,10 +107,20 @@ export async function recordSessionSettlement(
       .eq("id", input.appointmentId)
       .maybeSingle();
 
+    // How it was priced: a session sold abroad pays the share on the Indian
+    // list price (shareBase.ts). Its own read; absent, the whole amount.
+    const { data: pricedAs } = await admin
+      .from("appointments")
+      .select("list_price_paise, home_list_price_paise")
+      .eq("id", input.appointmentId)
+      .maybeSingle();
+
     const a = {
       ...row,
       payment_terms: terms?.payment_terms ?? null,
       amount_due_paise: terms?.amount_due_paise ?? null,
+      list_price_paise: pricedAs?.list_price_paise ?? null,
+      home_list_price_paise: pricedAs?.home_list_price_paise ?? null,
     } as unknown as PayoutAppointment;
 
     const grossPaise = Math.max(

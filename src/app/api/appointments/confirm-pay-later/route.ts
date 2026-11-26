@@ -11,6 +11,7 @@ import { confirmPayLaterAppointment } from "@/lib/confirmPaidAppointment";
 import { readPayLaterBookingEligibility } from "@/lib/payLaterSettingsServer";
 import { payLaterRefusalMessage } from "@/lib/payLaterBooking";
 import { enforceRateLimit } from "@/lib/rateLimitServer";
+import { recordPricingSnapshot } from "@/lib/pricingSnapshotServer";
 
 // A booking by a patient the clinic has agreed to be paid by afterwards.
 //
@@ -107,7 +108,7 @@ export async function POST(request: NextRequest) {
   const admin = createAdminClient();
   // The same country pricing the quote used, so what is owed is what was
   // shown. Still a rupee amount, like every debt here.
-  const { pricing } = await pricingForRequest(admin, request);
+  const { pricing } = await pricingForRequest(admin, request, { patientId: user.id });
 
   // Resolved without claiming first, purely so the eligibility check below
   // has a figure: a ceiling on what a patient may owe has to be applied to
@@ -210,6 +211,11 @@ export async function POST(request: NextRequest) {
       { status: 409 }
     );
   }
+
+  // How it was priced, for the therapist's share (shareBase.ts). Its own
+  // best-effort write, after the claim: a missing column must not stop a
+  // booking.
+  await recordPricingSnapshot(admin, appointmentId, quote);
 
   // `settleInvitesOnCapture` is deliberately NOT called. An inviter's reward
   // is earned when their friend's first session is **paid for**, and nothing

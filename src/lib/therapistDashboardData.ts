@@ -5,7 +5,7 @@ import { formatClinicTime } from "@/lib/formatDateTime";
 import { loadProgrammeTags } from "@/lib/programmeTagsServer";
 import type { ProgrammeTag } from "@/lib/programmeId";
 import { readAllRowsAsData, readAllRowsByIds } from "@/lib/supabase/readAllRows";
-import { readFrozenTherapistRates } from "@/lib/frozenTherapistRatesServer";
+import { frozenShareFacts, readFrozenTherapistRates } from "@/lib/frozenTherapistRatesServer";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadHomeExerciseNotePrefills } from "@/lib/exercisePlanServer";
@@ -561,7 +561,7 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
   const frozenRates = await frozenRatesEarly;
   const earningInputs = (appointments ?? []).map((a) => ({
     ...a,
-    therapist_share_percent_at_completion: frozenRates.byId.get(a.id) ?? null,
+    ...frozenShareFacts(frozenRates, a.id),
     visit_mode: a.visit?.visit_mode ?? null,
     travel_fee_paise: a.visit?.travel_fee_paise ?? null,
   }));

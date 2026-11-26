@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
   const programme = loaded.programme;
   const isHomeVisit = programme.offerKind === "home_visit_package";
 
-  const requestPricing = await pricingForRequest(admin, request);
+  const requestPricing = await pricingForRequest(admin, request, { patientId: user.id });
   if (isHomeVisit) {
     const refusal = await homeVisitRefusal(
       admin,

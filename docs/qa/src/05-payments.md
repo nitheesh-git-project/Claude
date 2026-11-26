@@ -117,3 +117,5 @@ Configured on **Prices & areas -> Other countries**. Use the debug bar's **Count
 | Switch on a country that has no rate | Refused, naming the country | `CP-003` |
 | Turn "Home visits outside India" on | Home visits return for the US visitor, still priced in ₹ | manual |
 | Turn "Visitors may choose their country" off | The footer picker disappears and location alone decides | manual |
+| Debug bar off (or no debug country), sign in as a patient whose phone is +91, browse from a US connection or pick United States in the footer, and book | The booking is priced in ₹: a signed-in patient's own country (their phone's calling code) wins over location and the footer pick | manual |
+| Complete a session booked as the US visitor above (₹1,059.79 charged, therapist at 60%) | The therapist's share is **₹299.40** (60% of the ₹499 Indian price), on Money's split, the therapist's earnings and the payout; the booking records `home_list_price_paise = 49900`, `pricing_country = US` | manual |

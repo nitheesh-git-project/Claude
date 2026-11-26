@@ -10,6 +10,7 @@ import {
   type CountryPricing,
 } from "@/lib/countryPricing";
 import { DEBUG_COUNTRY_COOKIE, GEO_COOKIE, geoCountryFromHeaders } from "@/lib/countryGeo";
+import { countryFromStoredPhone } from "@/lib/accountCountry";
 
 // The server's half of pricing outside India. The browser formats prices for
 // display (PricingProvider), but nothing it says decides a charge: every
@@ -80,8 +81,13 @@ type RequestLike = {
   cookies: { get(name: string): { value: string } | undefined };
 };
 
-/** The country a request is priced for, by the same rule the browser uses. */
-export function countryForRequest(request: RequestLike, settings: PricingSettings): string {
+/** The country a request is priced for, by the same rule the browser uses,
+ *  with a signed-in patient's own country first (accountCountry.ts). */
+export function countryForRequest(
+  request: RequestLike,
+  settings: PricingSettings,
+  accountCountry: string | null = null
+): string {
   // The debug bar's country wins while the bar exists -- it is how the owner
   // tests this without a VPN -- and is ignored once the bar is switched off.
   if (isDebugNavVisible()) {
@@ -89,6 +95,7 @@ export function countryForRequest(request: RequestLike, settings: PricingSetting
     if (forced) return resolveCountry({ chosen: forced, detected: null, pickerAllowed: true });
   }
   return resolveCountry({
+    account: accountCountry,
     chosen: request.cookies.get(COUNTRY_COOKIE)?.value,
     detected: geoCountryFromHeaders(request.headers) ?? request.cookies.get(GEO_COOKIE)?.value,
     pickerAllowed: settings.pickerEnabled,
@@ -102,10 +109,34 @@ export type RequestPricing = {
   homeVisitsOffered: boolean;
 };
 
-/** Everything a checkout route needs to price this request. */
-export async function pricingForRequest(db: SupabaseClient, request: RequestLike): Promise<RequestPricing> {
-  const { settings, rows } = await readPricingConfig(db);
-  const country = countryForRequest(request, settings);
+/** The country on a patient's account, or null when there is none or it
+ *  could not be read -- which falls back to the request's own rule. */
+export async function readAccountCountry(db: SupabaseClient, patientId: string | null | undefined): Promise<string | null> {
+  if (!patientId) return null;
+  try {
+    const { data, error } = await db.from("profiles").select("phone").eq("id", patientId).maybeSingle();
+    if (error || !data) return null;
+    return countryFromStoredPhone((data as { phone: string | null }).phone);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Everything a checkout route needs to price this request. Pass the
+ * patient's id whenever the route has one: their account's country then
+ * decides, rather than wherever the request happens to come from.
+ */
+export async function pricingForRequest(
+  db: SupabaseClient,
+  request: RequestLike,
+  opts: { patientId?: string | null } = {}
+): Promise<RequestPricing> {
+  const [{ settings, rows }, accountCountry] = await Promise.all([
+    readPricingConfig(db),
+    readAccountCountry(db, opts.patientId),
+  ]);
+  const country = countryForRequest(request, settings, accountCountry);
   const row = rows.find((r) => r.code === country) ?? null;
   const pricing = settings.internationalEnabled && isPricedLocally(row) ? row : null;
   return {

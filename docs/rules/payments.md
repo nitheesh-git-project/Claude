@@ -426,11 +426,31 @@ Razorpay verification, the one capture path, booking idempotency, every refund s
   back to the paise Razorpay is asked for, rounded up so the charge never
   reads as less than the price. The owner's example is the test: ₹499,
   +100% -> ₹998 -> $10.35 -> **$10.99** -> 105,979 paise.
-  - The country is the request's own (`countryPricingServer.pricingForRequest`):
-    the debug bar's `mr_debug_country` while the bar exists, else the
-    visitor's choice (`mr_country`, only while the picker is allowed), else
-    the host's geo header or the `mr_geo` cookie the proxy copies it into,
-    else India. Never a body field. Every route that prices a booking threads
+  - The country is decided on the server (`countryPricingServer.pricingForRequest`):
+    the debug bar's `mr_debug_country` while the bar exists, else **the
+    signed-in patient's own country** -- the calling code of the phone on
+    their account (`accountCountry.ts`; every pricing route passes
+    `{ patientId }`) when it is a listed country -- else the visitor's choice
+    (`mr_country`, only while the picker is allowed), else the host's geo
+    header or the `mr_geo` cookie the proxy copies it into, else India. Never
+    a body field. The account comes first because an IP is a poor witness:
+    the staging test charged an Indian test patient the US price (+100%)
+    because the tester's browser sat in the US, and a patient on a VPN or
+    travelling would have been charged the same way.
+  - **The therapist's share is worked out on the Indian list price** (owner's
+    decision). The quote carries `homeListPricePaise`, and
+    `recordPricingSnapshot` (`pricingSnapshotServer.ts`) writes it with the
+    country, currency and markup onto the booking
+    (`home_list_price_paise`, `pricing_country`, `pricing_currency`,
+    `pricing_markup_percent`) in its own best-effort write after the order's,
+    so a database without the columns cannot refuse a payment.
+    `shareBasePaise` (`shareBase.ts`) scales the amount paid by home / list,
+    and both `moneyLineFor` and `sessionTherapistCutPaise` take the share of
+    that, so Money's split, every payout screen and the settle route agree.
+    The markup stays with the clinic. A rupee booking, or a row priced before
+    the columns existed, is unchanged. The facts reach every reader through
+    `readFrozenTherapistRates` / `frozenShareFacts` and, on the admin page,
+    `readAllShareBases`. Every route that prices a booking threads
     it into `resolveCheckoutQuote` - quote, create, create-order,
     confirm-free, confirm-pay-later, and the promo preview - so the quote,
     the order and a free confirmation cannot disagree; the online care-plan

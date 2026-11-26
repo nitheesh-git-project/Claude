@@ -126,7 +126,7 @@ export async function POST(request: NextRequest) {
   }
 
   const admin = createAdminClient();
-  const { pricing } = await pricingForRequest(admin, request);
+  const { pricing } = await pricingForRequest(admin, request, { patientId: user?.id ?? null });
 
   // Built by the same function `/api/appointments/create` uses to hand back
   // the quote for the booking it just made, so the two cannot disagree.
