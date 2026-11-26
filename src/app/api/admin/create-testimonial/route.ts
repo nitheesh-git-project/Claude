@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { serverError } from "@/lib/apiError";
+import { testimonialActivationBlock } from "@/lib/testimonialTrust";
 
 export async function POST(request: NextRequest) {
   const adminUser = await requireAdminScope("catalog");
@@ -20,9 +21,21 @@ export async function POST(request: NextRequest) {
     avatarUrl?: string;
     // The admin form posts an empty string for a blank number box.
     displayOrder?: number | string;
+    active?: boolean;
+    /** The patient's written consent to publish is on file. */
+    consentGiven?: boolean;
+    /** Where it is kept ("Signed form, 12 Dec, patient file"). */
+    consentNote?: string;
   }>(request);
   if (parseError) return parseError;
   const { patientName, quote, rating, conditionLabel, avatarUrl, displayOrder } = body;
+  // A new story used to go live on save (the column defaults to active). It
+  // is now live only when asked for and only with consent on file.
+  const consentGiven = body.consentGiven === true;
+  const active = body.active !== false && consentGiven;
+  const consentNote = typeof body.consentNote === "string" ? body.consentNote.trim() : "";
+  const block = testimonialActivationBlock({ active: body.active === true, consentGiven, consentNote });
+  if (block) return NextResponse.json({ error: block }, { status: 400 });
   if (!patientName || !quote) {
     return NextResponse.json({ error: "Missing patientName or quote" }, { status: 400 });
   }
@@ -51,6 +64,10 @@ export async function POST(request: NextRequest) {
       avatar_url:
         typeof avatarUrl === "string" && avatarUrl.trim() ? avatarUrl.trim() : null,
       display_order: Math.round(order),
+      active,
+      consent_recorded_at: consentGiven ? new Date().toISOString() : null,
+      consent_note: consentGiven ? consentNote : null,
+      consent_recorded_by: consentGiven ? adminUser.id : null,
     })
     .select("id")
     .single();
@@ -64,8 +81,9 @@ export async function POST(request: NextRequest) {
   // action is read from.
   await recordAdminActivity(admin, adminUser.id, {
     action: "catalog.create",
-    targetId: null,
-    targetLabel: "Testimonial",
+    targetId: data.id,
+    targetLabel: `Patient story: ${patientName}`,
+    details: { active, consentRecorded: consentGiven, ...(consentGiven ? { consentNote } : {}) },
   });
 
   // One component serves the testimonial band on both pages, and both are

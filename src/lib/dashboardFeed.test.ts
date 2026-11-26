@@ -313,6 +313,21 @@ describe("buildPatientFeed: a programme session waiting on the clinic", () => {
     const items = buildPatientFeed({ appointments: [base], conditionRequests: [] });
     expect(items.find((i) => i.id === "appt-a1")?.title).toBe("Video session waiting for a physiotherapist");
   });
+
+  it("names the therapist when one is assigned and only the confirmation is outstanding", () => {
+    const items = buildPatientFeed({ appointments: [{ ...base, therapist_name: "Dr. Pooja N", payment_status: "paid" }], conditionRequests: [] });
+    const item = items.find((i) => i.id === "appt-a1");
+    expect(item?.title).toBe("Video session with Dr. Pooja N - the clinic is confirming");
+    expect(item?.title).not.toContain("waiting for a physiotherapist");
+  });
+
+  it("says a pay-later booking waits for the clinic's approval", () => {
+    const items = buildPatientFeed({
+      appointments: [{ ...base, payment_terms: "pay_later", pay_later_approval: "pending" }],
+      conditionRequests: [],
+    });
+    expect(items.find((i) => i.id === "appt-a1")?.title).toBe("Video session - waiting for the clinic to approve pay later");
+  });
 });
 
 describe("the Home exercises row on a patient's Overview", () => {

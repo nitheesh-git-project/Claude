@@ -61,7 +61,8 @@ export function NumberSetting({
   settingKey:
     | "payment_tries_before_access"
     | "abandoned_booking_account_days"
-    | "patient_cancel_cutoff_minutes";
+    | "patient_cancel_cutoff_minutes"
+    | "patient_reschedule_cutoff_hours";
   title: string;
   help: string;
   unit: string;

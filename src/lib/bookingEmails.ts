@@ -103,6 +103,34 @@ export function bookingReceivedEmail(brand: EmailBrand, f: BookingFacts): Email 
   return { subject, text, html };
 }
 
+/**
+ * The clinic declined a patient's request to pay after the session (owner's
+ * decision: every pay-later booking is approved by a person). The session is
+ * not cancelled -- it is now an ordinary booking the patient can pay for
+ * online from their dashboard -- and the email says so, with the clinic's own
+ * reason, rather than leaving them to find a "Pay now" button unexplained.
+ */
+export function payLaterDeclinedEmail(brand: EmailBrand, f: BookingFacts & { reason: string }): Email {
+  const subject = `About paying later for ${f.when}`;
+  const reason = f.reason.trim();
+  const text =
+    `Hello ${f.name},\n\nWe can't offer pay-later for this booking. The clinic said: "${reason}"\n\n` +
+    `${sessionLine(f)} is still held for you. To keep it, pay for the session online from your dashboard.\n\n` +
+    `Your dashboard: ${f.dashboardUrl}\n\n${brand.siteName}`;
+  const html = layout(
+    brand,
+    "About paying later",
+    [
+      `Hello ${escapeHtml(f.name)},`,
+      `We can't offer pay-later for this booking. The clinic said: &ldquo;${escapeHtml(reason)}&rdquo;`,
+      `${escapeHtml(sessionLine(f))} is still held for you. To keep it, pay for the session online from your dashboard.`,
+      button(f.dashboardUrl, "Pay from my dashboard"),
+    ],
+    FOOTNOTE
+  );
+  return { subject, text, html };
+}
+
 export type CancelRefund =
   | { kind: "refunded"; amountPaise: number | null }
   | { kind: "refund_pending" }

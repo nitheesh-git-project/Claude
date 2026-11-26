@@ -6,6 +6,7 @@ import SelectableChipGroup from "@/components/booking/SelectableChipGroup";
 import {
   bookableHoursForDate,
   leadTimeMsFromHours,
+  type SlotOpenCheck,
   formatDateKeyLong,
 } from "@/lib/bookingSlots";
 import { formatHourRange } from "@/lib/therapistAvailability";
@@ -39,6 +40,9 @@ export default function BookingStepOne({
   confirmationHours,
   onContinue,
   continuePending = false,
+  isSlotOpen = null,
+  openHoursChecked = false,
+  openHoursLoading = false,
 }: {
   /** The service picker, rendered first. Taken as a node rather than as
    *  catalogue props so this component stays a screen of scheduling
@@ -78,10 +82,19 @@ export default function BookingStepOne({
   onContinue: () => void;
   /** The time is being checked against the patient's own sessions. */
   continuePending?: boolean;
+  /** Which slot starts a therapist can take (useOpenSlots). Null: not
+   *  checked, and every hour that clears the lead time is offered. */
+  isSlotOpen?: SlotOpenCheck;
+  /** Whether the hours on screen are the roster's, so the screen can say so. */
+  openHoursChecked?: boolean;
+  /** The open hours have not arrived yet: the picker says it is checking
+   *  instead of drawing every date and hour and narrowing them a moment
+   *  later (useOpenSlots). */
+  openHoursLoading?: boolean;
 }) {
   const reduceMotion = useReducedMotion();
   const leadTimeMs = leadTimeMsFromHours(leadTimeHours);
-  const hours = dateKey ? bookableHoursForDate(dateKey, nowMs, leadTimeMs) : [];
+  const hours = dateKey ? bookableHoursForDate(dateKey, nowMs, leadTimeMs, isSlotOpen) : [];
   // The first unanswered thing, said next to the disabled Continue. Null
   // means the patient may go on.
   const blocker = stepOneBlocker({
@@ -120,9 +133,11 @@ export default function BookingStepOne({
           onSelect={onDateChange}
           nowMs={nowMs}
           leadTimeMs={leadTimeMs}
+          isSlotOpen={isSlotOpen}
           autoSelected={autoPicked.date}
+          loading={openHoursLoading}
         />
-        {dateKey && (
+        {dateKey && !openHoursLoading && (
           <p className="text-sm text-teal-800 font-semibold mt-2">
             <i className="fa-solid fa-calendar-check mr-1" aria-hidden="true"></i>
             {formatDateKeyLong(dateKey)}
@@ -134,15 +149,17 @@ export default function BookingStepOne({
           Normally one is preselected on arrival so they're visible
           immediately; this collapses cleanly if nothing is bookable. */}
       <AnimatePresence initial={false}>
-        {dateKey && (
+        {dateKey && !openHoursLoading && (
           <motion.div key="time" {...(reduceMotion ? {} : REVEAL)} className="space-y-5">
             <div>
+              {/* "Available times" when the roster decided them; plain "Time"
+                  when it could not be read and every hour is offered. */}
               <p id="booking-time-label" className="block font-semibold mb-1.5 text-slate-900">
-                Time
+                {openHoursChecked ? "Available times" : "Time"}
               </p>
               <SelectableChipGroup
                 idPrefix="booking-hour"
-                label="Time"
+                label={openHoursChecked ? "Available times" : "Time"}
                 options={hours.map((h) => ({ value: String(h), label: formatHourRange(h) }))}
                 value={hour === "" ? "" : String(hour)}
                 onChange={(next) => onHourChange(Number(next))}

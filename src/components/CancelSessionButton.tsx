@@ -8,6 +8,7 @@ import { usePrompt } from "@/lib/usePrompt";
 import { patientRefundDelayedNotice } from "@/lib/refundState";
 import { debugNow, debugNowHeaders } from "@/lib/debugNow";
 import { msUntilCancelCloses, patientCancelClosed } from "@/lib/patientCancelCutoff";
+import { patientCancelMessage } from "@/lib/cancelOutcome";
 
 export default function CancelSessionButton({
   appointmentId,
@@ -16,6 +17,9 @@ export default function CancelSessionButton({
   refundWindowHours = CANCELLATION_FULL_REFUND_HOURS,
   cutoffMinutes = null,
   serverNowMs = null,
+  payLater = false,
+  viaProgramme = false,
+  refundablePaise = 0,
 }: {
   appointmentId: string;
   paid: boolean;
@@ -32,6 +36,12 @@ export default function CancelSessionButton({
   cutoffMinutes?: number | null;
   /** The page's request-time clock, for a first render that matches the HTML. */
   serverNowMs?: number | null;
+  /** On pay-later terms: nothing is owed for a session cancelled before it. */
+  payLater?: boolean;
+  /** Drawn from a programme: the session goes back to it, or is used up. */
+  viaProgramme?: boolean;
+  /** What would go back on a paid session: paid less anything refunded. */
+  refundablePaise?: number;
 }) {
   // Hidden from the first render once inside the cut-off, and hidden at the
   // moment it closes for a page left open -- one timer, no polling. Judged on
@@ -69,16 +79,21 @@ export default function CancelSessionButton({
   const { prompt, dialog } = usePrompt();
 
   async function handleCancel() {
-    const hoursUntilSlot = slotTime
-      ? (new Date(slotTime).getTime() - Date.now()) / (1000 * 60 * 60)
-      : null;
-    const isLate = hoursUntilSlot !== null && hoursUntilSlot < refundWindowHours;
+    // What happens to the money, in every case, by the same branches the
+    // route takes (cancelOutcome.ts) -- judged on the debug bar's clock, which
+    // the route honours while the bar is on.
     const reason = await prompt(
-      paid && isLate
-        ? `Cancel this session? It's within ${refundWindowHours} hours of your slot, so this won't be refunded. You can add a reason (optional):`
-        : paid
-        ? "Cancel this session and refund the payment? You can add a reason (optional):"
-        : "Cancel this session? You can add a reason (optional):"
+      patientCancelMessage({
+        slotTime,
+        nowMs: debugNow(),
+        windowHours: refundWindowHours,
+        paidDirect: paid && !viaProgramme,
+        viaProgramme,
+        cashCollected: false,
+        cashCollectedPaise: null,
+        refundablePaise: Math.max(0, refundablePaise),
+        payLater,
+      })
     );
     if (reason === null) return; // dismissed the prompt
     setError(null);

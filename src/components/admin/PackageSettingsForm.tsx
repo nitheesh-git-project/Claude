@@ -15,6 +15,7 @@ export default function PackageSettingsForm({
   settings,
   therapistSuggestionsEnabled = false,
   autoAssignEnabled = false,
+  autoAssignReadiness,
 }: {
   settings: AdminSettings;
   // Read by the caller in its own query rather than through AdminSettings:
@@ -22,6 +23,9 @@ export default function PackageSettingsForm({
   // leave the feature off rather than break this whole form.
   therapistSuggestionsEnabled?: boolean;
   autoAssignEnabled?: boolean;
+  /** Where the roster stands for auto-assign (autoAssignReadiness.ts), or
+   *  absent when the roster could not be read. */
+  autoAssignReadiness?: { ready: boolean; message: string };
 }) {
   const saveSetting = useSaveSetting();
   const router = useRouter();
@@ -194,6 +198,11 @@ export default function PackageSettingsForm({
             {optimisticAutoAssign ? "Enabled" : "Disabled"}
           </button>
         </div>
+        {autoAssignReadiness && (
+          <p className={`text-[11px] mt-2 ${autoAssignReadiness.ready ? "text-teal-800" : "text-amber-800"}`}>
+            {autoAssignReadiness.message}
+          </p>
+        )}
         {autoAssignError && <p className="text-[11px] text-red-600 mt-2">{autoAssignError}</p>}
       </div>
 

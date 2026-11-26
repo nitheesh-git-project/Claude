@@ -12,6 +12,8 @@ import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
 import { isWholeHourSlot, NOT_WHOLE_HOUR_ERROR, resolveSlotInstant } from "@/lib/bookingSlots";
 import { clinicWeekKey } from "@/lib/clinicWeek";
 import { readHomeVisitPackageTerms } from "@/lib/packageTerms";
+import { isSlotClosed, readTravelBufferMinutes, SLOT_NOT_OPEN_ERROR } from "@/lib/openHoursServer";
+import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 
 const MAX_NOTES_LENGTH = 1000;
 // Same absolute ceiling as book-package-sessions -- a malformed/hostile
@@ -187,6 +189,10 @@ export async function POST(request: NextRequest) {
 
   const results: SlotResult[] = [];
   let visitsUsedSoFar = purchase.visits_used;
+  // The calendar offers only arrival times somebody can make, with the
+  // clinic's travel time around their other visits (openHours.ts); this is
+  // the copy that binds. Unreadable is not closed.
+  const travelBufferMinutes = await readTravelBufferMinutes(admin);
 
   for (const slot of parsedSlots) {
     if (purchase.expires_at && slot.ms > new Date(purchase.expires_at).getTime()) {
@@ -224,6 +230,16 @@ export async function POST(request: NextRequest) {
       expires_at: purchase.expires_at,
       locked_therapist_id: purchase.locked_therapist_id,
     };
+
+    if (
+      await isSlotClosed(admin, slot.slotDateTime, {
+        durationMinutes: packageTerms.sessionDurationMinutes ?? BASE_DURATION_MINUTES,
+        bufferMinutes: travelBufferMinutes,
+      })
+    ) {
+      results.push({ slotDateTime: slot.slotDateTime, success: false, error: SLOT_NOT_OPEN_ERROR });
+      continue;
+    }
 
     const result = await bookHomeVisitSession(admin, {
       purchase: purchaseForBooking,

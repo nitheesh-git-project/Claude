@@ -29,6 +29,32 @@ A trusted patient treated first and settling afterwards: the grant, the booking 
   `trusted_patient_codes` is append-only by trigger (active -> redeemed or
   revoked; a redeemed one cannot be cancelled -- stop terms on the profile).
   Guard: `e2e/trusted-codes.spec.ts`.
+- **Every pay-later booking waits for an admin's approval** (owner's
+  decision; `site_settings.pay_later_approval_required`, default on, read by
+  `readPayLaterApprovalRequired`, which answers **true** when it cannot
+  read). `/api/appointments/confirm-pay-later` books with
+  `confirmPayLaterAppointment({ holdForApproval })` -- no auto-assign, no
+  confirmation -- and then marks `pay_later_approval = 'pending'` in its own
+  best-effort write. `confirmsOnAssign` refuses to confirm a pending or
+  declined row, both assign routes read the approval
+  (`readPayLaterApproval`), and `awaitsPayLaterApproval` is admin Home's
+  **Pay-later bookings to approve** queue (and keeps the row out of
+  "Sessions with no therapist"). `/api/admin/pay-later-approval`
+  (`requireAdminScope("money")`) approves -- confirming on the spot, roster
+  re-checked, when a therapist is on it -- or declines with a reason of ten
+  characters (a CHECK) and puts the booking back on `prepaid` terms so the
+  patient pays online. Both claim on `pending`, so two admins cannot decide
+  one booking twice. A decline emails the patient once
+  (`pay_later_declined` in `appointment_emails`, `payLaterDeclinedEmail`):
+  the clinic's reason, and that the time is still held if they pay online.
+  Email only -- a WhatsApp message would need a Meta-approved template. Rows from before approval existed carry null and
+  confirm as they always did. The switch is **Approve each pay-later booking**
+  on Money -> Patients owe (`PayLaterApprovalSwitch`, settings scope),
+  beside the master switch; turning it off approves nothing already waiting.
+  A clinic could otherwise grant terms once and
+  have any number of sessions confirmed and delivered on credit with nobody
+  looking -- and the therapist is paid at completion either way.
+
 - **Pay later: a trusted patient is treated first and settles afterwards.**
   `appointments.payment_terms` (`prepaid` | `pay_later`) is the new axis, and
   it exists because `payment_status = 'unpaid'` already means *"somebody
@@ -370,6 +396,20 @@ A trusted patient treated first and settling afterwards: the grant, the booking 
        one would take the whole check to "unknown" on an unmigrated
        database. One receipt per payment, not one per session: four receipts
        for one transfer reads as four payments.
+     - **Money in is counted the day a payment is confirmed, and once.**
+       Admin Money -> Payment History and the patient's Payments screen both
+       pass the confirmed payments to `buildPatientReceipts` and
+       `buildPatientTransactions` (`readSettlementsForMoneyIn` on the admin
+       page, `loadPatientPayLater().settlements` / `settledBy` on the
+       patient's), and a session a payment closed carries that payment's id
+       so it is listed inside it, never counted beside it. Neither screen
+       passed them before, so a payment confirmed ahead of its session --
+       held as credit, applied to nothing yet -- left Money in at zero and
+       wrote no receipt. `paymentHistory.test.ts` pins both halves.
+     - **"Paid by Cash" refuses a pay-later session** (409, and the button is
+       not drawn for one). The pool is the one way a pay-later session's
+       money is recorded; marking the session paid as well counted the same
+       rupees twice.
 
   9. **Money out is a cost, and a refund is a hand-back.** Two paths, and
      both were half-wired before they existed: `pay_later_outcome =

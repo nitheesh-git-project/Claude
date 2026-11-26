@@ -40,7 +40,10 @@ import {
   bookableHoursForDate,
   leadTimeMsFromHours,
   earliestBookableDateKey,
+  isDateBookable,
+  type SlotOpenCheck,
 } from "@/lib/bookingSlots";
+import { useOpenSlots } from "@/lib/useOpenSlots";
 import { debugNow } from "@/lib/debugNow";
 import { describeCancellationWindow } from "@/lib/cancellationWindow";
 import SpecialtyChip from "@/components/SpecialtyChip";
@@ -257,6 +260,8 @@ export default function BookingWizard({
   // is not a completed payment, and a screen that reads as one would be
   // telling somebody they did something they did not do.
   const [paidLater, setPaidLater] = useState(false);
+  // The clinic approves each pay-later booking before confirming it.
+  const [awaitingPayLaterApproval, setAwaitingPayLaterApproval] = useState(false);
   // What the pay-later confirmation actually wrote. Kept because this is the
   // one checkout ending in the app that never showed the patient a figure:
   // the session is booked, a discount may have come off, and the amount
@@ -326,6 +331,8 @@ export default function BookingWizard({
   // let patients move on without ever reading it, so the hour waits to be
   // tapped. Likewise the language, unless there is only one to choose.
   const [bookHour, setBookHour] = useState<number | "">("");
+  // Which hours a therapist can actually take (openHours.ts). Declared after
+  // the category below; see `useOpenSlots` further down.
   const [language, setLanguage] = useState(() => initialLanguage(bookingLanguages));
 
   // Tracks which of the three are still our automatic pick. Each flips
@@ -465,6 +472,34 @@ export default function BookingWizard({
   const packageIdParam = searchParams.get("package");
 
   const supabase = createClient();
+  // The roster's open hours for this service. Until they arrive -- or when
+  // they could not be read -- every hour is offered, as before, and the
+  // booking route re-checks the one the patient picks.
+  const { isOpen: isSlotOpen, checked: openHoursChecked, loading: openHoursLoading } = useOpenSlots(
+    nowMs,
+    categoryId || null
+  );
+  // Once the open hours are known, an automatically chosen date nobody can
+  // take moves to the first one somebody can, and a chosen hour that is no
+  // longer open is cleared rather than kept. A date the patient picked
+  // themselves is left alone: the calendar now shows it greyed out.
+  const [appliedOpenHours, setAppliedOpenHours] = useState<SlotOpenCheck>(null);
+  if (isSlotOpen !== appliedOpenHours) {
+    // Wrapped: the value is itself a function, and a bare function passed
+    // to a state setter is run as an updater -- React would store its
+    // boolean result, the comparison above would never match, and the
+    // component would re-render until React gave up.
+    setAppliedOpenHours(() => isSlotOpen);
+    if (isSlotOpen) {
+      const lead = leadTimeMsFromHours(bookingLeadTimeHours);
+      if (autoPicked.date && bookDate && !isDateBookable(bookDate, nowMs, lead, isSlotOpen)) {
+        setBookDate(earliestBookableDateKey(nowMs, lead, isSlotOpen) ?? "");
+        setBookHour("");
+      } else if (bookHour !== "" && bookDate && !bookableHoursForDate(bookDate, nowMs, lead, isSlotOpen).includes(bookHour)) {
+        setBookHour("");
+      }
+    }
+  }
   const selectedCategory = categories.find((c) => c.id === categoryId);
   // Mapped once rather than per render of the picker: the rows never change
   // after mount (`categories` is set from props and never refetched), and
@@ -566,7 +601,7 @@ export default function BookingWizard({
     // replaced by the day's earliest slot - a time the patient did not choose
     // is not one they read.
     setBookHour((current) =>
-      current !== "" && bookableHoursForDate(nextDate, nowMs, leadTimeMs).includes(current)
+      current !== "" && bookableHoursForDate(nextDate, nowMs, leadTimeMs, isSlotOpen).includes(current)
         ? current
         : ""
     );
@@ -1076,6 +1111,7 @@ export default function BookingWizard({
       }
       setLoading(false);
       setPaidLater(true);
+      setAwaitingPayLaterApproval(data.awaitingApproval === true);
       // The figure the route wrote, never a re-read of it -- and never the
       // quote's, which is what this screen used to show nothing of at all.
       if (typeof data.amountDuePaise === "number") {
@@ -1507,8 +1543,11 @@ export default function BookingWizard({
               somebody they did something they did not do. It says what is
               true -- booked, nothing taken -- and when the money appears,
               which is after the session rather than now. */}
+          {/* And not "Booking Confirmed" either: the clinic still has to
+              confirm the time (step 1 below), and a tester read the old
+              heading as a promise the clinic had not made yet. */}
           <h2 className="text-2xl font-bold text-slate-900">
-            {paidLater ? "Booking Confirmed" : "Payment Confirmed"}
+            {paidLater ? "Request received" : "Payment Confirmed"}
           </h2>
           {bookedWhen && (
             <p data-testid="booked-when" className="mt-3 text-lg font-bold text-teal-800">
@@ -1518,8 +1557,12 @@ export default function BookingWizard({
           <p className="text-base text-slate-700 mt-2 leading-relaxed">
             {paidLater ? (
               <>
-                Your request is in and there&apos;s nothing to pay now. The session is added to
-                what you owe once it has happened, and you can settle whenever suits you.
+                Your request is in and there&apos;s nothing to pay now.
+                {awaitingPayLaterApproval
+                  ? " The clinic approves each pay-later booking first, then confirms your time. "
+                  : " "}
+                The session is added to what you owe once it has happened, and you can settle
+                whenever suits you.
               </>
             ) : (
               <>Your payment has gone through and your request is in.</>
@@ -1652,6 +1695,9 @@ export default function BookingWizard({
           serviceChosen={Boolean(categoryId)}
           onContinue={goToStep2}
           continuePending={slotChecking}
+          isSlotOpen={isSlotOpen}
+          openHoursChecked={openHoursChecked}
+          openHoursLoading={openHoursLoading}
         />
       )}
 

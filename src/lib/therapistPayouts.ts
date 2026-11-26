@@ -12,6 +12,7 @@
 // and quoted a pending payout the Pay button would never transfer -- QA F-21.)
 
 import { sessionAmountPaise } from "@/lib/sessionAmount";
+import { shareBasePaise, type ShareBaseFacts } from "@/lib/shareBase";
 
 export type PayoutAppointment = {
   id: string;
@@ -54,7 +55,7 @@ export type PayoutAppointment = {
  * therapist's own dashboard) still goes through the one implementation
  * rather than growing its own.
  */
-export type PayoutCutInput = {
+export type PayoutCutInput = ShareBaseFacts & {
   /** The therapist's rate frozen at completion (`complete-session`), already
    *  resolved for a home visit. Migration-dependent and optional: absent or
    *  null, the live rate applies, as it did for every row before the freeze. */
@@ -145,7 +146,9 @@ export function sessionTherapistCutPaise(
       : isHomeVisit
         ? homeVisitSharePercent ?? sharePercent
         : sharePercent;
-  const feePaise = sessionAmountPaise(a, 0);
+  // The rupee list price's part of the fee: a session sold abroad pays the
+  // share on the Indian price, never on the country markup (shareBase.ts).
+  const feePaise = shareBasePaise(sessionAmountPaise(a, 0), a);
   // Travel is a pass-through reimbursement paid to the therapist in full and
   // never revenue, so it is added on top of the share rather than inside it.
   const travelPaise = isHomeVisit ? Math.max(0, a.travel_fee_paise ?? 0) : 0;

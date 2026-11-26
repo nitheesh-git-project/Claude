@@ -147,6 +147,7 @@ describe("buildSystemHealth", () => {
         ],
         unmatchedPayments: [],
         sessionsWithoutBacking: [],
+        pricingMismatches: [],
       },
       openAccessEnabled: true,
     };
@@ -256,6 +257,24 @@ describe("buildSystemHealth", () => {
     }).find((c) => c.id === "accounting")!;
     expect(withPayment.status).toBe("attention");
     expect(withPayment.count).toBe(1);
+  });
+
+  // The staging finding: System Health read "Everything adds up" while an
+  // Indian patient had been charged a US price.
+  it("no longer reads all clear while a foreign price does not add up", () => {
+    const withPrice = buildSystemHealth({
+      ...ALL_WELL,
+      accounting: {
+        ...CLEAN_ACCOUNTING,
+        pricingMismatches: [
+          { id: "a1", sessionCode: "S-1", patientId: "p1", slotTime: null, problem: "Priced for US (+100%), but the patient's account is Indian." },
+        ],
+      },
+    }).find((c) => c.id === "accounting")!;
+    expect(withPrice.status).toBe("attention");
+    expect(withPrice.count).toBe(1);
+    expect(withPrice.headline).toContain("1 price");
+    expect(withPrice.fix.join(" ")).toContain("debug bar");
   });
 
   it("says the accounting check could not run rather than claiming all clear", () => {

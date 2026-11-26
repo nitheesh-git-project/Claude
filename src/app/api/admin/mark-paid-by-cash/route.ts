@@ -42,6 +42,26 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "This session was cancelled" }, { status: 400 });
   }
 
+  // A pay-later session is settled through the patient's pay-later balance
+  // (Money -> Patients owe, "Confirm it arrived"), never here. Marking it paid
+  // by cash as well recorded the same money twice: once on the session, and
+  // again as a confirmed payment sitting in the pool. Terms in their own
+  // read, as the assign routes do: the column is newer than this route.
+  const { data: terms } = await admin
+    .from("appointments")
+    .select("payment_terms")
+    .eq("id", appointmentId)
+    .maybeSingle();
+  if (terms?.payment_terms === "pay_later") {
+    return NextResponse.json(
+      {
+        error:
+          "This is a pay-later session. Record the patient's payment under Money -> Patients owe instead, so it is counted once.",
+      },
+      { status: 409 }
+    );
+  }
+
   let listPricePaise = SESSION_FEE_PAISE;
   if (appointment.category_id) {
     const { data: category } = await admin

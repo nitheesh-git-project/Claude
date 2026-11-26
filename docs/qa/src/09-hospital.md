@@ -66,16 +66,16 @@ A hospital is a **referral source**, never a clinical actor. It is **provisioned
 **Steps**
 1. Open `/hospital/dashboard/refer`. On a brand-new partner account only, the dashboard tutorial opens first (`Dashboard tour · dummy data`): step through **Refer a patient** and **Referral status** - the status chip should move through `Pending Review`, `Therapist Assigned`, `Registration Link Sent` and `Registered` - then tap **Done - show my dashboard** on the last step. After this case, the (i) on the **Your Referrals** card replays just the status chapter.
 2. Tap **Patient Full Name**. Enter `QA Referred Patient C`.
-3. Tap **Patient Phone Number**. Pick the country and enter `9876543210`.
+3. Tap **Patient Phone Number**. The country already reads **India (+91)** - never a guess from the browser. Enter `9876543210`. Enter **Patient Age** `58` and leave **Patient Email** blank.
 4. Under **Session Type**, select `Online`.
 5. Tap **Address**. Enter `8, 100 Feet Road, Indiranagar, Bengaluru`.
 6. Tap **Preferred Language**. Enter `English`.
 7. Tap **Medical Issue**. Enter `Right-sided weakness following a stroke six weeks ago`.
 8. Tap **Treatment Needed**. Enter `Gait and balance retraining, twice weekly`.
-9. Submit.
+9. Tick *"The patient has agreed to be referred to MoveRestore and to these details being shared with the clinic for their care."* Submit.
 
 **Expected Result.** The form is replaced by a teal card, scrolled into view and focused: *"We'll call <patient name>; track it in Your Referrals"* with a **Refer another** button that brings back an empty form (Session Type back on `Online`). Inputs are 16px on a phone (no iOS zoom) and controls are at least 44px tall. The referral appears under **Your Referrals** with status **Pending Review** and "Sent <date>" (clinic zone), plus "updated <date>" once declined or withdrawn. The list has a patient-name search and 10 rows per page; the Overview **Accepted** cell opens the list filtered (`?show=accepted`) with a "Show all referrals" link. The badge and filter chip both say **Registered** (not "Booked"). Overview quick actions read **Earnings** and **Edit Profile**; the Refer, Referrals and Earnings pages do not repeat the page title in the card. It appears in Admin → People → Hospitals and raises the badge. **The Pincode field is not required for an online referral.** The phone field clears with the rest of the form.
-**Negative:** submitting with the phone blank or malformed is refused with `Enter the patient's phone number so our team can reach them.` The number is required because the clinic **rings this patient before sending the registration link** - see `ADM-REF-001`.
+**Negative:** submitting without the consent box ticked is refused with `Confirm the patient has agreed to be referred and to share these details.`; without an age, `Enter the patient's age in years.`; with a malformed email, `That email address doesn't look right...`. The admin's referral card shows *Age 58* and *Patient consent confirmed by the hospital, <date>* (an older referral reads *No consent recorded - referred before the form asked*). **Negative:** submitting with the phone blank or malformed is refused with `Enter the patient's phone number so our team can reach them.` The number is required because the clinic **rings this patient before sending the registration link** - see `ADM-REF-001`.
 
 #### `HOS-REF-002` - A home-visit referral requires a pincode · P1
 

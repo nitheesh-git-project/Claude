@@ -1,3 +1,4 @@
+import { examSideRefusal } from "@/lib/examSideServer";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -31,6 +32,7 @@ export async function POST(request: NextRequest) {
     patientId?: string;
     region?: string;
     side?: string;
+    sideConfirmed?: boolean;
     answers?: AnswerInput[];
     painPercent?: number;
   }>(request);
@@ -92,6 +94,16 @@ export async function POST(request: NextRequest) {
   if (unknownKeys.length > 0) {
     return NextResponse.json({ error: "Submission contains unknown fields." }, { status: 400 });
   }
+
+  // Not on a side the patient did not report, unless the therapist confirmed
+  // it (examSide.ts) -- this reading feeds the patient's summary.
+  const sideRefusal = await examSideRefusal(admin, {
+    patientId,
+    region,
+    side: resolvedSide,
+    confirmed: body.sideConfirmed === true,
+  });
+  if (sideRefusal) return NextResponse.json(sideRefusal, { status: 409 });
 
   const { error: insertError } = await admin.from("pain_assessments").insert({
     patient_id: patientId,

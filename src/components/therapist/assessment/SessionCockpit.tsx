@@ -4,7 +4,6 @@ import { displayForTimerEvent, type TimerClockEvent } from "@/lib/timerClock";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
 import type { EmbeddedHandle, EmbeddedSaveResult, EmbeddedStatus } from "@/components/profile/progress/RecordTestDialog";
-import { useRouter } from "@/lib/useRouter";
 import { useToast } from "@/lib/toast";
 import {
   END_REASONS,
@@ -159,7 +158,6 @@ export default function SessionCockpit(props: CockpitProps) {
 function Cockpit(props: CockpitProps & { protocolKey: string }) {
   const { patient, run, profileKind, chartHref } = props;
   const protocol = sessionProtocol(props.protocolKey)!;
-  const router = useRouter();
   const { show } = useToast();
   const firstName = patient.name.split(" ")[0] || "the patient";
 
@@ -478,7 +476,11 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
         return;
       }
       show(`${step.title} saved`);
-      router.refresh();
+      // No router.refresh() per step: the step's own result is already on
+      // screen (addEvent / the measurement state), and a refresh re-renders
+      // the whole patient page on the server -- what made each step of a
+      // live guided check take seconds to "save". The page is refreshed once
+      // when the run finishes (finishRun).
       const target =
         mode === "red_flags" && flaggedAfter
           ? protocol.steps.find((s) => s.tool === "summary")?.id ?? null
@@ -539,7 +541,7 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
     if (stopped && (reasonKey === "symptoms" || reasonKey === "near_fall")) {
       setStopFollowUp({ stepId, line: `${stopped.title} stopped: ${STOP_REASONS[reasonKey].toLowerCase()}.` });
     }
-    router.refresh();
+    // Local state carries the stop; the page refreshes when the run ends.
   }
 
   /** Ends the run as completed and shows the wrap-up. */
@@ -572,7 +574,7 @@ function Cockpit(props: CockpitProps & { protocolKey: string }) {
     if (!r.ok) return setFailure(r.failure);
     addEvent(r.data.event);
     show(`${step.title} skipped`);
-    router.refresh();
+    // Local state carries the skip; the page refreshes when the run ends.
     const target = nextStepId(protocol, state, step.id);
     if (target) openStep(target);
     // Skipping the last step (Home exercises: "Later") ends the check.

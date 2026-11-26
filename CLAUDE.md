@@ -30,6 +30,14 @@ way, and the reasoning is in there with the rule.
 Everything here is a rule whose failure is **unrecoverable, silent, or
 destroys something real**. Everything else is in `docs/rules/`.
 
+### Environments (owner's standing rule)
+
+`staging.moverestorephysio.com` (`staging`): test data, debug bar **on**.
+`moverestorephysio.com` (`main`): real patients, debug bar **off**. Vercel
+sets `NEXT_PUBLIC_SHOW_DEBUG_NAV`. **Never remove or change the debug
+bar.** Wording wrong live: align `staging` with production, fix it there;
+the owner's merge to `main` ships it. Detail: `STAGING.md`.
+
 ### Branches
 
 **`staging` is the default branch and the only one anything merges to.

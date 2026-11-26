@@ -57,13 +57,23 @@ export function slotStartMs(dateKey: string, hour: number): number {
   return new Date(`${dateKey}T${String(hour).padStart(2, "0")}:00`).getTime();
 }
 
+/**
+ * Whether a slot (by its start instant) is one a therapist can take --
+ * openHours.ts. Optional everywhere below: absent or null means "not
+ * checked", and every hour that clears the lead time is offered, which is how
+ * the pickers behaved before the roster was consulted.
+ */
+export type SlotOpenCheck = ((slotStartMs: number) => boolean) | null | undefined;
+
 export function isSlotBookable(
   dateKey: string,
   hour: number,
   nowMs: number,
-  leadTimeMs: number = BOOKING_LEAD_TIME_MS
+  leadTimeMs: number = BOOKING_LEAD_TIME_MS,
+  isOpen?: SlotOpenCheck
 ): boolean {
-  return slotStartMs(dateKey, hour) >= nowMs + leadTimeMs;
+  const start = slotStartMs(dateKey, hour);
+  return start >= nowMs + leadTimeMs && (!isOpen || isOpen(start));
 }
 
 // The hours on `dateKey` that clear the lead-time rule. Returned in the
@@ -72,9 +82,10 @@ export function isSlotBookable(
 export function bookableHoursForDate(
   dateKey: string,
   nowMs: number,
-  leadTimeMs: number = BOOKING_LEAD_TIME_MS
+  leadTimeMs: number = BOOKING_LEAD_TIME_MS,
+  isOpen?: SlotOpenCheck
 ): number[] {
-  return AVAILABILITY_HOURS.filter((hour) => isSlotBookable(dateKey, hour, nowMs, leadTimeMs));
+  return AVAILABILITY_HOURS.filter((hour) => isSlotBookable(dateKey, hour, nowMs, leadTimeMs, isOpen));
 }
 
 // A date is offerable exactly when at least one of its slots clears the
@@ -83,9 +94,10 @@ export function bookableHoursForDate(
 export function isDateBookable(
   dateKey: string,
   nowMs: number,
-  leadTimeMs: number = BOOKING_LEAD_TIME_MS
+  leadTimeMs: number = BOOKING_LEAD_TIME_MS,
+  isOpen?: SlotOpenCheck
 ): boolean {
-  return AVAILABILITY_HOURS.some((hour) => isSlotBookable(dateKey, hour, nowMs, leadTimeMs));
+  return AVAILABILITY_HOURS.some((hour) => isSlotBookable(dateKey, hour, nowMs, leadTimeMs, isOpen));
 }
 
 // First date (scanning forward from today) with any bookable slot. Returns
@@ -93,12 +105,13 @@ export function isDateBookable(
 // caller must treat as "no availability" rather than assuming a date.
 export function earliestBookableDateKey(
   nowMs: number,
-  leadTimeMs: number = BOOKING_LEAD_TIME_MS
+  leadTimeMs: number = BOOKING_LEAD_TIME_MS,
+  isOpen?: SlotOpenCheck
 ): string | null {
   const cursor = new Date(nowMs);
   for (let i = 0; i < MAX_LOOKAHEAD_DAYS; i++) {
     const key = toDateKey(cursor);
-    if (isDateBookable(key, nowMs, leadTimeMs)) return key;
+    if (isDateBookable(key, nowMs, leadTimeMs, isOpen)) return key;
     cursor.setDate(cursor.getDate() + 1);
     cursor.setHours(0, 0, 0, 0);
   }
@@ -170,7 +183,8 @@ export function buildCalendarMonth(
   month: number,
   nowMs: number,
   leadTimeMs: number = BOOKING_LEAD_TIME_MS,
-  bounds?: DateBounds
+  bounds?: DateBounds,
+  isOpen?: SlotOpenCheck
 ): CalendarMonth {
   const first = new Date(year, month, 1);
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -184,7 +198,7 @@ export function buildCalendarMonth(
       dayOfMonth: day,
       bookable: bounds
         ? isDateWithinBounds(dateKey, bounds)
-        : isDateBookable(dateKey, nowMs, leadTimeMs),
+        : isDateBookable(dateKey, nowMs, leadTimeMs, isOpen),
       isToday: dateKey === todayKey,
     });
   }
@@ -240,9 +254,10 @@ export function isMonthEntirelyUnbookable(
   month: number,
   nowMs: number,
   leadTimeMs: number = BOOKING_LEAD_TIME_MS,
-  bounds?: DateBounds
+  bounds?: DateBounds,
+  isOpen?: SlotOpenCheck
 ): boolean {
-  return !buildCalendarMonth(year, month, nowMs, leadTimeMs, bounds).cells.some(
+  return !buildCalendarMonth(year, month, nowMs, leadTimeMs, bounds, isOpen).cells.some(
     (c) => c?.bookable
   );
 }
@@ -355,4 +370,66 @@ export function resolveSlotInstant(
   let utc = wallMs - zoneOffsetMs(wallMs, zone);
   utc = wallMs - zoneOffsetMs(utc, zone);
   return new Date(utc).toISOString();
+}
+
+// ---------------------------------------------------------------------------
+// Picking a slot in a zone that is not the browser's.
+//
+// The month grid and the hour list above work in *local* wall-clock time,
+// which is right for the patient's own wizard (it records the zone it used).
+// Staff pickers are different: an admin choosing "3 PM" for a session means
+// 3 PM in the clinic's zone (or the booking's own), whatever their laptop is
+// set to. Built in local time, a UTC browser turned "10:00" into 15:30 IST,
+// and every route refused it as "Sessions start on the hour".
+//
+// Rather than teach every grid helper a zone, a staff picker hands them a
+// *shifted clock*: an instant whose local-time getters read the target
+// zone's wall clock. Every local-time comparison above (lead time, which day
+// is "today") then answers in that zone, and only the two conversions in and
+// out of an instant -- below -- need to know the zone at all.
+// ---------------------------------------------------------------------------
+
+function usableZone(timeZone?: string | null): string {
+  const zone = timeZone?.trim() || CLINIC_TIMEZONE;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: zone });
+    return zone;
+  } catch {
+    return CLINIC_TIMEZONE;
+  }
+}
+
+function localOffsetMs(ms: number): number {
+  return -new Date(ms).getTimezoneOffset() * 60_000;
+}
+
+/** An instant whose local getters read `timeZone`'s wall clock at `ms`. */
+export function wallClockMs(ms: number, timeZone?: string | null): number {
+  const zone = usableZone(timeZone);
+  return ms + zoneOffsetMs(ms, zone) - localOffsetMs(ms);
+}
+
+/** The instant for `hour`:00 on `dateKey` in `timeZone`, or null. */
+export function zonedSlotMs(dateKey: string, hour: number | null, timeZone?: string | null): number | null {
+  if (!dateKey || hour === null) return null;
+  const iso = resolveSlotInstant(`${dateKey}T${String(hour).padStart(2, "0")}:00`, usableZone(timeZone));
+  return iso ? Date.parse(iso) : null;
+}
+
+/** A stored instant as `{dateKey, hour}` on `timeZone`'s wall clock. */
+export function zonedSlotParts(
+  iso: string | null,
+  timeZone?: string | null
+): { dateKey: string; hour: number | null } {
+  if (!iso) return { dateKey: "", hour: null };
+  const ms = new Date(iso).getTime();
+  if (!Number.isFinite(ms)) return { dateKey: "", hour: null };
+  const wall = new Date(wallClockMs(ms, timeZone));
+  return { dateKey: toDateKey(wall), hour: wall.getHours() };
+}
+
+/** "India time (IST)" for the clinic's zone, else the zone's own name. */
+export function zoneLabel(timeZone?: string | null): string {
+  const zone = usableZone(timeZone);
+  return zone === CLINIC_TIMEZONE ? "India time (IST)" : zone.replace(/_/g, " ");
 }

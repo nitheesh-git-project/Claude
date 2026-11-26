@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
+import { auditChanges } from "@/lib/auditChanges";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { serverError } from "@/lib/apiError";
 
@@ -44,6 +45,13 @@ export async function POST(request: NextRequest) {
     patch.active = Boolean(active);
   }
 
+  // The entry as it was, for the log's before/after (best effort).
+  const { data: before } = await admin
+    .from("faqs")
+    .select(Object.keys(patch).join(", "))
+    .eq("id", id)
+    .maybeSingle();
+
   const { data: updated, error } = await admin
     .from("faqs")
     .update(patch)
@@ -66,6 +74,7 @@ export async function POST(request: NextRequest) {
     action: "catalog.update",
     targetId: id,
     targetLabel: "FAQ",
+    details: auditChanges((before as Record<string, unknown> | null) ?? null, patch),
   });
 
   // /faq is ISR-cached (revalidate = 300), so without this the accordion

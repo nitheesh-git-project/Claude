@@ -458,7 +458,7 @@ After the third, that line is replaced by an amber panel: *"Having trouble payin
 4. Read the confirmation line. It must agree with the visit named above it: a visit whose price already covers travel reads *"Travel is included"*, and one that does not quotes the per-visit travel fee for this area. That is why the visit is chosen before the pincode is asked for.
 5. Fill the address form: Address line 1 `12, 3rd Cross, Indiranagar`; line 2 `Near Metro Station`; City `Bengaluru`; State `Karnataka`; PIN `560038`.
 6. Tap **Continue**.
-7. On **When suits you?** pick a date at least 24 hours out and an arrival time.
+7. On **When suits you?** pick a date at least 24 hours out and an arrival time. The calendar says *"Checking available times…"* briefly, then offers only arrival times a physiotherapist can make (*Available arrival times*), with the clinic's travel time kept clear around their other visits.
 8. Tap **Continue**.
 9. On **About you**, read the teal line naming the condition chosen on Step 1 - it must name `QA Back & Spine Care` with its visit price and length, and carry a **Change** link. There is no package dropdown on this step. Complete the identity fields (or confirm the "booking as" strip if signed in).
 10. Tap **Continue**.
@@ -516,7 +516,7 @@ After the third, that line is replaced by an amber panel: *"Having trouble payin
 
 #### `PAT-SESS-002` - An unassigned session reads as Requested · P2
 
-**Expected Result.** A paid but unassigned session shows a `Requested` status pill and **no therapist name**. It must not claim a therapist it does not have.
+**Expected Result.** A paid but unassigned session shows a `Requested` status pill and **no therapist name**. It must not claim a therapist it does not have. Once a therapist is assigned to a paid (or pay-later) session that the clinic has not confirmed yet, the pill reads **Requested - clinic confirming** and Home reads *"Video session with <therapist> - the clinic is confirming"*, never *"waiting for a physiotherapist"*. A pay-later booking the clinic has not approved yet reads **Waiting for pay-later approval** and *"... waiting for the clinic to approve pay later"*. An assigned session still waiting on a payment (an unpaid checkout, a cash visit) keeps **Requested**.
 
 #### `PAT-SESS-003` - Tap to Join appears only inside the join window (scenario TIME-E) · P1
 
@@ -531,13 +531,13 @@ See `XR-CUTOFF-001` for the cross-role version. Simulate 90 minutes after the sl
 
 **Preconditions.** A **paid**, `confirmed` session whose slot is more than 24 hours away in **real** time (the refund maths runs server-side, so a simulated clock will not move it).
 **Steps.** Open the session card, tap **Cancel Session**, read the dialog, optionally enter a reason, confirm.
-**Expected Result.** The dialog reads *"Cancel this session and refund the payment? You can add a reason (optional):"*. After confirming, the card shows `Cancelling...` then a cancelled state. The appointment becomes `cancelled` with `refund_status='processed'` and the refund amount recorded. Admin → Money → Overview shows the refund reducing **Net Revenue** while **Gross Revenue** is unchanged. **No therapist cut is reversed** - a cancelled session never earned one. If the patient was hospital-referred, the **partner commission is reduced**, because it is taken on net.
+**Expected Result.** The dialog names the amount: *"Cancel this session? ₹499 will be refunded to the card or account you paid with. You can add a reason (optional):"*. A pay-later session reads *"…nothing is owed for a session cancelled before it happens"*, an unpaid one *"You haven't paid for this session, so there's nothing to refund"*, and a programme session *"…goes back to your programme"* (or *"…is used up"* inside the window). After confirming, the card shows `Cancelling...` then a cancelled state. The appointment becomes `cancelled` with `refund_status='processed'` and the refund amount recorded. Admin → Money → Overview shows the refund reducing **Net Revenue** while **Gross Revenue** is unchanged. **No therapist cut is reversed** - a cancelled session never earned one. If the patient was hospital-referred, the **partner commission is reduced**, because it is taken on net.
 
 #### `PAT-CANCEL-002` - Cancel inside the window → no refund, and the dialog says so (scenario TIME-H) · P0
 
 **Preconditions.** A paid session whose slot is **less than 24 hours** away in real time.
 **Steps.** Tap **Cancel Session** and read the dialog **before** confirming.
-**Expected Result.** The dialog reads *"Cancel this session? It's within 24 hours of your slot, so this won't be refunded. You can add a reason (optional):"*. After confirming, the appointment is `cancelled` with **no refund**. Money → Overview is unchanged for refunds. This forfeited amount stays in the clinic's share - it must not deduct a therapist cut, because the session was never completed.
+**Expected Result.** The dialog reads *"Cancel this session? It's within 24 hours of your session, so it won't be refunded. You can add a reason (optional):"* - the hours are the clinic's own **Free cancellation window** setting, not a fixed 24. After confirming, the appointment is `cancelled` with **no refund**. Money → Overview is unchanged for refunds. This forfeited amount stays in the clinic's share - it must not deduct a therapist cut, because the session was never completed.
 
 #### `PAT-CANCEL-003` - Home visits use their own refund window · P1
 Repeat `PAT-CANCEL-001`/`002` against a home visit. **Expected Result.** The window used is `home_visit_cancellation_refund_hours` (default 24, independently configurable). Changing the online window in Settings must **not** change the home-visit dialog, and vice versa.
@@ -556,6 +556,12 @@ Repeat `PAT-CANCEL-001`/`002` against a home visit. **Expected Result.** The win
 * Patient B sees nothing of Patient A's summary.
 
 ---
+
+#### `PAT-RESCHED-001` - The patient moves a session once, the clinic re-confirms it · P1
+
+**Preconditions.** A `confirmed` video session with an assigned therapist, more than 24 hours away. Settings → How the clinic runs → Booking rules → **Patient reschedule cut-off** at its default, 24 hours.
+**Steps.** On the session card tap **Change time**, pick another day and an offered hour, tap **Move my session**. Then try **Change time** on the same session again. Separately, simulate a time 20 hours before another session and look at its card. Open a home visit's card.
+**Expected Result.** Only hours a therapist can take are offered. After the move the toast reads *"Session moved. The clinic will confirm your new time."*; the session shows its new time, is `requested` with nobody on it, its calendar event and Meet link are gone, and it appears in Admin → **Sessions with no therapist**. `patient_reschedule_count` is 1 and **Change time** no longer shows on that session (a direct POST answers 409 *"You've already moved this session once..."*). Inside the cut-off and on a home visit there is no **Change time** button. The patient's activity log reads *"moved a session to a new time"*.
 
 ### 11.7 Health Profile (patient side)
 

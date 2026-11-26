@@ -25,6 +25,7 @@ const STEPS = [
   "tempPasswordPurge",
   "abandonedBookingAccounts",
   "bookingReminders",
+  "exchangeRates",
 ];
 const DAY = 86_400_000;
 // A placeholder, not a credential: the column is only ever cleared now

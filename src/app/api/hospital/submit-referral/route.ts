@@ -84,6 +84,9 @@ export async function POST(request: NextRequest) {
   const { data: body, error: parseError } = await parseJsonBody<{
     patientName?: string;
     patientPhone?: string;
+    patientAge?: unknown;
+    patientEmail?: unknown;
+    patientConsent?: unknown;
     address?: string;
     preferredLanguage?: string;
     medicalIssue?: string;
@@ -104,6 +107,27 @@ export async function POST(request: NextRequest) {
   // Required, because the clinic phones this patient before sending a
   // registration link -- a referral with no reachable number is one the
   // admin has to go back to the hospital for.
+  // The patient's agreement is required, not a nicety: a hospital passing a
+  // discharged patient's health details to the clinic needs it, and the
+  // clinic needs to be able to show it had it. Recorded with its time.
+  if (body.patientConsent !== true) {
+    return NextResponse.json(
+      { error: "Confirm the patient has agreed to be referred and to share these details." },
+      { status: 400 }
+    );
+  }
+  const patientAge = typeof body.patientAge === "number" ? body.patientAge : Number.NaN;
+  if (!Number.isInteger(patientAge) || patientAge < 0 || patientAge > 120) {
+    return NextResponse.json({ error: "Enter the patient's age in years." }, { status: 400 });
+  }
+  const patientEmail = typeof body.patientEmail === "string" ? body.patientEmail.trim() : "";
+  if (patientEmail && (patientEmail.length > 254 || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(patientEmail))) {
+    return NextResponse.json(
+      { error: "That email address doesn't look right. Leave it blank if the patient has none." },
+      { status: 400 }
+    );
+  }
+
   const patientPhone = typeof body.patientPhone === "string" ? body.patientPhone.trim() : "";
   if (!isValidStoredPhone(patientPhone)) {
     return NextResponse.json(
@@ -255,7 +279,7 @@ export async function POST(request: NextRequest) {
   // Service role for the insert: `hospital_id` is taken from the session
   // rather than the body, so there is nothing a caller could point at
   // somebody else's account.
-  const { error } = await admin.from("patient_referrals").insert({
+  const { data: inserted, error } = await admin.from("patient_referrals").insert({
     hospital_id: user.id,
     patient_name: patientName,
     patient_phone: patientPhone,
@@ -265,7 +289,7 @@ export async function POST(request: NextRequest) {
     treatment_needed: treatmentNeeded || null,
     visit_mode: visitMode,
     pincode,
-  });
+  }).select("id").maybeSingle();
 
   if (error) {
     // Two submissions raced past the check above and the index refused the
@@ -278,6 +302,20 @@ export async function POST(request: NextRequest) {
       { error: "Could not submit the referral. Please try again." },
       { status: 500 }
     );
+  }
+
+  // Consent, age and email in their own write: the columns are newer than
+  // this route, and a database without them must not refuse the referral.
+  if (inserted?.id) {
+    const { error: factsError } = await admin
+      .from("patient_referrals")
+      .update({
+        patient_consent_at: new Date().toISOString(),
+        patient_age: patientAge,
+        patient_email: patientEmail || null,
+      })
+      .eq("id", inserted.id);
+    if (factsError) console.error("submit-referral: could not record consent and age", inserted.id, factsError.message);
   }
 
   await recordUserActivity(admin, {

@@ -148,6 +148,7 @@ export async function POST(request: NextRequest) {
     action: "payment.goodwill_discount",
     targetId: appointmentId,
     targetLabel: `Session ${appointment.session_code ?? appointmentId.slice(0, 8)}`,
+    amountPaise: outcome.discountPaise,
     details: {
       reason,
       discountPaise: outcome.discountPaise,

@@ -15,6 +15,7 @@ import {
   bookingReceivedEmail,
   bookingReminderEmail,
   cancelRefundOf,
+  payLaterDeclinedEmail,
   cancellationIsWorthEmailing,
   sessionModeOf,
   type AppointmentEmailRow,
@@ -36,7 +37,7 @@ import {
 // so a slow mail provider never holds up a payment or a cancellation. Outside
 // a request (a script, a test) it runs inline instead. Never throws.
 
-export type AppointmentEmailEvent = "received" | "confirmed" | "cancelled" | ReminderEvent;
+export type AppointmentEmailEvent = "received" | "confirmed" | "cancelled" | "pay_later_declined" | ReminderEvent;
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -98,7 +99,10 @@ export async function sendAppointmentEmailOnce(
   if (event === "cancelled" && !cancellationIsWorthEmailing(appointment)) return;
   // A confirmation or a reminder is only for a session that is (still)
   // confirmed: a reminder for one cancelled since would be wrong.
-  if (event !== "received" && event !== "cancelled" && appointment.status !== "confirmed") return;
+  if (event !== "received" && event !== "cancelled" && event !== "pay_later_declined" && appointment.status !== "confirmed") return;
+  // A pay-later decline is only worth sending while the booking still waits
+  // to be paid -- not once it has been cancelled or paid since.
+  if (event === "pay_later_declined" && (appointment.status !== "requested" || appointment.payment_status === "paid")) return;
   if (!(await claimOnce(admin, appointmentId, event))) return;
 
   const ids = [appointment.patient_id, ...(appointment.therapist_id ? [appointment.therapist_id] : [])];
@@ -142,6 +146,19 @@ export async function sendAppointmentEmailOnce(
     payment: bookingPaymentOf(appointment),
     dashboardUrl,
   };
+  if (event === "pay_later_declined") {
+    // Email only. A WhatsApp message would need a template Meta has
+    // approved, and the dashboard says the same thing in the meantime.
+    const { data: declined } = await admin
+      .from("appointments")
+      .select("pay_later_decline_reason")
+      .eq("id", appointmentId)
+      .maybeSingle();
+    const reason = (declined?.pay_later_decline_reason as string | null)?.trim();
+    if (!to || !reason) return;
+    await deliverEmail(to, payLaterDeclinedEmail(site, { ...facts, reason }), { kind: "booking" });
+    return;
+  }
   if (event === "reminder_24h" || event === "reminder_1h") {
     await Promise.all([
       to ? deliverEmail(to, bookingReminderEmail(site, facts, event), { kind: "reminder" }) : null,

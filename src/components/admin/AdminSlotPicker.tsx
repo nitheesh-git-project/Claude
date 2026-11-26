@@ -11,9 +11,13 @@ import {
   bookableHoursForDate,
   earliestBookableDateKey,
   formatDateKeyLong,
-  slotStartMs,
-  toDateKey,
   BOOKING_LEAD_TIME_MS,
+  CLINIC_TIMEZONE,
+  wallClockMs,
+  zonedSlotMs,
+  zonedSlotParts,
+  zoneLabel,
+  type SlotOpenCheck,
 } from "@/lib/bookingSlots";
 import { formatHourRange } from "@/lib/therapistAvailability";
 
@@ -33,6 +37,13 @@ import { formatHourRange } from "@/lib/therapistAvailability";
  * therapist dropdown and a button, and the patient-sized control filled the
  * row on its own. Inline by design -- a dialog would hide the referral it
  * is being chosen for.
+ *
+ * Hours are the booking's zone's hours -- the clinic's by default -- never
+ * the browser's. An admin on a laptop set to UTC used to choose "10:00",
+ * which the browser turned into 15:30 IST, and every route refused it as
+ * "Sessions start on the hour". The grid is handed a clock shifted to the
+ * zone's wall time (`wallClockMs`), and `slotToMs` / `slotFromIso` convert
+ * in that same zone.
  */
 export default function AdminSlotPicker({
   dateKey,
@@ -43,6 +54,10 @@ export default function AdminSlotPicker({
   disabled = false,
   leadTimeMs = BOOKING_LEAD_TIME_MS,
   startOpen = false,
+  timeZone = CLINIC_TIMEZONE,
+  isSlotOpen = null,
+  openHoursLoading = false,
+  openHoursChecked = false,
 }: {
   dateKey: string;
   hour: number | null;
@@ -63,23 +78,40 @@ export default function AdminSlotPicker({
   leadTimeMs?: number;
   /** Expanded from the start, where the screen exists to choose a time. */
   startOpen?: boolean;
+  /** The zone the hours are in: the booking's own, else the clinic's. */
+  timeZone?: string | null;
+  /** Which real slot starts a therapist can take (useOpenSlots). Null: not
+   *  checked, and every hour that clears the lead time is offered. */
+  isSlotOpen?: SlotOpenCheck;
+  /** The open hours are on their way: the calendar says it is checking and
+   *  the hours wait, as on the patient's picker. */
+  openHoursLoading?: boolean;
+  /** The hours on screen are the roster's ("Available times"). */
+  openHoursChecked?: boolean;
 }) {
   const [open, setOpen] = useState(startOpen);
+  // "Now" as the zone's wall clock, so the lead time and "today" are judged
+  // there rather than in the browser's zone.
+  const wallNowMs = wallClockMs(nowMs, timeZone);
+  // The grid judges slots on the shifted clock, so a real instant is the
+  // shifted one moved back by the same offset before it is looked up.
+  const shift = wallNowMs - nowMs;
+  const openOnGrid: SlotOpenCheck = isSlotOpen ? (shiftedMs: number) => isSlotOpen(shiftedMs - shift) : null;
 
-  const hours = dateKey ? bookableHoursForDate(dateKey, nowMs, leadTimeMs) : [];
+  const hours = dateKey ? bookableHoursForDate(dateKey, wallNowMs, leadTimeMs, openOnGrid) : [];
 
   function selectDate(nextDateKey: string) {
     // Keep the hour when the new date still offers it; otherwise fall to that
     // day's earliest bookable one rather than silently keeping a time the
     // lead-time rule has just ruled out.
-    const nextHours = bookableHoursForDate(nextDateKey, nowMs, leadTimeMs);
+    const nextHours = bookableHoursForDate(nextDateKey, wallNowMs, leadTimeMs, openOnGrid);
     const keep = hour !== null && nextHours.includes(hour) ? hour : (nextHours[0] ?? null);
     onChange({ dateKey: nextDateKey, hour: keep });
   }
 
   const chosen =
     dateKey && hour !== null
-      ? `${formatDateKeyLong(dateKey)} · ${formatHourRange(hour)}`
+      ? `${formatDateKeyLong(dateKey)} · ${formatHourRange(hour)} · ${zoneLabel(timeZone)}`
       : "No time chosen yet";
 
   return (
@@ -106,13 +138,16 @@ export default function AdminSlotPicker({
             compact
             selectedDateKey={dateKey}
             onSelect={selectDate}
-            nowMs={nowMs}
+            nowMs={wallNowMs}
+            isSlotOpen={openOnGrid}
             leadTimeMs={leadTimeMs}
             autoSelected={false}
+            loading={openHoursLoading}
           />
+          {!openHoursLoading && (
           <div>
             <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500 mb-1.5">
-              Time
+              {openHoursChecked ? "Available times" : "Time"} ({zoneLabel(timeZone)})
             </p>
             {hours.length === 0 ? (
               <p className="text-[11px] text-slate-500">
@@ -137,6 +172,7 @@ export default function AdminSlotPicker({
               </div>
             )}
           </div>
+          )}
           {/* Says why yesterday and this afternoon are not on offer, rather
               than leaving an admin to work it out from greyed-out cells. */}
           <p className="text-[10px] text-slate-500">
@@ -166,28 +202,33 @@ export default function AdminSlotPicker({
  */
 export function earliestSlot(
   nowMs: number,
-  leadTimeMs: number = BOOKING_LEAD_TIME_MS
+  leadTimeMs: number = BOOKING_LEAD_TIME_MS,
+  timeZone: string | null = CLINIC_TIMEZONE
 ): { dateKey: string; hour: number | null } {
-  const dateKey = earliestBookableDateKey(nowMs, leadTimeMs) ?? "";
+  const wallNowMs = wallClockMs(nowMs, timeZone);
+  const dateKey = earliestBookableDateKey(wallNowMs, leadTimeMs) ?? "";
   return {
     dateKey,
-    hour: dateKey ? (bookableHoursForDate(dateKey, nowMs, leadTimeMs)[0] ?? null) : null,
+    hour: dateKey ? (bookableHoursForDate(dateKey, wallNowMs, leadTimeMs)[0] ?? null) : null,
   };
 }
 
-/** Splits a stored ISO instant back into the picker's `{dateKey, hour}`, in
- *  local time -- the same wall-clock basis `slotStartMs` builds. Minutes are
- *  dropped, because every slot in this app starts on the hour; a legacy row
- *  at 10:30 opens the picker on 10 and is rewritten on save. */
-export function slotFromIso(iso: string | null): { dateKey: string; hour: number | null } {
-  if (!iso) return { dateKey: "", hour: null };
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return { dateKey: "", hour: null };
-  return { dateKey: toDateKey(d), hour: d.getHours() };
+/** Splits a stored ISO instant back into the picker's `{dateKey, hour}` on
+ *  the zone's wall clock. Minutes are dropped, because every slot in this
+ *  app starts on the hour; a legacy row at 10:30 opens the picker on 10 and
+ *  is rewritten on save. */
+export function slotFromIso(
+  iso: string | null,
+  timeZone: string | null = CLINIC_TIMEZONE
+): { dateKey: string; hour: number | null } {
+  return zonedSlotParts(iso, timeZone);
 }
 
-/** Local-time epoch ms for a chosen slot, or null when one is incomplete. */
-export function slotToMs(dateKey: string, hour: number | null): number | null {
-  if (!dateKey || hour === null) return null;
-  return slotStartMs(dateKey, hour);
+/** Epoch ms for a chosen slot in the zone, or null when one is incomplete. */
+export function slotToMs(
+  dateKey: string,
+  hour: number | null,
+  timeZone: string | null = CLINIC_TIMEZONE
+): number | null {
+  return zonedSlotMs(dateKey, hour, timeZone);
 }

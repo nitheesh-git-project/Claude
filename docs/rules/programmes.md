@@ -175,7 +175,12 @@ Consultation first, how a course of treatment is bought, the therapist lock, wha
   via `/api/appointments/book-package-sessions`, which loops
   `bookPackageSession()` per slot after enforcing the package's own
   minimum-gap/max-per-week rules and the bulk limit - it's the batch-level
-  rules layer, not a second booking implementation. Guard:
+  rules layer, not a second booking implementation. `bookPackageSession`
+  also refuses a time nobody can take (`isSlotClosed`), **before** it claims
+  the session, so a refusal never uses one up; the scheduler's calendar
+  offers only open hours and drops any proposed time nobody can take once
+  they arrive, saying how many. A therapist's Suggest a session offers only
+  their own free hours (`therapistId=me`). Guard:
   `e2e/programme-sessions-via-admin.spec.ts`, and SCH-001 in
   `session-scheduling`.
 - **A programme's expiry is said only near its end, as a date.** Every
@@ -293,6 +298,15 @@ Consultation first, how a course of treatment is bought, the therapist lock, wha
   patient. Suggested keeps showing "Your programme is ready".
 
 - **A referral is checked by the server the way a booking is.** Over-long
+  **A referral carries the patient's consent and age.** The hospital ticks
+  that the patient agreed to be referred and to share these details
+  (required; `patient_referrals.patient_consent_at`), gives the age
+  (required, 0-120) and optionally the email, and the phone field defaults
+  to India (`PhoneNumberField defaultCountry`) rather than guessing from the
+  browser, which gave a US-English laptop +1. The route refuses a referral
+  without consent or age, and writes the three in their own update after
+  the insert so an unmigrated database still takes the referral. The admin's
+  card shows them. Guard: `e2e/hospital-referrals.spec.ts` REF-004.
   text is refused with a sentence, never cut (`REFERRAL_LIMITS` in
   `src/lib/referralLimits.ts`, which the form also applies as `maxLength`);
   the route used to slice the medical history silently. The preferred

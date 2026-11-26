@@ -4,6 +4,7 @@ import { useTherapistUnavailable } from "@/components/admin/TherapistUnavailable
 import { useState } from "react";
 import { useRouter } from "@/lib/useRouter";
 import AdminSlotPicker, { slotFromIso, slotToMs } from "@/components/admin/AdminSlotPicker";
+import { useOpenSlots } from "@/lib/useOpenSlots";
 
 // Sentinel for the category <select>, distinct from both a real category id
 // and the empty string (which means "leave the category unchanged"). Lets
@@ -16,6 +17,7 @@ export default function EditBookingForm({
   currentTherapistId,
   currentSlotTime,
   currentCategoryId,
+  timeZone = null,
   therapists,
   categories,
   onSaved,
@@ -24,6 +26,8 @@ export default function EditBookingForm({
   currentTherapistId: string | null;
   currentSlotTime: string | null;
   currentCategoryId?: string | null;
+  /** The zone the session was booked in; its hours are judged there. */
+  timeZone?: string | null;
   therapists: { id: string; full_name: string; active?: boolean }[];
   categories?: { id: string; title: string; active?: boolean }[];
   onSaved?: () => void;
@@ -34,8 +38,19 @@ export default function EditBookingForm({
   );
   // Read once on mount, so the grid and the submit check agree on "now".
   const [nowMs] = useState(() => Date.now());
-  const [slot, setSlot] = useState(() => slotFromIso(currentSlotTime));
+  const [slot, setSlot] = useState(() => slotFromIso(currentSlotTime, timeZone));
   const [categoryId, setCategoryId] = useState(currentCategoryId ?? "");
+  // The chosen therapist's free hours, with this session's own slot not
+  // counted against them -- it is the one being moved. Asked only while the
+  // form is open. The assign route stays the authority either way.
+  const {
+    isOpen: isSlotOpen,
+    checked: openHoursChecked,
+    loading: openHoursLoading,
+  } = useOpenSlots(open ? nowMs : null, categoryId && categoryId !== CLEAR_CATEGORY_VALUE ? categoryId : currentCategoryId, {
+    therapistId: therapistId || null,
+    excludeAppointmentId: appointmentId,
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -43,7 +58,7 @@ export default function EditBookingForm({
 
   async function handleSave(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const slotMs = slotToMs(slot.dateKey, slot.hour);
+    const slotMs = slotToMs(slot.dateKey, slot.hour, timeZone);
     if (!therapistId || slotMs === null) {
       setError("Pick a date and time for the session.");
       return;
@@ -146,6 +161,10 @@ export default function EditBookingForm({
         onChange={setSlot}
         nowMs={nowMs}
         leadTimeMs={0}
+        timeZone={timeZone}
+        isSlotOpen={isSlotOpen}
+        openHoursLoading={openHoursLoading}
+        openHoursChecked={openHoursChecked}
       />
       <div className="flex gap-2">
         <button

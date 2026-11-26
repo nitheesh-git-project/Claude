@@ -369,6 +369,7 @@ export default function LayerTool({
           patientId={patientId}
           initialRegion={(shownArea?.region as PainMapRegionKey | undefined) ?? null}
           initialSide={areaSide}
+          reportedAreas={intakeAreas}
           assessments={rows as unknown as PainAssessmentRow[]}
           overridesByRegion={overrides}
           onClose={() => {

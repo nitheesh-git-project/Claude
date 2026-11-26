@@ -14,6 +14,9 @@ import {
   ratesAreStale,
   resolveCountry,
   roundUpToNinetyNine,
+  roundUpToStep,
+  roundingsFor,
+  isPriceRounding,
   type CountryPricing,
 } from "./countryPricing";
 
@@ -158,5 +161,39 @@ describe("rate age", () => {
     expect(ratesAreStale(null, now)).toBe(true);
     expect(ratesAreStale("2026-10-05T12:00:00Z", now)).toBe(false);
     expect(ratesAreStale("2026-09-20T12:00:00Z", now)).toBe(true);
+  });
+});
+
+describe("rounding steps for high-value currencies", () => {
+  it("rounds up to the next step, never down", () => {
+    // OMR has three places: 2.031 is 2031 minor units.
+    expect(roundUpToStep(2031, 3, "0.10")).toBe(2100);
+    expect(roundUpToStep(2031, 3, "0.50")).toBe(2500);
+    expect(roundUpToStep(2031, 3, "1.00")).toBe(3000);
+    expect(roundUpToStep(2100, 3, "0.10")).toBe(2100);
+    expect(roundUpToStep(1035, 2, "0.50")).toBe(1050);
+  });
+
+  it("is the .99 rule for the default and for a currency without cents", () => {
+    expect(roundUpToStep(1035, 2, "0.99")).toBe(roundUpToNinetyNine(1035, 2));
+    expect(roundUpToStep(1532, 0, "0.10")).toBe(roundUpToNinetyNine(1532, 0));
+  });
+
+  it("prices Oman on 0.10 close to the converted figure, and charges the rupee equal of it", () => {
+    const oman = { code: "OM", currency: "OMR", enabled: true, markupPercent: 0, unitsPerInr: 0.0046 };
+    const ninetyNine = priceForCountry(49_900, oman);
+    const tenth = priceForCountry(49_900, { ...oman, rounding: "0.10" as const });
+    // ₹499 x 0.0046 = OMR 2.2954.
+    expect(ninetyNine.displayMinor).toBe(2990);
+    expect(tenth.displayMinor).toBe(2300);
+    expect(tenth.chargePaise).toBeGreaterThanOrEqual(49_900);
+    expect(tenth.chargePaise).toBeLessThan(ninetyNine.chargePaise);
+  });
+
+  it("offers the steps only where a currency has cents", () => {
+    expect(roundingsFor("OMR")).toEqual(["0.99", "0.10", "0.50", "1.00"]);
+    expect(roundingsFor("JPY")).toEqual(["0.99"]);
+    expect(isPriceRounding("0.10")).toBe(true);
+    expect(isPriceRounding("0.25")).toBe(false);
   });
 });

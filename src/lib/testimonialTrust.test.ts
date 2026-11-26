@@ -3,6 +3,8 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   SEEDED_TESTIMONIAL_QUOTES,
+  consentedPublicTestimonials,
+  testimonialActivationBlock,
   isSeededTestimonial,
   publicTestimonials,
 } from "./testimonialTrust";
@@ -33,5 +35,28 @@ describe("illustrative testimonials never reach the public pages", () => {
       expect(sql, quote.slice(0, 40)).toContain(quote);
     }
     expect((sql.match(/\/photos\/testimonial-[a-z]+\.jpg/g) ?? []).length).toBe(SEEDED_TESTIMONIAL_QUOTES.length);
+  });
+});
+
+describe("consent before publishing", () => {
+  const rows = [
+    { id: "a", quote: "Real words from a real patient." },
+    { id: "b", quote: "Another real story." },
+    { id: "s", quote: SEEDED_TESTIMONIAL_QUOTES[0] },
+  ];
+
+  it("shows only stories with consent recorded, and never the seeded copy", () => {
+    expect(consentedPublicTestimonials(rows, new Set(["a", "s"])).map((r) => r.id)).toEqual(["a"]);
+  });
+
+  it("shows nothing when consent could not be read", () => {
+    expect(consentedPublicTestimonials(rows, null)).toEqual([]);
+  });
+
+  it("refuses to switch a story on without consent, and consent without a note", () => {
+    expect(testimonialActivationBlock({ active: true, consentGiven: false, consentNote: null })).toMatch(/written consent/);
+    expect(testimonialActivationBlock({ active: false, consentGiven: true, consentNote: "ok" })).toMatch(/where the signed consent is kept/);
+    expect(testimonialActivationBlock({ active: true, consentGiven: true, consentNote: "Signed form, patient file" })).toBeNull();
+    expect(testimonialActivationBlock({ active: false, consentGiven: false, consentNote: null })).toBeNull();
   });
 });

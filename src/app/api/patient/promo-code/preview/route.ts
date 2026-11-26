@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
 
   // Priced for the request's country exactly as the checkout quote is, so a
   // percentage code previews the same discount the quote will then show.
-  const { pricing } = await pricingForRequest(admin, request);
+  const { pricing } = await pricingForRequest(admin, request, { patientId: user?.id ?? null });
   const basePricePaise = await readAppointmentServicePrice(admin, priceCategoryId);
   const listPricePaise = pricing ? priceForCountry(basePricePaise, pricing).chargePaise : basePricePaise;
   const result = await previewPromoCode(admin, {

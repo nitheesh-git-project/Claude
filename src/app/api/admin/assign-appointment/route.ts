@@ -5,14 +5,14 @@ import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { parseJsonBody } from "@/lib/parseJsonBody";
-import { createMeetEventForConfirmedAppointment } from "@/lib/googleCalendarSync";
-import { queueAppointmentEmail } from "@/lib/appointmentEmailServer";
 import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
-import { formatAddressOneLine, visitAddressFromAppointment } from "@/lib/formatAddress";
+import { announceConfirmedSession, VISIT_COLUMNS } from "@/lib/announceConfirmedSession";
 import {
   claimTherapistSlot,
   describeClaimFailure,
 } from "@/lib/claimTherapistSlot";
+import { confirmsOnAssign } from "@/lib/sessionAssignQueue";
+import { readPayLaterApproval } from "@/lib/payLaterSettingsServer";
 
 export async function POST(request: NextRequest) {
   const adminUser = await requireAdminScope("sessions");
@@ -64,9 +64,7 @@ export async function POST(request: NextRequest) {
   // behaviour this route had before home visits existed.
   const { data: visit } = await admin
     .from("appointments")
-    .select(
-      "visit_mode, home_visit_purchase_id, visit_address_line1, visit_address_line2, visit_landmark, visit_city, visit_state, visit_pincode, visit_latitude, visit_longitude, visit_access_notes"
-    )
+    .select(VISIT_COLUMNS)
     .eq("id", appointmentId)
     .maybeSingle();
 
@@ -128,8 +126,14 @@ export async function POST(request: NextRequest) {
   // without this it would sit at `requested` for ever -- and only a
   // `confirmed` session can be completed, which is the step that creates the
   // debt, the revenue and the therapist's share.
-  const shouldConfirm =
-    appointment.payment_status === "paid" || terms?.payment_terms === "pay_later";
+  // One rule with the booking editor's "Change time & assign"
+  // (confirmsOnAssign), so neither door can leave the other's session behind.
+  const shouldConfirm = confirmsOnAssign({
+    payment_status: appointment.payment_status,
+    payment_terms: terms?.payment_terms ?? null,
+    pay_later_approval:
+      terms?.payment_terms === "pay_later" ? await readPayLaterApproval(admin, appointmentId) : null,
+  });
 
   // The whole reservation -- overlap test, compare-and-set and write -- in
   // one statement, under a row lock on the therapist.
@@ -302,31 +306,18 @@ export async function POST(request: NextRequest) {
 
   // Past the post-write conflict re-check above -- the assignment (and any
   // status: "confirmed") is confirmed to have actually stuck, so it's safe
-  // to create the Meet event now.
-  if (shouldConfirm && appointment.slot_time) {
-    await createMeetEventForConfirmedAppointment(admin, {
+  // to create the calendar event and tell the patient.
+  if (shouldConfirm) {
+    await announceConfirmedSession(admin, {
       appointmentId,
       patientId: appointment.patient_id,
       therapistId,
       slotTime: appointment.slot_time,
       durationMinutes: appointment.duration_minutes,
       timezone: appointment.timezone,
-      // A home visit's event carries the street address and no Meet link.
-      // It is not optional: the clinic's own confirmation email can be
-      // switched off (Settings -> Emails), so Calendar's invite may be the
-      // only confirmation the patient gets that someone is coming home.
-      visitMode: isHomeVisit ? "home_visit" : "online",
-      location: isHomeVisit && visit ? formatAddressOneLine(visitAddressFromAppointment(visit)) : null,
-      description:
-        isHomeVisit && visit?.visit_access_notes
-          ? `Access notes: ${visit.visit_access_notes}`
-          : null,
+      visit: visit ?? null,
     });
   }
-
-  // The patient hears it is confirmed, once (a "received" email may have
-  // gone out at payment, while nobody was assigned).
-  if (shouldConfirm) queueAppointmentEmail(appointmentId, "confirmed");
 
   await recordAdminActivity(admin, adminUser.id, {
     action: "session.assign",

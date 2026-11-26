@@ -25,6 +25,22 @@ describe("sessionRowStatus", () => {
 });
 
 describe("patientSessionStatus", () => {
+  it("says a pay-later booking waits for approval, and an assigned request is being confirmed", () => {
+    expect(patientSessionStatus({ status: "requested", therapist_id: null, pay_later_approval: "pending" }).label).toBe(
+      "Waiting for pay-later approval"
+    );
+    expect(
+      patientSessionStatus({ status: "requested", therapist_id: "t1", payment_status: "paid" }).label
+    ).toBe("Requested - clinic confirming");
+    expect(
+      patientSessionStatus({ status: "requested", therapist_id: "t1", payment_status: "unpaid", payment_terms: "pay_later" }).label
+    ).toBe("Requested - clinic confirming");
+    // Assigned but unpaid: waiting on a payment, not on the clinic.
+    expect(patientSessionStatus({ status: "requested", therapist_id: "t1", payment_status: "unpaid" }).label).toBe("Requested");
+    expect(patientSessionStatus({ status: "requested", therapist_id: null }).label).toBe("Requested");
+    expect(patientSessionStatus({ status: "confirmed", therapist_id: "t1" }).label).toBe("Confirmed");
+  });
+
   it("says a programme session waiting on the clinic is booked, not requested", () => {
     expect(
       patientSessionStatus({ status: "requested", therapist_id: null, package_purchase_id: "p1" })

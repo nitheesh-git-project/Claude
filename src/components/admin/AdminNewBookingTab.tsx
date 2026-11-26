@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useTransition } from "react";
 import AdminSlotPicker, { earliestSlot, slotToMs } from "@/components/admin/AdminSlotPicker";
+import { useOpenSlots } from "@/lib/useOpenSlots";
+import type { SlotOpenCheck } from "@/lib/bookingSlots";
 import { leadTimeMsFromHours } from "@/lib/bookingSlots";
 import { useRouter } from "@/lib/useRouter";
 import { useUnloadWarning } from "@/lib/useUnloadWarning";
@@ -75,6 +77,24 @@ export default function AdminNewBookingTab({
     setSlot(earliestSlot(now, leadTimeMsFromHours(leadTimeHours)));
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [leadTimeHours]);
+  // Only hours a therapist can take (openHours.ts) -- the patient's own
+  // picker's rule. Book a session used to offer a Sunday nobody works.
+  const { isOpen: isSlotOpen, checked: openHoursChecked, loading: openHoursLoading } = useOpenSlots(
+    nowMs,
+    categoryId || null
+  );
+  const [appliedOpenHours, setAppliedOpenHours] = useState<SlotOpenCheck>(null);
+  if (isSlotOpen !== appliedOpenHours) {
+    // Wrapped: the value is itself a function, and a bare function passed
+    // to a state setter is run as an updater -- React would store its
+    // boolean result, the comparison above would never match, and the
+    // component would re-render until React gave up.
+    setAppliedOpenHours(() => isSlotOpen);
+    const chosenMs = slotToMs(slot.dateKey, slot.hour);
+    if (isSlotOpen && chosenMs !== null && !isSlotOpen(chosenMs)) {
+      setSlot({ dateKey: slot.dateKey, hour: null });
+    }
+  }
   const [notes, setNotes] = useState("");
   const [paymentMode, setPaymentMode] = useState<"unpaid" | "paid_offline">("unpaid");
   const [overrideLeadTime, setOverrideLeadTime] = useState(false);
@@ -101,9 +121,9 @@ export default function AdminNewBookingTab({
       return;
     }
 
-    // Built as a local wall-clock time and sent as an ISO instant -- the
-    // clinic works in IST and the admin is typing IST, so the browser's own
-    // timezone doing the conversion is the correct behaviour here.
+    // Built on the clinic's wall clock (AdminSlotPicker's default zone), not
+    // the browser's: an admin whose laptop is on UTC used to send 15:30 IST
+    // for a "10:00" they never chose, and the route refused it.
     const slotTime = new Date(slotMs).toISOString();
 
     startTransition(async () => {
@@ -226,6 +246,9 @@ export default function AdminNewBookingTab({
             onChange={setSlot}
             nowMs={nowMs}
             leadTimeMs={overrideLeadTime ? 0 : leadTimeMsFromHours(leadTimeHours)}
+            isSlotOpen={isSlotOpen}
+            openHoursLoading={openHoursLoading}
+            openHoursChecked={openHoursChecked}
           />
         )}
 

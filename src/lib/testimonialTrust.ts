@@ -37,3 +37,47 @@ export function isSeededTestimonial(row: { quote?: string | null }): boolean {
 export function publicTestimonials<T extends { quote?: string | null }>(rows: T[] | null | undefined): T[] {
   return (rows ?? []).filter((row) => !isSeededTestimonial(row));
 }
+
+/**
+ * A patient story is published only with the patient's written consent on
+ * file (owner's rule): their words, their name and, if there is one, their
+ * photograph. An admin records it on the story -- when, and where the signed
+ * consent is kept (`testimonials.consent_recorded_at`, `consent_note`) -- and
+ * a story without it is never shown, whatever its Active switch says. The
+ * database's public read policy says the same, so this is the second lock.
+ *
+ * `consented` is the set of story ids with consent recorded, read on its own;
+ * null means it could not be read (a database without the columns, a failed
+ * read), and then nothing is shown. "Couldn't check" is not "yes" -- for a
+ * patient's health story the safe answer is to wait.
+ */
+export function consentedPublicTestimonials<T extends { id: string; quote?: string | null }>(
+  rows: T[] | null | undefined,
+  consented: ReadonlySet<string> | null
+): T[] {
+  if (!consented) return [];
+  return publicTestimonials(rows).filter((row) => consented.has(row.id));
+}
+
+/** The shortest "where is the signed consent kept" note a story accepts. */
+export const MIN_CONSENT_NOTE = 5;
+/** The longest, matching the column's check. */
+export const MAX_CONSENT_NOTE = 500;
+
+/** Why a story cannot be switched on, or null when it can. */
+export function testimonialActivationBlock(args: {
+  active: boolean;
+  consentGiven: boolean;
+  consentNote: string | null | undefined;
+}): string | null {
+  if (args.consentGiven && (args.consentNote ?? "").trim().length > MAX_CONSENT_NOTE) {
+    return `Keep the note on where the consent is kept to ${MAX_CONSENT_NOTE} characters.`;
+  }
+  if (args.consentGiven && (args.consentNote ?? "").trim().length < MIN_CONSENT_NOTE) {
+    return "Say where the signed consent is kept (for example: \"Signed form, 12 Dec, patient file\").";
+  }
+  if (args.active && !args.consentGiven) {
+    return "A story is shown only with the patient's written consent on file. Record it first, or leave the story hidden.";
+  }
+  return null;
+}

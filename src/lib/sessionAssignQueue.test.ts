@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
   awaitsPatientPayment,
+  awaitsPayLaterApproval,
+  confirmationIsOverdue,
+  confirmsOnAssign,
+  needsConfirming,
   needsTherapist,
   programmePickWarning,
   programmeTherapistFor,
@@ -103,5 +107,61 @@ describe("programmePickWarning", () => {
     expect(
       programmePickWarning({ therapistId: "t", therapistName: "Dr Ananya", blocks: ["On leave."] })
     ).toBe("Dr Ananya is no longer free at this time - pick someone else or move it.");
+  });
+});
+
+describe("assigned but not confirmed", () => {
+  const assigned: AssignQueueRow = { ...draft, therapist_id: "t1" };
+
+  it("confirms on assign only when paid or on pay-later terms", () => {
+    expect(confirmsOnAssign({ payment_status: "paid", payment_terms: "prepaid" })).toBe(true);
+    expect(confirmsOnAssign({ payment_status: "unpaid", payment_terms: "pay_later" })).toBe(true);
+    expect(confirmsOnAssign({ payment_status: "unpaid", payment_terms: "prepaid" })).toBe(false);
+    expect(confirmsOnAssign({ payment_status: "unpaid", payment_terms: null })).toBe(false);
+  });
+
+  it("queues an assigned, committed session still left requested", () => {
+    expect(needsConfirming({ ...assigned, payment_terms: "pay_later" })).toBe(true);
+    expect(needsConfirming({ ...assigned, payment_status: "paid" })).toBe(true);
+  });
+
+  it("leaves out unassigned, unpaid-prepaid, confirmed and cancelled rows", () => {
+    expect(needsConfirming({ ...draft, payment_status: "paid" })).toBe(false);
+    expect(needsConfirming(assigned)).toBe(false);
+    expect(needsConfirming({ ...assigned, payment_status: "paid", status: "confirmed" })).toBe(false);
+    expect(needsConfirming({ ...assigned, payment_status: "paid", status: "cancelled" })).toBe(false);
+  });
+
+  it("calls a request overdue only past the promised hours", () => {
+    const now = Date.parse("2026-11-26T12:00:00Z");
+    expect(confirmationIsOverdue("2026-11-26T07:59:00Z", 4, now)).toBe(true);
+    expect(confirmationIsOverdue("2026-11-26T08:30:00Z", 4, now)).toBe(false);
+    expect(confirmationIsOverdue(null, 4, now)).toBe(false);
+    expect(confirmationIsOverdue("not a date", 4, now)).toBe(false);
+  });
+});
+
+describe("pay-later bookings wait for approval", () => {
+  const pending: AssignQueueRow = { ...draft, payment_terms: "pay_later", pay_later_approval: "pending" };
+
+  it("does not confirm on assign until approved", () => {
+    expect(confirmsOnAssign(pending)).toBe(false);
+    expect(confirmsOnAssign({ ...pending, pay_later_approval: "declined" })).toBe(false);
+    expect(confirmsOnAssign({ ...pending, pay_later_approval: "approved" })).toBe(true);
+    // Rows from before approval existed confirm as they always did.
+    expect(confirmsOnAssign({ ...pending, pay_later_approval: null })).toBe(true);
+    expect(confirmsOnAssign({ ...pending, pay_later_approval: undefined })).toBe(true);
+  });
+
+  it("sits in the approval queue, not the staffing ones", () => {
+    expect(awaitsPayLaterApproval(pending)).toBe(true);
+    expect(needsTherapist(pending, false)).toBe(false);
+    expect(needsConfirming({ ...pending, therapist_id: "t1" })).toBe(false);
+  });
+
+  it("leaves the approval queue once decided or cancelled", () => {
+    expect(awaitsPayLaterApproval({ ...pending, pay_later_approval: "approved" })).toBe(false);
+    expect(awaitsPayLaterApproval({ ...pending, status: "cancelled" })).toBe(false);
+    expect(needsTherapist({ ...pending, pay_later_approval: "approved" }, false)).toBe(true);
   });
 });

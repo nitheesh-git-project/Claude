@@ -13,10 +13,13 @@ Availability as periods over hour rows, specialisation as a value, what readines
 - **Availability** = weekly template + per-date exceptions + leave flag, then
   a conflict check (`src/lib/therapistAvailability.ts`,
   `src/lib/checkTherapistConflict.ts`). It is the clinic's planning record -
-  who can be *offered* - and it deliberately does **not** filter the
-  patient's `/book` picker, which is the lead-time rule alone. Connecting
-  the two is a product decision with a deploy-sized blast radius, not a
-  refactor; `e2e/therapist-roster.spec.ts` R-B02 is the guard.
+  who can be *offered* - and, by the owner's decision (tester report, Phase
+  1), it **does** decide what every session picker offers: an hour is offered
+  only when some therapist passes the assign rule for it
+  (`docs/rules/booking.md`, "A picker offers only hours a therapist can
+  take"). A clinic where nobody has weekly hours is "not checked" and offers
+  every hour. `e2e/therapist-roster.spec.ts` R-B02 guards that the page and
+  the rule agree; it used to guard the opposite.
 - **Nobody edits an hour.** The roster is managed as working *periods*
   ("Monday 9 AM – 1 PM and 2 PM – 6 PM") on one shared editor
   (`WeeklyScheduleEditor`, used by the therapist's own screen and the
@@ -113,10 +116,10 @@ Availability as periods over hour rows, specialisation as a value, what readines
      `prefers-reduced-motion`, and focus moved to the region so the change is
      announced rather than only animated.
   **Day view is read-only by design, and so is the day itself.** Nothing on
-  either roster screen books, moves or frees an hour: the roster is the clinic's
-  planning record and it does not filter the patient's own picker. A free hour
-  there means "nobody has it and she works then", never "sell it" --
-  `e2e/therapist-roster.spec.ts` R-B02 is the guard and stays exactly as it is.
+  either roster screen books, moves or frees an hour. What it records does
+  decide which hours the booking pickers offer (open hours, above), but
+  nothing here sells or holds one -- a free hour means "nobody has it and she
+  works then".
   **A therapist writes their own date exceptions**, the way they already set
   their weekly hours and their leave -- the owner's decision, made explicitly
   (it used to be admin-only, and the screen said so). Both doors go through
@@ -267,11 +270,13 @@ Availability as periods over hour rows, specialisation as a value, what readines
   (`clinicDateKey` / `clinicHour`) - they were read off the server's clock,
   so on a UTC host a 9:00 IST booking looked for a 03:00 slot and every
   session stayed unassigned. Gated by `site_settings.auto_assign_therapist_enabled`,
-  read in its own call and failing **closed**.
-  **This is not the roster filtering the patient's picker** -- that
-  separation stays, and `e2e/therapist-roster.spec.ts` R-B02 still guards
-  it. The roster's own job is who can be *offered* a session, which is
-  exactly what is being read.
+  read in its own call and failing **closed**. The switch stays the owner's;
+  beside it, Settings says how many approved, active therapists have weekly
+  hours and suggests switching on at **3 or more** (`autoAssignReadiness.ts`,
+  tested) - with fewer, nearly every booking has exactly one free therapist
+  and would be assigned without anyone looking.
+  The roster's own job is who can be *offered* a session, which is exactly
+  what is being read -- the same answer the open-hours pickers ask.
   **And the machine holds itself to a higher bar than a person does.** It
   applies `canAutoAssignTo` (`src/lib/therapistReadiness.ts`) on top of the
   roster, refusing a therapist with no working hours or **no revenue share**
@@ -314,6 +319,20 @@ Availability as periods over hour rows, specialisation as a value, what readines
      a 503 "try again", never "free". The way round it is the roster itself:
      a one-off exception opens the hour. A spec that assigns opens the hour
      with `openTherapistHour` (`e2e/helpers.ts`).
+     **Both assigning doors confirm by one rule.** `confirmsOnAssign`
+     (`src/lib/sessionAssignQueue.ts`: paid, or on pay-later terms) decides
+     for Assign & Confirm and for the booking editor's "Change time &
+     assign" alike, and `announceConfirmedSession`
+     (`src/lib/announceConfirmedSession.ts`) creates the calendar event and
+     queues the "confirmed" email for both. The editor used to assign
+     without confirming, which left a committed session `requested` with a
+     therapist on it: outside "Sessions with no therapist" (it has one) and
+     "Waiting on payment" (it is paid or on terms), so admin Home said every
+     queue was clear while the patient waited past the confirm-within
+     promise. Such a row is now **Assigned, not confirmed** (`needsConfirming`)
+     on Today, urgent past `bookingConfirmationHours()`, and the drawer's
+     **Confirm session** posts Assign & Confirm with the therapist already
+     on it, so the roster check runs again.
   3. **A ready therapist gets no panel at all.** A green "all set" card on
      every profile is a row a reader learns to scroll past, and then misses
      the one profile that is not -- the same reason an unrefunded session

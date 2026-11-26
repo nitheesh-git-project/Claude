@@ -1,5 +1,7 @@
 import type { createAdminClient } from "@/lib/supabase/admin";
-import { readAllRows } from "@/lib/supabase/readAllRows";
+import { readAllRows, readAllRowsByIds } from "@/lib/supabase/readAllRows";
+import { pricingFindings, type PricedBookingRow, type PricingMismatch } from "@/lib/pricingHealth";
+import { countryFromStoredPhone } from "@/lib/accountCountry";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -45,6 +47,10 @@ export type AccountingHealth = {
   balanceMismatches: BalanceMismatch[];
   unmatchedPayments: UnmatchedPayment[];
   sessionsWithoutBacking: SessionWithoutBacking[];
+  /** Bookings priced abroad whose charge does not follow from their own
+   *  Indian price and markup, or whose patient's account is Indian
+   *  (pricingHealth.ts). Empty on a database without the pricing columns. */
+  pricingMismatches: PricingMismatch[];
   /** How many rows were examined, so "0 problems" can be distinguished from "0 rows". */
   entitlementCount: number;
 };
@@ -54,6 +60,7 @@ export const EMPTY_ACCOUNTING_HEALTH: AccountingHealth = {
   balanceMismatches: [],
   unmatchedPayments: [],
   sessionsWithoutBacking: [],
+  pricingMismatches: [],
   entitlementCount: 0,
 };
 
@@ -64,11 +71,12 @@ export const EMPTY_ACCOUNTING_HEALTH: AccountingHealth = {
 const ROW_LIMIT = 50;
 
 export async function loadAccountingHealth(admin: AdminClient): Promise<AccountingHealth> {
-  const [mismatches, unmatched, unbacked, count] = await Promise.all([
+  const [mismatches, unmatched, unbacked, count, pricing] = await Promise.all([
     readBalanceMismatches(admin),
     readUnmatchedPayments(admin),
     readSessionsWithoutBacking(admin),
     readEntitlementCount(admin),
+    readPricingMismatches(admin),
   ]);
 
   return {
@@ -76,6 +84,7 @@ export async function loadAccountingHealth(admin: AdminClient): Promise<Accounti
     balanceMismatches: mismatches ?? [],
     unmatchedPayments: unmatched ?? [],
     sessionsWithoutBacking: unbacked ?? [],
+    pricingMismatches: pricing ?? [],
     entitlementCount: count ?? 0,
   };
 }
@@ -235,6 +244,42 @@ export function accountingProblemCount(health: AccountingHealth): number {
   return (
     health.balanceMismatches.length +
     health.unmatchedPayments.length +
-    health.sessionsWithoutBacking.length
+    health.sessionsWithoutBacking.length +
+    health.pricingMismatches.length
   );
+}
+
+/**
+ * Bookings priced abroad (pricing_country set), checked against their own
+ * recorded Indian price and markup, and against the patient's account
+ * country. Live and recent bookings only -- the last 180 days of slots -- so
+ * the read stays bounded on a page load. Null when it could not be read,
+ * including a database without the pricing columns.
+ */
+async function readPricingMismatches(admin: AdminClient): Promise<PricingMismatch[] | null> {
+  try {
+    const since = new Date(Date.now() - 180 * 86_400_000).toISOString();
+    const { rows, error, truncated } = await readAllRows<PricedBookingRow>(() =>
+      admin
+        .from("appointments")
+        .select(
+          "id, patient_id, session_code, slot_time, list_price_paise, home_list_price_paise, pricing_country, pricing_markup_percent"
+        )
+        .not("pricing_country", "is", null)
+        .neq("status", "cancelled")
+        .gte("slot_time", since)
+        .order("id", { ascending: true })
+    );
+    if (error || truncated) return null;
+    if (rows.length === 0) return [];
+    const patientIds = [...new Set(rows.map((r) => r.patient_id))];
+    const people = await readAllRowsByIds<{ id: string; phone: string | null }>(patientIds, (chunk) =>
+      admin.from("profiles").select("id, phone").in("id", chunk).order("id", { ascending: true })
+    );
+    if (people.error) return null;
+    const accountCountry = new Map(people.rows.map((p) => [p.id, countryFromStoredPhone(p.phone)]));
+    return pricingFindings(rows, accountCountry).slice(0, ROW_LIMIT);
+  } catch {
+    return null;
+  }
 }

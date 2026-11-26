@@ -219,6 +219,17 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   appears for a therapist with package patients. Booking is the deliberate
   exception: it is always shown, because that is how a patient gets their
   first of anything.
+- **A patient's requested session says what it is waiting on.** Home's feed
+  (`buildPatientFeed`) and the status pill (`patientSessionStatus`) read,
+  in order: a pay-later booking the clinic has not approved -> *waiting for
+  the clinic to approve pay later*; a programme session not yet staffed ->
+  *booked - confirming your physiotherapist*; a paid or pay-later session
+  with a therapist on it -> *with <name> - the clinic is confirming* /
+  **Requested - clinic confirming**; otherwise *waiting for a
+  physiotherapist* / **Requested**. The feed used to say "waiting for a
+  physiotherapist" while the card named the therapist. An assigned session
+  still waiting on a payment keeps **Requested**: the clinic is not what it
+  waits on.
 - **A dropped live connection is said, and caught up on.** `RealtimeRefresh`
   passes a status callback to `channel.subscribe`: `CHANNEL_ERROR`,
   `TIMED_OUT` or an unexpected `CLOSED` shows a small "Live updates paused"

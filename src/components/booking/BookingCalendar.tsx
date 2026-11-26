@@ -14,6 +14,7 @@ import {
   fromDateKey,
   isMonthEntirelyUnbookable,
   type DateBounds,
+  type SlotOpenCheck,
 } from "@/lib/bookingSlots";
 
 // Month-grid date picker for Step 1. Replaces the old <input type="date">,
@@ -30,6 +31,8 @@ export default function BookingCalendar({
   markedDateKeys,
   gridLabel = "Choose a date",
   bounds,
+  isSlotOpen,
+  loading = false,
 }: {
   selectedDateKey: string;
   onSelect: (dateKey: string) => void;
@@ -52,6 +55,9 @@ export default function BookingCalendar({
   // their own copy of this month grid for exactly that one difference.
   markedDateKeys?: string[];
   gridLabel?: string;
+  /** Which slot starts a therapist can take (openHours.ts). Absent or null:
+   *  not checked, and every date that clears the lead time is offered. */
+  isSlotOpen?: SlotOpenCheck;
   // Picking a plain date rather than a bookable slot -- a report filter, a
   // leave range, the day a cost was incurred. When present the lead-time rule
   // is not applied and the day is judged by these bounds alone, which is what
@@ -60,6 +66,13 @@ export default function BookingCalendar({
   // mode: this is the only month grid in the app and forking it is how the
   // two come to disagree about which days exist.
   bounds?: DateBounds;
+  /** The open hours are still on their way (useOpenSlots): the grid keeps
+   *  its space but is covered by a "Checking available times…" panel,
+   *  rather than offering every date and taking most of them back a moment
+   *  later. Covered, not dimmed: a faded grid is text below the contrast
+   *  line, which the accessibility scan caught on /book. Every session
+   *  picker passes it, so they all wait the same way. */
+  loading?: boolean;
 }) {
   const reduceMotion = useReducedMotion();
   // Open on the selected date's month so the preselection is on screen
@@ -84,7 +97,7 @@ export default function BookingCalendar({
     }
   }
 
-  const calendar = buildCalendarMonth(view.year, view.month, nowMs, leadTimeMs, bounds);
+  const calendar = buildCalendarMonth(view.year, view.month, nowMs, leadTimeMs, bounds, isSlotOpen);
 
   function shiftMonth(delta: number) {
     setView((prev) => {
@@ -102,7 +115,8 @@ export default function BookingCalendar({
     previousMonth.getMonth(),
     nowMs,
     leadTimeMs,
-    bounds
+    bounds,
+    isSlotOpen
   );
 
   // Booking has no forward limit -- a patient may look as far ahead as they
@@ -116,17 +130,20 @@ export default function BookingCalendar({
       nextMonth.getMonth(),
       nowMs,
       leadTimeMs,
-      bounds
+      bounds,
+      isSlotOpen
     );
 
   return (
-    // Tight padding on phones: a 7-column month grid only has ~55px of
-    // viewport per column at 390px, so every px of chrome comes straight
-    // out of the day cells' width.
+    <div className="relative" aria-busy={loading || undefined}>
+    {/* Tight padding on phones: a 7-column month grid only has ~55px of
+        viewport per column at 390px, so every px of chrome comes straight
+        out of the day cells' width. */}
     <div
+      aria-hidden={loading || undefined}
       className={`rounded-2xl border border-slate-200 bg-white ${
         compact ? "p-2" : "p-2 sm:p-4"
-      }`}
+      } ${loading ? "invisible" : ""}`}
     >
       <div className={`flex items-center justify-between ${compact ? "mb-1.5" : "mb-3"}`}>
         <button
@@ -243,6 +260,19 @@ export default function BookingCalendar({
           );
         })}
       </div>
+    </div>
+    {loading && (
+      <p
+        role="status"
+        data-testid="booking-hours-checking"
+        className={`absolute inset-0 m-0 flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 font-semibold text-slate-700 ${
+          compact ? "text-[11px]" : "text-sm"
+        }`}
+      >
+        <i className="fa-solid fa-circle-notch fa-spin text-teal-700" aria-hidden="true"></i>
+        Checking available times…
+      </p>
+    )}
     </div>
   );
 }

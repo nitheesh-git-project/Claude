@@ -13,6 +13,7 @@ import {
   type PaymentAppointment,
   type PackagePurchase,
   type PatientTransaction,
+  type SettlementPayment,
   type TherapistPayoutTransaction,
 } from "@/lib/paymentHistory";
 import {
@@ -236,11 +237,14 @@ function TherapistTransactionTable({ transactions }: { transactions: TherapistPa
 export default function AdminPaymentHistoryTab({
   patients,
   therapists,
-  appointments,
+  appointments: appointmentRows,
   packagePurchases,
   paymentFailures,
   payoutBatches,
   categories,
+  settlements = [],
+  settledBy = {},
+  settlementsUnreadable = false,
   programmeTagsByPurchase = {},
   programmeTagsByAppointment = {},
   refundsByPaymentId = {},
@@ -253,6 +257,13 @@ export default function AdminPaymentHistoryTab({
   paymentFailures: PaymentFailureRow[];
   payoutBatches: PayoutBatchRow[];
   categories: Category[];
+  /** Confirmed pay-later payments, with whose they are. Money in the day each
+   *  was confirmed, and a receipt of its own. */
+  settlements?: (SettlementPayment & { patient_id: string })[];
+  /** appointment id -> the payment that closed it, so it is not counted twice. */
+  settledBy?: Record<string, string>;
+  /** The payments could not be read: Money in then leaves them out and says so. */
+  settlementsUnreadable?: boolean;
   /** Programme IDs with progress, so a row tied to a programme names it. */
   programmeTagsByPurchase?: Record<string, ProgrammeTag>;
   programmeTagsByAppointment?: Record<string, ProgrammeTag>;
@@ -263,6 +274,15 @@ export default function AdminPaymentHistoryTab({
   refundRecordsUnreadable?: boolean;
 }) {
   const refundMap = useMemo(() => new Map(Object.entries(refundsByPaymentId)), [refundsByPaymentId]);
+  // Each session a pay-later payment closed carries that payment's id, so the
+  // money is counted once -- as the payment, the day it arrived.
+  const appointments = useMemo(
+    () =>
+      appointmentRows.map((a) =>
+        settledBy[a.id] ? { ...a, pay_later_payment_id: settledBy[a.id] } : a
+      ),
+    [appointmentRows, settledBy]
+  );
   const [openPatientId, setOpenPatientId] = useState<string | null>(null);
   const [openTherapistId, setOpenTherapistId] = useState<string | null>(null);
   const [receiptPersonFilter, setReceiptPersonFilter] = useState<string>("all");
@@ -307,7 +327,8 @@ export default function AdminPaymentHistoryTab({
       const transactions = buildPatientTransactions(
         appointments.filter((a) => a.patient_id === p.id),
         packagePurchases.filter((pp) => pp.patient_id === p.id),
-        categoryTitleById
+        categoryTitleById,
+        settlements.filter((st) => st.patient_id === p.id)
       );
       const summary = computePatientPaymentSummary(p.id, transactions);
       return { patient: p, transactions, summary };
@@ -338,7 +359,8 @@ export default function AdminPaymentHistoryTab({
         appointments.filter((a) => a.patient_id === p.id),
         packagePurchases.filter((pp) => pp.patient_id === p.id),
         paymentFailures.filter((f) => f.patient_id === p.id),
-        categoryTitleById
+        categoryTitleById,
+        settlements.filter((st) => st.patient_id === p.id)
       );
       for (const r of receipts) {
         rows.push({
@@ -404,6 +426,7 @@ export default function AdminPaymentHistoryTab({
     packagePurchases,
     paymentFailures,
     payoutBatches,
+    settlements,
     categoryTitleById,
     patientNameById,
     sessionCodeByAppointmentId,
@@ -504,11 +527,16 @@ export default function AdminPaymentHistoryTab({
           <div className="flex items-center gap-3">
             <p className="text-xs text-slate-500">
               Money in, all-time: <strong className="text-teal-700">{formatInr(totalPatientSpendPaise)}</strong>
+              {settlementsUnreadable && (
+                <span className="ml-1 text-amber-700">
+                  (pay-later payments could not be read, so they are left out)
+                </span>
+              )}
             </p>
             <DataExportButtons
               filename="patient-payment-history"
               title="Money in - from patients"
-              subtitle="Every successful session payment and package purchase, per patient. All-time."
+              subtitle="Every successful session payment, package purchase and confirmed pay-later payment, per patient. All-time."
               rows={patientRows}
               columns={patientHistoryColumns}
             />

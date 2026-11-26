@@ -21593,3 +21593,191 @@ grant execute on function public.phone_login_account(text) to service_role;
 -- grant). Read by the existing appointments policies. It gates nothing.
 -- ---------------------------------------------------------------------------
 alter table appointments add column if not exists patient_ready_at timestamptz;
+
+-- ---------------------------------------------------------------------------
+-- How a booking was priced outside India, kept on the booking.
+--
+-- A session priced for another country is charged the rupee equal of a local
+-- price: the Indian list price raised by that country's markup, converted and
+-- rounded up to .99 (src/lib/countryPricing.ts). `list_price_paise` already
+-- holds that raised figure, which is what discounts work on. What was not
+-- kept is the Indian price it was raised FROM -- so the therapist's share
+-- (a percentage of the amount paid) was taken on the markup too: 60% of
+-- Rs 1,059 instead of 60% of Rs 499. The owner's decision is that the share is
+-- worked out on the rupee list price and the markup stays with the clinic.
+--
+--   home_list_price_paise   the Indian list price before country pricing;
+--                           null for a rupee booking (it equals list_price_paise)
+--   pricing_country         ISO 3166-1 alpha-2 the booking was priced for
+--   pricing_currency        the currency the patient was shown
+--   pricing_markup_percent  the country's markup at that moment, 0-500
+--
+-- Written once, at the moment of pricing, by the routes that already write
+-- list_price_paise. Read by the share maths through the same isolated read
+-- as the frozen completion rates (frozenTherapistRatesServer.ts), so a
+-- database without these columns pays exactly as before.
+-- ---------------------------------------------------------------------------
+alter table appointments add column if not exists home_list_price_paise integer
+  check (home_list_price_paise is null or home_list_price_paise >= 0);
+alter table appointments add column if not exists pricing_country text
+  check (pricing_country is null or pricing_country ~ '^[A-Z]{2}$');
+alter table appointments add column if not exists pricing_currency text
+  check (pricing_currency is null or pricing_currency ~ '^[A-Z]{3}$');
+alter table appointments add column if not exists pricing_markup_percent numeric(6, 2)
+  check (pricing_markup_percent is null or pricing_markup_percent between 0 and 500);
+
+-- ---------------------------------------------------------------------------
+-- Every pay-later booking waits for an admin's approval (owner's decision).
+--
+-- A patient granted pay-later terms could book any number of sessions, each
+-- confirmed the moment the roster had somebody free, and the clinic carried
+-- the gap because the therapist's share is payable at completion either way.
+-- Now a pay-later booking lands `requested` with its approval `pending`:
+-- assigning a therapist does not confirm it (confirmsOnAssign), and admin
+-- Home lists it under "Pay-later bookings to approve". Approve lets it
+-- confirm like any other; Decline turns it into an ordinary unpaid booking
+-- the patient pays online (payment_terms back to 'prepaid').
+--
+--   pay_later_approval        null for every booking this never applied to
+--   pay_later_approved_by/at  who decided, and when (approve or decline)
+--   pay_later_decline_reason  what the patient is told; required to decline
+--
+-- site_settings.pay_later_approval_required is the switch (on by default).
+-- Written only by service-role routes; read through the existing
+-- appointments policies, so no new policy is needed.
+-- ---------------------------------------------------------------------------
+alter table appointments add column if not exists pay_later_approval text
+  check (pay_later_approval is null or pay_later_approval in ('pending', 'approved', 'declined'));
+alter table appointments add column if not exists pay_later_approved_by uuid
+  references profiles(id) on delete set null;
+alter table appointments add column if not exists pay_later_approved_at timestamptz;
+alter table appointments add column if not exists pay_later_decline_reason text;
+
+alter table appointments drop constraint if exists appointments_pay_later_decline_needs_reason;
+alter table appointments add constraint appointments_pay_later_decline_needs_reason check (
+  pay_later_approval is distinct from 'declined'
+  or char_length(btrim(coalesce(pay_later_decline_reason, ''))) >= 10
+);
+
+create index if not exists appointments_pay_later_approval_pending_idx
+  on appointments (created_at) where pay_later_approval = 'pending';
+
+alter table site_settings add column if not exists pay_later_approval_required boolean not null default true;
+
+-- A declined pay-later booking emails the patient (once, like every booking
+-- email): the clinic's reason, and that the session is still theirs if they
+-- pay online. The event list is widened here, in the newest place, rather
+-- than by editing the constraint above.
+alter table appointment_emails drop constraint if exists appointment_emails_event_check;
+alter table appointment_emails add constraint appointment_emails_event_check
+  check (event in ('received', 'confirmed', 'cancelled', 'reminder_24h', 'reminder_1h', 'pay_later_declined'));
+
+-- The same pricing facts on an online programme bought from abroad
+-- (care-plan create-order prices it with the country markup, like a single
+-- session). Each session booked against the purchase (bookPackageSession)
+-- copies its share of both prices and the country, so the therapist's share
+-- on a programme session is worked out on the Indian price too, and System
+-- Health checks it. Null on a rupee purchase.
+alter table patient_package_purchases add column if not exists home_list_price_paise integer
+  check (home_list_price_paise is null or home_list_price_paise >= 0);
+alter table patient_package_purchases add column if not exists pricing_country text
+  check (pricing_country is null or pricing_country ~ '^[A-Z]{2}$');
+alter table patient_package_purchases add column if not exists pricing_currency text
+  check (pricing_currency is null or pricing_currency ~ '^[A-Z]{3}$');
+alter table patient_package_purchases add column if not exists pricing_markup_percent numeric(6, 2)
+  check (pricing_markup_percent is null or pricing_markup_percent between 0 and 500);
+
+-- ---------------------------------------------------------------------------
+-- A patient moves their own session (owner's decisions): up to
+-- patient_reschedule_cutoff_hours before it (default 24, 1-168), once per
+-- booking, to any hour some therapist can take. The session goes back to
+-- `requested` with nobody on it, its calendar event is removed, and the
+-- clinic re-confirms it from "Sessions with no therapist". Written only by
+-- /api/appointments/reschedule with the service role; read through the
+-- existing appointments policies.
+-- ---------------------------------------------------------------------------
+alter table appointments add column if not exists patient_reschedule_count integer not null default 0
+  check (patient_reschedule_count >= 0);
+alter table site_settings add column if not exists patient_reschedule_cutoff_hours integer not null default 24
+  check (patient_reschedule_cutoff_hours between 1 and 168);
+
+-- ---------------------------------------------------------------------------
+-- A hospital referral says the patient agreed, and who they are.
+--
+-- The form took a name, a phone and a medical issue and nothing about
+-- consent: a hospital passing a discharged patient's health details to a
+-- clinic needs the patient's agreement, and the clinic needs to be able to
+-- show it had it. Now the hospital ticks that the patient agreed to be
+-- referred and to share these details (required; the time is kept), and gives
+-- the patient's age and, optionally, their email. Written by
+-- /api/hospital/submit-referral with the service role, in its own update
+-- after the insert; read through the existing patient_referrals policies.
+-- ---------------------------------------------------------------------------
+alter table patient_referrals add column if not exists patient_consent_at timestamptz;
+alter table patient_referrals add column if not exists patient_age integer
+  check (patient_age is null or patient_age between 0 and 120);
+alter table patient_referrals add column if not exists patient_email text
+  check (patient_email is null or (char_length(patient_email) <= 254 and patient_email ~ '^[^@\s]+@[^@\s]+\.[^@\s]+$'));
+
+-- ---------------------------------------------------------------------------
+-- Exchange rates: a rounding step per country, and a new rate held for an
+-- admin when it would move a price more than 10%.
+--
+-- Rounding. Every foreign price was rounded up to .99. In a high-value
+-- currency that is a big step -- one Omani rial is about Rs 220, so OMR 2.03
+-- became OMR 2.99 -- so a country can round up to the next 0.10, 0.50 or a
+-- whole unit instead (src/lib/countryPricing.ts, roundUpToStep). Null is the
+-- .99 rule, so nothing changes until an admin picks a step.
+--
+-- Held rates. Rates now refresh by themselves once a day from the
+-- maintenance sweep (exchangeRateRefresh.ts), as well as from the admin's
+-- Refresh button. A new rate that would move a switched-on country's price
+-- by more than 10% is not used: it is kept here as pending, the country is
+-- still charged at units_per_inr, and admin Home lists "Exchange rates to
+-- check" until an admin uses it or keeps the current one
+-- (/api/admin/country-pricing/pending-rate).
+--
+-- Written only by the service role (the refresh, the save and the decision
+-- routes); read through the existing country_pricing_select_all policy,
+-- since nothing here is secret. Read by the app in their own query, so a
+-- database without these columns prices on .99 and never holds a rate.
+-- ---------------------------------------------------------------------------
+alter table country_pricing add column if not exists price_rounding text
+  check (price_rounding is null or price_rounding in ('0.99', '0.10', '0.50', '1.00'));
+alter table country_pricing add column if not exists pending_units_per_inr numeric(20, 10)
+  check (pending_units_per_inr is null or pending_units_per_inr > 0);
+alter table country_pricing add column if not exists pending_rate_fetched_at timestamptz;
+
+-- ---------------------------------------------------------------------------
+-- A patient story is published only with the patient's written consent on
+-- file (owner's rule).
+--
+-- testimonials had an Active switch and nothing else: a story went live the
+-- moment it was saved, with a name and a photograph, and nothing said whether
+-- the patient had agreed. Now an admin records the consent on the story --
+-- when, where the signed form is kept, and who recorded it -- and a story
+-- without it is never shown, whatever its Active switch says. The routes
+-- refuse to switch one on without it (testimonialTrust.ts), and the public
+-- read policy below is the second lock: the anon key reads only active,
+-- consented stories. The five illustrative rows seeded above have no consent,
+-- so they can never reach a visitor even if a re-run of this file seeds them
+-- into an emptied table again.
+--
+-- Written only by service-role routes (create-/update-testimonial). Existing
+-- stories keep their text and switch but stop showing until an admin records
+-- consent for each -- which is the rule working, not a regression.
+-- ---------------------------------------------------------------------------
+alter table testimonials add column if not exists consent_recorded_at timestamptz;
+alter table testimonials add column if not exists consent_note text
+  check (consent_note is null or char_length(btrim(consent_note)) between 5 and 500);
+alter table testimonials add column if not exists consent_recorded_by uuid
+  references profiles(id) on delete set null;
+
+alter table testimonials drop constraint if exists testimonials_consent_needs_note;
+alter table testimonials add constraint testimonials_consent_needs_note check (
+  consent_recorded_at is null or consent_note is not null
+);
+
+drop policy if exists "testimonials_select_active" on testimonials;
+create policy "testimonials_select_active" on testimonials
+  for select using (active = true and consent_recorded_at is not null);

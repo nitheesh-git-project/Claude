@@ -49,6 +49,11 @@ export const SETTING_MESSAGES: Record<string, SettingMessage> = {
     on: "Trusted patients can now be treated first and settle afterwards.",
     off: "Nobody new can be put on pay later. Anything already owed is still owed, and can still be settled.",
   },
+  pay_later_approval_required: {
+    kind: "boolean",
+    on: "Every pay-later booking now waits for an admin to approve it.",
+    off: "Pay-later bookings now confirm like paid ones, with no approval step.",
+  },
   pay_later_age_warning_enabled: {
     kind: "boolean",
     on: "Balances that sit too long will turn amber.",
@@ -135,6 +140,11 @@ export const SETTING_MESSAGES: Record<string, SettingMessage> = {
       v === 0
         ? "Patients can now cancel an online session right up to its start."
         : `Patients can no longer cancel an online session in the last ${plural(v, "minute", "minutes")} before it starts.`,
+  },
+  patient_reschedule_cutoff_hours: {
+    kind: "number",
+    describe: (v) =>
+      `Patients can now move an online session themselves up to ${plural(v, "hour", "hours")} before it starts, once per booking.`,
   },
   abandoned_booking_account_days: {
     kind: "number",

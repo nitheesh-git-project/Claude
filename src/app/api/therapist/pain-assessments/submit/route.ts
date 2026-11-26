@@ -1,3 +1,4 @@
+import { examSideRefusal } from "@/lib/examSideServer";
 import { NextRequest, NextResponse } from "next/server";
 import { recordUserActivity } from "@/lib/userActivityLog";
 import { createClient } from "@/lib/supabase/server";
@@ -50,6 +51,7 @@ export async function POST(request: NextRequest) {
     patientId?: string;
     region?: string;
     side?: string;
+    sideConfirmed?: boolean;
     answers?: AnswerInput[];
     painPercent?: number;
   }>(request);
@@ -182,6 +184,16 @@ export async function POST(request: NextRequest) {
   if (leak.blockedMessage) {
     return NextResponse.json({ error: leak.blockedMessage }, { status: 400 });
   }
+
+  // Not on a side the patient did not report, unless the therapist confirmed
+  // it (examSide.ts) -- this reading feeds the patient's summary.
+  const sideRefusal = await examSideRefusal(admin, {
+    patientId,
+    region,
+    side: resolvedSide,
+    confirmed: body.sideConfirmed === true,
+  });
+  if (sideRefusal) return NextResponse.json(sideRefusal, { status: 409 });
 
   const { error: insertError } = await admin.from("pain_assessments").insert({
     patient_id: patientId,

@@ -101,6 +101,25 @@ export async function readPayLaterEnabled(admin: AdminClient): Promise<boolean> 
 }
 
 /**
+ * Whether each pay-later booking waits for an admin's approval (owner's
+ * decision; on by default). Its own isolated read. An unreadable answer is
+ * **true**: holding a booking for a person to look at costs a few minutes,
+ * while confirming one nobody approved is the direction with no way back.
+ */
+export async function readPayLaterApprovalRequired(admin: AdminClient): Promise<boolean> {
+  try {
+    const { data, error } = await admin
+      .from("site_settings")
+      .select("pay_later_approval_required")
+      .maybeSingle();
+    if (error) return true;
+    return data?.pay_later_approval_required !== false;
+  } catch {
+    return true;
+  }
+}
+
+/**
  * The clinic's own ceiling on what one patient may owe, or null for none.
  *
  * Its own isolated read, per the migration-dependent-column rule: the newest
@@ -221,4 +240,48 @@ export async function readPayLaterBookingEligibility(
 async function readOwedForCeiling(admin: AdminClient, patientId: string): Promise<number | null> {
   const owed = await readPatientOwed(admin, patientId);
   return owed ? owed.owedPaise : null;
+}
+
+/**
+ * A session's pay-later approval state, for the routes that confirm on
+ * assignment (confirmsOnAssign). Its own isolated read: the column is newer
+ * than every one of them. Null when there is none or the column does not
+ * exist -- which confirms as before -- and "pending" when the row could not
+ * be read for any other reason, since holding a booking for a person is the
+ * safe direction.
+ */
+export async function readPayLaterApproval(admin: AdminClient, appointmentId: string): Promise<string | null> {
+  try {
+    const { data, error } = await admin
+      .from("appointments")
+      .select("pay_later_approval")
+      .eq("id", appointmentId)
+      .maybeSingle();
+    if (error) return (error as { code?: string }).code === "42703" ? null : "pending";
+    return (data?.pay_later_approval as string | null) ?? null;
+  } catch {
+    return "pending";
+  }
+}
+
+/**
+ * Every booking whose pay-later terms are waiting for an admin, for admin
+ * Home's queue and the session list. Only `pending` matters to a screen: an
+ * approved booking confirms like any other, and a declined one is ordinary
+ * prepaid. Its own isolated read; an empty set on failure, which shows the
+ * screen as it was before approval existed rather than failing it.
+ */
+export async function readPendingPayLaterApprovalIds(admin: AdminClient): Promise<Set<string>> {
+  try {
+    const { data, error } = await admin
+      .from("appointments")
+      .select("id")
+      .eq("pay_later_approval", "pending")
+      .eq("status", "requested")
+      .limit(1000);
+    if (error) return new Set();
+    return new Set((data ?? []).map((r) => r.id as string));
+  } catch {
+    return new Set();
+  }
 }

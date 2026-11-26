@@ -7,6 +7,7 @@ import PayLaterAgeSetting, {
   PayLaterAgeNote,
   PayLaterMasterSwitch,
 } from "@/components/admin/PayLaterAgeSetting";
+import PayLaterApprovalSwitch from "@/components/admin/PayLaterApprovalSwitch";
 import PayLaterCeilingSetting, {
   PayLaterCeilingNote,
 } from "@/components/admin/PayLaterCeilingSetting";
@@ -81,6 +82,7 @@ export default function AdminOwingTab({
   featureEnabled,
   canManageSettings = false,
   ceilingPaise = null,
+  approvalRequired = true,
   settlements = [],
   manualRefunds = [],
   writtenOff = [],
@@ -100,6 +102,8 @@ export default function AdminOwingTab({
   /** `site_settings.pay_later_max_owed_paise`. Null means no ceiling, which
    *  is the default and the way the feature shipped. */
   ceilingPaise?: number | null;
+  /** `site_settings.pay_later_approval_required`; unreadable reads as on. */
+  approvalRequired?: boolean;
   /** Payments a patient says they have made, waiting to be checked. Oldest
    *  first, and empty on a database without the table. */
   settlements?: QueuedSettlement[];
@@ -308,6 +312,9 @@ export default function AdminOwingTab({
         {canManageSettings && (
           <div className="mt-4">
             <PayLaterMasterSwitch enabled={featureEnabled} />
+            <div className="mt-4">
+              <PayLaterApprovalSwitch required={approvalRequired} />
+            </div>
           </div>
         )}
         {canManageSettings ? (

@@ -122,3 +122,47 @@ export function describeCancelOutcome(input: CancelOutcomeInput): CancelOutcome 
 export function cancelDialogMessage(outcome: CancelOutcome): string {
   return `Cancel this session? ${outcome.text} Add a reason (optional):`;
 }
+
+/**
+ * The same decision in the patient's own words, for their Cancel dialog.
+ *
+ * The patient's dialog used to speak only about a paid session ("refund the
+ * payment" / "won't be refunded"). A pay-later, unpaid or programme session
+ * got a bare "Cancel this session?", and the booking page's "cancelling
+ * inside 24 hours is not refunded" then read as a contradiction when such a
+ * cancel cost nothing. It now says what will happen to the money in every
+ * case, from the very branches the route takes.
+ */
+export function patientCancelMessage(input: CancelOutcomeInput & { payLater: boolean }): string {
+  const o = describeCancelOutcome(input);
+  const window = `${input.windowHours} hours`;
+  let money: string;
+  switch (o.kind) {
+    case "card_refund":
+      money = `${formatInr(o.amountPaise ?? 0)} will be refunded to the card or account you paid with.`;
+      break;
+    case "card_late":
+      money = `It's within ${window} of your session, so it won't be refunded.`;
+      break;
+    case "already_refunded":
+      money = "This session has already been refunded in full.";
+      break;
+    case "credit_back":
+      money = "Nothing is charged. The session goes back to your programme to book again.";
+      break;
+    case "credit_forfeited":
+      money = `It's within ${window} of your session, so the session is used up and doesn't go back to your programme.`;
+      break;
+    case "cash_hand_back":
+      money = `The ${formatInr(o.amountPaise ?? 0)} you paid in cash will be handed back, and the visit goes back to your programme.`;
+      break;
+    case "cash_late":
+      money = `It's within ${window} of your visit, so the cash you paid isn't returned and the visit is used up.`;
+      break;
+    default:
+      money = input.payLater
+        ? "You were going to pay after the session, so nothing is owed for a session cancelled before it happens."
+        : "You haven't paid for this session, so there's nothing to refund.";
+  }
+  return `Cancel this session? ${money} You can add a reason (optional):`;
+}

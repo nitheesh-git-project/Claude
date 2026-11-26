@@ -325,15 +325,21 @@ Eight pages from one design system, the word budgets, why every photograph carri
   (not on a page load or Back, and not for a `#` link). `ScrollHint` hops
   while there is more below and, at the foot of the page, turns into "Back
   to top". Guards: `e2e/section-nav.spec.ts` SN-003 and SN-008.
-- **Every public hero but the home page's ends in a "Scroll for more" cue, on
+- **Every public hero but the home page's ends in a "See what's below" cue, on
   large screens only.** On a laptop or desktop the hero is a finished
   composition, and a page that ends there reads as a landing page with nothing
   below it (visitors said so of /conditions, /faq and the rest); a phone never
-  has this problem because the hero runs past the fold. `HeroScrollCue` is a
-  fixed-height row at the hero's foot from `lg` (1024px) up, so it cannot cover
-  the overlay card or the figures at any width; it hops, goes quiet once the
-  visitor scrolls, and the corner `ScrollHint` stays out of the way while it
-  shows. `PageHero scrollCue` defaults on; the home page passes `false`.
+  has this problem because the hero runs past the fold. `HeroScrollCue` sits in the
+  hero's own flow at its foot from `lg` (1024px) up, so it cannot cover the
+  overlay card or the figures at any width. The design is the owner's pick of
+  five: the words over three chevrons that light up in turn, no circle or box.
+  Its row is sized by its content plus a reserved bottom margin -- the old
+  bouncing circle was taller than its fixed 64px row, so the next band was
+  drawn over it. It fades out after `HERO_CUE_HIDE_AFTER_PX` (8px,
+  `src/lib/heroScrollCue.ts`) of scroll, keeping its space so nothing shifts,
+  and the corner `ScrollHint` takes over at that same line -- one constant for
+  both, so the two never show together or leave a gap. Under reduced motion
+  the chevrons stand still. `PageHero scrollCue` defaults on; the home page passes `false`.
 - **Every catalog card has a cover slot, and one component owns the empty
   state.** Programmes, session packages and home-visit packages are all
   admin-created rows with a nullable `image_url`, so all three need an answer
@@ -773,9 +779,21 @@ Eight pages from one design system, the word budgets, why every photograph carri
   `publicTestimonials()` (`src/lib/testimonialTrust.ts`) recognises a seeded
   row by its exact quote (a test pins the list to `schema.sql`). With only
   those in the table the Reviews band and its rail entry are not drawn; a row
-  whose words an admin has rewritten counts as theirs. Never add a testimonial
-  that reads as a real patient without consent for both the words and the
-  face - the admin form says as much at the point of entry, and
+  whose words an admin has rewritten counts as theirs.
+  **A story is shown only with the patient's written consent on file**
+  (owner's rule). The admin records it on the story - when, where the signed
+  form is kept (`consent_note`, 5-500 characters), who recorded it
+  (`consent_recorded_at`, `consent_recorded_by`) - and three locks agree:
+  `create-` / `update-testimonial` refuse Active without consent
+  (`testimonialActivationBlock`), and withdrawing consent hides the story;
+  Home and `/mission` show only `consentedPublicTestimonials()`, fed by
+  `readConsentedStoryIds` (`testimonialConsentServer.ts`) in its own read,
+  where an unreadable answer shows **nothing** - "couldn't check" is not
+  consent; and the anon read policy `testimonials_select_active` returns only
+  active, consented rows. So the seeded five can never reach a visitor, even
+  if an emptied table is re-seeded. Both pages filter **before** cutting to
+  their 3 / 6, or never-shown rows take the slots. A new story starts hidden;
+  the admin list says why each one is or isn't showing.
   `public_rating_summary` stays the only place a *real* number is quoted.
 - **A public catalog card opens a dialog; booking is its own button.** The
   session-package, home-visit-package and programme cards all follow one

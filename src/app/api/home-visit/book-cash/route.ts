@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { BASE_DURATION_MINUTES } from "@/lib/pricing";
+import { isSlotClosed, readTravelBufferMinutes, SLOT_NOT_OPEN_ERROR } from "@/lib/openHoursServer";
 import { lookupServiceArea } from "@/lib/serviceAreaServer";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -146,7 +148,7 @@ export async function POST(request: NextRequest) {
   }
   // Outside India home visits are off unless an admin has allowed them
   // (Catalog -> Countries & currency). The country is the request's own.
-  if (!(await pricingForRequest(admin, request)).homeVisitsOffered) {
+  if (!(await pricingForRequest(admin, request, { patientId: user.id })).homeVisitsOffered) {
     return NextResponse.json({ error: HOME_VISIT_OUTSIDE_INDIA_ERROR }, { status: 403 });
   }
   // Defaults to true (DEFAULT_ADMIN_SETTINGS.homeVisitCashEnabled) -- only
@@ -171,6 +173,19 @@ export async function POST(request: NextRequest) {
       { error: "We don't currently visit that pincode. Please check it and try again." },
       { status: 400 }
     );
+  }
+
+  // Somebody has to be able to make it, with the clinic's travel time kept
+  // clear around their other visits -- the rule the wizard's calendar
+  // offers by (openHours.ts). Checked before the purchase row exists, so a
+  // refused time leaves nothing behind. Unreadable is not closed.
+  if (
+    await isSlotClosed(admin, slotDateTime, {
+      durationMinutes: rate.durationMinutes ?? BASE_DURATION_MINUTES,
+      bufferMinutes: await readTravelBufferMinutes(admin),
+    })
+  ) {
+    return NextResponse.json({ error: SLOT_NOT_OPEN_ERROR, code: "slot_not_open" }, { status: 409 });
   }
 
   let addressId: string | null = null;

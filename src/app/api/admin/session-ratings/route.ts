@@ -27,7 +27,7 @@ export async function GET() {
   const { data: appointments, error } = await admin
     .from("appointments")
     .select(
-      "id, session_code, patient_id, therapist_id, slot_time, assigned_slot_time, status, visit_mode, duration_minutes, category_id, patient_rating, patient_feedback, patient_feedback_at, patient_rating_excluded, therapist_rating, therapist_feedback, therapist_feedback_at, therapist_rating_excluded"
+      "id, session_code, patient_id, therapist_id, slot_time, status, visit_mode, duration_minutes, category_id, patient_rating, patient_feedback, patient_feedback_at, patient_rating_excluded, therapist_rating, therapist_feedback, therapist_feedback_at, therapist_rating_excluded"
     )
     .or("patient_rating.not.is.null,therapist_rating.not.is.null")
     .order("slot_time", { ascending: false, nullsFirst: false })

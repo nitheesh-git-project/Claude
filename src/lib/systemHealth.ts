@@ -562,13 +562,14 @@ function accountingCheck(health: AccountingHealth): HealthCheck {
   const balance = health.balanceMismatches.length;
   const payments = health.unmatchedPayments.length;
   const sessions = health.sessionsWithoutBacking.length;
-  const total = balance + payments + sessions;
+  const prices = health.pricingMismatches?.length ?? 0;
+  const total = balance + payments + sessions + prices;
 
   if (total === 0) {
     return {
       ...base,
       status: "healthy",
-      headline: `All clear across ${plural(health.entitlementCount, "programme", "programmes")} - balances, payments and delivered sessions all agree.`,
+      headline: `All clear across ${plural(health.entitlementCount, "programme", "programmes")} - balances, payments, delivered sessions and prices charged abroad all agree.`,
       fix: [],
       count: 0,
       evidence: [],
@@ -579,6 +580,7 @@ function accountingCheck(health: AccountingHealth): HealthCheck {
   if (balance > 0) parts.push(plural(balance, "balance", "balances"));
   if (payments > 0) parts.push(plural(payments, "payment", "payments"));
   if (sessions > 0) parts.push(plural(sessions, "session", "sessions"));
+  if (prices > 0) parts.push(plural(prices, "price", "prices"));
 
   const fix: string[] = [];
   if (balance > 0) {
@@ -594,6 +596,11 @@ function accountingCheck(health: AccountingHealth): HealthCheck {
   if (sessions > 0) {
     fix.push(
       "Sessions: open each one and either record how it was paid for, or mark it cancelled if it never happened."
+    );
+  }
+  if (prices > 0) {
+    fix.push(
+      "Prices: each booking listed was charged a foreign price that does not follow from its own price and markup, or charged an Indian patient a foreign price. Check the debug bar's country is not set on the live site, then refund the difference or cancel and rebook at the right price."
     );
   }
 

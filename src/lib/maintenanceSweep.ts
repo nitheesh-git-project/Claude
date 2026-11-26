@@ -6,11 +6,13 @@ import { expireDuePackagePurchases } from "@/lib/expirePackagePurchases";
 import { expireDueHomeVisitPurchases } from "@/lib/expireHomeVisitPurchases";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { sendDueBookingReminders } from "@/lib/bookingReminders";
+import { refreshExchangeRatesIfDue } from "@/lib/exchangeRateRefresh";
 
 /**
  * The housekeeping this deployment runs: programme expiry, Calendar/Meet retries, opening
  * Meet waiting rooms, the risk scan, the credential purge, removing abandoned
- * booking accounts and the session reminder emails.
+ * booking accounts, the session reminder emails and the daily exchange-rate
+ * refresh.
  *
  * It used to run only from the admin dashboard's `after()`, so a failed
  * Meet link waited for somebody to open the back office -- overnight, at a
@@ -65,6 +67,11 @@ export async function runMaintenanceSweep(
     // (bookingReminders.ts); the switches on Settings -> Emails decide
     // whether they actually go out.
     ["bookingReminders", () => sendDueBookingReminders(admin)],
+    // Exchange rates, once a day (exchangeRatePlan.ts): a switched-on
+    // country whose rate moved more than 10% keeps its current rate and the
+    // new one waits on admin Home, so nothing here can move a charge far
+    // without a person looking.
+    ["exchangeRates", () => refreshExchangeRatesIfDue(admin, Date.now())],
   ];
   const result: Record<string, "ok" | "failed"> = {};
   for (const [name, run] of steps) {

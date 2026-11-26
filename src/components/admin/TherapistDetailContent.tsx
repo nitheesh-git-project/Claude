@@ -36,7 +36,7 @@ import {
   type PayoutAppointment,
 } from "@/lib/therapistPayouts";
 import { sessionAmountPaise } from "@/lib/sessionAmount";
-import { readFrozenTherapistRates } from "@/lib/frozenTherapistRatesServer";
+import { frozenShareFacts, readFrozenTherapistRates } from "@/lib/frozenTherapistRatesServer";
 import { mergeSessionCodes } from "@/lib/sessionCode";
 import { mergeMeetLinks } from "@/lib/meetLink";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
@@ -307,7 +307,7 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
     ...(homeVisitPayoutById.get(a.id) ?? { visit_mode: "online" as const }),
     payment_terms: payLaterById.get(a.id)?.payment_terms ?? null,
     amount_due_paise: payLaterById.get(a.id)?.amount_due_paise ?? null,
-    therapist_share_percent_at_completion: frozenRates.byId.get(a.id) ?? null,
+    ...frozenShareFacts(frozenRates, a.id),
   }));
   // The rows under the Owed figure: exactly the sessions it is the sum of
   // (delivered and earned, `isTherapistShareEarned`), each at the cut the

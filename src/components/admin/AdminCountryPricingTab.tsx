@@ -7,6 +7,8 @@ import { formatClinicDateTime } from "@/lib/formatDateTime";
 import { formatInr } from "@/lib/formatMoney";
 import {
   COUNTRIES,
+  DEFAULT_PRICE_ROUNDING,
+  HIGH_VALUE_CURRENCIES,
   MAX_MARKUP_PERCENT,
   currencySymbol,
   formatMinor,
@@ -14,18 +16,29 @@ import {
   priceForCountry,
   rateAgeLabel,
   ratesAreStale,
+  roundingLabel,
+  roundingsFor,
   type CountryPricing,
+  type PriceRounding,
 } from "@/lib/countryPricing";
+import { rateMovePercent } from "@/lib/exchangeRatePlan";
 
 export type CountryPricingRow = {
   code: string;
   enabled: boolean;
   markupPercent: number;
   unitsPerInr: number | null;
+  rounding: PriceRounding;
+  /** A refreshed rate held because it would move the price more than 10%. */
+  pendingUnitsPerInr: number | null;
+  pendingRateFetchedAt: string | null;
 };
 
 type Props = {
   rows: CountryPricingRow[];
+  /** False on a database without the rounding column: the choice is hidden
+   *  and every country rounds to .99, as before. */
+  roundingAvailable: boolean;
   settings: { internationalEnabled: boolean; pickerEnabled: boolean; homeVisitOutsideIndia: boolean };
   /** The newest `rate_fetched_at` across the rows, or null if never. */
   ratesFetchedAt: string | null;
@@ -36,7 +49,7 @@ type Props = {
   nowMs: number;
 };
 
-type Draft = { enabled: boolean; markup: string };
+type Draft = { enabled: boolean; markup: string; rounding: PriceRounding };
 type Filter = "all" | "on" | "off";
 
 /**
@@ -49,7 +62,7 @@ type Filter = "all" | "on" | "off";
  * Razorpay will actually take. The worked example IS the explanation; the
  * screen does not need a paragraph about rounding.
  */
-export default function AdminCountryPricingTab({ rows, settings, ratesFetchedAt, samples, canManage, nowMs }: Props) {
+export default function AdminCountryPricingTab({ rows, roundingAvailable, settings, ratesFetchedAt, samples, canManage, nowMs }: Props) {
   const router = useRouter();
   const { show } = useToast();
   const byCode = useMemo(() => new Map(rows.map((r) => [r.code, r])), [rows]);
@@ -62,13 +75,20 @@ export default function AdminCountryPricingTab({ rows, settings, ratesFetchedAt,
   const [refreshing, setRefreshing] = useState(false);
   const [saving, startSaving] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [deciding, setDeciding] = useState<string | null>(null);
 
   const sample = samples.find((s) => s.id === sampleId) ?? samples[0] ?? null;
   const stale = ratesAreStale(ratesFetchedAt, nowMs);
 
   function current(code: string): Draft {
     const saved = byCode.get(code);
-    return drafts[code] ?? { enabled: saved?.enabled ?? false, markup: String(saved?.markupPercent ?? 0) };
+    return (
+      drafts[code] ?? {
+        enabled: saved?.enabled ?? false,
+        markup: String(saved?.markupPercent ?? 0),
+        rounding: saved?.rounding ?? DEFAULT_PRICE_ROUNDING,
+      }
+    );
   }
 
   function edit(code: string, patch: Partial<Draft>) {
@@ -78,7 +98,11 @@ export default function AdminCountryPricingTab({ rows, settings, ratesFetchedAt,
   const changedCodes = Object.keys(drafts).filter((code) => {
     const d = drafts[code];
     const saved = byCode.get(code);
-    return d.enabled !== (saved?.enabled ?? false) || Number(d.markup) !== (saved?.markupPercent ?? 0);
+    return (
+      d.enabled !== (saved?.enabled ?? false) ||
+      Number(d.markup) !== (saved?.markupPercent ?? 0) ||
+      d.rounding !== (saved?.rounding ?? DEFAULT_PRICE_ROUNDING)
+    );
   });
   const invalidCodes = changedCodes.filter((code) => !isValidMarkup(Number(drafts[code].markup)) || drafts[code].markup.trim() === "");
 
@@ -124,6 +148,7 @@ export default function AdminCountryPricingTab({ rows, settings, ratesFetchedAt,
             code,
             enabled: drafts[code].enabled,
             markupPercent: Number(drafts[code].markup),
+            ...(roundingAvailable ? { rounding: drafts[code].rounding } : {}),
           })),
         }),
       }).catch(() => null);
@@ -148,9 +173,35 @@ export default function AdminCountryPricingTab({ rows, settings, ratesFetchedAt,
       setError(data.error ?? "Couldn't refresh the rates. The ones you had are still in use.");
       return;
     }
-    show("Exchange rates updated.");
+    const data = (await res.json().catch(() => ({}))) as { held?: { name: string; movePercent: number }[] };
+    const held = data.held ?? [];
+    show(
+      held.length > 0
+        ? `Rates updated. ${held.map((h) => h.name).join(", ")} moved more than 10% - see below to use or keep.`
+        : "Exchange rates updated."
+    );
     router.refresh();
   }
+
+  async function decidePending(code: string, decision: "apply" | "keep") {
+    setDeciding(code);
+    setError(null);
+    const res = await fetch("/api/admin/country-pricing/pending-rate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code, decision }),
+    }).catch(() => null);
+    setDeciding(null);
+    if (!res?.ok) {
+      const data = res ? await res.json().catch(() => ({})) : {};
+      setError(data.error ?? "Couldn't save that. Nothing changed.");
+      return;
+    }
+    show(decision === "apply" ? "New rate in use." : "Kept the current rate.");
+    router.refresh();
+  }
+
+  const pendingRows = rows.filter((r) => r.pendingUnitsPerInr !== null);
 
   return (
     <div className="space-y-5">
@@ -158,7 +209,9 @@ export default function AdminCountryPricingTab({ rows, settings, ratesFetchedAt,
         <h2 className="font-display text-lg font-bold text-slate-800">Countries &amp; currency</h2>
         <p className="mt-1 max-w-3xl text-xs leading-relaxed text-slate-500">
           Visitors outside India can see prices in their own currency, raised by the percentage you
-          set and rounded up to .99. Razorpay still charges in rupees - the exact rupee amount of the
+          set and rounded up - to .99, or for a high-value currency such as the Omani rial to the next
+          0.10 or 0.50 if you choose. Rates refresh by themselves once a day; a new rate that would move
+          a switched-on country&apos;s price more than 10% waits for you. Razorpay still charges in rupees - the exact rupee amount of the
           price they saw - so refunds, payouts and every report stay in INR. India always sees the
           prices you set in Catalog.
         </p>
@@ -227,6 +280,58 @@ export default function AdminCountryPricingTab({ rows, settings, ratesFetchedAt,
             {refreshing ? "Refreshing…" : "Refresh rates"}
           </button>
         </div>
+
+        {pendingRows.length > 0 && (
+          <div className="space-y-2 border-b border-amber-200 bg-amber-50/70 px-6 py-4">
+            <p className="text-sm font-semibold text-amber-900">
+              New {pendingRows.length === 1 ? "rate" : "rates"} waiting - {pendingRows.length === 1 ? "it" : "each"} would move
+              the price more than 10%
+            </p>
+            <p className="text-[11px] text-amber-900/80">
+              Until you decide, {pendingRows.length === 1 ? "this country is" : "these countries are"} still charged at the
+              current rate.
+            </p>
+            <ul className="space-y-2">
+              {pendingRows.map((r) => {
+                const info = COUNTRIES.find((c) => c.code === r.code);
+                const move = r.unitsPerInr ? rateMovePercent(r.unitsPerInr, r.pendingUnitsPerInr!) : null;
+                const before = sample && r.unitsPerInr ? priceForCountry(sample.pricePaise, { ...r, currency: info?.currency ?? "", enabled: true, markupPercent: r.markupPercent, unitsPerInr: r.unitsPerInr }) : null;
+                const after = sample && info ? priceForCountry(sample.pricePaise, { ...r, currency: info.currency, enabled: true, markupPercent: r.markupPercent, unitsPerInr: r.pendingUnitsPerInr }) : null;
+                return (
+                  <li key={r.code} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-white px-3 py-2">
+                    <span className="min-w-0 text-xs text-slate-700">
+                      <span className="font-semibold text-slate-900">{info?.name ?? r.code}</span>
+                      {move !== null ? ` · rate ${move > 0 ? "+" : ""}${move}%` : ""}
+                      {before && after && sample
+                        ? ` · ${sample.title}: ${formatMinor(before.displayMinor, before.currency)} → ${formatMinor(after.displayMinor, after.currency)}`
+                        : ""}
+                    </span>
+                    {canManage && (
+                      <span className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => decidePending(r.code, "apply")}
+                          disabled={deciding !== null}
+                          className="min-h-9 rounded-lg bg-slate-900 px-3 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
+                        >
+                          {deciding === r.code ? "Saving…" : "Use the new rate"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => decidePending(r.code, "keep")}
+                          disabled={deciding !== null}
+                          className="min-h-9 rounded-lg border border-slate-300 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                        >
+                          Keep the current rate
+                        </button>
+                      </span>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
 
         <div className="flex flex-wrap items-end gap-3 px-6 py-4">
           <label className="min-w-[220px] flex-1">
@@ -318,7 +423,9 @@ export default function AdminCountryPricingTab({ rows, settings, ratesFetchedAt,
               enabled: true,
               markupPercent: markupOk ? markupNumber : 0,
               unitsPerInr: rate,
+              rounding: d.rounding,
             };
+            const roundings = roundingsFor(c.currency);
             const p = sample && rate ? priceForCountry(sample.pricePaise, cfg) : null;
             const changed = changedCodes.includes(c.code);
             return (
@@ -361,6 +468,7 @@ export default function AdminCountryPricingTab({ rows, settings, ratesFetchedAt,
                   </button>
                 </div>
 
+                <div className="flex flex-col gap-1.5">
                 <label className="flex items-center gap-2">
                   <span className="text-[11px] font-semibold text-slate-500 xl:hidden">Increase by</span>
                   {/* The box is the border; the input and its % sit side by
@@ -386,6 +494,32 @@ export default function AdminCountryPricingTab({ rows, settings, ratesFetchedAt,
                     <span aria-hidden="true" className="shrink-0 text-xs text-slate-500">%</span>
                   </span>
                 </label>
+                {roundingAvailable && roundings.length > 1 && (
+                  <label className="flex items-center gap-2">
+                    <span className="sr-only">Rounding for {c.name}</span>
+                    <select
+                      value={d.rounding}
+                      disabled={!canManage}
+                      onChange={(e) => edit(c.code, { rounding: e.target.value as PriceRounding })}
+                      className="h-9 w-24 rounded-lg border border-slate-300 bg-white px-1.5 text-[11px] text-slate-700"
+                      title={
+                        HIGH_VALUE_CURRENCIES.has(c.currency) && d.rounding === "0.99"
+                          ? `One ${c.currency} is worth a lot: .99 can add almost a whole unit. 0.10 keeps the price close.`
+                          : undefined
+                      }
+                    >
+                      {roundings.map((r) => (
+                        <option key={r} value={r}>
+                          {roundingLabel(r)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                {roundingAvailable && HIGH_VALUE_CURRENCIES.has(c.currency) && d.rounding === "0.99" && (
+                  <span className="text-[10px] leading-tight text-amber-700">Try 0.10: .99 is a big step in {c.currency}.</span>
+                )}
+                </div>
 
                 {p ? (
                   <>

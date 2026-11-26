@@ -422,15 +422,54 @@ Razorpay verification, the one capture path, booking idempotency, every refund s
   For a priced country `priceForCountry` (`src/lib/countryPricing.ts`,
   dependency-free and unit-tested) raises the rupee price by the markup,
   converts it, **rounds up** to .99 (a currency without cents ends in 9, a
-  three-decimal one in .990 - never down), then converts that shown figure
+  three-decimal one in .990 - never down) or to the country's own step
+  (0.10, 0.50 or a whole unit, `price_rounding` - for the high-value
+  currencies), then converts that shown figure
   back to the paise Razorpay is asked for, rounded up so the charge never
   reads as less than the price. The owner's example is the test: ₹499,
   +100% -> ₹998 -> $10.35 -> **$10.99** -> 105,979 paise.
-  - The country is the request's own (`countryPricingServer.pricingForRequest`):
-    the debug bar's `mr_debug_country` while the bar exists, else the
-    visitor's choice (`mr_country`, only while the picker is allowed), else
-    the host's geo header or the `mr_geo` cookie the proxy copies it into,
-    else India. Never a body field. Every route that prices a booking threads
+  - The country is decided on the server (`countryPricingServer.pricingForRequest`):
+    the debug bar's `mr_debug_country` while the bar exists, else **the
+    signed-in patient's own country** -- the calling code of the phone on
+    their account (`accountCountry.ts`; every pricing route passes
+    `{ patientId }`) when it is a listed country -- else the visitor's choice
+    (`mr_country`, only while the picker is allowed), else the host's geo
+    header or the `mr_geo` cookie the proxy copies it into, else India. Never
+    a body field. The account comes first because an IP is a poor witness:
+    the staging test charged an Indian test patient the US price (+100%)
+    because the tester's browser sat in the US, and a patient on a VPN or
+    travelling would have been charged the same way.
+  - **The therapist's share is worked out on the Indian list price** (owner's
+    decision). The quote carries `homeListPricePaise`, and
+    `recordPricingSnapshot` (`pricingSnapshotServer.ts`) writes it with the
+    country, currency and markup onto the booking
+    (`home_list_price_paise`, `pricing_country`, `pricing_currency`,
+    `pricing_markup_percent`) in its own best-effort write after the order's,
+    so a database without the columns cannot refuse a payment.
+    `shareBasePaise` (`shareBase.ts`) scales the amount paid by home / list,
+    and both `moneyLineFor` and `sessionTherapistCutPaise` take the share of
+    that, so Money's split, every payout screen and the settle route agree.
+    The markup stays with the clinic. A rupee booking, or a row priced before
+    the columns existed, is unchanged. The facts reach every reader through
+    `readFrozenTherapistRates` / `frozenShareFacts` and, on the admin page,
+    `readAllShareBases`.
+  - **An online programme bought from abroad carries the same facts.**
+    `care-plan/create-order` records them on `patient_package_purchases`
+    (`recordPurchasePricingSnapshot`), and `bookPackageSession` -- the one
+    path every programme booking takes -- copies each session's share of
+    both prices, the country and the markup onto the session
+    (`copyPurchasePricingToSession`). So a programme session's therapist
+    share is on the Indian price too, and System Health checks it. Both are
+    best-effort writes after the order or the booking. A home-visit
+    programme is priced in rupees and has nothing to record.
+  - **System Health checks the price.** `pricingFindings` (`pricingHealth.ts`,
+    tested), read by `loadAccountingHealth`, lists **Prices that don't add up**:
+    a booking priced abroad in the last 180 days whose charge is below its
+    Indian price plus markup, or more than a quarter above it (rounding up to
+    .99 in a high-value currency stays inside that), one whose facts were not
+    recorded, or one whose patient's account is Indian. It feeds the
+    accounting card's count and headline, so the screen no longer reads
+    "Everything adds up" past the staging finding. Report only, never repair. Every route that prices a booking threads
     it into `resolveCheckoutQuote` - quote, create, create-order,
     confirm-free, confirm-pay-later, and the promo preview - so the quote,
     the order and a free confirmation cannot disagree; the online care-plan

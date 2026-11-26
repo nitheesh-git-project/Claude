@@ -196,3 +196,56 @@ test("CP-003: a country without a rate cannot be switched on", async ({ request 
     await restore(request, before);
   }
 });
+
+test("CP-004: a country's rounding step saves, and a step its currency cannot use is refused", async ({ request }) => {
+  const before = await snapshot();
+  try {
+    await switchOn(request);
+    await save(request, { rows: [{ code: "US", markupPercent: US.markupPercent, enabled: true, rounding: "0.50" }] });
+    const { data } = await adminClient().from("country_pricing").select("price_rounding").eq("country_code", "US").single();
+    expect(data?.price_rounding).toBe("0.50");
+
+    // A yen has no cents: 0.10 of one is not a price.
+    const refused = await request.post(`${BASE}/api/admin/country-pricing/save`, {
+      headers: { cookie: await cookieHeaderFor(QA_EMAILS.admin), "content-type": "application/json" },
+      data: { rows: [{ code: "JP", markupPercent: 0, enabled: false, rounding: "0.10" }] },
+    });
+    expect(refused.status()).toBe(400);
+    expect((await refused.json()).error).toContain("JPY");
+  } finally {
+    await restore(request, before);
+  }
+});
+
+test("CP-005: a rate held for moving a price more than 10% is used or kept by an admin, once", async ({ request }) => {
+  const before = await snapshot();
+  const decide = async (decision: "apply" | "keep") =>
+    request.post(`${BASE}/api/admin/country-pricing/pending-rate`, {
+      headers: { cookie: await cookieHeaderFor(QA_EMAILS.admin), "content-type": "application/json" },
+      data: { code: "US", decision },
+    });
+  try {
+    await switchOn(request);
+    const db = adminClient();
+    // What a refresh stores when the new rate is 20% up (exchangeRatePlan.ts).
+    const held = Math.round(US.unitsPerInr * 1.2 * 1e8) / 1e8;
+    await db.from("country_pricing").update({ pending_units_per_inr: held, pending_rate_fetched_at: new Date().toISOString() }).eq("country_code", "US");
+
+    // Keep: the current rate stays and nothing is waiting any more.
+    expect((await decide("keep")).status()).toBe(200);
+    let { data: row } = await db.from("country_pricing").select("units_per_inr, pending_units_per_inr").eq("country_code", "US").single();
+    expect(Number(row?.units_per_inr)).toBeCloseTo(US.unitsPerInr, 8);
+    expect(row?.pending_units_per_inr).toBeNull();
+    // Nothing left to decide.
+    expect((await decide("apply")).status()).toBe(404);
+
+    // Use: the held rate becomes the one charged with.
+    await db.from("country_pricing").update({ pending_units_per_inr: held, pending_rate_fetched_at: new Date().toISOString() }).eq("country_code", "US");
+    expect((await decide("apply")).status()).toBe(200);
+    ({ data: row } = await db.from("country_pricing").select("units_per_inr, pending_units_per_inr").eq("country_code", "US").single());
+    expect(Number(row?.units_per_inr)).toBeCloseTo(held, 8);
+    expect(row?.pending_units_per_inr).toBeNull();
+  } finally {
+    await restore(request, before);
+  }
+});

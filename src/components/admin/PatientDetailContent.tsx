@@ -53,7 +53,7 @@ import {
   type PayoutAppointment,
 } from "@/lib/therapistPayouts";
 import { formatRupees } from "@/lib/formatMoney";
-import { readFrozenTherapistRates } from "@/lib/frozenTherapistRatesServer";
+import { frozenShareFacts, readFrozenTherapistRates } from "@/lib/frozenTherapistRatesServer";
 
 // A module-level helper rather than an inline `Date.now()` in the component
 // body: `react-hooks/purity` refuses a clock read during render, and the rule
@@ -376,7 +376,7 @@ export default async function PatientDetailContent({ id }: { id: string }) {
         // With the rate it was delivered at, as the Pay button pays it.
         {
           ...(a as unknown as PayoutAppointment),
-          therapist_share_percent_at_completion: frozenRates.byId.get(a.id) ?? null,
+          ...frozenShareFacts(frozenRates, a.id),
         },
         therapist.revenue_share_percent as number,
         therapist.home_visit_revenue_share_percent ?? null

@@ -1125,15 +1125,51 @@ The six sections (the Morning Brief layout), scopes and levels, User Access, the
   for - the Indian price after the increase, the converted figure, what they
   see (rounded up to .99) and what Razorpay charges - previewed against any
   active condition's price, with search and an On/Off filter.
-  - **A rate only ever comes from Refresh rates** (`/api/admin/country-pricing/refresh-rates`,
-    open.er-api.com, INR base). Nothing typed on the screen can set the rate
-    a charge is made with, and a failed refresh keeps the rates already in
-    use and says so. Rates older than a week turn the bar amber.
+  - **A rate only ever comes from a refresh** - Refresh rates
+    (`/api/admin/country-pricing/refresh-rates`) or, once a day, the
+    maintenance sweep (`refreshExchangeRatesIfDue`), both through
+    `refreshExchangeRates` (`exchangeRateRefresh.ts`, open.er-api.com, INR
+    base). Nothing typed on the screen can set the rate a charge is made
+    with, and a failed refresh keeps the rates already in use and says so.
+    Rates older than a week turn the bar amber. The daily refresh never runs
+    for rates nobody has fetched yet.
+  - **A new rate that moves a switched-on country's price by more than 10%
+    waits for an admin** (`planRateRefresh`, `exchangeRatePlan.ts`, tested).
+    It is stored as `pending_units_per_inr`, the country keeps charging the
+    current rate, the screen shows "New rate waiting" with the before/after
+    price, and **Use the new rate** / **Keep the current rate** decide it
+    (`/api/admin/country-pricing/pending-rate`, guarded on the pending value
+    it read, logged with before/after). A switched-off country's rate just
+    updates. A database without the pending columns uses every rate, as
+    before.
+  - **Each country picks its rounding step** - up to .99 (the default), the
+    next 0.10, the next 0.50 or a whole unit (`price_rounding`,
+    `roundUpToStep`). Offered only where the currency has cents; the screen
+    nudges the high-value currencies (KWD, BHD, OMR) towards 0.10, where .99
+    can add almost a whole unit. Always up. Read in its own query
+    (`readCountryExtras`), so a database without it prices on .99.
+  - **Admin Home lists "Exchange rates to check"** (Money group, opens this
+    tab) while local prices are on and a switched-on country has a rate
+    waiting, or the stored rates are over a week old
+    (`ratesNeedingAttention`).
   - A country cannot be switched on without a rate - the route names it, and
     the table's own check (`country_pricing_enabled_needs_rate`) agrees.
   - Visitor-chosen countries are a convenience, not a fence: with the picker
     on, a visitor abroad can choose India and pay the Indian price. Turning
     the picker off leaves location alone in charge.
+
+- **An edit logs what it replaced, and money sits on the row.** A route that
+  changes an existing value reads the row first and logs
+  `auditChanges(before, after)` (`src/lib/auditChanges.ts`, tested): only the
+  fields that changed, as `previousX` beside `x`, which the log's detail
+  dialog shows as "What changed" (paise as rupees). The condition editor
+  (a price change used to log no detail at all), FAQ and service-area edits,
+  the ratings switch, the booking default, patient stories and Countries &
+  currency all do; `update-setting` already logged `from`/`to`. A money
+  action puts its amount in `amountPaise`, not only in `details` - the Logs
+  screens' Amount column and export read that field, and confirming or
+  rejecting a pay-later payment, and a goodwill discount, used to leave it
+  blank.
 
 - **Appearance (Settings -> Your website -> Public site) is three choices: Light, Dark, or
   Based on the visitor's device**, each a card with its own preview (Device
