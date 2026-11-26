@@ -226,10 +226,27 @@ export const HOSPITAL_NAV_ITEMS: ShellNavItem[] = [
 // More. An entry a person does not have yet is skipped, not left as a gap.
 // Keyed by basePath, like LOGIN_HREF_BY_BASE_PATH below, so every page that
 // renders a DashboardShell gets the same bar without passing it.
-export const TABS_BY_BASE_PATH: Record<string, { tabIds: string[]; centerTabId?: string }> = {
-  "/patient/dashboard": { tabIds: ["overview", "sessions", "book", "health-profile"], centerTabId: "book" },
+// `fallbackIds`: what stands in when one of `tabIds` does not exist for this
+// person (a new patient has no Sessions yet), so the raised centre button
+// stays in the middle of the bar -- see splitTabs.
+export const TABS_BY_BASE_PATH: Record<
+  string,
+  { tabIds: string[]; centerTabId?: string; fallbackIds?: string[] }
+> = {
+  "/patient/dashboard": {
+    tabIds: ["overview", "sessions", "book", "health-profile"],
+    centerTabId: "book",
+    // Only entries whose tab word fits a 360px phone's column: "Recommended"
+    // and "My programme" do not, and stay behind More (whose badge carries
+    // the waiting count).
+    fallbackIds: ["payments", "edit-profile"],
+  },
   "/therapist/dashboard": { tabIds: ["overview", "sessions", "health-profiles", "earnings"] },
-  "/hospital/dashboard": { tabIds: ["overview", "referrals", "refer", "revenue"], centerTabId: "refer" },
+  "/hospital/dashboard": {
+    tabIds: ["overview", "referrals", "refer", "revenue"],
+    centerTabId: "refer",
+    fallbackIds: ["profile"],
+  },
 };
 
 // Which login page each dashboard's own users belong to, keyed by the

@@ -21,9 +21,68 @@ describe("splitTabs", () => {
 
   it("skips an entry that does not exist instead of leaving a gap", () => {
     const noSessions = items.filter((i) => i.id !== "sessions");
-    const s = splitTabs(noSessions, ["overview", "sessions", "book", "health-profile"], "book");
-    expect(s.tabs.map((t) => t.id)).toEqual(["overview", "book", "health-profile"]);
+    const s = splitTabs(noSessions, ["overview", "sessions", "health-profile"]);
+    expect(s.tabs.map((t) => t.id)).toEqual(["overview", "health-profile"]);
     expect(s.more.map((t) => t.id)).not.toContain("sessions");
+  });
+
+  // A new patient has no Sessions entry: Home, Book, My progress and More is
+  // four slots, and Book sat second of four instead of in the middle.
+  it("fills a missing entry's place so the centre action stays in the middle", () => {
+    const newPatient = items.filter((i) => !["sessions", "suggested", "payments"].includes(i.id));
+    const s = splitTabs(
+      newPatient,
+      ["overview", "sessions", "book", "health-profile"],
+      "book",
+      ["suggested", "packages", "payments", "edit-profile"]
+    );
+    expect(s.tabs.map((t) => t.id)).toEqual(["overview", "edit-profile", "book", "health-profile"]);
+    expect(s.tabs.findIndex((t) => t.id === "book")).toBe(2); // of five slots, with More
+    expect(s.more.map((t) => t.id)).not.toContain("edit-profile");
+  });
+
+  it("takes the first stand-in that exists", () => {
+    const noSessions = items.filter((i) => i.id !== "sessions");
+    const s = splitTabs(noSessions, ["overview", "sessions", "book", "health-profile"], "book", [
+      "packages",
+      "suggested",
+      "edit-profile",
+    ]);
+    expect(s.tabs.map((t) => t.id)).toEqual(["overview", "suggested", "book", "health-profile"]);
+  });
+
+  it("drops to two entries when nothing can stand in, keeping the centre in the middle", () => {
+    const few = items.filter((i) => ["overview", "book", "health-profile"].includes(i.id));
+    const s = splitTabs(few, ["overview", "sessions", "book", "health-profile"], "book");
+    expect(s.tabs.map((t) => t.id)).toEqual(["overview", "book"]);
+    expect(s.more.map((t) => t.id)).toEqual(["health-profile"]);
+  });
+
+  it("always leaves the centre action in the middle of an odd number of slots", () => {
+    const ids = items.map((i) => i.id).filter((id) => id !== "book");
+    // every subset of the other entries the bar could be asked for
+    for (let mask = 0; mask < 1 << ids.length; mask++) {
+      const present = items.filter((i) => i.id === "book" || ids.some((id, b) => id === i.id && mask & (1 << b)));
+      const s = splitTabs(present, ["overview", "sessions", "book", "health-profile"], "book", [
+        "suggested",
+        "payments",
+        "edit-profile",
+      ]);
+      const slots = s.tabs.length + 1; // More
+      if (s.tabs.length === 1) {
+        // Book alone beside More: no middle, so it is an ordinary tab.
+        expect(s.centerId).toBeNull();
+        continue;
+      }
+      expect(slots % 2, `odd slots for ${present.map((p) => p.id)}`).toBe(1);
+      expect(s.tabs.findIndex((t) => t.id === "book")).toBe((slots - 1) / 2);
+    }
+  });
+
+  it("leaves a bar without a centre action as it is", () => {
+    const noSessions = items.filter((i) => i.id !== "sessions");
+    const s = splitTabs(noSessions, ["overview", "sessions", "health-profile"], null, ["edit-profile"]);
+    expect(s.tabs.map((t) => t.id)).toEqual(["overview", "health-profile"]);
   });
 
   it("never puts more than four on the bar", () => {

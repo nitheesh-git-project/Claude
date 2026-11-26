@@ -458,6 +458,17 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   the middle, and **More** opening a sheet with every other entry, the
   person's identity, Back to Home and Log Out. An entry a person does not
   have yet (Sessions before their first booking) is skipped, never a gap.
+  **The raised button is always in the exact middle**: with More on the end
+  that takes two entries or four, never three, so a skipped entry's place
+  goes to the first of `fallbackIds` the person has (a new patient gets
+  Home, Profile, Book, My progress, More), and with none the bar drops to
+  two. A stand-in must be a word that fits a 360px phone's 70px column --
+  "Recommended" and "My programme" do not. **Every column has one shape**
+  (`TAB_COLUMN`: a fixed icon slot, then the label hanging from it), so
+  icons share a line and labels share a first line; the raised button rises
+  out of the same slot, and a label too wide for its column ("My progress"
+  at 360px) wraps downward at its space. Guard: `src/lib/dashboardTabs.test.ts`
+  (every combination keeps the centre in the middle), HS-007.
   From `lg` to `2xl` it is an **88px icon rail** with a one-word label
   (`short`) under each icon; from `2xl` the **full sidebar**. The full label
   stays the accessible name in every form, so a link is found by the same

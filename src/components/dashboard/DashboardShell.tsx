@@ -119,7 +119,8 @@ export default function DashboardShell({
   const { tabs, centerId, more } = splitTabs(
     navItems,
     tabIds ?? TABS_BY_BASE_PATH[basePath]?.tabIds ?? navItems.slice(0, 4).map((item) => item.id),
-    centerTabId ?? TABS_BY_BASE_PATH[basePath]?.centerTabId
+    centerTabId ?? TABS_BY_BASE_PATH[basePath]?.centerTabId,
+    TABS_BY_BASE_PATH[basePath]?.fallbackIds
   );
   const moreActive = isMoreActive(pathname, basePath, more);
 
@@ -328,36 +329,38 @@ export default function DashboardShell({
 
   // --- the phone tab bar (below lg) ---------------------------------------
 
+  // Every column is built the same way -- a fixed icon slot, then the label
+  // hanging from under it -- so icons share one line and labels share one
+  // first line, whatever wraps. A label too wide for a 360px phone's column
+  // ("My progress") wraps downward at its space rather than pushing its icon
+  // up. The raised centre button rises out of the same slot, so "Book" sits
+  // on the same line as its neighbours rather than below them.
   function renderTab(item: ShellNavItem) {
     const active = isActive(item);
     const short = item.short ?? item.label;
-    if (item.id === centerId) {
-      return (
-        <NavEntry
-          key={item.id}
-          {...navProps(item)}
-          aria-label={short !== item.label ? item.label : undefined}
-          className="flex min-w-0 flex-col items-center justify-start gap-0.5 text-[12px] font-bold text-slate-900"
-        >
-          <span className="-mt-6 flex h-14 w-14 items-center justify-center rounded-full border-4 border-white bg-teal-700 text-white shadow-lg shadow-teal-900/25">
-            <i aria-hidden="true" className={`fa-solid ${item.icon} text-lg`}></i>
-          </span>
-          <span className="max-w-full text-center leading-tight">{short}</span>
-        </NavEntry>
-      );
-    }
+    const center = item.id === centerId;
     return (
       <NavEntry
         key={item.id}
         {...navProps(item)}
         aria-label={short !== item.label ? item.label : undefined}
-        className={`relative flex min-w-0 flex-col items-center justify-center gap-1 text-[12px] leading-tight ${
-          active ? "font-bold text-teal-700" : "font-semibold text-slate-600"
+        className={`${TAB_COLUMN} ${
+          center ? "font-bold text-slate-900" : active ? "font-bold text-teal-700" : "font-semibold text-slate-600"
         }`}
       >
-        <i aria-hidden="true" className={`fa-solid ${item.icon} text-lg`}></i>
-        <span className="max-w-full break-words px-0.5 text-center">{short}</span>
-        {badge(item.badge, "absolute left-1/2 top-1 ml-1.5 ring-2 ring-white")}
+        {center ? (
+          <span className={`${TAB_ICON_SLOT} relative w-14`}>
+            <span className="absolute bottom-0 left-1/2 flex h-14 w-14 -translate-x-1/2 items-center justify-center rounded-full border-4 border-white bg-teal-700 text-white shadow-lg shadow-teal-900/25">
+              <i aria-hidden="true" className={`fa-solid ${item.icon} text-lg`}></i>
+            </span>
+          </span>
+        ) : (
+          <span className={TAB_ICON_SLOT}>
+            <i aria-hidden="true" className={`fa-solid ${item.icon} text-lg`}></i>
+          </span>
+        )}
+        <span className={TAB_LABEL} data-tab-label="">{short}</span>
+        {!center && badge(item.badge, "absolute left-1/2 top-0.5 ml-1.5 ring-2 ring-white")}
       </NavEntry>
     );
   }
@@ -525,13 +528,13 @@ export default function DashboardShell({
           aria-haspopup="dialog"
           aria-expanded={sheetOpen}
           aria-current={moreActive ? "page" : undefined}
-          className={`relative flex min-h-12 min-w-0 flex-col items-center justify-center gap-1 text-[12px] ${
-            moreActive ? "font-bold text-teal-700" : "font-semibold text-slate-500"
-          }`}
+          className={`${TAB_COLUMN} ${moreActive ? "font-bold text-teal-700" : "font-semibold text-slate-500"}`}
         >
-          <i aria-hidden="true" className="fa-solid fa-bars text-lg"></i>
-          <span>More</span>
-          {badge(more.reduce((n, item) => n + (item.badge ?? 0), 0), "absolute left-1/2 top-1 ml-1.5 ring-2 ring-white")}
+          <span className={TAB_ICON_SLOT}>
+            <i aria-hidden="true" className="fa-solid fa-bars text-lg"></i>
+          </span>
+          <span className={TAB_LABEL} data-tab-label="">More</span>
+          {badge(more.reduce((n, item) => n + (item.badge ?? 0), 0), "absolute left-1/2 top-0.5 ml-1.5 ring-2 ring-white")}
         </button>
       </nav>
 
@@ -623,6 +626,12 @@ export default function DashboardShell({
     </div>
   );
 }
+
+// The phone tab bar's columns (see renderTab): one shape for every entry.
+const TAB_COLUMN = "relative flex min-h-12 min-w-0 flex-col items-center justify-start gap-1 pt-1 text-[12px] leading-tight";
+const TAB_ICON_SLOT = "flex h-6 shrink-0 items-center justify-center";
+// Wraps only at a space: no tab word is wider than a 360px phone's column.
+const TAB_LABEL = "max-w-full text-center [overflow-wrap:normal]";
 
 /**
  * One nav entry: a prefetched `next/link` for a screen of this dashboard
