@@ -80,7 +80,7 @@ test("PCC-001: inside the cut-off the cancel route refuses", async () => {
   expect(res.status()).toBe(409);
   expect((await res.json()).code).toBe("cancel_cutoff");
   const { data } = await db.from("appointments").select("status").eq("id", id).single();
-  expect(data!.status).toBe("requested");
+  expect(data!.status).toBe("confirmed");
 });
 
 test("PCC-002: the setting moves the cut-off, and is range-checked", async () => {

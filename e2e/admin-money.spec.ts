@@ -259,6 +259,7 @@ test.describe("Suite G: money", () => {
     const admin = adminClient();
     const cookie = await cookieHeaderFor(QA_EMAILS.admin);
     const patientId = await profileIdFor(admin, QA_EMAILS.patientA);
+    const therapistId = await profileIdFor(admin, QA_EMAILS.therapistA);
 
     // A session 2 hours out. With a 24h window it is a late cancellation
     // (no refund); with a 1h window it is not.
@@ -267,6 +268,9 @@ test.describe("Suite G: money", () => {
       .insert({
         patient_id: patientId,
         concern: "QA refund window",
+        // Assigned: with nobody on it this close to its time, the refund
+        // window does not apply at all (sessionPatientActions.ts).
+        therapist_id: therapistId,
         slot_time: new Date(Date.now() + 2 * HOUR).toISOString(),
         status: "confirmed",
         payment_status: "paid",
