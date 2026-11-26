@@ -4324,7 +4324,8 @@
           "spec": "patient-feedback-ratings.spec.ts",
           "tests": [
             "FR-001",
-            "FR-002"
+            "FR-002",
+            "FR-003"
           ],
           "level": "api"
         }

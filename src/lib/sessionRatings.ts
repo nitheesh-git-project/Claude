@@ -44,7 +44,6 @@ export type RatedAppointment = {
   patient_id: string;
   therapist_id: string | null;
   slot_time: string | null;
-  assigned_slot_time: string | null;
   status: string | null;
   visit_mode: string | null;
   duration_minutes: number | null;
@@ -79,7 +78,7 @@ export function ratingRowsFrom(
     const common = {
       appointmentId: a.id,
       sessionCode: a.session_code,
-      slotTime: a.assigned_slot_time ?? a.slot_time,
+      slotTime: a.slot_time,
       status: a.status,
       visitMode: a.visit_mode,
       treatment: a.category_id ? (treatments.get(a.category_id) ?? null) : null,
