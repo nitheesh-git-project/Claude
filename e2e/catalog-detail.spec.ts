@@ -116,9 +116,16 @@ test.describe("Catalog detail dialogs", () => {
   // moves focus to Close, and locks background scroll; Escape closes it,
   // releases the lock and hands focus back to the card that opened it.
   async function assertDialogContract(page: Page, cardText: string, expectedTitle: string) {
-    await page.getByText(cardText, { exact: false }).first().click();
+    // Click until the dialog opens. A click that lands before the page has
+    // hydrated is dropped: the splash only covers the first page of a visit,
+    // so on the second one (/conditions after /) waitForSplashToClear returns
+    // at once, and on the gate the click came 0.9s after navigating -- the
+    // button was there, its handler was not yet.
     const dialog = page.getByRole("dialog");
-    await expect(dialog).toBeVisible();
+    await expect(async () => {
+      if (!(await dialog.isVisible())) await page.getByText(cardText, { exact: false }).first().click();
+      await expect(dialog).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 30_000 });
     await expect(dialog.getByRole("heading", { name: expectedTitle })).toBeVisible();
     await expect(page.getByRole("button", { name: /^Close/ })).toBeFocused();
     expect(await page.evaluate(() => document.body.style.overflow)).toBe("hidden");

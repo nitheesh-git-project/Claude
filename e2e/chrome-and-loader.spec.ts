@@ -47,9 +47,14 @@ test("CHROME-002: a slow dashboard tab shows the word-roll loader with the sideb
   await context.addCookies(await browserCookiesFor(QA_EMAILS.patientA));
   // Hold the next page back so the wait is long enough to see -- the loader
   // only appears after 150ms by design. Installed before the dashboard
-  // opens, so Next's prefetch of the tab is held back too: otherwise the tap
-  // lands on a page already in hand and there is no wait to show.
+  // opens, and a prefetch of the tab is refused outright: the tabs are
+  // prefetched links, so on a production build the tap would otherwise land
+  // on a page already in hand (instant -- the point of prefetching) and
+  // there would be no wait to show. This case is about the tap that has
+  // nothing cached, which still happens: just after a refresh, before the
+  // prefetch lands, or a tab whose entry was never on screen.
   await page.route("**/patient/dashboard/health-profile**", async (route) => {
+    if (route.request().headers()["next-router-prefetch"]) return route.abort();
     await new Promise((r) => setTimeout(r, 2500));
     await route.continue();
   });
@@ -60,9 +65,10 @@ test("CHROME-002: a slow dashboard tab shows the word-roll loader with the sideb
   // below has to live in the document that stays.
   await page.waitForTimeout(3000);
 
-  // The tab is a full page load, and while one is pending Playwright's
-  // locators look for the *next* document -- so the old page, the one the
-  // loader is drawn on, is watched from inside instead and reports back.
+  // The loader is watched from inside the page and reports back. (This
+  // was a full page load once, when Playwright's locators looked for the
+  // *next* document; a tab is a client-side Link now, but the watcher works
+  // for either.)
   const seen = new Promise<string>((resolve) => {
     page.on("console", (m) => {
       if (m.text().startsWith("LOADER ")) resolve(m.text());

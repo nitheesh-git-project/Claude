@@ -501,12 +501,13 @@ input::-ms-clear {
      the empty area costs nothing. "brief" is the admin's Morning Brief (most
      urgent jobs, today's sessions): always a full-width row of its own, so it
      is never squeezed into the narrow side column on a wide screen. */
-  grid-template-areas: "banner" "head" "brief" "strip" "queues" "feed" "side";
+  grid-template-areas: "banner" "head" "lead" "brief" "strip" "queues" "feed" "side";
   align-items: start;
 }
 .overview-grid > * { margin-bottom: 1.25rem; min-width: 0; }
 .overview-grid > .ov-banner { grid-area: banner; }
 .overview-grid > .ov-head { grid-area: head; }
+.overview-grid > .ov-lead { grid-area: lead; }
 .overview-grid > .ov-brief { grid-area: brief; }
 .overview-grid > .ov-strip { grid-area: strip; }
 .overview-grid > .ov-feed { grid-area: feed; }
@@ -519,8 +520,8 @@ input::-ms-clear {
        The last row takes whatever height the feed adds beyond them, so the
        quick actions and the queues stay stacked together at the top of
        their column instead of being pulled apart by a long feed. */
-    grid-template-areas: "banner banner" "head head" "brief brief" "strip strip" "feed side" "feed queues";
-    grid-template-rows: auto auto auto auto auto 1fr;
+    grid-template-areas: "banner banner" "head head" "lead lead" "brief brief" "strip strip" "feed side" "feed queues";
+    grid-template-rows: auto auto auto auto auto auto 1fr;
   }
 }
 @media (min-width: 1536px) {
@@ -592,6 +593,38 @@ input::-ms-clear {
   .fb-pop, .fb-ripple, .fb-rise, .fb-grow, .fb-burst { animation: none; }
   .fb-ripple, .fb-burst { opacity: 0; }
   .fb-draw { animation: none; stroke-dashoffset: 0; }
+}
+
+/* A section a dashboard jumps to (JumpChips, the sidebar's sub-entries)
+   lands below the phone's sticky 56px header rather than under it. */
+.dash-content [id] { scroll-margin-top: 5rem; }
+@media (min-width: 1024px) {
+  .dash-content [id] { scroll-margin-top: 1.5rem; }
+}
+
+/* The notebook button's first-visits tip (NotebookLauncher): slides in from
+   the button it describes. Reduced motion shows it in place. */
+@keyframes mr-notebook-hint { from { opacity: 0; transform: translateX(8px) scale(0.96); } to { opacity: 1; transform: none; } }
+.mr-notebook-hint { animation: mr-notebook-hint 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both; transform-origin: right bottom; }
+@media (prefers-reduced-motion: reduce) {
+  .mr-notebook-hint { animation: none; }
+}
+
+/* Home's shortcut cards and the chat booking (PatientHomeLead, ChatToBook,
+   TherapistToday): a card rises in, a progress ring fills to its value, the
+   one action a card is for breathes. `--ring-len` is the ring's
+   circumference, `--d` a per-card delay. Reduced motion lands on the final
+   frame and nothing pulses. */
+@keyframes mr-rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@keyframes mr-ring-fill { from { stroke-dashoffset: var(--ring-len); } }
+@keyframes mr-breathe { 0% { box-shadow: 0 0 0 0 rgba(13, 148, 136, 0.4); } 100% { box-shadow: 0 0 0 14px rgba(13, 148, 136, 0); } }
+@keyframes mr-dot { 0%, 80%, 100% { transform: translateY(0); opacity: 0.35; } 40% { transform: translateY(-4px); opacity: 1; } }
+.mr-rise { animation: mr-rise 420ms cubic-bezier(0.2, 0.8, 0.2, 1) var(--d, 0ms) both; }
+.mr-ring-fill { animation: mr-ring-fill 1100ms cubic-bezier(0.2, 0.8, 0.2, 1) 200ms both; }
+.mr-breathe { animation: mr-breathe 2s ease-out 1s infinite; }
+.mr-dot { animation: mr-dot 1s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .mr-rise, .mr-ring-fill, .mr-breathe, .mr-dot { animation: none; }
 }
 
 /* The word-roll loader (src/components/system/WordRollLoader.tsx).

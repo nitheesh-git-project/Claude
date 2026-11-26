@@ -25,6 +25,7 @@ export default function ToastViewport() {
       {toasts.map((toast) => (
         <div
           key={toast.id}
+          data-notebook-avoid=""
           className={`toast pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-xl border px-4 py-3 text-sm shadow-lg ${
             toast.tone === "error"
               ? "border-red-200 bg-red-50 text-red-900"

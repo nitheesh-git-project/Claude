@@ -1,3 +1,4 @@
+import { JumpChips } from "@/components/dashboard/TabSummary";
 import type { Metadata } from "next";
 import ProfileLoadFailed from "@/components/profile/ProfileLoadFailed";
 import { createClient } from "@/lib/supabase/server";
@@ -81,6 +82,17 @@ export default async function PatientProfilePage() {
       extraRealtimeTables={["profile_change_requests"]}
     >
       <div className="max-w-2xl mx-auto">
+      {/* One tap to each section where the sidebar's own sub-entries are not
+          on screen (phone, tablet, the icon rail). */}
+      <JumpChips
+        items={[
+          { id: "personal-details", label: "Personal" },
+          { id: "contact-details", label: "Contact" },
+          { id: "my-addresses", label: "Addresses" },
+          { id: "account-security", label: "Security" },
+          { id: "your-data", label: "Your data" },
+        ]}
+      />
       {profileUnreadable ? (
         <ProfileLoadFailed
           title="We couldn't load your details"

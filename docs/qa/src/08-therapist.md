@@ -78,6 +78,7 @@ The therapist Overview is where a clinician starts every shift: what is on today
 5. Tap Back, then tap **Owed to you**.
 6. Tap Back. Read the activity feed.
 7. Read the card at the top: during a confirmed video session (debug clock inside its join window) it says **Now** with **Join**, **Start guided check**, **Done** (*Note and exam, then it closes*) and **Chart**; an hour before it says **Next up** with only **Chart** (and Join's own countdown); on a home visit there is no Join or guided check. The time reads in the clinic's zone whatever the device's zone is.
+7a. Read the **Today** card under it: every session on today's date (clinic zone) in time order, each with one word - `Done`, `No-show`, `Now`, `Next`, `Later`, `Awaiting clinic` or `Mark complete` - a progress bar `N of M done`, and **All sessions**. Tap a row.
 8. Tap the quick action **Set your availability** (now the last of the four; **Your assigned sessions** is first).
 8. Tap Back, then tap each of **Your assigned sessions**, **Patient health profiles** and **Earnings and payouts** in turn, returning each time.
 
@@ -88,6 +89,7 @@ The therapist Overview is where a clinician starts every shift: what is on today
 * **Today** counts today's sessions with `Next at H:MM` beneath, **Upcoming** counts confirmed and awaiting-assignment work, **Notes to write** counts delivered sessions with nothing recorded (amber above zero, emerald at zero with `Every delivered session is written up`), **Owed to you** is a rupee figure with `Not yet requested` / `Payout request under review` / `Payout request sent` - and it is **the same figure**, to the paisa, as Earnings' *Pending Payout*, the *Owed* on this therapist's admin profile and their row on Money → Pay therapists (cash held aside). A session marked paid with no amount recorded adds nothing to any of them; one that read ₹9,232.80 here against ₹4,435.20 there is the QA F-21 bug.
 * Steps 4 and 5 land on `/therapist/dashboard/sessions` and `/therapist/dashboard/earnings`. The counts there match the figures exactly.
 * Empty feed reads `Assignments, completed sessions and payouts show up here as they happen.` A session delivered with no note written is a `needsYou` item pinned above dated items.
+* Step 7a's rows match the Sessions screen's sessions for today exactly (none cancelled, none from another date, also on a device set to another time zone); the **Today** figure equals the number of rows. A row opens that patient's Health Profile. A 9 AM IST session counted as yesterday before 5:30 AM is the defect this replaced.
 * **Step 7 must land on `/therapist/dashboard/availability`, with the weekly schedule editor on screen.** Availability is its own route; a quick action that reloads the Overview and changes nothing is a defect - report it against this test ID.
 * Step 8's three links land on `/therapist/dashboard/sessions`, `/therapist/dashboard/health-profile` and `/therapist/dashboard/earnings`.
 * No figure on this screen exposes a patient's phone number or email - see `THR-SESS-003`.

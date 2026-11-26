@@ -474,6 +474,46 @@ test.describe("announcements and the notebook", () => {
     await page.context().close();
   });
 
+  test("NB-003: the notebook button is small, says what it is for, and stays clear of the bottom of the screen", async ({ browser }) => {
+    const page = await pageFor(browser, QA_EMAILS.patientB, { width: 390, height: 844 });
+    await page.goto(`${BASE}/patient/dashboard`);
+    await page.evaluate(() => window.localStorage.removeItem("mr-notebook-hint-v1"));
+    await page.reload();
+    // Visible only: while the page streams in, Next holds the new markup in
+    // a hidden copy for a moment, and a strict lookup would find both.
+    const button = page.getByTestId("notebook-button").filter({ visible: true });
+    await expect(button).toBeVisible({ timeout: 60_000 });
+
+    // The tip appears beside it on a first visit.
+    await expect(page.getByRole("note")).toContainText("Use me for quick notes", { timeout: 15_000 });
+
+    // Above the phone's tab bar, never on it.
+    const bar = await page.locator("[data-tabbar]").boundingBox();
+    let box = await button.boundingBox();
+    expect(box && bar && box.y + box.height <= bar.y).toBe(true);
+    // 44 x 52, tilted a few degrees.
+    expect(box!.width).toBeLessThanOrEqual(56);
+
+    // Anything else that claims the bottom of the screen pushes it up.
+    await page.evaluate(() => {
+      const bar = document.querySelector("[data-tabbar]")!.getBoundingClientRect();
+      const pinned = document.createElement("div");
+      pinned.setAttribute("data-notebook-avoid", "");
+      pinned.id = "e2e-pinned";
+      Object.assign(pinned.style, { position: "fixed", left: "0", right: "0", height: "80px", bottom: `${window.innerHeight - bar.top}px`, background: "#eee" });
+      document.body.appendChild(pinned);
+    });
+    const pinned = await page.locator("#e2e-pinned").boundingBox();
+    await expect
+      .poll(async () => {
+        box = await button.boundingBox();
+        return box ? box.y + box.height : Infinity;
+      }, { timeout: 5_000 })
+      .toBeLessThanOrEqual(pinned!.y);
+    await page.screenshot({ path: "e2e/screenshots/announcements/notebook-lifted-phone.png" });
+    await page.context().close();
+  });
+
   test("NB-002: a notebook page is read by its owner and by nobody else", async ({ request }) => {
     const admin = adminClient();
     const ownerId = await profileIdFor(admin, QA_EMAILS.patientA);

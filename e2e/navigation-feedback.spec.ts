@@ -123,10 +123,11 @@ test("NAV-002: a real navigation draws the bar while it is in flight", async ({
   // took to compile, so this case passed or timed out on the same code.
   await waitForSplashToClear(page);
 
-  // The patient shell moves between sections with plain anchors, so the bar
-  // lives on the *outgoing* document and is gone by the time the new one
-  // loads. Recorded into sessionStorage, which survives the navigation the
-  // observer is watching.
+  // Recorded into sessionStorage, which survives the navigation the observer
+  // is watching. The patient shell's tabs are prefetched Links now, so the
+  // document normally stays; sessionStorage keeps the case honest if a tab
+  // ever goes back to being a plain anchor, whose bar lives on the
+  // *outgoing* document.
   await page.evaluate(() => {
     sessionStorage.removeItem("barSeen");
     new MutationObserver(() => {
@@ -140,11 +141,14 @@ test("NAV-002: a real navigation draws the bar while it is in flight", async ({
   // this case saw a bar depended on whether an earlier spec had already
   // compiled the page (on the gate it had: /patient/dashboard/book, 415 ms
   // in all). Holding the document open makes the wait provably longer than
-  // the delay -- the state this rule is about -- instead of a race.
+  // the delay -- the state this rule is about -- instead of a race. The tab
+  // is a Link, so what is held is its in-app fetch (`?_rsc=`) as well as a
+  // document; a prefetch is refused so the tap has nothing already in hand.
   const link = page.locator('a[href^="/patient/dashboard/"]:visible').first();
-  const target = new URL((await link.getAttribute("href"))!, BASE).toString();
-  await page.route((url) => url.href === target, async (route) => {
-    if (route.request().resourceType() === "document") await new Promise((r) => setTimeout(r, 1500));
+  const target = new URL((await link.getAttribute("href"))!, BASE).pathname;
+  await page.route((url) => url.pathname === target, async (route) => {
+    if (route.request().headers()["next-router-prefetch"]) return route.abort();
+    await new Promise((r) => setTimeout(r, 1500));
     await route.continue();
   });
 

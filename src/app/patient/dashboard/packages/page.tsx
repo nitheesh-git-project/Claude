@@ -3,6 +3,10 @@ import PatientDashboardShell from "@/components/patient/PatientDashboardShell";
 import { loadPatientDashboard } from "@/lib/patientDashboardData";
 import PatientPackageWidget from "@/components/packages/PatientPackageWidget";
 import HomeVisitPackageWidget from "@/components/patient/HomeVisitPackageWidget";
+import TabSummary from "@/components/dashboard/TabSummary";
+import SurfaceCard, { EmptyState } from "@/components/dashboard/SurfaceCard";
+import Link from "next/link";
+import { pickHomeProgramme } from "@/lib/patientHomeCards";
 
 export const metadata: Metadata = {
   title: "My programme | MoveRestore",
@@ -11,10 +15,48 @@ export const metadata: Metadata = {
 export default async function Page() {
   const d = await loadPatientDashboard("packages");
 
+  // The programme with the most still to book, the same pick Home makes, so
+  // the two screens point at the same thing.
+  const lead = pickHomeProgramme(
+    d.ownedPackages ?? [],
+    d.completedCountByPurchase,
+    d.scheduledCountByPurchase,
+    (p) => d.programmeDisplayByPurchase.get(p.id)?.title ?? "Your programme",
+    d.therapistMap as Map<string, string>
+  );
+  const otherActive = (d.ownedPackages ?? []).filter((p) => p.status === "active").length - (lead ? 1 : 0);
+
   return (
     <PatientDashboardShell data={d} title="My programme" subtitle="The treatment your physiotherapist arranged, and the sessions you have left.">
+      {lead && (
+        <TabSummary
+          testId="programme-summary"
+          eyebrow="Your programme"
+          tone="hero"
+          title={
+            lead.toBook > 0
+              ? `${lead.toBook} paid ${lead.toBook === 1 ? "session" : "sessions"} left to book`
+              : lead.scheduled > 0
+                ? "Every session is booked"
+                : "All sessions used"
+          }
+          detail={[
+            lead.title,
+            lead.therapistName ? `with ${lead.therapistName}` : null,
+            otherActive > 0 ? `+ ${otherActive} more ${otherActive === 1 ? "programme" : "programmes"} below` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+          action={lead.toBook > 0 ? { label: "Book your next session", href: "#your-packages", icon: "fa-calendar-plus" } : null}
+          facts={[
+            { label: "Done", value: `${lead.completed} of ${lead.total}`, tone: "green" },
+            { label: "Booked", value: String(lead.scheduled), tone: "teal" },
+            { label: "Left to book", value: String(lead.toBook), tone: lead.toBook > 0 ? "amber" : "slate" },
+          ]}
+        />
+      )}
       {d.ownedPackages && d.ownedPackages.length > 0 && (
-        <div id="your-packages" className="mt-8">
+        <div id="your-packages" className="mt-8 scroll-mt-24">
           <PatientPackageWidget
             bulkScheduleMax={d.adminSettings.packageBulkScheduleMax}
             expiryReminderDays={d.adminSettings.packageExpiryReminderDays}
@@ -64,6 +106,29 @@ export default async function Page() {
         </div>
       )}
 
+      {/* The tab is hidden from the nav until there is a programme, but the
+          URL, the tutorial and an old bookmark still reach it -- and it used
+          to answer with a title over a blank page. */}
+      {!d.ownedPackages?.length && !d.ownedHomeVisitPackages?.length && (
+        <div className="mt-8" data-testid="programme-empty">
+          <SurfaceCard title="No programme yet" icon="fa-box-open">
+            <EmptyState
+              icon="fa-box-open"
+              title="Nothing arranged yet"
+              body="When your physiotherapist recommends a course of sessions and you accept it, it shows up here with the sessions you have left to book."
+              action={
+                <Link
+                  href="/patient/dashboard/suggested"
+                  className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-teal-700 px-4 text-sm font-bold text-white hover:bg-teal-800"
+                >
+                  <i aria-hidden="true" className="fa-solid fa-lightbulb"></i>
+                  See recommendations
+                </Link>
+              }
+            />
+          </SurfaceCard>
+        </div>
+      )}
     </PatientDashboardShell>
   );
 }

@@ -1,3 +1,5 @@
+import TabSummary from "@/components/dashboard/TabSummary";
+import { progressHeadline, trendSentence } from "@/lib/tabSummaries";
 import type { Metadata } from "next";
 import TutorialInfoButton from "@/components/tutorial/TutorialInfoButton";
 import { formatClinicDate, formatClinicDateTime } from "@/lib/formatDateTime";
@@ -591,6 +593,28 @@ export default async function PatientHealthProfilePage() {
     </section>
   );
 
+  // "Am I getting better?" answered before anything else on the screen, from
+  // the same series the charts below draw -- pain going down is good; for the
+  // other records, the line going up is (breathlessness, like pain, the
+  // other way round).
+  const trendLabel = isOrtho
+    ? "Overall pain"
+    : specialty === "neuro"
+      ? "Independence"
+      : specialty === "pediatrics"
+        ? "Milestones reached"
+        : specialty === "geriatric"
+          ? "Daily activities without help"
+          : "Breathlessness grade";
+  const progressTrend = isOrtho
+    ? trendSentence(trendPoints.map((p) => p.percent), "down", "%")
+    : trendSentence(
+        intakeTrend.map((p) => p.value),
+        specialty === "cardiopulmonary" ? "down" : "up",
+        specialty === "neuro" ? "/ 10" : ""
+      );
+  const readingCount = isOrtho ? trendPoints.length : intakeTrend.length;
+
   return (
     <PatientDashboardShell
       data={d}
@@ -611,6 +635,21 @@ export default async function PatientHealthProfilePage() {
       ]}
     >
       <div className={`mx-auto space-y-5 ${onNewLayout ? "max-w-6xl" : "max-w-5xl"}`}>
+        <TabSummary
+          testId="progress-summary"
+          eyebrow={isPeds ? "Is my child getting better?" : "Am I getting better?"}
+          tone={progressTrend?.verdict === "better" ? "hero" : "plain"}
+          title={progressHeadline(progressTrend, { awaitingTherapist: gate.reason === "awaiting_therapist", parent: isPeds })}
+          detail={progressTrend ? `${trendLabel} ${progressTrend.text}, across ${readingCount} readings.` : undefined}
+          facts={
+            d.intakeGate.canEdit
+              ? [
+                  { label: "Health profile", value: `${d.intakeAnswered}/${d.intakeTotal}`, note: d.intakeAnswered === d.intakeTotal ? "All answered" : "Answers saved as you go", tone: d.intakeAnswered === d.intakeTotal ? "green" : "amber" },
+                  { label: "Readings", value: String(readingCount), tone: "teal" },
+                ]
+              : undefined
+          }
+        />
         {onNewLayout ? (
           <div
             className="space-y-5"

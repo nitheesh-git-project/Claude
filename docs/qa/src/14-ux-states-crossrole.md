@@ -29,6 +29,29 @@
 
 #### `UX-MOB-002` - Dashboards on mobile · P1
 **Steps.** At 390 × 844, open each of the four dashboards.
+#### `UX-TAB-001` - Every dashboard tab opens with its answer · P1
+
+**Feature.** The summary card at the top of each patient and therapist tab. **Role.** Patient A, Therapist A.
+**Purpose.** Confirm each tab says its one answer first, that its figures agree with the list under it, and that the jump chips land on their sections.
+**Preconditions.** Patient A has at least one upcoming and one completed session, a payment and a programme; Therapist A has sessions today.
+**Test Data.** None entered.
+
+**Steps**
+1. As Patient A, open Your Sessions, Recommendations, My programme, Payments, My progress and Edit Profile in turn, at 390 × 844 and at 1440 wide.
+2. On each, read the card at the top, then count the matching rows below it.
+3. On Edit Profile tap each chip (Personal, Contact, Addresses, Security, Your data).
+4. As Therapist A, open Sessions, My availability, Earnings, My Patients and Edit Profile; on My availability and Earnings tap each chip.
+
+**Expected Result.**
+* Sessions: the next session's time (clinic zone), its care, mode and physiotherapist; **Upcoming / Done / Cancelled** equal the list's own Upcoming, completed and Cancelled rows (a session over a day old that nobody closed is Past in both).
+* Recommendations: the card appears only while something is waiting, says how many, and jumps to the programme or the proposed times. With nothing waiting there is only the existing "Nothing waiting on you" card.
+* My programme: "N paid sessions left to book" for the same programme Home's card names; **Book your next session** scrolls to it.
+* Payments: the latest payment's amount and date; **Payments / Refunds / Didn't go through** are counts, never a rupee total.
+* My progress: "Am I getting better?" with one line from the same series the chart draws; a single reading says it needs two; before the first session it says the physiotherapist fills it in.
+* Therapist Earnings: **Owed to you** is the same figure, to the paisa, as Home's and the Pending Payout below; on a failed earnings read no card shows at all.
+* Each chip lands with its section's heading visible below the phone's header. No horizontal scroll at 390 × 844.
+**Cleanup.** None.
+
 #### `UX-BUSY-001` - The app says it is working · P1
 
 **Steps.** Tap anything that saves, creates or navigates - a Save on a settings form, **Done** on a session, a payout, a sidebar entry - and watch the very top of the viewport.

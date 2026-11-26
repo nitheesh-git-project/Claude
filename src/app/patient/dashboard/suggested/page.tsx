@@ -10,6 +10,8 @@ import { readInviteDelivery } from "@/lib/inviteDeliveryServer";
 import Link from "next/link";
 import { loadConditionCovers } from "@/lib/catalogImageServer";
 import { parseOfferSnapshot } from "@/lib/carePlans";
+import TabSummary, { JumpChips } from "@/components/dashboard/TabSummary";
+import { recommendationsWaiting } from "@/lib/tabSummaries";
 
 export const metadata: Metadata = {
   title: "Recommendations | MoveRestore",
@@ -72,6 +74,44 @@ export default async function Page() {
       title="Recommendations"
       subtitle="What your physiotherapist has recommended, and times they've proposed."
     >
+      {/* What is waiting, in one line, with a jump to each part. Only when
+          something is: the "Nothing waiting on you" card below already says
+          the other case, and saying it twice is noise. */}
+      {!nothingWaiting && (
+        <>
+          <TabSummary
+            testId="recommendations-summary"
+            eyebrow="Waiting on you"
+            tone="hero"
+            title={`${recommendationsWaiting(!!version, d.pendingSuggestions.length)} ${
+              recommendationsWaiting(!!version, d.pendingSuggestions.length) === 1 ? "thing" : "things"
+            } to decide`}
+            detail={[
+              version && plan ? `A programme from ${authorNames.get(plan.therapistId) ?? "your physiotherapist"}` : null,
+              d.pendingSuggestions.length > 0
+                ? `${d.pendingSuggestions.length} proposed ${d.pendingSuggestions.length === 1 ? "time" : "times"}`
+                : null,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+            action={
+              version
+                ? { label: "See the programme", href: "#recommendation", icon: "fa-arrow-down" }
+                : { label: "See the times", href: "#proposed-times", icon: "fa-arrow-down" }
+            }
+          />
+          <JumpChips
+            className=""
+            items={[
+              ...(version ? [{ id: "recommendation", label: "Programme" }] : []),
+              ...(d.pendingSuggestions.length > 0
+                ? [{ id: "proposed-times", label: "Proposed times", count: d.pendingSuggestions.length }]
+                : []),
+              ...(d.carePlanHistory.length > 0 ? [{ id: "past-recommendations", label: "Past" }] : []),
+            ]}
+          />
+        </>
+      )}
       {nothingWaiting && justPurchased && (
         <div className="mt-8">
           <SurfaceCard title="Your programme is ready" info="card:care-plan" icon="fa-circle-check">
