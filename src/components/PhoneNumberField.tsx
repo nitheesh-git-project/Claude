@@ -18,6 +18,7 @@ export default function PhoneNumberField({
   label = "Phone Number",
   required = false,
   labelClassName = "block font-semibold mb-1",
+  defaultCountry,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -25,13 +26,20 @@ export default function PhoneNumberField({
   label?: string;
   required?: boolean;
   labelClassName?: string;
+  /** A fixed country for an empty field, instead of guessing from the
+   *  browser and the visitor's location. The hospital referral form passes
+   *  India: the clinic's patients are there, and a referring hospital's
+   *  laptop set to US English guessed +1. */
+  defaultCountry?: CountryCode;
 }) {
   // Lazy initializers seed from the stored/initial value once, on first
   // render only - after that this component owns country/national itself
   // and pushes composed changes back up via onChange, so re-deriving from
   // the value prop on every parent re-render would fight the user's own
   // in-progress edits.
-  const [country, setCountry] = useState<CountryCode>(() => splitStoredPhone(value).country);
+  const [country, setCountry] = useState<CountryCode>(() =>
+    !value && defaultCountry ? defaultCountry : splitStoredPhone(value).country
+  );
   const [national, setNational] = useState(() => splitStoredPhone(value).national);
   const [touched, setTouched] = useState(false);
 
@@ -44,7 +52,7 @@ export default function PhoneNumberField({
   const [pickedByHand, setPickedByHand] = useState(false);
   const [followedSite, setFollowedSite] = useState<string | null>(null);
   const known = COUNTRY_OPTIONS.some((c) => c.code === siteCountry);
-  if (ready && known && !pickedByHand && !value && followedSite !== siteCountry) {
+  if (!defaultCountry && ready && known && !pickedByHand && !value && followedSite !== siteCountry) {
     setFollowedSite(siteCountry);
     if (country !== siteCountry) setCountry(siteCountry as CountryCode);
   }

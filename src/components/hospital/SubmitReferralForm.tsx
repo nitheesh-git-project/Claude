@@ -57,6 +57,24 @@ export default function SubmitReferralForm({
       setError("Enter the patient's phone number so our team can reach them.");
       return;
     }
+    const ageText = ((formData.get("patient_age") as string) || "").trim();
+    const age = Number(ageText);
+    if (!/^\d{1,3}$/.test(ageText) || age > 120) {
+      setLoading(false);
+      setError("Enter the patient's age in years.");
+      return;
+    }
+    const email = ((formData.get("patient_email") as string) || "").trim();
+    if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      setLoading(false);
+      setError("That email address doesn't look right. Leave it blank if the patient has none.");
+      return;
+    }
+    if (formData.get("patient_consent") !== "on") {
+      setLoading(false);
+      setError("Confirm the patient has agreed to be referred and to share these details.");
+      return;
+    }
 
     // Through a route rather than straight into the table. The insert
     // policy only ever checked that the row named this hospital, so a
@@ -73,6 +91,9 @@ export default function SubmitReferralForm({
         body: JSON.stringify({
           patientName: formData.get("patient_name") as string,
           patientPhone,
+          patientAge: age,
+          patientEmail: email,
+          patientConsent: true,
           address: (formData.get("address") as string) || "",
           preferredLanguage: (formData.get("preferred_language") as string) || "",
           medicalIssue: formData.get("medical_issue") as string,
@@ -168,7 +189,34 @@ export default function SubmitReferralForm({
         name="patient_phone"
         label="Patient Phone Number"
         required
+        defaultCountry="IN"
       />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="block">
+          <span className="block font-semibold mb-1">Patient Age</span>
+          <input
+            name="patient_age"
+            type="number"
+            inputMode="numeric"
+            min={0}
+            max={120}
+            required
+            className="w-full min-h-11 p-2.5 rounded-lg border border-slate-300 text-base sm:text-sm"
+          />
+        </label>
+        <label className="block">
+          <span className="block font-semibold mb-1">
+            Patient Email <span className="font-normal text-slate-500">(optional)</span>
+          </span>
+          <input
+            name="patient_email"
+            type="email"
+            autoComplete="off"
+            maxLength={254}
+            className="w-full min-h-11 p-2.5 rounded-lg border border-slate-300 text-base sm:text-sm"
+          />
+        </label>
+      </div>
       {homeVisitEnabled && (
         <div>
           <label className="block font-semibold mb-1">Session Type</label>
@@ -267,6 +315,15 @@ export default function SubmitReferralForm({
           maxLength={REFERRAL_LIMITS.treatmentNeeded}
           className="w-full min-h-11 p-2.5 rounded-lg border border-slate-300 text-base sm:text-sm"
         />
+      </label>
+      {/* A hospital passing a patient's health details on needs their
+          agreement, and the clinic needs to be able to show it had it. */}
+      <label className="flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <input type="checkbox" name="patient_consent" required className="mt-1 h-4 w-4" />
+        <span>
+          The patient has agreed to be referred to MoveRestore and to these details being shared with the
+          clinic for their care.
+        </span>
       </label>
       <button
         type="submit"

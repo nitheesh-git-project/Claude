@@ -337,6 +337,22 @@ export default async function AdminDashboardPage({
   // Pay-later bookings waiting for an admin's approval (owner's decision).
   const pendingPayLaterApprovalsRead = readPendingPayLaterApprovalIds(admin);
   const payLaterApprovalRequiredRead = readPayLaterApprovalRequired(admin);
+  // A referral's consent, age and email (newest columns on patient_referrals):
+  // their own read, so an unmigrated database costs this line, not the list.
+  const referralFactsRead = (async () => {
+    const r = await readAllRowsAsData<{
+      id: string;
+      patient_age: number | null;
+      patient_email: string | null;
+      patient_consent_at: string | null;
+    }>(() =>
+      admin
+        .from("patient_referrals")
+        .select("id, patient_age, patient_email, patient_consent_at")
+        .order("id", { ascending: true })
+    );
+    return new Map((r.error ? [] : r.data ?? []).map((row) => [row.id, row]));
+  })();
 
   // Runs before the big read below so this same request already sees any
   // purchase this sweep just flipped to 'expired' -- see the helper's own
@@ -1929,6 +1945,7 @@ export default async function AdminDashboardPage({
   const shareBases = await shareBasesRead;
   const pendingPayLaterApprovals = await pendingPayLaterApprovalsRead;
   const payLaterApprovalRequired = await payLaterApprovalRequiredRead;
+  const referralFacts = await referralFactsRead;
   const appointmentsWithSessionCode = mergeMeetLinks(
     mergeSessionCodes(
       appointments ?? [],
@@ -2884,6 +2901,22 @@ export default async function AdminDashboardPage({
                           {r.preferred_language?.trim() || "Language not stated"}
                         </span>
                       </p>
+                      {(() => {
+                        const facts = referralFacts.get(r.id);
+                        return (
+                          <p className="text-slate-500 flex flex-wrap gap-x-3">
+                            {facts?.patient_age !== null && facts?.patient_age !== undefined && (
+                              <span>Age {facts.patient_age}</span>
+                            )}
+                            {facts?.patient_email && <span>{facts.patient_email}</span>}
+                            <span className={facts?.patient_consent_at ? "text-teal-700" : "text-amber-700"}>
+                              {facts?.patient_consent_at
+                                ? `Patient consent confirmed by the hospital, ${formatClinicDate(facts.patient_consent_at)}`
+                                : "No consent recorded - referred before the form asked"}
+                            </span>
+                          </p>
+                        );
+                      })()}
                       <p className="text-slate-500">
                         Referred by:{" "}
                         {hospital?.full_name ?? "Unknown partner"}

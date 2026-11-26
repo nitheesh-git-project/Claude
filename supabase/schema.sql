@@ -21700,3 +21700,21 @@ alter table appointments add column if not exists patient_reschedule_count integ
   check (patient_reschedule_count >= 0);
 alter table site_settings add column if not exists patient_reschedule_cutoff_hours integer not null default 24
   check (patient_reschedule_cutoff_hours between 1 and 168);
+
+-- ---------------------------------------------------------------------------
+-- A hospital referral says the patient agreed, and who they are.
+--
+-- The form took a name, a phone and a medical issue and nothing about
+-- consent: a hospital passing a discharged patient's health details to a
+-- clinic needs the patient's agreement, and the clinic needs to be able to
+-- show it had it. Now the hospital ticks that the patient agreed to be
+-- referred and to share these details (required; the time is kept), and gives
+-- the patient's age and, optionally, their email. Written by
+-- /api/hospital/submit-referral with the service role, in its own update
+-- after the insert; read through the existing patient_referrals policies.
+-- ---------------------------------------------------------------------------
+alter table patient_referrals add column if not exists patient_consent_at timestamptz;
+alter table patient_referrals add column if not exists patient_age integer
+  check (patient_age is null or patient_age between 0 and 120);
+alter table patient_referrals add column if not exists patient_email text
+  check (patient_email is null or (char_length(patient_email) <= 254 and patient_email ~ '^[^@\s]+@[^@\s]+\.[^@\s]+$'));
