@@ -21625,3 +21625,41 @@ alter table appointments add column if not exists pricing_currency text
   check (pricing_currency is null or pricing_currency ~ '^[A-Z]{3}$');
 alter table appointments add column if not exists pricing_markup_percent numeric(6, 2)
   check (pricing_markup_percent is null or pricing_markup_percent between 0 and 500);
+
+-- ---------------------------------------------------------------------------
+-- Every pay-later booking waits for an admin's approval (owner's decision).
+--
+-- A patient granted pay-later terms could book any number of sessions, each
+-- confirmed the moment the roster had somebody free, and the clinic carried
+-- the gap because the therapist's share is payable at completion either way.
+-- Now a pay-later booking lands `requested` with its approval `pending`:
+-- assigning a therapist does not confirm it (confirmsOnAssign), and admin
+-- Home lists it under "Pay-later bookings to approve". Approve lets it
+-- confirm like any other; Decline turns it into an ordinary unpaid booking
+-- the patient pays online (payment_terms back to 'prepaid').
+--
+--   pay_later_approval        null for every booking this never applied to
+--   pay_later_approved_by/at  who decided, and when (approve or decline)
+--   pay_later_decline_reason  what the patient is told; required to decline
+--
+-- site_settings.pay_later_approval_required is the switch (on by default).
+-- Written only by service-role routes; read through the existing
+-- appointments policies, so no new policy is needed.
+-- ---------------------------------------------------------------------------
+alter table appointments add column if not exists pay_later_approval text
+  check (pay_later_approval is null or pay_later_approval in ('pending', 'approved', 'declined'));
+alter table appointments add column if not exists pay_later_approved_by uuid
+  references profiles(id) on delete set null;
+alter table appointments add column if not exists pay_later_approved_at timestamptz;
+alter table appointments add column if not exists pay_later_decline_reason text;
+
+alter table appointments drop constraint if exists appointments_pay_later_decline_needs_reason;
+alter table appointments add constraint appointments_pay_later_decline_needs_reason check (
+  pay_later_approval is distinct from 'declined'
+  or char_length(btrim(coalesce(pay_later_decline_reason, ''))) >= 10
+);
+
+create index if not exists appointments_pay_later_approval_pending_idx
+  on appointments (created_at) where pay_later_approval = 'pending';
+
+alter table site_settings add column if not exists pay_later_approval_required boolean not null default true;

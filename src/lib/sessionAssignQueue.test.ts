@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   awaitsPatientPayment,
+  awaitsPayLaterApproval,
   confirmationIsOverdue,
   confirmsOnAssign,
   needsConfirming,
@@ -137,5 +138,30 @@ describe("assigned but not confirmed", () => {
     expect(confirmationIsOverdue("2026-11-26T08:30:00Z", 4, now)).toBe(false);
     expect(confirmationIsOverdue(null, 4, now)).toBe(false);
     expect(confirmationIsOverdue("not a date", 4, now)).toBe(false);
+  });
+});
+
+describe("pay-later bookings wait for approval", () => {
+  const pending: AssignQueueRow = { ...draft, payment_terms: "pay_later", pay_later_approval: "pending" };
+
+  it("does not confirm on assign until approved", () => {
+    expect(confirmsOnAssign(pending)).toBe(false);
+    expect(confirmsOnAssign({ ...pending, pay_later_approval: "declined" })).toBe(false);
+    expect(confirmsOnAssign({ ...pending, pay_later_approval: "approved" })).toBe(true);
+    // Rows from before approval existed confirm as they always did.
+    expect(confirmsOnAssign({ ...pending, pay_later_approval: null })).toBe(true);
+    expect(confirmsOnAssign({ ...pending, pay_later_approval: undefined })).toBe(true);
+  });
+
+  it("sits in the approval queue, not the staffing ones", () => {
+    expect(awaitsPayLaterApproval(pending)).toBe(true);
+    expect(needsTherapist(pending, false)).toBe(false);
+    expect(needsConfirming({ ...pending, therapist_id: "t1" })).toBe(false);
+  });
+
+  it("leaves the approval queue once decided or cancelled", () => {
+    expect(awaitsPayLaterApproval({ ...pending, pay_later_approval: "approved" })).toBe(false);
+    expect(awaitsPayLaterApproval({ ...pending, status: "cancelled" })).toBe(false);
+    expect(needsTherapist({ ...pending, pay_later_approval: "approved" }, false)).toBe(true);
   });
 });

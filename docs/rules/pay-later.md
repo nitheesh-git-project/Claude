@@ -29,6 +29,26 @@ A trusted patient treated first and settling afterwards: the grant, the booking 
   `trusted_patient_codes` is append-only by trigger (active -> redeemed or
   revoked; a redeemed one cannot be cancelled -- stop terms on the profile).
   Guard: `e2e/trusted-codes.spec.ts`.
+- **Every pay-later booking waits for an admin's approval** (owner's
+  decision; `site_settings.pay_later_approval_required`, default on, read by
+  `readPayLaterApprovalRequired`, which answers **true** when it cannot
+  read). `/api/appointments/confirm-pay-later` books with
+  `confirmPayLaterAppointment({ holdForApproval })` -- no auto-assign, no
+  confirmation -- and then marks `pay_later_approval = 'pending'` in its own
+  best-effort write. `confirmsOnAssign` refuses to confirm a pending or
+  declined row, both assign routes read the approval
+  (`readPayLaterApproval`), and `awaitsPayLaterApproval` is admin Home's
+  **Pay-later bookings to approve** queue (and keeps the row out of
+  "Sessions with no therapist"). `/api/admin/pay-later-approval`
+  (`requireAdminScope("money")`) approves -- confirming on the spot, roster
+  re-checked, when a therapist is on it -- or declines with a reason of ten
+  characters (a CHECK) and puts the booking back on `prepaid` terms so the
+  patient pays online. Both claim on `pending`, so two admins cannot decide
+  one booking twice. Rows from before approval existed carry null and
+  confirm as they always did. A clinic could otherwise grant terms once and
+  have any number of sessions confirmed and delivered on credit with nobody
+  looking -- and the therapist is paid at completion either way.
+
 - **Pay later: a trusted patient is treated first and settles afterwards.**
   `appointments.payment_terms` (`prepaid` | `pay_later`) is the new axis, and
   it exists because `payment_status = 'unpaid'` already means *"somebody

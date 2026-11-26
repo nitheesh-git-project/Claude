@@ -8,7 +8,20 @@
 // `mintAppointmentOrder` create-order uses. These pin the response shape and
 // the rows it writes, and the measurement route the wizards report to.
 import { test, expect } from "@playwright/test";
-import { adminClient, BASE, cookieHeaderFor, profileIdFor, QA_EMAILS, wholeHourFromNow } from "./helpers";
+import { adminClient, BASE, clinicSlot, cookieHeaderFor, openTherapistHour, profileIdFor, QA_EMAILS } from "./helpers";
+
+/**
+ * A slot some therapist can take: /api/appointments/create refuses an hour
+ * nobody works (openHours.ts), so the QA therapist's hour is opened first.
+ * Random within daytime clinic hours so reruns on a long-lived project do
+ * not meet the last run's session.
+ */
+async function openSlot(admin: ReturnType<typeof adminClient>) {
+  const slotTime = clinicSlot(3 + Math.floor(Math.random() * 25), 7 + Math.floor(Math.random() * 14));
+  const therapistId = await profileIdFor(admin, QA_EMAILS.therapistA);
+  const close = await openTherapistHour(admin, therapistId, slotTime);
+  return { slotTime, close };
+}
 
 async function post(path: string, cookie: string | null, body: unknown) {
   return fetch(`${BASE}${path}`, {
@@ -30,11 +43,12 @@ test.describe("create answers with the quote and the order", () => {
       .limit(1)
       .single();
 
+    const slot = await openSlot(admin);
     let createdId: string | undefined;
     try {
       const res = await post("/api/appointments/create", cookie, {
         categoryId: category!.id,
-        slotTime: wholeHourFromNow(96),
+        slotTime: slot.slotTime,
         timezone: "Asia/Kolkata",
         withQuote: true,
         startPayment: "default",
@@ -70,6 +84,7 @@ test.describe("create answers with the quote and the order", () => {
         expect(body.order).toBeNull();
       }
     } finally {
+      await slot.close();
       if (createdId) await admin.from("appointments").delete().eq("id", createdId);
       await admin.from("profiles").update({ approved: true }).eq("id", patientId);
     }
@@ -84,11 +99,12 @@ test.describe("create answers with the quote and the order", () => {
       .eq("active", true)
       .limit(1)
       .single();
+    const slot = await openSlot(admin);
     let createdId: string | undefined;
     try {
       const res = await post("/api/appointments/create", cookie, {
         categoryId: category!.id,
-        slotTime: wholeHourFromNow(100),
+        slotTime: slot.slotTime,
         timezone: "Asia/Kolkata",
         startPayment: "default",
       });
@@ -98,6 +114,7 @@ test.describe("create answers with the quote and the order", () => {
       expect(body.quote).toBeNull();
       expect(body.order).toBeNull();
     } finally {
+      await slot.close();
       if (createdId) await admin.from("appointments").delete().eq("id", createdId);
     }
   });

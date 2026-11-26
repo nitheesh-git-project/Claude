@@ -12,6 +12,7 @@ import {
   describeClaimFailure,
 } from "@/lib/claimTherapistSlot";
 import { confirmsOnAssign } from "@/lib/sessionAssignQueue";
+import { readPayLaterApproval } from "@/lib/payLaterSettingsServer";
 import { announceConfirmedSession, VISIT_COLUMNS, type VisitRow } from "@/lib/announceConfirmedSession";
 
 export async function POST(request: NextRequest) {
@@ -189,7 +190,12 @@ export async function POST(request: NextRequest) {
     .maybeSingle();
   const shouldConfirm =
     appointment.status === "requested" &&
-    confirmsOnAssign({ payment_status: appointment.payment_status, payment_terms: terms?.payment_terms ?? null });
+    confirmsOnAssign({
+      payment_status: appointment.payment_status,
+      payment_terms: terms?.payment_terms ?? null,
+      pay_later_approval:
+        terms?.payment_terms === "pay_later" ? await readPayLaterApproval(admin, appointmentId) : null,
+    });
 
   const claim = await claimTherapistSlot(admin, {
     appointmentId,

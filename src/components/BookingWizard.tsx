@@ -260,6 +260,8 @@ export default function BookingWizard({
   // is not a completed payment, and a screen that reads as one would be
   // telling somebody they did something they did not do.
   const [paidLater, setPaidLater] = useState(false);
+  // The clinic approves each pay-later booking before confirming it.
+  const [awaitingPayLaterApproval, setAwaitingPayLaterApproval] = useState(false);
   // What the pay-later confirmation actually wrote. Kept because this is the
   // one checkout ending in the app that never showed the patient a figure:
   // the session is booked, a discount may have come off, and the amount
@@ -1102,6 +1104,7 @@ export default function BookingWizard({
       }
       setLoading(false);
       setPaidLater(true);
+      setAwaitingPayLaterApproval(data.awaitingApproval === true);
       // The figure the route wrote, never a re-read of it -- and never the
       // quote's, which is what this screen used to show nothing of at all.
       if (typeof data.amountDuePaise === "number") {
@@ -1547,8 +1550,12 @@ export default function BookingWizard({
           <p className="text-base text-slate-700 mt-2 leading-relaxed">
             {paidLater ? (
               <>
-                Your request is in and there&apos;s nothing to pay now. The session is added to
-                what you owe once it has happened, and you can settle whenever suits you.
+                Your request is in and there&apos;s nothing to pay now.
+                {awaitingPayLaterApproval
+                  ? " The clinic approves each pay-later booking first, then confirms your time. "
+                  : " "}
+                The session is added to what you owe once it has happened, and you can settle
+                whenever suits you.
               </>
             ) : (
               <>Your payment has gone through and your request is in.</>

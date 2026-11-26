@@ -37,6 +37,9 @@ requested ──assign + paid/terms──> confirmed ──complete──> compl
   assign" (`confirmsOnAssign`, `src/lib/sessionAssignQueue.ts`). A
   committed session still `requested` with a therapist on it is the admin's
   **Assigned, not confirmed** queue (`needsConfirming`), never silence.
+  A pay-later booking waiting for approval (`pay_later_approval =
+  'pending'`) does not confirm on assignment; it is the **Pay-later
+  bookings to approve** queue until an admin approves or declines it.
 - **`confirmed`** — a therapist is on it *and* it is paid, on pay-later terms,
   drawn from a programme, or cash-on-visit. Only a confirmed session can be
   completed.

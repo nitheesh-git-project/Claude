@@ -12,6 +12,7 @@ import {
   describeClaimFailure,
 } from "@/lib/claimTherapistSlot";
 import { confirmsOnAssign } from "@/lib/sessionAssignQueue";
+import { readPayLaterApproval } from "@/lib/payLaterSettingsServer";
 
 export async function POST(request: NextRequest) {
   const adminUser = await requireAdminScope("sessions");
@@ -130,6 +131,8 @@ export async function POST(request: NextRequest) {
   const shouldConfirm = confirmsOnAssign({
     payment_status: appointment.payment_status,
     payment_terms: terms?.payment_terms ?? null,
+    pay_later_approval:
+      terms?.payment_terms === "pay_later" ? await readPayLaterApproval(admin, appointmentId) : null,
   });
 
   // The whole reservation -- overlap test, compare-and-set and write -- in

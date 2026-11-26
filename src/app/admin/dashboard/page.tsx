@@ -58,6 +58,7 @@ import PriorDeclineChip from "@/components/admin/PriorDeclineChip";
 import { declineReasonLabel, findPriorDecline, type DeclinedApplication } from "@/lib/declineReasons";
 import {
   awaitsPatientPayment,
+  awaitsPayLaterApproval,
   confirmationIsOverdue,
   needsConfirming,
   needsTherapist,
@@ -76,6 +77,7 @@ import {
   readPayLaterAgeSettings,
   readPayLaterCeilingPaise,
   readPayLaterEnabled,
+  readPendingPayLaterApprovalIds,
 } from "@/lib/payLaterSettingsServer";
 import {
   readPendingSettlementRows,
@@ -331,6 +333,8 @@ export default async function AdminDashboardPage({
   // Completed sessions priced abroad: the therapist's share is taken on the
   // Indian list price (shareBase.ts). Started now, awaited at the merge.
   const shareBasesRead = readAllShareBases(admin);
+  // Pay-later bookings waiting for an admin's approval (owner's decision).
+  const pendingPayLaterApprovalsRead = readPendingPayLaterApprovalIds(admin);
 
   // Runs before the big read below so this same request already sees any
   // purchase this sweep just flipped to 'expired' -- see the helper's own
@@ -1921,6 +1925,7 @@ export default async function AdminDashboardPage({
   );
 
   const shareBases = await shareBasesRead;
+  const pendingPayLaterApprovals = await pendingPayLaterApprovalsRead;
   const appointmentsWithSessionCode = mergeMeetLinks(
     mergeSessionCodes(
       appointments ?? [],
@@ -1950,7 +1955,7 @@ export default async function AdminDashboardPage({
           pay_later_outcome: terms.pay_later_outcome,
         }
       : a;
-    const withRates = frozenRates
+    const withRatesBase = frozenRates
       ? {
           ...withTerms,
           therapist_share_percent_at_completion:
@@ -1961,14 +1966,19 @@ export default async function AdminDashboardPage({
           ...(shareBases.get(a.id) ?? {}),
         }
       : withTerms;
+    // Merged onto every row, not just the frozen ones: an approval is waited
+    // on before completion. confirmsOnAssign and the queues read it.
+    const withApproval = pendingPayLaterApprovals.has(a.id)
+      ? { ...withRatesBase, pay_later_approval: "pending" as const }
+      : withRatesBase;
     const withRefund = refund
       ? {
-          ...withRates,
+          ...withApproval,
           refunded_at: refund.refunded_at,
           refund_reason: refund.refund_reason,
           refund_id: refund.refund_id,
         }
-      : withRates;
+      : withApproval;
     return discount
       ? {
           ...withRefund,
@@ -5258,6 +5268,10 @@ export default async function AdminDashboardPage({
   const needsConfirmingOverdue = needsConfirmingRows.filter((a) =>
     confirmationIsOverdue(a.created_at, confirmPromiseHours, queueNowMs)
   ).length;
+  const payLaterApprovalRows = appointmentsWithSessionCode.filter((a) => awaitsPayLaterApproval(a));
+  const payLaterApprovalOverdue = payLaterApprovalRows.filter((a) =>
+    confirmationIsOverdue(a.created_at, confirmPromiseHours, queueNowMs)
+  ).length;
   const cashOwedByTherapists = homeVisitRows.filter(
     (v) => v.cash_collected_at && !v.cash_remitted_at
   ).length;
@@ -5356,6 +5370,24 @@ export default async function AdminDashboardPage({
           view: "unassigned",
           hint: "Booked and nobody is assigned to run them yet. Programme sessions have their therapist pre-picked - one tap to assign.",
           urgent: unassignedToday > 0,
+        },
+        {
+          // Owner's decision: the clinic approves every pay-later booking.
+          // Money scope works it -- agreeing to treat before payment is a
+          // money decision wherever the button sits.
+          label: "Pay-later bookings to approve",
+          count: payLaterApprovalRows.length,
+          section: "sessions",
+          tab: "all",
+          view: "pay_later_approval",
+          workSection: "money",
+          hint:
+            payLaterApprovalOverdue > 0
+              ? `A patient asked to pay after the session. ${payLaterApprovalOverdue} ${
+                  payLaterApprovalOverdue === 1 ? "is" : "are"
+                } past the ${confirmPromiseHours}-hour promise.`
+              : "A patient asked to pay after the session. Open it to approve or decline.",
+          urgent: payLaterApprovalOverdue > 0,
         },
         {
           label: "Assigned, not confirmed",
