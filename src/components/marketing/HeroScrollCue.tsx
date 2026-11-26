@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { motion, useReducedMotion } from "motion/react";
+import { motion } from "motion/react";
+import { useHydrationSafeReducedMotion } from "@/lib/useHydrationSafeReducedMotion";
 import { heroCueAtTop } from "@/lib/heroScrollCue";
 
 /**
@@ -28,12 +29,18 @@ import { heroCueAtTop } from "@/lib/heroScrollCue";
  * it cannot cover the overlay card or the figures at any width.
  *
  * The cascade is decoration: under reduced motion the chevrons stand still
- * at a steady tint, and the control works the same.
+ * at a steady tint, and the control works the same. That setting is read
+ * hydration-safely, so the server's HTML and the first client render agree.
  */
 const STEPS = [0, 1, 2] as const;
 
 export default function HeroScrollCue({ label = "See what's below" }: { label?: string }) {
-  const reduceMotion = useReducedMotion();
+  // Not motion's own useReducedMotion: the server cannot know the setting,
+  // so it drew the cascade's first frame while a reduced-motion browser drew
+  // the resting tint -- a hydration mismatch on every public page
+  // (public-hydration HY-001). This answers "no" on the server and while
+  // hydrating, then the real answer.
+  const reduceMotion = useHydrationSafeReducedMotion();
   const rootRef = useRef<HTMLDivElement>(null);
   const [atTop, setAtTop] = useState(true);
 
