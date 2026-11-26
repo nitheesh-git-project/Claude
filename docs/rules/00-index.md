@@ -403,7 +403,7 @@ rg -i "<the thing you are seeing>" docs/rules/
 - A carousel that moves on its own must stop the moment someone engages
 - A section rail entry must match a section that renders, in DOM order
 - A public page opens at its very top, and the arrow brings you back up
-- Every public hero but the home page's ends in a "Scroll for more" cue, on large screens only
+- Every public hero but the home page's ends in a "See what's below" cue, on large screens only
 - Every catalog card has a cover slot, and one component owns the empty state
 - A catalog cover is uploaded, and positioned rather than cropped
 - One card for everything the clinic sells, and one dialog header
