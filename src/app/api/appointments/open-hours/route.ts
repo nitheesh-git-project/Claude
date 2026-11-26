@@ -29,15 +29,17 @@ export async function GET(request: NextRequest) {
   const categoryId = params.get("categoryId");
 
   const admin = createAdminClient();
-  let durationMinutes = BASE_DURATION_MINUTES;
-  if (categoryId && /^[0-9a-f-]{36}$/i.test(categoryId)) {
-    const { data } = await admin
-      .from("treatment_categories")
-      .select("duration_minutes")
-      .eq("id", categoryId)
-      .maybeSingle();
-    durationMinutes = data?.duration_minutes ?? BASE_DURATION_MINUTES;
-  }
+  // The service's session length, read alongside the roster rather than
+  // before it: the picker waits on this answer, so the reads overlap.
+  const durationMinutes: Promise<number> =
+    categoryId && /^[0-9a-f-]{36}$/i.test(categoryId)
+      ? Promise.resolve(
+          admin.from("treatment_categories").select("duration_minutes").eq("id", categoryId).maybeSingle()
+        ).then(
+          ({ data }) => (data as { duration_minutes?: number | null } | null)?.duration_minutes ?? BASE_DURATION_MINUTES,
+          () => BASE_DURATION_MINUTES
+        )
+      : Promise.resolve(BASE_DURATION_MINUTES);
 
   const open = await readOpenSlotStarts(admin, { fromDateKey: from, days, durationMinutes, nowMs: Date.now() });
   if (open === null) return NextResponse.json({ checked: false });

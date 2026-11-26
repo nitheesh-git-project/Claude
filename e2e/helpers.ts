@@ -496,7 +496,7 @@ export async function chooseAnyServiceOnStepOne(page: Page): Promise<void> {
  * already chosen on arrival; the hour deliberately is not.
  */
 export async function pickTimeOnStepOne(page: Page): Promise<void> {
-  const times = page.getByRole("radiogroup", { name: "Time", exact: true });
+  const times = page.getByRole("radiogroup", { name: /^(Time|Available times)$/ });
   await expect(times).toBeVisible({ timeout: 60_000 });
   if ((await times.getByRole("radio", { checked: true }).count()) === 0) {
     await times.getByRole("radio").first().click();

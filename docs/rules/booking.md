@@ -27,7 +27,14 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
   it is "not checked", never "nobody is free". `useOpenSlots` returns one
   function per answer (memoised): callers compare it to see whether the
   hours changed, and a fresh function per render was a render loop that
-  took the wizard and the admin dashboard down. Before this the picker offered 6 AM to midnight every
+  took the wizard and the admin dashboard down. It also returns `loading`
+  until the answer arrives: the wizard and the reschedule picker dim the
+  calendar, say "Checking available times…" and hold the time list back,
+  rather than drawing every hour and narrowing it a moment later (the
+  staging review saw exactly that). After `OPEN_SLOT_WAIT_MS` (6 s) with no
+  answer they stop waiting and offer every hour, as for an unreadable
+  roster. The list is labelled "Available times" when the roster decided
+  it, "Time" when it could not. Before this the picker offered 6 AM to midnight every
   day: a patient booked a Sunday, read "Booking Confirmed", and the clinic
   found out at Assign & Confirm that nobody works Sundays. The pay-later
   success heading now reads **Request received** -- the clinic still

@@ -17,7 +17,10 @@ type TemplateReadRow = { therapist_id: string; day_of_week: number; hour: number
  */
 export async function readOpenSlotStarts(
   admin: SupabaseClient,
-  input: { fromDateKey: string; days: number; durationMinutes: number; nowMs: number }
+  // The length may still be on its way (the route reads it from the
+  // service): it is awaited only when the roster is in hand, so the two
+  // reads overlap instead of queueing.
+  input: { fromDateKey: string; days: number; durationMinutes: number | Promise<number>; nowMs: number }
 ): Promise<number[] | null> {
   try {
     const days = Math.max(1, Math.min(input.days, 120));
@@ -96,7 +99,7 @@ export async function readOpenSlotStarts(
       fromDateKey: input.fromDateKey,
       days,
       therapists: roster,
-      durationMinutes: input.durationMinutes,
+      durationMinutes: await input.durationMinutes,
       nowMs: input.nowMs,
     });
   } catch (err) {

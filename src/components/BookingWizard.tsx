@@ -475,7 +475,10 @@ export default function BookingWizard({
   // The roster's open hours for this service. Until they arrive -- or when
   // they could not be read -- every hour is offered, as before, and the
   // booking route re-checks the one the patient picks.
-  const { isOpen: isSlotOpen, checked: openHoursChecked } = useOpenSlots(nowMs, categoryId || null);
+  const { isOpen: isSlotOpen, checked: openHoursChecked, loading: openHoursLoading } = useOpenSlots(
+    nowMs,
+    categoryId || null
+  );
   // Once the open hours are known, an automatically chosen date nobody can
   // take moves to the first one somebody can, and a chosen hour that is no
   // longer open is cleared rather than kept. A date the patient picked
@@ -1694,6 +1697,7 @@ export default function BookingWizard({
           continuePending={slotChecking}
           isSlotOpen={isSlotOpen}
           openHoursChecked={openHoursChecked}
+          openHoursLoading={openHoursLoading}
         />
       )}
 

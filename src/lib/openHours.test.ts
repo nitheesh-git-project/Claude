@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { openSlotPredicate, openSlotStarts, addDaysToKey, type RosterTherapist } from "./openHours";
-import { zonedSlotMs } from "./bookingSlots";
+import { zonedSlotMs, CLINIC_TIMEZONE } from "./bookingSlots";
+import { assignabilityFromRoster } from "./therapistAssignability";
+import { AVAILABILITY_HOURS } from "./therapistAvailability";
 
 // 2026-11-27 is a Friday, 2026-11-29 a Sunday.
 const weekdays9to5 = [1, 2, 3, 4, 5, 6].flatMap((d) =>
@@ -71,5 +73,59 @@ describe("open hours", () => {
   it("walks calendar days", () => {
     expect(addDaysToKey("2026-11-30", 1)).toBe("2026-12-01");
     expect(addDaysToKey("2026-12-31", 1)).toBe("2027-01-01");
+  });
+});
+
+describe("openSlotStarts gives the assign rule's answer, slot for slot", () => {
+  // The loop shares each therapist's day across its hours for speed; this
+  // pins it to assignabilityFromRoster asked one slot at a time, the way it
+  // was written before, over a roster with every kind of fact in it.
+  it("matches assignabilityFromRoster on a mixed roster", () => {
+    const weekdays: { day_of_week: number; hour: number }[] = [];
+    for (let d = 1; d <= 5; d++) for (let h = 9; h < 18; h++) weekdays.push({ day_of_week: d, hour: h });
+    const evenings = [2, 4, 6].flatMap((d) => [17, 18, 19, 20].map((h) => ({ day_of_week: d, hour: h })));
+    const therapists: RosterTherapist[] = [
+      {
+        id: "a",
+        onLeave: false,
+        template: weekdays,
+        overrides: [
+          { date: "2026-12-01", hour: 10, available: false },
+          { date: "2026-12-06", hour: 11, available: true },
+        ],
+        bookings: [
+          { id: "b1", slot_time: "2026-12-02T04:30:00.000Z", duration_minutes: 60, status: "confirmed" },
+          { id: "b2", slot_time: "2026-12-03T05:00:00.000Z", duration_minutes: 90, status: "requested" },
+          { id: "b3", slot_time: "2026-12-04T04:30:00.000Z", duration_minutes: 60, status: "cancelled" },
+        ],
+      },
+      { id: "b", onLeave: false, template: evenings, overrides: [], bookings: [] },
+      { id: "c", onLeave: true, template: weekdays, overrides: [], bookings: [] },
+      { id: "d", onLeave: false, template: [], overrides: [{ date: "2026-12-07", hour: 8, available: true }], bookings: [] },
+    ];
+    const nowMs = Date.parse("2026-11-30T06:15:00.000Z");
+    const fast = openSlotStarts({ fromDateKey: "2026-11-30", days: 14, therapists, durationMinutes: 60, nowMs });
+    const slow: number[] = [];
+    for (let i = 0; i < 14; i++) {
+      const dateKey = addDaysToKey("2026-11-30", i);
+      for (const hour of AVAILABILITY_HOURS) {
+        const ms = zonedSlotMs(dateKey, hour, CLINIC_TIMEZONE);
+        if (ms === null || ms <= nowMs) continue;
+        const free = therapists.some(
+          (t) =>
+            assignabilityFromRoster({
+              slotTime: new Date(ms).toISOString(),
+              durationMinutes: 60,
+              onLeave: t.onLeave,
+              template: t.template,
+              overrides: t.overrides,
+              bookings: t.bookings,
+            }).length === 0
+        );
+        if (free) slow.push(ms);
+      }
+    }
+    expect(fast.length).toBeGreaterThan(0);
+    expect(fast).toEqual(slow);
   });
 });

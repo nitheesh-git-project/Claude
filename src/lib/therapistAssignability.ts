@@ -64,6 +64,25 @@ export function assignabilityReasons(input: {
   return reasons;
 }
 
+export type RosterBooking = { id: string; slot_time: string | null; duration_minutes: number | null; status: string };
+
+/** Whether any of a therapist's live sessions overlaps [startMs, endMs). One
+ *  rule for every roster reader -- the assign dialog and the open-hours
+ *  picker (openHours.ts) -- so the two can never disagree about a clash. */
+export function bookingOverlaps(
+  bookings: readonly RosterBooking[],
+  startMs: number,
+  endMs: number,
+  excludeAppointmentId?: string
+): boolean {
+  return bookings.some((b) => {
+    if (b.id === excludeAppointmentId || b.status === "cancelled" || !b.slot_time) return false;
+    const otherStart = new Date(b.slot_time).getTime();
+    const otherEnd = otherStart + (b.duration_minutes ?? BASE_DURATION_MINUTES) * 60_000;
+    return startMs < otherEnd && otherStart < endMs;
+  });
+}
+
 /**
  * The same judgement as `checkTherapistAssignable`, over rows a screen has
  * already loaded rather than a fresh read -- the admin dashboard has the
@@ -103,12 +122,7 @@ export function assignabilityFromRoster(input: {
   const bufferMs = Math.max(0, input.bufferMinutes ?? 0) * 60_000;
   const start = slotMs - bufferMs;
   const end = slotMs + (input.durationMinutes ?? BASE_DURATION_MINUTES) * 60_000 + bufferMs;
-  const alreadyBooked = input.bookings.some((b) => {
-    if (b.id === input.excludeAppointmentId || b.status === "cancelled" || !b.slot_time) return false;
-    const otherStart = new Date(b.slot_time).getTime();
-    const otherEnd = otherStart + (b.duration_minutes ?? BASE_DURATION_MINUTES) * 60_000;
-    return start < otherEnd && otherStart < end;
-  });
+  const alreadyBooked = bookingOverlaps(input.bookings, start, end, input.excludeAppointmentId);
   return assignabilityReasons({
     onLeave: input.onLeave,
     leaveFrom: input.leaveFrom,
