@@ -9,6 +9,7 @@ import {
   dueReminder,
   cancelRefundOf,
   cancellationIsWorthEmailing,
+  payLaterDeclinedEmail,
   sessionModeOf,
   GET_READY_LINE,
   type BookingFacts,
@@ -26,6 +27,16 @@ const facts: BookingFacts = {
 };
 
 describe("booking emails", () => {
+  it("tell a patient why pay-later was declined, keeping the date's case, and escape the reason", () => {
+    const e = payLaterDeclinedEmail(brand, { ...facts, reason: "  Please settle the <two> sessions you owe first  " });
+    expect(e.subject).toBe("About paying later for 24 Nov 2026, 6:00 pm IST");
+    expect(e.text).toContain('The clinic said: "Please settle the <two> sessions you owe first"');
+    expect(e.text).toContain("Your 45-minute video session on 24 Nov 2026, 6:00 pm IST is still held for you");
+    expect(e.html).toContain("&lt;two&gt;");
+    expect(e.html).not.toContain("<two>");
+    expect(e.html).toContain("Pay from my dashboard");
+  });
+
   it("confirm the session, its time, who and what was paid, and escape what was typed", () => {
     const e = bookingConfirmedEmail(brand, facts);
     expect(e.subject).toBe("Booked: your video session on 24 Nov 2026, 6:00 pm IST");

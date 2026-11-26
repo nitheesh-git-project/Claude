@@ -8,6 +8,7 @@ import { claimTherapistSlot, describeClaimFailure } from "@/lib/claimTherapistSl
 import { checkTherapistAssignable, unassignableBody } from "@/lib/therapistAssignability";
 import { announceConfirmedSession, VISIT_COLUMNS, type VisitRow } from "@/lib/announceConfirmedSession";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
+import { queueAppointmentEmail } from "@/lib/appointmentEmailServer";
 
 /** Ten characters, the same floor the pay-later grant and a rejected payment use. */
 const MIN_REASON = 10;
@@ -88,6 +89,8 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
     if (error) return serverError("admin/pay-later-approval", error);
     if (!claimed) return NextResponse.json({ error: "Somebody else decided this a moment ago." }, { status: 409 });
+    // The patient hears why, and that the time is still theirs if they pay.
+    queueAppointmentEmail(appointmentId, "pay_later_declined");
     await recordAdminActivity(admin, adminUser.id, {
       action: "pay_later.decline_booking",
       targetId: appointmentId,

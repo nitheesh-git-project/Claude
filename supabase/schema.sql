@@ -21663,3 +21663,11 @@ create index if not exists appointments_pay_later_approval_pending_idx
   on appointments (created_at) where pay_later_approval = 'pending';
 
 alter table site_settings add column if not exists pay_later_approval_required boolean not null default true;
+
+-- A declined pay-later booking emails the patient (once, like every booking
+-- email): the clinic's reason, and that the session is still theirs if they
+-- pay online. The event list is widened here, in the newest place, rather
+-- than by editing the constraint above.
+alter table appointment_emails drop constraint if exists appointment_emails_event_check;
+alter table appointment_emails add constraint appointment_emails_event_check
+  check (event in ('received', 'confirmed', 'cancelled', 'reminder_24h', 'reminder_1h', 'pay_later_declined'));

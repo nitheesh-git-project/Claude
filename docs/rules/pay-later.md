@@ -44,7 +44,10 @@ A trusted patient treated first and settling afterwards: the grant, the booking 
   re-checked, when a therapist is on it -- or declines with a reason of ten
   characters (a CHECK) and puts the booking back on `prepaid` terms so the
   patient pays online. Both claim on `pending`, so two admins cannot decide
-  one booking twice. Rows from before approval existed carry null and
+  one booking twice. A decline emails the patient once
+  (`pay_later_declined` in `appointment_emails`, `payLaterDeclinedEmail`):
+  the clinic's reason, and that the time is still held if they pay online.
+  Email only -- a WhatsApp message would need a Meta-approved template. Rows from before approval existed carry null and
   confirm as they always did. The switch is **Approve each pay-later booking**
   on Money -> Patients owe (`PayLaterApprovalSwitch`, settings scope),
   beside the master switch; turning it off approves nothing already waiting.
