@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useTransition } from "react";
 import AdminSlotPicker, { earliestSlot, slotToMs } from "@/components/admin/AdminSlotPicker";
+import { useOpenSlots } from "@/lib/useOpenSlots";
+import type { SlotOpenCheck } from "@/lib/bookingSlots";
 import { leadTimeMsFromHours } from "@/lib/bookingSlots";
 import { useRouter } from "@/lib/useRouter";
 import { useUnloadWarning } from "@/lib/useUnloadWarning";
@@ -75,6 +77,17 @@ export default function AdminNewBookingTab({
     setSlot(earliestSlot(now, leadTimeMsFromHours(leadTimeHours)));
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [leadTimeHours]);
+  // Only hours a therapist can take (openHours.ts) -- the patient's own
+  // picker's rule. Book a session used to offer a Sunday nobody works.
+  const { isOpen: isSlotOpen } = useOpenSlots(nowMs, categoryId || null);
+  const [appliedOpenHours, setAppliedOpenHours] = useState<SlotOpenCheck>(null);
+  if (isSlotOpen !== appliedOpenHours) {
+    setAppliedOpenHours(isSlotOpen);
+    const chosenMs = slotToMs(slot.dateKey, slot.hour);
+    if (isSlotOpen && chosenMs !== null && !isSlotOpen(chosenMs)) {
+      setSlot({ dateKey: slot.dateKey, hour: null });
+    }
+  }
   const [notes, setNotes] = useState("");
   const [paymentMode, setPaymentMode] = useState<"unpaid" | "paid_offline">("unpaid");
   const [overrideLeadTime, setOverrideLeadTime] = useState(false);
@@ -226,6 +239,7 @@ export default function AdminNewBookingTab({
             onChange={setSlot}
             nowMs={nowMs}
             leadTimeMs={overrideLeadTime ? 0 : leadTimeMsFromHours(leadTimeHours)}
+            isSlotOpen={isSlotOpen}
           />
         )}
 

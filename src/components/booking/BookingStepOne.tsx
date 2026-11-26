@@ -6,6 +6,7 @@ import SelectableChipGroup from "@/components/booking/SelectableChipGroup";
 import {
   bookableHoursForDate,
   leadTimeMsFromHours,
+  type SlotOpenCheck,
   formatDateKeyLong,
 } from "@/lib/bookingSlots";
 import { formatHourRange } from "@/lib/therapistAvailability";
@@ -39,6 +40,8 @@ export default function BookingStepOne({
   confirmationHours,
   onContinue,
   continuePending = false,
+  isSlotOpen = null,
+  openHoursChecked = false,
 }: {
   /** The service picker, rendered first. Taken as a node rather than as
    *  catalogue props so this component stays a screen of scheduling
@@ -78,10 +81,15 @@ export default function BookingStepOne({
   onContinue: () => void;
   /** The time is being checked against the patient's own sessions. */
   continuePending?: boolean;
+  /** Which slot starts a therapist can take (useOpenSlots). Null: not
+   *  checked, and every hour that clears the lead time is offered. */
+  isSlotOpen?: SlotOpenCheck;
+  /** Whether the hours on screen are the roster's, so the screen can say so. */
+  openHoursChecked?: boolean;
 }) {
   const reduceMotion = useReducedMotion();
   const leadTimeMs = leadTimeMsFromHours(leadTimeHours);
-  const hours = dateKey ? bookableHoursForDate(dateKey, nowMs, leadTimeMs) : [];
+  const hours = dateKey ? bookableHoursForDate(dateKey, nowMs, leadTimeMs, isSlotOpen) : [];
   // The first unanswered thing, said next to the disabled Continue. Null
   // means the patient may go on.
   const blocker = stepOneBlocker({
@@ -120,6 +128,7 @@ export default function BookingStepOne({
           onSelect={onDateChange}
           nowMs={nowMs}
           leadTimeMs={leadTimeMs}
+          isSlotOpen={isSlotOpen}
           autoSelected={autoPicked.date}
         />
         {dateKey && (
@@ -139,6 +148,9 @@ export default function BookingStepOne({
             <div>
               <p id="booking-time-label" className="block font-semibold mb-1.5 text-slate-900">
                 Time
+                {openHoursChecked && (
+                  <span className="font-normal text-sm text-slate-600"> (only times a physiotherapist is free)</span>
+                )}
               </p>
               <SelectableChipGroup
                 idPrefix="booking-hour"

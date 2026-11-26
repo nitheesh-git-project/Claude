@@ -10,6 +10,24 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
 
 ---
 
+- **A picker offers only hours a therapist can take.** The patient's wizard
+  and admin Book a session ask `GET /api/appointments/open-hours`
+  (`?from=YYYY-MM-DD&days=&categoryId=`, public, rate-limited `openHours`,
+  fails open) through `useOpenSlots`, which answers instants from
+  `readOpenSlotStarts` (`openHoursServer.ts`): an hour is open when at least
+  one approved, active therapist passes `assignabilityFromRoster` for it --
+  the very rule Assign & Confirm applies (on leave, no schedule, not working
+  that hour, already booked). The grid helpers in `bookingSlots.ts` take an
+  optional `SlotOpenCheck`; absent or null is "not checked" and offers every
+  hour that clears the lead time, which is how they behaved before.
+  `/api/appointments/create` re-checks the chosen instant and refuses a
+  closed one (409 `slot_not_open`); a roster it could not read lets the
+  booking through. Before this the picker offered 6 AM to midnight every
+  day: a patient booked a Sunday, read "Booking Confirmed", and the clinic
+  found out at Assign & Confirm that nobody works Sundays. The pay-later
+  success heading now reads **Request received** -- the clinic still
+  confirms the time. `openHours.test.ts` pins the rule.
+
 - **A patient holds one session at a time, and the database says so.**
   `/api/appointments/create` checks for an overlapping live session for
   immediate feedback, but a check and an insert two statements apart let two

@@ -17,6 +17,7 @@ import {
   zonedSlotMs,
   zonedSlotParts,
   zoneLabel,
+  type SlotOpenCheck,
 } from "@/lib/bookingSlots";
 import { formatHourRange } from "@/lib/therapistAvailability";
 
@@ -54,6 +55,7 @@ export default function AdminSlotPicker({
   leadTimeMs = BOOKING_LEAD_TIME_MS,
   startOpen = false,
   timeZone = CLINIC_TIMEZONE,
+  isSlotOpen = null,
 }: {
   dateKey: string;
   hour: number | null;
@@ -76,19 +78,26 @@ export default function AdminSlotPicker({
   startOpen?: boolean;
   /** The zone the hours are in: the booking's own, else the clinic's. */
   timeZone?: string | null;
+  /** Which real slot starts a therapist can take (useOpenSlots). Null: not
+   *  checked, and every hour that clears the lead time is offered. */
+  isSlotOpen?: SlotOpenCheck;
 }) {
   const [open, setOpen] = useState(startOpen);
   // "Now" as the zone's wall clock, so the lead time and "today" are judged
   // there rather than in the browser's zone.
   const wallNowMs = wallClockMs(nowMs, timeZone);
+  // The grid judges slots on the shifted clock, so a real instant is the
+  // shifted one moved back by the same offset before it is looked up.
+  const shift = wallNowMs - nowMs;
+  const openOnGrid: SlotOpenCheck = isSlotOpen ? (shiftedMs: number) => isSlotOpen(shiftedMs - shift) : null;
 
-  const hours = dateKey ? bookableHoursForDate(dateKey, wallNowMs, leadTimeMs) : [];
+  const hours = dateKey ? bookableHoursForDate(dateKey, wallNowMs, leadTimeMs, openOnGrid) : [];
 
   function selectDate(nextDateKey: string) {
     // Keep the hour when the new date still offers it; otherwise fall to that
     // day's earliest bookable one rather than silently keeping a time the
     // lead-time rule has just ruled out.
-    const nextHours = bookableHoursForDate(nextDateKey, wallNowMs, leadTimeMs);
+    const nextHours = bookableHoursForDate(nextDateKey, wallNowMs, leadTimeMs, openOnGrid);
     const keep = hour !== null && nextHours.includes(hour) ? hour : (nextHours[0] ?? null);
     onChange({ dateKey: nextDateKey, hour: keep });
   }
@@ -123,6 +132,7 @@ export default function AdminSlotPicker({
             selectedDateKey={dateKey}
             onSelect={selectDate}
             nowMs={wallNowMs}
+            isSlotOpen={openOnGrid}
             leadTimeMs={leadTimeMs}
             autoSelected={false}
           />

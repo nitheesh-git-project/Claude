@@ -57,13 +57,23 @@ export function slotStartMs(dateKey: string, hour: number): number {
   return new Date(`${dateKey}T${String(hour).padStart(2, "0")}:00`).getTime();
 }
 
+/**
+ * Whether a slot (by its start instant) is one a therapist can take --
+ * openHours.ts. Optional everywhere below: absent or null means "not
+ * checked", and every hour that clears the lead time is offered, which is how
+ * the pickers behaved before the roster was consulted.
+ */
+export type SlotOpenCheck = ((slotStartMs: number) => boolean) | null | undefined;
+
 export function isSlotBookable(
   dateKey: string,
   hour: number,
   nowMs: number,
-  leadTimeMs: number = BOOKING_LEAD_TIME_MS
+  leadTimeMs: number = BOOKING_LEAD_TIME_MS,
+  isOpen?: SlotOpenCheck
 ): boolean {
-  return slotStartMs(dateKey, hour) >= nowMs + leadTimeMs;
+  const start = slotStartMs(dateKey, hour);
+  return start >= nowMs + leadTimeMs && (!isOpen || isOpen(start));
 }
 
 // The hours on `dateKey` that clear the lead-time rule. Returned in the
@@ -72,9 +82,10 @@ export function isSlotBookable(
 export function bookableHoursForDate(
   dateKey: string,
   nowMs: number,
-  leadTimeMs: number = BOOKING_LEAD_TIME_MS
+  leadTimeMs: number = BOOKING_LEAD_TIME_MS,
+  isOpen?: SlotOpenCheck
 ): number[] {
-  return AVAILABILITY_HOURS.filter((hour) => isSlotBookable(dateKey, hour, nowMs, leadTimeMs));
+  return AVAILABILITY_HOURS.filter((hour) => isSlotBookable(dateKey, hour, nowMs, leadTimeMs, isOpen));
 }
 
 // A date is offerable exactly when at least one of its slots clears the
@@ -83,9 +94,10 @@ export function bookableHoursForDate(
 export function isDateBookable(
   dateKey: string,
   nowMs: number,
-  leadTimeMs: number = BOOKING_LEAD_TIME_MS
+  leadTimeMs: number = BOOKING_LEAD_TIME_MS,
+  isOpen?: SlotOpenCheck
 ): boolean {
-  return AVAILABILITY_HOURS.some((hour) => isSlotBookable(dateKey, hour, nowMs, leadTimeMs));
+  return AVAILABILITY_HOURS.some((hour) => isSlotBookable(dateKey, hour, nowMs, leadTimeMs, isOpen));
 }
 
 // First date (scanning forward from today) with any bookable slot. Returns
@@ -93,12 +105,13 @@ export function isDateBookable(
 // caller must treat as "no availability" rather than assuming a date.
 export function earliestBookableDateKey(
   nowMs: number,
-  leadTimeMs: number = BOOKING_LEAD_TIME_MS
+  leadTimeMs: number = BOOKING_LEAD_TIME_MS,
+  isOpen?: SlotOpenCheck
 ): string | null {
   const cursor = new Date(nowMs);
   for (let i = 0; i < MAX_LOOKAHEAD_DAYS; i++) {
     const key = toDateKey(cursor);
-    if (isDateBookable(key, nowMs, leadTimeMs)) return key;
+    if (isDateBookable(key, nowMs, leadTimeMs, isOpen)) return key;
     cursor.setDate(cursor.getDate() + 1);
     cursor.setHours(0, 0, 0, 0);
   }
@@ -170,7 +183,8 @@ export function buildCalendarMonth(
   month: number,
   nowMs: number,
   leadTimeMs: number = BOOKING_LEAD_TIME_MS,
-  bounds?: DateBounds
+  bounds?: DateBounds,
+  isOpen?: SlotOpenCheck
 ): CalendarMonth {
   const first = new Date(year, month, 1);
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -184,7 +198,7 @@ export function buildCalendarMonth(
       dayOfMonth: day,
       bookable: bounds
         ? isDateWithinBounds(dateKey, bounds)
-        : isDateBookable(dateKey, nowMs, leadTimeMs),
+        : isDateBookable(dateKey, nowMs, leadTimeMs, isOpen),
       isToday: dateKey === todayKey,
     });
   }
@@ -240,9 +254,10 @@ export function isMonthEntirelyUnbookable(
   month: number,
   nowMs: number,
   leadTimeMs: number = BOOKING_LEAD_TIME_MS,
-  bounds?: DateBounds
+  bounds?: DateBounds,
+  isOpen?: SlotOpenCheck
 ): boolean {
-  return !buildCalendarMonth(year, month, nowMs, leadTimeMs, bounds).cells.some(
+  return !buildCalendarMonth(year, month, nowMs, leadTimeMs, bounds, isOpen).cells.some(
     (c) => c?.bookable
   );
 }
