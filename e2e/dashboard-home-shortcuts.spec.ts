@@ -170,3 +170,27 @@ test("HS-006: each therapist tab opens with its answer", async ({ page }) => {
   await page.getByRole("navigation", { name: "On this page" }).getByRole("link", { name: "Credentials" }).click();
   await expect(page.locator("#credentials")).toBeInViewport();
 });
+
+// A new patient has no Sessions entry. The phone bar used to be Home, Book,
+// My progress, More: four slots, so the raised Book button sat second of
+// four and its label lower than the others. Now a stand-in fills the gap,
+// Book is in the exact middle of five, and every label starts on one line.
+test("HS-007: a new patient's phone tab bar keeps Book in the middle, labels in line", async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.setViewportSize({ width: 360, height: 780 });
+  await page.context().addCookies(await browserCookiesFor(fresh.email));
+  await page.goto(`${BASE}/patient/dashboard`, { waitUntil: "domcontentloaded" });
+  await waitForSplashToClear(page);
+  const bar = page.locator("[data-tabbar]").filter({ visible: true });
+  await expect(bar).toBeVisible({ timeout: 60_000 });
+  const entries = bar.locator(":scope > a, :scope > button");
+  await expect(entries).toHaveCount(5);
+  const book = bar.getByRole("link", { name: "Book a Session" });
+  const [barBox, bookBox] = [await bar.boundingBox(), await book.boundingBox()];
+  expect(Math.abs(bookBox!.x + bookBox!.width / 2 - (barBox!.x + barBox!.width / 2))).toBeLessThanOrEqual(1);
+  // Every label's first line starts at the same height.
+  const tops = await entries.evaluateAll((els) =>
+    els.map((el) => Math.round(el.querySelector("[data-tab-label]")!.getBoundingClientRect().top))
+  );
+  expect(new Set(tops).size, `label tops ${tops.join(",")}`).toBe(1);
+});

@@ -26,30 +26,54 @@ export const MAX_TABS = 4;
  * (a patient with no sessions yet has no Sessions entry -- see
  * buildPatientNavItems) is skipped rather than leaving a hole, and the
  * centre id only counts if its entry made it onto the bar.
+ *
+ * A raised centre action (Book, Refer) has to sit in the middle, and with
+ * More on the end that needs an odd number of slots: two entries or four,
+ * never three. A bar a missing entry left at three borrows the first of
+ * `fallbackIds` that exists, in the gap's place; with none to borrow it
+ * gives up its last other entry to More instead. Without a centre action
+ * the columns simply share the width, however many there are.
  */
 export function splitTabs<T extends TabbableItem>(
   items: T[],
   tabIds: string[],
-  centerId?: string | null
+  centerId?: string | null,
+  fallbackIds: string[] = []
 ): TabSplit<T> {
   const byId = new Map(items.map((item) => [item.id, item]));
   const tabs: T[] = [];
+  let gapAt = -1;
   for (const id of tabIds) {
+    if (tabs.length === MAX_TABS) break;
     const item = byId.get(id);
     if (item && !tabs.includes(item)) tabs.push(item);
-    if (tabs.length === MAX_TABS) break;
+    else if (!item && gapAt === -1) gapAt = tabs.length;
+  }
+  let center = centerId && tabs.some((t) => t.id === centerId) ? centerId : null;
+  if (center && tabs.length % 2 === 1) {
+    const stand = fallbackIds
+      .map((id) => byId.get(id))
+      .find((item): item is T => !!item && !tabs.includes(item));
+    if (stand) {
+      tabs.splice(gapAt === -1 ? tabs.length : gapAt, 0, stand);
+    } else if (tabs.length > 1) {
+      let last = tabs.length - 1;
+      while (last >= 0 && tabs[last].id === center) last--;
+      if (last >= 0) tabs.splice(last, 1);
+    }
+  }
+  // Alone beside More there is no middle to raise it into: an ordinary tab.
+  if (center && tabs.length === 1) center = null;
+  // Moved to the middle whatever order the ids were given in, so a missing
+  // entry elsewhere cannot push it sideways.
+  if (center && tabs.length % 2 === 0) {
+    const mid = tabs.length / 2;
+    const at = tabs.findIndex((t) => t.id === center);
+    const [c] = tabs.splice(at, 1);
+    tabs.splice(mid, 0, c);
   }
   const onBar = new Set(tabs.map((t) => t.id));
   const more = items.filter((item) => !onBar.has(item.id));
-  const center = centerId && onBar.has(centerId) ? centerId : null;
-  // A centre action sits in the middle of the bar, so with More on the end
-  // it belongs at index 2 of a full bar -- moved there whatever order the
-  // ids were given in, so a missing entry elsewhere cannot push it sideways.
-  if (center && tabs.length === MAX_TABS) {
-    const at = tabs.findIndex((t) => t.id === center);
-    const [c] = tabs.splice(at, 1);
-    tabs.splice(2, 0, c);
-  }
   return { tabs, centerId: center, more };
 }
 
