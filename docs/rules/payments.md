@@ -450,7 +450,15 @@ Razorpay verification, the one capture path, booking idempotency, every refund s
     The markup stays with the clinic. A rupee booking, or a row priced before
     the columns existed, is unchanged. The facts reach every reader through
     `readFrozenTherapistRates` / `frozenShareFacts` and, on the admin page,
-    `readAllShareBases`. Every route that prices a booking threads
+    `readAllShareBases`.
+  - **System Health checks the price.** `pricingFindings` (`pricingHealth.ts`,
+    tested), read by `loadAccountingHealth`, lists **Prices that don't add up**:
+    a booking priced abroad in the last 180 days whose charge is below its
+    Indian price plus markup, or more than a quarter above it (rounding up to
+    .99 in a high-value currency stays inside that), one whose facts were not
+    recorded, or one whose patient's account is Indian. It feeds the
+    accounting card's count and headline, so the screen no longer reads
+    "Everything adds up" past the staging finding. Report only, never repair. Every route that prices a booking threads
     it into `resolveCheckoutQuote` - quote, create, create-order,
     confirm-free, confirm-pay-later, and the promo preview - so the quote,
     the order and a free confirmation cannot disagree; the online care-plan
