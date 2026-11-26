@@ -7,6 +7,9 @@ import { renderPatientSessionCard } from "@/components/patient/PatientSessionCar
 import { loadPatientDashboard } from "@/lib/patientDashboardData";
 import { patientSessionStatus } from "@/lib/sessionRowStatus";
 import { BOOKING_FROM_DASHBOARD } from "@/components/BookingBackToSessions";
+import TabSummary from "@/components/dashboard/TabSummary";
+import { sessionsSummary } from "@/lib/tabSummaries";
+import { formatSlotTime } from "@/lib/formatSlotTime";
 
 export const metadata: Metadata = {
   title: "Your Sessions | MoveRestore",
@@ -41,12 +44,37 @@ export default async function Page() {
     d.appointments.map((a) => [a.id, renderPatientSessionCard(d, a, d.visitDetailById.get(a.id) ?? null)])
   );
 
+  // The answer first: when is the next one, and how many are ahead / done.
+  // Counted by the list's own rule (sessionBucket), so the two never disagree.
+  const summary = sessionsSummary(sessions, d.nowMs);
+  const nextAppt = summary.next ? d.appointments.find((a) => a.id === summary.next!.id) ?? null : null;
+  const nextIsHome = nextAppt ? d.visitDetailById.get(nextAppt.id)?.visit_mode === "home_visit" : false;
+  const nextWith = nextAppt?.therapist_id ? d.therapistMap.get(nextAppt.therapist_id) ?? null : null;
+
   return (
     <PatientDashboardShell
       data={d}
       title="Your Sessions"
       subtitle="Every session you have booked - video consultations and home visits together."
     >
+      <TabSummary
+        testId="sessions-summary"
+        eyebrow="Your next session"
+        tone={nextAppt ? "hero" : "plain"}
+        title={nextAppt ? formatSlotTime(nextAppt.slot_time, nextAppt.timezone) : "Nothing coming up"}
+        detail={
+          nextAppt
+            ? [nextAppt.concern ?? "General Consultation", nextIsHome ? "Home visit" : "Video consultation", nextWith ?? "Physiotherapist not yet assigned"].join(" · ")
+            : "Book a session and it shows up here with your joining details."
+        }
+        action={nextAppt ? null : { label: "Book a session", href: BOOKING_FROM_DASHBOARD, icon: "fa-plus" }}
+        secondary={nextAppt ? { label: "Book another", href: BOOKING_FROM_DASHBOARD, icon: "fa-plus" } : null}
+        facts={[
+          { label: "Upcoming", value: String(summary.upcoming), tone: "teal" },
+          { label: "Done", value: String(summary.done), tone: "green" },
+          { label: "Cancelled", value: String(summary.cancelled), tone: "slate" },
+        ]}
+      />
       <SurfaceCard
         title="Your Sessions"
         info="card:session-status"

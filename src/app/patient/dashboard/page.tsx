@@ -9,7 +9,7 @@ import SessionRecapCard from "@/components/patient/SessionRecapCard";
 import { StripProgress } from "@/components/dashboard/StatStrip";
 import { loadPatientDashboard } from "@/lib/patientDashboardData";
 import { formatSlotTime } from "@/lib/formatSlotTime";
-import { BOOKING_FROM_DASHBOARD } from "@/components/BookingBackToSessions";
+import PatientHomeLead from "@/components/patient/PatientHomeLead";
 import { noNextSessionHeadline } from "@/lib/patientOverviewCopy";
 import JoinSessionButton from "@/components/JoinSessionButton";
 import { formatSessionWhen } from "@/lib/sessionWhenLabel";
@@ -149,6 +149,7 @@ export default async function PatientDashboardPage() {
             )}
           </>
         }
+        lead={<PatientHomeLead programme={d.homeProgramme} sameAgain={d.homeSameAgain} />}
         cells={d.overviewCells}
         stripFooter={
           d.intakeGate.canEdit ? (
@@ -161,13 +162,9 @@ export default async function PatientDashboardPage() {
         feed={d.patientFeed}
         feedEmptyBody="Bookings, payments and health-profile updates show up here as they happen."
         actions={[
-          {
-            label: "Book a session",
-            hint: "Video or home visit",
-            icon: "fa-plus",
-            href: BOOKING_FROM_DASHBOARD,
-            primary: true,
-          },
+          // Booking itself is the lead above (programme, "Same again?",
+          // Something new, Chat to book); repeating it here was a second
+          // copy of the same button. These are the next places a patient goes.
           {
             label: !d.intakeGate.canEdit
               ? "See your health profile"

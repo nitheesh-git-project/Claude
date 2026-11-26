@@ -69,7 +69,11 @@ test("PU-001: a past confirmed session is Past on the list and not coming up on 
   }).toPass({ timeout: 30_000 });
   await expect(page.getByText(/Showing sessions for/)).toBeVisible();
   // Whichever month the seeded slot fell in, nothing about it is "coming up".
-  await expect(page.getByText(/coming up/)).toHaveCount(0);
+  // The tab's summary card above the list agrees, and says so in those
+  // words ("Nothing coming up") -- the one place the phrase may appear.
+  const summary = page.getByTestId("sessions-summary").filter({ visible: true });
+  await expect(summary.getByText("Nothing coming up")).toBeVisible();
+  await expect(page.getByText(/coming up/)).toHaveCount(1);
 });
 
 test("PU-002: a returning patient with nothing ahead is told so, not that nothing was ever booked", async ({

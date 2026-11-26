@@ -6,10 +6,11 @@ import { usePendingWork } from "@/lib/pendingWork";
 /**
  * Feedback for a navigation the browser performs, not React.
  *
- * The patient, therapist and hospital dashboards move between sections with
- * plain anchors rather than `next/link` -- a deliberate choice documented in
- * `DashboardShell`, because client-side transitions into a differently-
- * chromed route were silently not completing. The cost of it is that nothing
+ * Links that leave a dashboard's chrome (Back to Home, another role's page)
+ * are plain anchors rather than `next/link` -- a deliberate choice documented
+ * in `DashboardShell`, because client-side transitions into a differently-
+ * chromed route were silently not completing. (Tabs of the same dashboard
+ * are prefetched `ProgressLink`s now, and report through `useLinkStatus`.) The cost of it is that nothing
  * in React ever learns a navigation started: `useRouter` is not involved,
  * `useLinkStatus` is not involved, and the person sits on the old screen
  * with no acknowledgement at all until the new document paints. That is the

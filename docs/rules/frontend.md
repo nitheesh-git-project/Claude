@@ -271,7 +271,12 @@ Dates in the clinic's zone, voice, no browser default ever speaking to a person,
     `pageshow`, because a bfcache restore brings the page back exactly as it
     was, bar included.
   - `ProgressLink` (`src/components/system/ProgressLink.tsx`) does the same
-    for real `<Link>` navigations, which the public Navbar uses. Next's
+    for real `<Link>` navigations, which the public Navbar uses -- and, since
+    the tabs were made instant, every `DashboardShell` entry for a screen of
+    the *same* dashboard (see `dashboards.md`, "Switching tabs is instant").
+    Those are prefetched, so the reporter usually resolves inside the bar's
+    appear delay and draws nothing; `useLeavingPage` is kept for the entries
+    that leave the chrome (Back to Home, another role's page). Next's
     `useLinkStatus` only works *inside* a Link, so the reporter is a child
     component rendering nothing rather than a hook the wrapper could call.
   **And the wait is the word-roll loader: over the old page while the next

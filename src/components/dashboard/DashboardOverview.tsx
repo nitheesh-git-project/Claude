@@ -30,6 +30,7 @@ export default function DashboardOverview({
   banner,
   greeting,
   headline,
+  lead,
   brief,
   cells,
   stripFooter,
@@ -49,6 +50,10 @@ export default function DashboardOverview({
   /** One sentence naming the single most important fact right now - the
    *  next session, the next payout, the queue that is longest. */
   headline?: ReactNode;
+  /** Right under the headline, full width: the patient's Home shortcuts
+   *  (programme, "Same again?", Book / Chat to book). Read before the
+   *  figures because it is what most patients come to Home to do. */
+  lead?: ReactNode;
   cells: StatCell[];
   stripFooter?: ReactNode;
   feed: FeedItem[];
@@ -92,6 +97,8 @@ export default function DashboardOverview({
           )}
         </div>
       )}
+
+      {lead && <div className="ov-lead">{lead}</div>}
 
       {brief && <div className="ov-brief">{brief}</div>}
 

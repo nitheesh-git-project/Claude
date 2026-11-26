@@ -1940,7 +1940,7 @@ export default function BookingWizard({
 
           {/* Pinned to the bottom of a phone screen: step 2 is a long form,
               and the way forward should not be below it. */}
-          <div className="sticky bottom-0 z-10 -mx-5 flex gap-3 border-t border-slate-100 bg-white/95 px-5 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0 sm:pt-1 sm:backdrop-blur-none">
+          <div data-notebook-avoid="" className="sticky bottom-0 z-10 -mx-5 flex gap-3 border-t border-slate-100 bg-white/95 px-5 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0 sm:pt-1 sm:backdrop-blur-none">
             <button
               onClick={() => setStep(1)}
               className="w-1/3 min-h-12 bg-slate-200 hover:bg-slate-300 text-slate-800 text-base font-bold py-3.5 rounded-xl transition"
@@ -2135,7 +2135,7 @@ export default function BookingWizard({
           </p>
           {/* Pinned on a phone, so the amount and Pay are in view while the
               summary above is read. */}
-          <div className="sticky bottom-0 z-10 -mx-5 flex gap-3 border-t border-slate-100 bg-white/95 px-5 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0 sm:pt-1 sm:backdrop-blur-none">
+          <div data-notebook-avoid="" className="sticky bottom-0 z-10 -mx-5 flex gap-3 border-t border-slate-100 bg-white/95 px-5 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0 sm:pt-1 sm:backdrop-blur-none">
             <button
               onClick={() => {
                 // Going back to change details abandons the current unpaid

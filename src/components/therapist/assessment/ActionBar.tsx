@@ -63,7 +63,7 @@ export default function ActionBar({
   keyHint?: string;
 }) {
   return (
-    <div className="sticky bottom-0 z-20 -mx-3 space-y-1.5 bg-slate-50 px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 sm:-mx-1 sm:px-1">
+    <div data-notebook-avoid="" className="sticky bottom-0 z-20 -mx-3 space-y-1.5 bg-slate-50 px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 sm:-mx-1 sm:px-1">
       {screen && <ScreenRow screen={screen} />}
       <div role="group" aria-label="Step actions" className="flex gap-2 rounded-2xl border border-slate-200 bg-white p-2 sm:gap-2.5 sm:p-3">
         <button

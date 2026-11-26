@@ -1,3 +1,5 @@
+import TabSummary, { JumpChips } from "@/components/dashboard/TabSummary";
+import { formatInr } from "@/lib/formatMoney";
 import type { Metadata } from "next";
 import TherapistPayoutReceiptsSection from "@/components/TherapistPayoutReceiptsSection";
 import TherapistDashboardShell from "@/components/therapist/TherapistDashboardShell";
@@ -31,6 +33,45 @@ export default async function Page() {
         </div>
       ) : (
       <>
+      {/* What is owed, said once at the top -- the same figure, to the paisa,
+          as Home's "Owed to you" and the Pending Payout below (all three read
+          pendingOwedPaise). Inside the loaded branch only: money is shown
+          whole or not at all. */}
+      <TabSummary
+        testId="earnings-summary"
+        eyebrow="Owed to you"
+        tone="hero"
+        title={formatInr(d.pendingOwedPaise)}
+        detail={
+          d.requestStatus === "none"
+            ? "Not yet requested. Request a payout below when you're ready."
+            : d.requestStatus === "reviewing"
+              ? "Your payout request is under review."
+              : "Your payout request has been sent."
+        }
+        facts={[
+          ...(d.profile?.revenue_share_percent !== null && d.profile?.revenue_share_percent !== undefined
+            ? [{ label: "Your share", value: `${d.profile.revenue_share_percent}%`, tone: "teal" as const }]
+            : []),
+          {
+            label: "Rating",
+            value: d.ownRating.average === null ? "None yet" : d.ownRating.average.toFixed(1),
+            note:
+              d.ownRating.average === null
+                ? undefined
+                : `${d.ownRating.count} ${d.ownRating.count === 1 ? "rating" : "ratings"}${d.profile?.rating_visible === false ? " · hidden from public pages" : ""}`,
+            tone: "amber" as const,
+          },
+          { label: "Payouts settled", value: String(d.payoutReceipts.length), tone: "green" as const },
+        ]}
+      />
+      <JumpChips
+        className=""
+        items={[
+          { id: "earnings", label: "Earnings" },
+          { id: "receipts", label: "Payouts" },
+        ]}
+      />
       <div id="earnings" className="mt-8">
         <TherapistEarningsTab
           rows={d.earningRows}
