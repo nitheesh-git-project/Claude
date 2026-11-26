@@ -21686,3 +21686,17 @@ alter table patient_package_purchases add column if not exists pricing_currency 
   check (pricing_currency is null or pricing_currency ~ '^[A-Z]{3}$');
 alter table patient_package_purchases add column if not exists pricing_markup_percent numeric(6, 2)
   check (pricing_markup_percent is null or pricing_markup_percent between 0 and 500);
+
+-- ---------------------------------------------------------------------------
+-- A patient moves their own session (owner's decisions): up to
+-- patient_reschedule_cutoff_hours before it (default 24, 1-168), once per
+-- booking, to any hour some therapist can take. The session goes back to
+-- `requested` with nobody on it, its calendar event is removed, and the
+-- clinic re-confirms it from "Sessions with no therapist". Written only by
+-- /api/appointments/reschedule with the service role; read through the
+-- existing appointments policies.
+-- ---------------------------------------------------------------------------
+alter table appointments add column if not exists patient_reschedule_count integer not null default 0
+  check (patient_reschedule_count >= 0);
+alter table site_settings add column if not exists patient_reschedule_cutoff_hours integer not null default 24
+  check (patient_reschedule_cutoff_hours between 1 and 168);

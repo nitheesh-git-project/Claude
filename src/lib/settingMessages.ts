@@ -141,6 +141,11 @@ export const SETTING_MESSAGES: Record<string, SettingMessage> = {
         ? "Patients can now cancel an online session right up to its start."
         : `Patients can no longer cancel an online session in the last ${plural(v, "minute", "minutes")} before it starts.`,
   },
+  patient_reschedule_cutoff_hours: {
+    kind: "number",
+    describe: (v) =>
+      `Patients can now move an online session themselves up to ${plural(v, "hour", "hours")} before it starts, once per booking.`,
+  },
   abandoned_booking_account_days: {
     kind: "number",
     describe: (v) =>

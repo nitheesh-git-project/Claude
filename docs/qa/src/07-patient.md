@@ -557,6 +557,12 @@ Repeat `PAT-CANCEL-001`/`002` against a home visit. **Expected Result.** The win
 
 ---
 
+#### `PAT-RESCHED-001` - The patient moves a session once, the clinic re-confirms it · P1
+
+**Preconditions.** A `confirmed` video session with an assigned therapist, more than 24 hours away. Settings → How the clinic runs → Booking rules → **Patient reschedule cut-off** at its default, 24 hours.
+**Steps.** On the session card tap **Change time**, pick another day and an offered hour, tap **Move my session**. Then try **Change time** on the same session again. Separately, simulate a time 20 hours before another session and look at its card. Open a home visit's card.
+**Expected Result.** Only hours a therapist can take are offered. After the move the toast reads *"Session moved. The clinic will confirm your new time."*; the session shows its new time, is `requested` with nobody on it, its calendar event and Meet link are gone, and it appears in Admin → **Sessions with no therapist**. `patient_reschedule_count` is 1 and **Change time** no longer shows on that session (a direct POST answers 409 *"You've already moved this session once..."*). Inside the cut-off and on a home visit there is no **Change time** button. The patient's activity log reads *"moved a session to a new time"*.
+
 ### 11.7 Health Profile (patient side)
 
 #### `PAT-HP-001` - Before the therapist's first record, the patient is read-only · P0

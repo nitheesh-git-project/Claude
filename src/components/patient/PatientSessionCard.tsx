@@ -1,3 +1,5 @@
+import RescheduleSessionButton from "@/components/patient/RescheduleSessionButton";
+import { patientRescheduleBlock } from "@/lib/patientReschedule";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import PayNowButton from "@/components/PayNowButton";
@@ -293,6 +295,24 @@ export function renderPatientSessionCard(
               slotTime={a.slot_time}
               status={a.status}
               durationMinutes={a.duration_minutes}
+            />
+          )}
+          {/* Moving it themselves: once, up to the clinic's cut-off, video
+              sessions only (patientReschedule.ts). Judged on the page's
+              request clock; the route re-checks on the debug-aware one. */}
+          {!patientRescheduleBlock({
+            status: a.status,
+            visitMode: visit?.visit_mode ?? null,
+            slotTime: a.slot_time,
+            nowMs: data.nowMs,
+            cutoffHours: adminSettings.patientRescheduleCutoffHours,
+            rescheduleCount: a.patient_reschedule_count ?? 0,
+            noShow: a.no_show,
+          }) && (
+            <RescheduleSessionButton
+              appointmentId={a.id}
+              categoryId={a.category_id}
+              leadTimeHours={adminSettings.onlineBookingLeadTimeHours}
             />
           )}
           {(a.status === "requested" || a.status === "confirmed") && (

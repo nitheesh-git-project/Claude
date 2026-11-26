@@ -27,6 +27,17 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
   found out at Assign & Confirm that nobody works Sundays. The pay-later
   success heading now reads **Request received** -- the clinic still
   confirms the time. `openHours.test.ts` pins the rule.
+- **A patient may move a video session themselves -- once, up to the
+  cut-off.** `POST /api/appointments/reschedule` (owner's decisions:
+  `patient_reschedule_cutoff_hours`, default 24, Settings -> Booking rules;
+  one move per booking, `appointments.patient_reschedule_count`; any open
+  hour). The rule is `patientRescheduleBlock` (`patientReschedule.ts`, tested),
+  read by the card to show **Change time** and by the route to allow it; the
+  route also re-checks the lead time, the whole hour in the booking's zone
+  and open hours. The session goes back to `requested` with **no therapist**
+  and its calendar event deleted, so the clinic confirms the new time from
+  "Sessions with no therapist". Home visits are moved by the clinic only. The
+  write compare-and-sets on status, slot and count.
 
 - **A patient holds one session at a time, and the database says so.**
   `/api/appointments/create` checks for an overlapping live session for

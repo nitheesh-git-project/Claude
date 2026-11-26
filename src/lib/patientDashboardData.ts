@@ -169,6 +169,25 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     : null;
   const inviteSettingsEarly = needFeed ? startEarly(readInviteSettings(admin)) : null;
   const payLaterEarly = needFeed || needReceipts ? startEarly(loadPatientPayLater(admin, user.id)) : null;
+  // How many times each session has been moved by the patient (one is the
+  // limit -- patientReschedule.ts). Its own read, started now: the column is
+  // newer than the shared select, and absent it every count reads as zero,
+  // which the reschedule route then re-checks before it moves anything.
+  const rescheduleCountsEarly = startEarly(
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from("appointments")
+          .select("id, patient_reschedule_count")
+          .eq("patient_id", user.id)
+          .in("status", ["requested", "confirmed"]);
+        if (error) return new Map<string, number>();
+        return new Map((data ?? []).map((r) => [r.id as string, (r.patient_reschedule_count as number | null) ?? 0]));
+      } catch {
+        return new Map<string, number>();
+      }
+    })()
+  );
   const liveReadEarly = startEarly(loadLiveDisplay(supabase, user.id));
   // The session cards' summaries and the plans they may link to (Sessions
   // and Home visits only).
@@ -514,6 +533,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     ])
   );
 
+  const rescheduleCountById = await rescheduleCountsEarly;
   const appointments = mergeMeetLinks(
     mergeSessionCodes(rawAppointments ?? [], sessionCodeLinks),
     meetLinkRows
@@ -535,6 +555,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
       // scolded a trusted patient for a session that was booked, and the
       // session card offered them a Pay Now button that checkout refuses.
       payment_terms: payLaterTermsById.get(a.id) ?? null,
+      patient_reschedule_count: rescheduleCountById.get(a.id) ?? 0,
     };
     return discount
       ? {

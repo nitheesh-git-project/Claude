@@ -127,6 +127,8 @@ const ALLOWED_COLUMNS = new Set([
   "abandoned_booking_account_days",
   // How close to an online session's start a patient may still cancel it.
   "patient_cancel_cutoff_minutes",
+  // How close to an online session a patient may still move it themselves.
+  "patient_reschedule_cutoff_hours",
   // Drives the automatic payment-fee cost line on the Money screens.
   "payment_gateway_fee_percent",
   // How Business Health reads the same money: which cost lines count as the
@@ -394,6 +396,14 @@ export async function POST(request: NextRequest) {
     if (typeof value !== "number" || !Number.isInteger(value) || value < 0 || value > 1440) {
       return NextResponse.json(
         { error: "Choose a whole number of minutes from 0 to 1440." },
+        { status: 400 }
+      );
+    }
+  }
+  if (key === "patient_reschedule_cutoff_hours") {
+    if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > 168) {
+      return NextResponse.json(
+        { error: "Choose a whole number of hours from 1 to 168." },
         { status: 400 }
       );
     }
