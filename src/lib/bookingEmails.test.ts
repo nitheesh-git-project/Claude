@@ -153,7 +153,11 @@ describe("every way a session gets confirmed sends the patient's email", () => {
   // cash payment).
   const paths: [string, RegExp][] = [
     ["src/lib/confirmPaidAppointment.ts", /queueAppointmentEmail\(appointment\.id, "confirmed"\)/],
-    ["src/app/api/admin/assign-appointment/route.ts", /queueAppointmentEmail\(appointmentId, "confirmed"\)/],
+    // Assign & Confirm and "Change time & assign" both confirm through
+    // announceConfirmedSession, which queues the email for them.
+    ["src/lib/announceConfirmedSession.ts", /queueAppointmentEmail\(input\.appointmentId, "confirmed"\)/],
+    ["src/app/api/admin/assign-appointment/route.ts", /announceConfirmedSession\(admin,/],
+    ["src/app/api/admin/update-appointment/route.ts", /announceConfirmedSession\(admin,/],
     ["src/app/api/razorpay/webhook/route.ts", /queueAppointmentEmail\(appointment\.id, "confirmed"\)/],
     ["src/app/api/admin/mark-paid-by-cash/route.ts", /queueAppointmentEmail\(appointmentId, "confirmed"\)/],
     ["src/app/api/appointments/cancel/route.ts", /queueAppointmentEmail\(appointmentId, "cancelled"/],

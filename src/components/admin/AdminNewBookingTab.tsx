@@ -101,9 +101,9 @@ export default function AdminNewBookingTab({
       return;
     }
 
-    // Built as a local wall-clock time and sent as an ISO instant -- the
-    // clinic works in IST and the admin is typing IST, so the browser's own
-    // timezone doing the conversion is the correct behaviour here.
+    // Built on the clinic's wall clock (AdminSlotPicker's default zone), not
+    // the browser's: an admin whose laptop is on UTC used to send 15:30 IST
+    // for a "10:00" they never chose, and the route refused it.
     const slotTime = new Date(slotMs).toISOString();
 
     startTransition(async () => {

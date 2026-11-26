@@ -772,6 +772,7 @@ export default function SessionDetailDrawer({
                       currentTherapistId={a.therapist_id}
                       currentSlotTime={a.slot_time}
                       currentCategoryId={a.category_id}
+                      timeZone={a.timezone}
                       therapists={therapists}
                       categories={categories}
                       onSaved={onClose}

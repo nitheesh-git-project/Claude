@@ -98,6 +98,15 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
   `AdminNewBookingTab` passes 0 only while its existing
   "book inside the window anyway" box is ticked, so the grid opens up exactly
   when the route would accept it. Zero still cannot reach into the past.
+  **A staff picker works in the booking's zone, never the browser's.**
+  `AdminSlotPicker` takes a `timeZone` (default `CLINIC_TIMEZONE`;
+  `EditBookingForm` passes the appointment's own), labels its hours with it,
+  and converts with `slotToMs` / `slotFromIso` / `earliestSlot`, which take
+  the same zone (`zonedSlotMs`, `zonedSlotParts` and `wallClockMs` in
+  `bookingSlots.ts`). The grid helpers stay local-time; the picker hands them
+  a clock shifted to the zone's wall time. Built in local time, an admin on a
+  UTC laptop chose "10:00", sent 15:30 IST, and every route refused it as
+  "Sessions start on the hour". `bookingSlotsZoned.test.ts` pins it.
   **The service is chosen before the slot, from one picker.** Both public
   wizards used a native `<select>` of one line per option -- `/book` in Step
   2, so a patient picked a date and an hour while the header still read

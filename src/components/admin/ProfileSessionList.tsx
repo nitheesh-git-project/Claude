@@ -187,6 +187,7 @@ export default function ProfileSessionList({
                     appointmentId={a.id}
                     currentTherapistId={a.therapist_id}
                     currentSlotTime={a.slot_time}
+                    timeZone={a.timezone}
                     therapists={therapists}
                   />
                 </div>
