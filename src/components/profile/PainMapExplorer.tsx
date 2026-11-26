@@ -122,6 +122,7 @@ export default function PainMapExplorer({
           patientId={record.patientId}
           assessments={assessments}
           overridesByRegion={record.overridesByRegion}
+          reportedAreas={areaPain}
           onClose={() => setRecording(false)}
         />
       )}

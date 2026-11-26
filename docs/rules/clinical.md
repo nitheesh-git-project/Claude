@@ -20,6 +20,18 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   a submission awaits review. Recorded as an approved
   `condition_change_requests` row (role `admin`) and in the activity log.
   Guard: `admin-type-changes` ATC-002/003.
+- **An exam is never recorded on a guessed side** (owner's decision).
+  `PainExamDialog` opened on the LEFT whenever its caller passed no side, and
+  two of its three callers passed none: a patient who marked their right knee
+  was examined "left", and the auto-written summary copied it. Now the form
+  opens on the caller's side, else the one side the patient marked on their
+  intake (`area_pain`), else none (`defaultExamSide`, `examSide.ts`, tested);
+  a side must be chosen to save; and an exam on a side the patient did not
+  report needs the therapist to tick a confirmation. Both submit routes
+  enforce it (`examSideRefusal`, `examSideServer.ts`: 409
+  `exam_side_unconfirmed` unless `sideConfirmed`), so a form that did not
+  have the intake answers still asks. An unreadable intake lets the exam
+  through -- the form already applied the rule whenever it could.
 - **Patient Care Intake and Pain Map are two separate data layers**, and
   the intake is **per specialty**. A `patient_condition_profiles` row
   carries `specialty` - `ortho`, `neuro`, `pediatrics`, `geriatric` or

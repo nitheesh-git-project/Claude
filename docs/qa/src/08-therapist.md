@@ -407,6 +407,11 @@ A second attempt returns `This visit's payment has already been recorded.`
 * Step 2: the non-ortho page **does not merely hide the map - it never queries `pain_assessments` at all**, and the submit route answers **400**.
 * Every user-facing exam figure is printed **out of ten**, never as a raw percentage. `Last exam found 34%` beside `How you rate it 6/10` is a defect: both must read on the same 0–10 scale.
 
+#### `THR-HP-005b2` - The exam never guesses a side · P0
+**Preconditions.** An orthopaedic patient whose intake marked the **right** knee.
+**Steps.** Open the Pain Map exam and choose **Knee**. Then switch to **Left** and try to save. Tick the confirmation and save. Separately, open the exam from the session's **Update the Pain Map** and choose Knee.
+**Expected Result.** The exam opens on **right** (the side the patient marked) and says *"The patient reported the right side."* - never on left by default. A region the patient did not mark opens with **no side** and Save asks *"Choose the side you examined"*. On **Left** an amber box reads *"The patient reported the right side, and this exam is on the left. Confirm the side before it is saved..."* and Save is refused until *"I examined the left side, not the one the patient reported"* is ticked. Where the form did not have the intake (the session step), the save answers the same confirmation from the server (409 `exam_side_unconfirmed`), and the box appears. The summary shows the side that was confirmed.
+
 #### `THR-HP-005c` - The orthopaedic chart opens in the shared layout · P0
 **Steps.** As the assigned therapist, open an orthopaedic patient's chart (`/therapist/dashboard/health-profile/<id>`) with a Pain Map exam on record. Resize to 360, 834 and 1280 px wide.
 **Expected Result.** Top to bottom: header (name, condition line, status pill, four-stage phase bar), **Where things stand**, up to four key numbers, the **Pain Map** card, **Progress** (graph), **Steps**, **Measures**, then care plans, session notes, test reports and the condition card. At 360 px everything is one column, the tables scroll inside their box and the page never scrolls sideways; at 834 px cards go two across; the body-map column sticks only from 1024 px. Every button is at least 44 px tall. A paediatric patient's chart is **unchanged**; a neurological one opens in its own layout (`THR-HP-005i`).
