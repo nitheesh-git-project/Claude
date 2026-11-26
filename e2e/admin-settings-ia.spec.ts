@@ -43,6 +43,17 @@ async function openSettings(page: Page, tab: string) {
   await expect(page.locator("h1")).toContainText("Settings", { timeout: 60_000 });
 }
 
+/**
+ * Type into a field and keep at it until the page reacts. The Settings
+ * heading is server-rendered and shows well before the admin dashboard has
+ * hydrated (its first client requests went out 3.3s after the document on
+ * the gate), and a value typed or a Save clicked in that window is dropped:
+ * React resets the field to its state and the button has no handler yet.
+ */
+async function untilItTakes(attempt: () => Promise<void>) {
+  await expect(attempt).toPass({ intervals: [500, 1_000, 2_000], timeout: 60_000 });
+}
+
 async function readSetting<T>(column: string): Promise<T> {
   const { data } = await adminClient().from("site_settings").select(column).maybeSingle();
   return (data as Record<string, T> | null)?.[column] as T;
@@ -172,11 +183,15 @@ test.describe("CFG -- Settings information architecture", () => {
     const original = await readSetting<number>("online_booking_lead_time_hours");
     try {
       await openSettings(page, "booking");
-      await page.getByLabel("Online booking lead time, in hours").fill("72");
-      await page.getByRole("button", { name: "Save" }).first().click();
-      await expect
-        .poll(() => readSetting<number>("online_booking_lead_time_hours"), { timeout: 20_000 })
-        .toBe(72);
+      // Saving 72 twice is harmless; a Save clicked before hydration sent
+      // nothing at all, and the value stayed 12.
+      await untilItTakes(async () => {
+        await page.getByLabel("Online booking lead time, in hours").fill("72");
+        await page.getByRole("button", { name: "Save" }).first().click();
+        await expect
+          .poll(() => readSetting<number>("online_booking_lead_time_hours"), { timeout: 5_000 })
+          .toBe(72);
+      });
 
       // A patient's own session, on the page the setting is about.
       const patient = await context.browser()!.newContext();
@@ -210,8 +225,10 @@ test.describe("CFG -- Settings information architecture", () => {
     await expect(warning).toHaveCount(0);
     // Typed, not saved: the warning is about the combination being chosen,
     // and it has to appear while the owner is still deciding.
-    await page.getByLabel("Session Completed cutoff, in minutes after slot time").fill("5");
-    await expect(warning.first()).toBeVisible();
+    await untilItTakes(async () => {
+      await page.getByLabel("Session Completed cutoff, in minutes after slot time").fill("5");
+      await expect(warning.first()).toBeVisible({ timeout: 3_000 });
+    });
     await page.getByLabel("Session Completed cutoff, in minutes after slot time").fill("60");
     await expect(warning).toHaveCount(0);
   });
