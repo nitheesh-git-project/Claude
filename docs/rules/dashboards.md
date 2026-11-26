@@ -912,8 +912,9 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   tucks into the right edge when lifting would take half the screen
   (`placeNotebook`, `src/lib/notebookPlacement.ts`; re-measured on scroll,
   resize and DOM changes). **A new pinned bottom element adds the
-  attribute.** It also tucks -- half of it showing at the edge, still one
-  tap, out again on hover or focus -- whenever, where it would sit, it would
+  attribute.** It also tucks -- a strip of it showing at the edge (11px on a
+  phone, 22px from `sm`, inside the page's side margin), still one tap, out
+  again on hover or focus -- whenever, where it would sit, it would
   cover something the person can tap in the page scrolling under it: it
   probes a 3 x 3 grid over its (tilted) face with `elementsFromPoint` for a
   link, button or field. For its first three visits, and on hover or focus,
@@ -921,8 +922,10 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   to the point.*; the button stays out while the tip is up, the tip goes on
   the first scroll or tap elsewhere (or after a few seconds, or its close
   button), and never shows again once the notebook has been opened
-  (`mr-notebook-hint-v1`, read in a mount effect). Guard:
-  `src/lib/notebookPlacement.test.ts`, NB-003.
+  (`mr-notebook-hint-v1`, read in a mount effect). While tucked it carries
+  `data-edge-tucked`, which tells the layout audit (`e2e/layout/layoutProbe.ts`)
+  that sitting past the edge is the design, not an offscreen bug. Guard:
+  `src/lib/notebookPlacement.test.ts`, NB-003, `e2e/layout-audit.spec.ts`.
 - **The notebook teaches itself in three tips, the first time it opens.**
   `NotebookTour`: Write anything / Pages, like a real notebook / It saves
   itself, each ringing the real control it names (the page, the page

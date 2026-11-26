@@ -479,7 +479,9 @@ test.describe("announcements and the notebook", () => {
     await page.goto(`${BASE}/patient/dashboard`);
     await page.evaluate(() => window.localStorage.removeItem("mr-notebook-hint-v1"));
     await page.reload();
-    const button = page.getByTestId("notebook-button");
+    // Visible only: while the page streams in, Next holds the new markup in
+    // a hidden copy for a moment, and a strict lookup would find both.
+    const button = page.getByTestId("notebook-button").filter({ visible: true });
     await expect(button).toBeVisible({ timeout: 60_000 });
 
     // The tip appears beside it on a first visit.

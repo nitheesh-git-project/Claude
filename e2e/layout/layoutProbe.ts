@@ -144,8 +144,12 @@ export function probeLayout(): LayoutIssue[] {
 
     // Off-screen: horizontally only (vertical is just scrolling), and not
     // when a scroll container is holding it, and not inside a fixed layer
-    // parked fully off-screen (a closed drawer).
-    if (!v.scrollContained && (raw.right > vw + 1 || raw.left < -1)) {
+    // parked fully off-screen (a closed drawer), and not a control tucked
+    // into the edge on purpose with a strip left on screen -- the notebook
+    // steps aside that way when it would cover something to tap, and says
+    // so with `data-edge-tucked`.
+    const tuckedTab = el.closest("[data-edge-tucked]") !== null && raw.left < vw - 4;
+    if (!v.scrollContained && !tuckedTab && (raw.right > vw + 1 || raw.left < -1)) {
       const layerBox = v.layer?.getBoundingClientRect();
       const parked = layerBox && (layerBox.right <= 0 || layerBox.left >= vw);
       if (!parked) {

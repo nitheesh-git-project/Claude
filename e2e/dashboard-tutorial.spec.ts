@@ -65,6 +65,9 @@ test.describe("Dashboard tutorial", () => {
         await page.waitForTimeout(150);
       }
       expect(sawPartial, "the bar should be seen filling").toBe(true);
+      // Chat to book is the other way in, and the tour says so next.
+      await next.click();
+      await expect(page.getByRole("heading", { name: "Or just chat" })).toBeVisible();
       await next.click();
       await expect(page.getByRole("heading", { name: "What happens after you pay" })).toBeVisible();
       // The patient's word is "physiotherapist" (patientScenes.tsx, the patient voice pass).

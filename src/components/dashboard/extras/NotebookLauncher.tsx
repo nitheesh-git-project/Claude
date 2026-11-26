@@ -214,6 +214,9 @@ function Launcher({ ownerFirstName }: { ownerFirstName: string | null }) {
         <div
           className="pointer-events-auto absolute inset-0 motion-safe:transition-transform motion-safe:duration-300 motion-safe:ease-out"
           style={{ transform: `translate(${tucked ? `${placement.tuckShift}px` : "0"}, ${-placement.lift}px)` }}
+          // Past the right edge on purpose while tucked (a strip stays on
+          // screen); the layout audit reads this instead of calling it a bug.
+          data-edge-tucked={tucked ? "" : undefined}
           onMouseEnter={() => setHover(true)}
           onMouseLeave={() => setHover(false)}
           onFocus={() => setHover(true)}
