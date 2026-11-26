@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
+import { auditChanges } from "@/lib/auditChanges";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { normalizePincode, isValidPincodeShape } from "@/lib/homeVisitAreas";
 import { serverError } from "@/lib/apiError";
@@ -73,6 +74,12 @@ export async function POST(request: NextRequest) {
   }
 
   const admin = createAdminClient();
+  // The area as it was, for the log's before/after (best effort).
+  const { data: before } = await admin
+    .from("home_visit_areas")
+    .select(["pincode", ...Object.keys(columns).filter((k) => k !== "pincode")].join(", "))
+    .eq("id", id)
+    .maybeSingle();
   const { error } = await admin.from("home_visit_areas").update(columns).eq("id", id);
 
   if (error) {
@@ -96,7 +103,9 @@ export async function POST(request: NextRequest) {
   await recordAdminActivity(admin, adminUser.id, {
     action: "catalog.update",
     targetId: id,
-    targetLabel: "Service area",
+    targetLabel: `Service area ${(columns.pincode as string | undefined) ?? (before as { pincode?: string } | null)?.pincode ?? ""}`.trim(),
+    ...(typeof columns.travel_fee_paise === "number" ? { amountPaise: columns.travel_fee_paise } : {}),
+    details: auditChanges((before as Record<string, unknown> | null) ?? null, columns),
   });
 
   return NextResponse.json({ success: true });

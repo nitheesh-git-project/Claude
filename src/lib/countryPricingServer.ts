@@ -5,6 +5,7 @@ import {
   COUNTRY_COOKIE,
   HOME_COUNTRY,
   homeVisitsOfferedIn,
+  isPriceRounding,
   isPricedLocally,
   resolveCountry,
   type CountryPricing,
@@ -39,6 +40,8 @@ type PricingRow = {
   markup_percent: number | string;
   units_per_inr: number | string | null;
   rate_fetched_at?: string | null;
+  /** Migration-dependent, merged in from its own read (readCountryExtras). */
+  price_rounding?: string | null;
 };
 
 export function rowToPricing(row: PricingRow): CountryPricing {
@@ -48,7 +51,55 @@ export function rowToPricing(row: PricingRow): CountryPricing {
     enabled: row.enabled,
     markupPercent: Number(row.markup_percent) || 0,
     unitsPerInr: row.units_per_inr === null ? null : Number(row.units_per_inr),
+    ...(isPriceRounding(row.price_rounding) ? { rounding: row.price_rounding } : {}),
   };
+}
+
+export type CountryExtras = {
+  rounding: string | null;
+  pendingUnitsPerInr: number | null;
+  pendingRateFetchedAt: string | null;
+};
+
+/**
+ * The newer per-country columns -- the rounding step and a rate waiting for
+ * an admin -- in a read of their own, so a database that has not applied
+ * them yet still prices exactly as before (.99, no rate ever held). Null
+ * when the read failed or the columns are not there.
+ */
+export async function readCountryExtras(
+  db: SupabaseClient,
+  opts: { enabledOnly?: boolean } = {}
+): Promise<Map<string, CountryExtras> | null> {
+  try {
+    let query = db.from("country_pricing").select("country_code, price_rounding, pending_units_per_inr, pending_rate_fetched_at");
+    if (opts.enabledOnly) query = query.eq("enabled", true);
+    const { data, error } = await query;
+    if (error) return null;
+    return new Map(
+      ((data ?? []) as Array<{
+        country_code: string;
+        price_rounding: string | null;
+        pending_units_per_inr: number | string | null;
+        pending_rate_fetched_at: string | null;
+      }>).map((r) => [
+        r.country_code,
+        {
+          rounding: r.price_rounding,
+          pendingUnitsPerInr: r.pending_units_per_inr === null ? null : Number(r.pending_units_per_inr),
+          pendingRateFetchedAt: r.pending_rate_fetched_at,
+        },
+      ])
+    );
+  } catch {
+    return null;
+  }
+}
+
+/** A row with its rounding merged in from the extras read. */
+export function withRounding<T extends PricingRow>(row: T, extras: Map<string, CountryExtras> | null): T {
+  const rounding = extras?.get(row.country_code)?.rounding ?? null;
+  return rounding ? { ...row, price_rounding: rounding } : row;
 }
 
 /**
@@ -59,12 +110,13 @@ export function rowToPricing(row: PricingRow): CountryPricing {
 export async function readPricingConfig(
   db: SupabaseClient
 ): Promise<{ settings: PricingSettings; rows: CountryPricing[] }> {
-  const [settingsRes, rowsRes] = await Promise.all([
+  const [settingsRes, rowsRes, extras] = await Promise.all([
     db
       .from("site_settings")
       .select("international_pricing_enabled, country_picker_enabled, home_visit_outside_india")
       .maybeSingle(),
     db.from("country_pricing").select("country_code, currency_code, enabled, markup_percent, units_per_inr"),
+    readCountryExtras(db),
   ]);
   const s = settingsRes.error ? null : (settingsRes.data as Record<string, unknown> | null);
   const settings: PricingSettings = {
@@ -72,7 +124,7 @@ export async function readPricingConfig(
     pickerEnabled: s ? s.country_picker_enabled !== false : DEFAULT_PRICING_SETTINGS.pickerEnabled,
     homeVisitOutsideIndia: s?.home_visit_outside_india === true,
   };
-  const rows = rowsRes.error ? [] : ((rowsRes.data ?? []) as PricingRow[]).map(rowToPricing);
+  const rows = rowsRes.error ? [] : ((rowsRes.data ?? []) as PricingRow[]).map((r) => rowToPricing(withRounding(r, extras)));
   return { settings, rows };
 }
 
@@ -157,8 +209,11 @@ export async function readCountryPricingAdmin(db: SupabaseClient): Promise<{
   settings: PricingSettings;
   rows: CountryPricing[];
   ratesFetchedAt: string | null;
+  /** The newer columns, or null on a database without them -- the screen
+   *  then hides the rounding choice and has nothing pending to show. */
+  extras: Map<string, CountryExtras> | null;
 } | null> {
-  const [settingsRes, rowsRes] = await Promise.all([
+  const [settingsRes, rowsRes, extras] = await Promise.all([
     db
       .from("site_settings")
       .select("international_pricing_enabled, country_picker_enabled, home_visit_outside_india")
@@ -166,6 +221,7 @@ export async function readCountryPricingAdmin(db: SupabaseClient): Promise<{
     db
       .from("country_pricing")
       .select("country_code, currency_code, enabled, markup_percent, units_per_inr, rate_fetched_at"),
+    readCountryExtras(db),
   ]);
   if (settingsRes.error || rowsRes.error) return null;
   const s = (settingsRes.data ?? {}) as Record<string, unknown>;
@@ -182,7 +238,8 @@ export async function readCountryPricingAdmin(db: SupabaseClient): Promise<{
       pickerEnabled: s.country_picker_enabled !== false,
       homeVisitOutsideIndia: s.home_visit_outside_india === true,
     },
-    rows: raw.map(rowToPricing),
+    rows: raw.map((r) => rowToPricing(withRounding(r, extras))),
     ratesFetchedAt,
+    extras,
   };
 }

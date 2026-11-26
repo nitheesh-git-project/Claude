@@ -219,6 +219,7 @@ export async function POST(request: NextRequest) {
     action: current ? "catalog.update" : "catalog.create",
     targetId: current?.packageId ?? categoryId ?? null,
     targetLabel: label,
+    amountPaise: price,
     details: {
       change: categoryId ? "own_price" : "clinic_wide_price",
       fromPricePaise: current?.pricePaise ?? null,

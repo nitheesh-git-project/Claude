@@ -5,9 +5,18 @@ import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { serverError } from "@/lib/apiError";
-import { countryInfo, HOME_COUNTRY, isValidMarkup, MAX_MARKUP_PERCENT } from "@/lib/countryPricing";
+import {
+  countryInfo,
+  HOME_COUNTRY,
+  isPriceRounding,
+  isValidMarkup,
+  MAX_MARKUP_PERCENT,
+  roundingsFor,
+  type PriceRounding,
+} from "@/lib/countryPricing";
 
-type RowInput = { code?: unknown; markupPercent?: unknown; enabled?: unknown };
+/** `rounding` is optional: left out, the country keeps the step it has. */
+type RowInput = { code?: unknown; markupPercent?: unknown; enabled?: unknown; rounding?: unknown };
 type Body = {
   rows?: RowInput[];
   settings?: {
@@ -45,7 +54,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Too many countries in one save." }, { status: 400 });
   }
 
-  const cleaned: { code: string; currency: string; markup: number; enabled: boolean }[] = [];
+  const cleaned: { code: string; currency: string; markup: number; enabled: boolean; rounding?: PriceRounding }[] = [];
   for (const row of rows) {
     const code = typeof row.code === "string" ? row.code.toUpperCase() : "";
     const info = countryInfo(code);
@@ -61,11 +70,15 @@ export async function POST(request: NextRequest) {
     if (typeof row.enabled !== "boolean") {
       return NextResponse.json({ error: `${info.name}: "enabled" must be true or false.` }, { status: 400 });
     }
+    if (row.rounding !== undefined && (!isPriceRounding(row.rounding) || !roundingsFor(info.currency).includes(row.rounding))) {
+      return NextResponse.json({ error: `${info.name}: that rounding isn't available for ${info.currency}.` }, { status: 400 });
+    }
     cleaned.push({
       code,
       currency: info.currency,
       markup: Math.round(row.markupPercent * 100) / 100,
       enabled: row.enabled,
+      ...(row.rounding !== undefined ? { rounding: row.rounding as PriceRounding } : {}),
     });
   }
 
@@ -85,18 +98,28 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient();
 
+  // What the switches were, for the log's before/after. Best effort: a
+  // failed read leaves "before" out rather than stopping the save.
+  let settingsBefore: Record<string, unknown> | null = null;
+  if (Object.keys(settingsUpdate).length > 0) {
+    const { data } = await admin.from("site_settings").select(Object.keys(settingsUpdate).join(", ")).maybeSingle();
+    settingsBefore = (data as Record<string, unknown> | null) ?? null;
+  }
+  let rowsBefore: Array<{ country_code: string; markup_percent: number | string; enabled: boolean }> = [];
+
   if (cleaned.length > 0) {
     // A country cannot be switched on before it has a rate. The table's own
     // check says so too; asking first turns a constraint error into a
     // sentence that names the country.
     const { data: existing, error: readError } = await admin
       .from("country_pricing")
-      .select("country_code, units_per_inr")
+      .select("country_code, units_per_inr, markup_percent, enabled")
       .in(
         "country_code",
         cleaned.map((c) => c.code)
       );
     if (readError) return serverError("country-pricing/save read", readError);
+    rowsBefore = (existing ?? []) as typeof rowsBefore;
     const rated = new Set(
       (existing ?? []).filter((r) => r.units_per_inr !== null).map((r) => r.country_code as string)
     );
@@ -143,6 +166,17 @@ export async function POST(request: NextRequest) {
     ]);
     const failed = results.find((r) => r.error);
     if (failed?.error) return serverError("country-pricing/save write", failed.error);
+
+    // The rounding step, in writes of its own: a database without the
+    // column refuses only this part, and says so, rather than the whole save.
+    const rounded = cleaned.filter((c) => c.rounding !== undefined);
+    if (rounded.length > 0) {
+      const roundingWrites = await Promise.all(
+        rounded.map((c) => admin.from("country_pricing").update({ price_rounding: c.rounding }).eq("country_code", c.code))
+      );
+      const roundingFailed = roundingWrites.find((r) => r.error);
+      if (roundingFailed?.error) return serverError("country-pricing/save rounding", roundingFailed.error);
+    }
   }
 
   if (Object.keys(settingsUpdate).length > 0) {
@@ -153,9 +187,21 @@ export async function POST(request: NextRequest) {
   await recordAdminActivity(admin, adminUser.id, {
     action: "catalog.update",
     targetLabel: "Countries & currency",
+    // Before and after, so the log can say what changed rather than only
+    // what it was set to (auditDetails.ts prints them).
     details: {
-      countries: cleaned.map((c) => ({ code: c.code, markupPercent: c.markup, enabled: c.enabled })),
+      countries: cleaned.map((c) => {
+        const was = rowsBefore.find((r) => r.country_code === c.code);
+        return {
+          code: c.code,
+          markupPercent: c.markup,
+          enabled: c.enabled,
+          ...(c.rounding ? { rounding: c.rounding } : {}),
+          before: was ? { markupPercent: Number(was.markup_percent), enabled: was.enabled } : null,
+        };
+      }),
       settings: settingsUpdate,
+      ...(settingsBefore ? { settingsBefore } : {}),
     },
   });
 

@@ -27,6 +27,8 @@ export async function POST(request: NextRequest) {
   }
 
   const admin = createAdminClient();
+  // What it was, so the log shows the change (best effort).
+  const { data: before } = await admin.from("site_settings").select("ratings_visible_publicly").eq("id", true).maybeSingle();
   const { error } = await admin
     .from("site_settings")
     .update({ ratings_visible_publicly: visible })
@@ -49,7 +51,12 @@ export async function POST(request: NextRequest) {
   // per the audit-log rule in AGENTS.md.
   await recordAdminActivity(admin, adminUser.id, {
     action: "setting.update",
-    details: { setting: "ratings_visible_publicly", visible },
+    targetLabel: "ratings_visible_publicly",
+    details: {
+      setting: "ratings_visible_publicly",
+      from: (before as { ratings_visible_publicly?: boolean } | null)?.ratings_visible_publicly ?? null,
+      to: visible,
+    },
   });
 
   return NextResponse.json({ success: true, visible });

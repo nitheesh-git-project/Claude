@@ -4,20 +4,19 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { serverError } from "@/lib/apiError";
-import { COUNTRIES } from "@/lib/countryPricing";
-
-// Free, keyless, daily-updated rates with INR as the base. One request per
-// tap, never per visitor: the result is stored, and every price uses the
-// stored figure until the next refresh.
-const RATES_URL = "https://open.er-api.com/v6/latest/INR";
-const TIMEOUT_MS = 8000;
+import { refreshExchangeRates } from "@/lib/exchangeRateRefresh";
+import { countryInfo } from "@/lib/countryPricing";
 
 /**
  * Catalog -> Countries & currency -> Refresh rates.
  *
  * Fetches today's rates and stores one per listed country, leaving each
- * country's percentage and on/off exactly as they were. A failure stores
- * nothing: the rates already in use stay in use, and the screen says so.
+ * country's percentage and on/off exactly as they were. A switched-on
+ * country whose rate moved more than 10% keeps charging its current rate;
+ * the new one waits for an admin (exchangeRatePlan.ts), and the answer
+ * names those countries. A failure stores nothing.
+ *
+ * Response: 200 { ok, fetchedAt, rates, held: [{ code, name, movePercent }] } | 403 | 500 | 502
  */
 export async function POST() {
   const adminUser = await requireAdminScope("catalog");
@@ -25,64 +24,30 @@ export async function POST() {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  let rates: Record<string, number>;
-  try {
-    const res = await fetch(RATES_URL, { signal: AbortSignal.timeout(TIMEOUT_MS), cache: "no-store" });
-    if (!res.ok) throw new Error(`status ${res.status}`);
-    const json = (await res.json()) as { result?: string; rates?: Record<string, number> };
-    if (json.result !== "success" || !json.rates) throw new Error("unexpected response");
-    rates = json.rates;
-  } catch {
-    return NextResponse.json(
-      { error: "Couldn't reach the exchange-rate service. The rates you had are still in use - try again in a minute." },
-      { status: 502 }
-    );
-  }
-
-  const fetchedAt = new Date().toISOString();
-  const updates = COUNTRIES.flatMap((c) => {
-    const rate = rates[c.currency];
-    return typeof rate === "number" && Number.isFinite(rate) && rate > 0
-      ? [{ code: c.code, currency: c.currency, rate }]
-      : [];
-  });
-  if (updates.length === 0) {
-    return NextResponse.json({ error: "The rate service answered without any rates we use. Nothing was changed." }, { status: 502 });
-  }
-
   const admin = createAdminClient();
-  // Read first so a refresh never resets a country's percentage or switch:
-  // an upsert writes every column it is given.
-  const { data: existing, error: readError } = await admin
-    .from("country_pricing")
-    .select("country_code, enabled, markup_percent");
-  if (readError) return serverError("country-pricing/refresh read", readError);
-  const byCode = new Map((existing ?? []).map((r) => [r.country_code as string, r]));
-
-  const { error } = await admin.from("country_pricing").upsert(
-    updates.map((u) => ({
-      country_code: u.code,
-      currency_code: u.currency,
-      units_per_inr: u.rate,
-      rate_fetched_at: fetchedAt,
-      enabled: byCode.get(u.code)?.enabled ?? false,
-      markup_percent: byCode.get(u.code)?.markup_percent ?? 0,
-      updated_at: fetchedAt,
-    })),
-    { onConflict: "country_code" }
-  );
-  if (error) return serverError("country-pricing/refresh upsert", error);
+  const outcome = await refreshExchangeRates(admin);
+  if (!outcome.ok) {
+    if (outcome.status === 502) return NextResponse.json({ error: outcome.error }, { status: 502 });
+    return serverError(`country-pricing/refresh ${outcome.error}`, outcome.detail);
+  }
 
   await recordAdminActivity(admin, adminUser.id, {
     action: "catalog.update",
     targetLabel: "Exchange rates refreshed",
-    details: { countries: updates.length, source: "open.er-api.com" },
+    details: {
+      countries: outcome.applied.length,
+      source: "open.er-api.com",
+      ...(outcome.held.length > 0
+        ? { held: outcome.held.map((h) => ({ code: h.code, from: h.current, to: h.rate, movePercent: h.movePercent })) }
+        : {}),
+    },
   });
 
   revalidatePath("/", "layout");
   return NextResponse.json({
     ok: true,
-    fetchedAt,
-    rates: Object.fromEntries(updates.map((u) => [u.code, u.rate])),
+    fetchedAt: outcome.fetchedAt,
+    rates: Object.fromEntries(outcome.applied.map((u) => [u.code, u.rate])),
+    held: outcome.held.map((h) => ({ code: h.code, name: countryInfo(h.code)?.name ?? h.code, movePercent: h.movePercent })),
   });
 }

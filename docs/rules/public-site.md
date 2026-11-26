@@ -773,9 +773,21 @@ Eight pages from one design system, the word budgets, why every photograph carri
   `publicTestimonials()` (`src/lib/testimonialTrust.ts`) recognises a seeded
   row by its exact quote (a test pins the list to `schema.sql`). With only
   those in the table the Reviews band and its rail entry are not drawn; a row
-  whose words an admin has rewritten counts as theirs. Never add a testimonial
-  that reads as a real patient without consent for both the words and the
-  face - the admin form says as much at the point of entry, and
+  whose words an admin has rewritten counts as theirs.
+  **A story is shown only with the patient's written consent on file**
+  (owner's rule). The admin records it on the story - when, where the signed
+  form is kept (`consent_note`, 5-500 characters), who recorded it
+  (`consent_recorded_at`, `consent_recorded_by`) - and three locks agree:
+  `create-` / `update-testimonial` refuse Active without consent
+  (`testimonialActivationBlock`), and withdrawing consent hides the story;
+  Home and `/mission` show only `consentedPublicTestimonials()`, fed by
+  `readConsentedStoryIds` (`testimonialConsentServer.ts`) in its own read,
+  where an unreadable answer shows **nothing** - "couldn't check" is not
+  consent; and the anon read policy `testimonials_select_active` returns only
+  active, consented rows. So the seeded five can never reach a visitor, even
+  if an emptied table is re-seeded. Both pages filter **before** cutting to
+  their 3 / 6, or never-shown rows take the slots. A new story starts hidden;
+  the admin list says why each one is or isn't showing.
   `public_rating_summary` stays the only place a *real* number is quoted.
 - **A public catalog card opens a dialog; booking is its own button.** The
   session-package, home-visit-package and programme cards all follow one

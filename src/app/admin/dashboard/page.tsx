@@ -45,6 +45,9 @@ import HomeVisitPriceList from "@/components/admin/HomeVisitPriceList";
 import HomeVisitAreaManager from "@/components/admin/HomeVisitAreaManager";
 import AdminCountryPricingTab from "@/components/admin/AdminCountryPricingTab";
 import { readCountryPricingAdmin } from "@/lib/countryPricingServer";
+import { DEFAULT_PRICE_ROUNDING, ratesAreStale } from "@/lib/countryPricing";
+import { ratesNeedingAttention } from "@/lib/exchangeRatePlan";
+import { autoAssignReadiness, therapistsWithHours } from "@/lib/autoAssignReadiness";
 import HomeVisitCashLedger from "@/components/admin/HomeVisitCashLedger";
 import AdminSystemHealthTab from "@/components/admin/AdminSystemHealthTab";
 import { readCheckoutSpeed } from "@/lib/checkoutSpeedServer";
@@ -1245,6 +1248,7 @@ export default async function AdminDashboardPage({
     categoryFocalRows,
     categoryFeaturedRows,
     testimonialAvatarRows,
+    testimonialConsentRows,
     refundDetailRows,
     googleConnection,
     syncModeRows,
@@ -1349,6 +1353,12 @@ export default async function AdminDashboardPage({
     guard(
       async () => (await admin.from("testimonials").select("id, avatar_url")).data,
       null as { id: string; avatar_url: string | null }[] | null
+    ),
+    // Consent to publish each story (testimonialTrust.ts), isolated for the
+    // same reason: newer columns cost the badge, never the screen.
+    guard(
+      async () => (await admin.from("testimonials").select("id, consent_recorded_at, consent_note")).data,
+      null as { id: string; consent_recorded_at: string | null; consent_note: string | null }[] | null
     ),
     // The refund detail the session drawer shows -- when it went back, why,
     // and the gateway's own reference. Isolated because `refunded_at` and
@@ -1932,6 +1942,7 @@ export default async function AdminDashboardPage({
 
   // testimonials.avatar_url is migration-dependent too, so it stays out of
   // the ~40-query Promise.all above for the reason the category covers do.
+  const testimonialConsentById = new Map((testimonialConsentRows ?? []).map((row) => [row.id, row]));
   const testimonialAvatarById = new Map(
     (testimonialAvatarRows ?? []).map((row) => [row.id, row.avatar_url as string | null])
   );
@@ -3988,7 +3999,11 @@ export default async function AdminDashboardPage({
         enabled: r.enabled,
         markupPercent: r.markupPercent,
         unitsPerInr: r.unitsPerInr,
+        rounding: r.rounding ?? DEFAULT_PRICE_ROUNDING,
+        pendingUnitsPerInr: countryPricing.extras?.get(r.code)?.pendingUnitsPerInr ?? null,
+        pendingRateFetchedAt: countryPricing.extras?.get(r.code)?.pendingRateFetchedAt ?? null,
       }))}
+      roundingAvailable={countryPricing.extras !== null}
       settings={countryPricing.settings}
       ratesFetchedAt={countryPricing.ratesFetchedAt}
       samples={(treatmentCategories ?? [])
@@ -4280,6 +4295,8 @@ export default async function AdminDashboardPage({
             testimonials={(testimonials ?? []).map((t) => ({
               ...t,
               avatar_url: testimonialAvatarById.get(t.id) ?? null,
+              consent_recorded_at: testimonialConsentById.get(t.id)?.consent_recorded_at ?? null,
+              consent_note: testimonialConsentById.get(t.id)?.consent_note ?? null,
             }))}
           />
         </div>
@@ -4368,6 +4385,11 @@ export default async function AdminDashboardPage({
           settings={adminSettings}
           therapistSuggestionsEnabled={therapistSuggestionsEnabled}
           autoAssignEnabled={adminSettings.autoAssignTherapistEnabled}
+          autoAssignReadiness={
+            availabilityTemplateRows
+              ? autoAssignReadiness(therapistsWithHours(allTherapists, availabilityTemplateRows))
+              : undefined
+          }
         />
       </SettingsSection>
       <SettingsSection id="prog-home-visits">
@@ -5346,6 +5368,18 @@ export default async function AdminDashboardPage({
     (a) => a.refund_status === "failed"
   ).length;
 
+  const exchangeRateAttention = countryPricing
+    ? ratesNeedingAttention({
+        internationalEnabled: countryPricing.settings.internationalEnabled,
+        rows: countryPricing.rows.map((r) => ({
+          code: r.code,
+          enabled: r.enabled,
+          pendingUnitsPerInr: countryPricing.extras?.get(r.code)?.pendingUnitsPerInr ?? null,
+        })),
+        stale: ratesAreStale(countryPricing.ratesFetchedAt, nowTimestamp()),
+      })
+    : { count: 0, pending: 0, stale: false };
+
   const inboxGroups: InboxGroup[] = [
     {
       title: "Approvals",
@@ -5561,6 +5595,18 @@ export default async function AdminDashboardPage({
           view: "refund_failed",
           hint: "The gateway refused the refund. The patient is still out of pocket and has been told to contact you.",
           urgent: true,
+        },
+        {
+          // Catalog works it (the rates screen is catalog scope), but it is
+          // money: a stale or held rate is what a patient abroad is charged.
+          label: "Exchange rates to check",
+          count: exchangeRateAttention.count,
+          section: "catalog",
+          tab: "countries",
+          hint: exchangeRateAttention.stale
+            ? "The stored rates are more than a week old, and switched-on countries are priced from them. Refresh them."
+            : "A new rate would move a price more than 10%, so it is waiting for you. Use it or keep the current one.",
+          urgent: exchangeRateAttention.stale,
         },
         {
           label: "Cash collected, not remitted",

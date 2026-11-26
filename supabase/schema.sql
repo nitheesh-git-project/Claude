@@ -21718,3 +21718,66 @@ alter table patient_referrals add column if not exists patient_age integer
   check (patient_age is null or patient_age between 0 and 120);
 alter table patient_referrals add column if not exists patient_email text
   check (patient_email is null or (char_length(patient_email) <= 254 and patient_email ~ '^[^@\s]+@[^@\s]+\.[^@\s]+$'));
+
+-- ---------------------------------------------------------------------------
+-- Exchange rates: a rounding step per country, and a new rate held for an
+-- admin when it would move a price more than 10%.
+--
+-- Rounding. Every foreign price was rounded up to .99. In a high-value
+-- currency that is a big step -- one Omani rial is about Rs 220, so OMR 2.03
+-- became OMR 2.99 -- so a country can round up to the next 0.10, 0.50 or a
+-- whole unit instead (src/lib/countryPricing.ts, roundUpToStep). Null is the
+-- .99 rule, so nothing changes until an admin picks a step.
+--
+-- Held rates. Rates now refresh by themselves once a day from the
+-- maintenance sweep (exchangeRateRefresh.ts), as well as from the admin's
+-- Refresh button. A new rate that would move a switched-on country's price
+-- by more than 10% is not used: it is kept here as pending, the country is
+-- still charged at units_per_inr, and admin Home lists "Exchange rates to
+-- check" until an admin uses it or keeps the current one
+-- (/api/admin/country-pricing/pending-rate).
+--
+-- Written only by the service role (the refresh, the save and the decision
+-- routes); read through the existing country_pricing_select_all policy,
+-- since nothing here is secret. Read by the app in their own query, so a
+-- database without these columns prices on .99 and never holds a rate.
+-- ---------------------------------------------------------------------------
+alter table country_pricing add column if not exists price_rounding text
+  check (price_rounding is null or price_rounding in ('0.99', '0.10', '0.50', '1.00'));
+alter table country_pricing add column if not exists pending_units_per_inr numeric(20, 10)
+  check (pending_units_per_inr is null or pending_units_per_inr > 0);
+alter table country_pricing add column if not exists pending_rate_fetched_at timestamptz;
+
+-- ---------------------------------------------------------------------------
+-- A patient story is published only with the patient's written consent on
+-- file (owner's rule).
+--
+-- testimonials had an Active switch and nothing else: a story went live the
+-- moment it was saved, with a name and a photograph, and nothing said whether
+-- the patient had agreed. Now an admin records the consent on the story --
+-- when, where the signed form is kept, and who recorded it -- and a story
+-- without it is never shown, whatever its Active switch says. The routes
+-- refuse to switch one on without it (testimonialTrust.ts), and the public
+-- read policy below is the second lock: the anon key reads only active,
+-- consented stories. The five illustrative rows seeded above have no consent,
+-- so they can never reach a visitor even if a re-run of this file seeds them
+-- into an emptied table again.
+--
+-- Written only by service-role routes (create-/update-testimonial). Existing
+-- stories keep their text and switch but stop showing until an admin records
+-- consent for each -- which is the rule working, not a regression.
+-- ---------------------------------------------------------------------------
+alter table testimonials add column if not exists consent_recorded_at timestamptz;
+alter table testimonials add column if not exists consent_note text
+  check (consent_note is null or char_length(btrim(consent_note)) between 5 and 500);
+alter table testimonials add column if not exists consent_recorded_by uuid
+  references profiles(id) on delete set null;
+
+alter table testimonials drop constraint if exists testimonials_consent_needs_note;
+alter table testimonials add constraint testimonials_consent_needs_note check (
+  consent_recorded_at is null or consent_note is not null
+);
+
+drop policy if exists "testimonials_select_active" on testimonials;
+create policy "testimonials_select_active" on testimonials
+  for select using (active = true and consent_recorded_at is not null);

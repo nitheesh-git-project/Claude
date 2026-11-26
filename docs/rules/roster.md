@@ -267,7 +267,11 @@ Availability as periods over hour rows, specialisation as a value, what readines
   (`clinicDateKey` / `clinicHour`) - they were read off the server's clock,
   so on a UTC host a 9:00 IST booking looked for a 03:00 slot and every
   session stayed unassigned. Gated by `site_settings.auto_assign_therapist_enabled`,
-  read in its own call and failing **closed**.
+  read in its own call and failing **closed**. The switch stays the owner's;
+  beside it, Settings says how many approved, active therapists have weekly
+  hours and suggests switching on at **3 or more** (`autoAssignReadiness.ts`,
+  tested) - with fewer, nearly every booking has exactly one free therapist
+  and would be assigned without anyone looking.
   **This is not the roster filtering the patient's picker** -- that
   separation stays, and `e2e/therapist-roster.spec.ts` R-B02 still guards
   it. The roster's own job is who can be *offered* a session, which is

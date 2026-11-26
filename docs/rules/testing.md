@@ -583,6 +583,22 @@ one, suspect leftover state before suspecting the app.
   Access's back-office list now carry `aria-label`s they should have had anyway.
   `getByRole` also skips hidden elements, so a role query that finds *nothing*
   on this page usually means the wrong `?tab=` rather than a missing control.
+## The load test (staging only)
+
+**`npm run load:staging` is 50 simulated users for 60 seconds against
+staging, read-only.** `scripts/load-test.mjs` (no dependencies) loops each
+user through the public pages and the booking wizard's open-hours read,
+and passes when every path's p95 is under 2 seconds (`--p95-ms`) with no 5xx,
+network error or timeout. It signs in as nobody and writes nothing, because a
+load test that writes is a data generator. It **refuses the production host**
+outright and any host that is not staging or this machine. A 429 is counted
+on its own line, never as a failure: fifty users from one IP are exactly
+what the rate limiter is for. It measures whatever is deployed to staging,
+so run it after the merge it is meant to check. First run (26 Nov 2026,
+staging on the `main` code): about 22,000 requests at ~370/s, every p95
+under 230 ms; one run of two had a single 15-second timeout on `/`, the
+other none.
+
 ## The pre-merge quality gate
 
 **A pull request into `staging` runs the whole suite in CI now, on a stack

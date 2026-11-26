@@ -422,7 +422,9 @@ Razorpay verification, the one capture path, booking idempotency, every refund s
   For a priced country `priceForCountry` (`src/lib/countryPricing.ts`,
   dependency-free and unit-tested) raises the rupee price by the markup,
   converts it, **rounds up** to .99 (a currency without cents ends in 9, a
-  three-decimal one in .990 - never down), then converts that shown figure
+  three-decimal one in .990 - never down) or to the country's own step
+  (0.10, 0.50 or a whole unit, `price_rounding` - for the high-value
+  currencies), then converts that shown figure
   back to the paise Razorpay is asked for, rounded up so the charge never
   reads as less than the price. The owner's example is the test: ₹499,
   +100% -> ₹998 -> $10.35 -> **$10.99** -> 105,979 paise.

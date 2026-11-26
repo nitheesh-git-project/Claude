@@ -12,7 +12,8 @@ import ExploreSection from "@/components/marketing/ExploreSection";
 import ClosingCta from "@/components/marketing/ClosingCta";
 import { Reveal, Stagger, StaggerItem } from "@/components/motion/primitives";
 import { readBookingLanguages, readHomeVisitBookable } from "@/lib/homeVisitFlag";
-import { publicTestimonials } from "@/lib/testimonialTrust";
+import { consentedPublicTestimonials } from "@/lib/testimonialTrust";
+import { readConsentedStoryIds } from "@/lib/testimonialConsentServer";
 import { readPublicTeam } from "@/lib/publicTeam";
 import { oneToOneLine } from "@/lib/sessionLengthCopy";
 import { readMissionCopy, readMissionPrinciples } from "@/lib/missionCopy";
@@ -37,7 +38,10 @@ export default async function MissionPage() {
     .eq("active", true)
     .order("display_order", { ascending: true })
     .order("id", { ascending: true })
-    .limit(6);
+    // Filtered below and then cut to six, so the never-shown samples cannot
+    // take the slots.
+    .limit(50);
+  const consentedStoryIds = await readConsentedStoryIds(supabase);
 
   // Portraits in their own call: testimonials.avatar_url is
   // migration-dependent, and a database one merge behind should cost the
@@ -48,10 +52,11 @@ export default async function MissionPage() {
   const avatarById = new Map(
     (avatarRows ?? []).map((row) => [row.id, row.avatar_url as string | null])
   );
-  // The five rows schema.sql seeds are illustrative copy, never real
-  // patients, and they are not shown -- see testimonialTrust.ts. With only
-  // those in the table the band (and its rail entry) is simply not drawn.
-  const allTestimonials: PublicTestimonial[] = publicTestimonials(testimonialRows).map((t) => ({
+  // Only a story with the patient's written consent on file is shown, and
+  // never the five illustrative rows schema.sql seeds -- see
+  // testimonialTrust.ts. With none left the band (and its rail entry) is
+  // simply not drawn.
+  const allTestimonials: PublicTestimonial[] = consentedPublicTestimonials(testimonialRows, consentedStoryIds).slice(0, 6).map((t) => ({
     ...t,
     avatar_url: avatarById.get(t.id) ?? null,
   }));

@@ -330,8 +330,8 @@ Sign off each line before release.
 - [ ] At least two `full`-scope admins exist
 
 **Pre-launch removals**
-- [ ] **The Debug Bar is deleted** - not merely switched off. It is a public flag, and the bar names `/admin/login` and `/admin/dashboard`
-- [ ] The five seeded testimonials are replaced with real, consented ones, or removed
+- [ ] **The Debug Bar is switched off on production** - `NEXT_PUBLIC_SHOW_DEBUG_NAV` is false in Vercel for `moverestorephysio.com`. It is **never deleted or changed**: staging keeps it on (owner's standing rule, `STAGING.md`)
+- [ ] Every patient story on `/` and `/mission` has the patient's written consent recorded in the admin (the five seeded ones are never shown)
 - [ ] Stock photography under `public/photos/` is replaced with the clinic's own, keeping the aspect ratios
 
 **Functional sign-off**

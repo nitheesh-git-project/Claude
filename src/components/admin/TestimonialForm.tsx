@@ -12,6 +12,9 @@ type Testimonial = {
   avatar_url: string | null;
   display_order: number;
   active: boolean;
+  /** When an admin recorded the patient's written consent, or null. */
+  consent_recorded_at?: string | null;
+  consent_note?: string | null;
 };
 
 export default function TestimonialForm({
@@ -34,7 +37,11 @@ export default function TestimonialForm({
   const [displayOrder, setDisplayOrder] = useState(
     testimonial ? String(testimonial.display_order) : "0"
   );
-  const [active, setActive] = useState(testimonial?.active ?? true);
+  const [consentGiven, setConsentGiven] = useState(!!testimonial?.consent_recorded_at);
+  const [consentNote, setConsentNote] = useState(testimonial?.consent_note ?? "");
+  // A story can only be live with consent on file, so a new one starts
+  // hidden unless the admin is recording consent as they add it.
+  const [active, setActive] = useState(testimonial ? testimonial.active && !!testimonial.consent_recorded_at : false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -52,7 +59,9 @@ export default function TestimonialForm({
       conditionLabel,
       avatarUrl,
       displayOrder,
-      active,
+      active: consentGiven && active,
+      consentGiven,
+      consentNote,
     };
 
     const res = await fetch(
@@ -164,15 +173,56 @@ export default function TestimonialForm({
           className="w-24 p-2 rounded-lg border border-slate-300"
         />
       </label>
-      <label className="flex items-center gap-2 font-semibold">
+      <fieldset className="rounded-lg border border-slate-200 bg-white p-3 space-y-2">
+        <legend className="px-1 font-semibold text-slate-800">Consent</legend>
+        <label className="flex items-start gap-2 font-semibold">
+          <input
+            type="checkbox"
+            checked={consentGiven}
+            onChange={(e) => {
+              setConsentGiven(e.target.checked);
+              if (!e.target.checked) setActive(false);
+            }}
+            className="mt-0.5 w-4 h-4 accent-teal-600"
+          />
+          <span>
+            The patient has given written consent to publish this story
+            <span className="block font-normal text-slate-500">
+              Their words, the name shown and, if there is one, the photo. Without it the story is never shown.
+            </span>
+          </span>
+        </label>
+        {consentGiven && (
+          <label className="block">
+            <span className="block font-semibold mb-1">Where is the signed consent kept?</span>
+            <input
+              value={consentNote}
+              onChange={(e) => setConsentNote(e.target.value)}
+              placeholder="e.g. Signed form, 12 Dec, patient file"
+              required
+              minLength={5}
+              maxLength={500}
+              className="w-full p-2 rounded-lg border border-slate-300"
+            />
+          </label>
+        )}
+      </fieldset>
+      <label className={`flex items-center gap-2 font-semibold ${consentGiven ? "" : "text-slate-400"}`}>
         <input
           type="checkbox"
-          checked={active}
+          checked={consentGiven && active}
+          disabled={!consentGiven}
+          aria-describedby={consentGiven ? undefined : "testimonial-active-hint"}
           onChange={(e) => setActive(e.target.checked)}
           className="w-4 h-4 accent-teal-600"
         />
         Active (visible on the site)
       </label>
+      {!consentGiven && (
+        <p id="testimonial-active-hint" className="-mt-2 text-slate-500">
+          Record the patient&apos;s consent above to show this story.
+        </p>
+      )}
       <div className="flex gap-2">
         {onCancel && (
           <button
