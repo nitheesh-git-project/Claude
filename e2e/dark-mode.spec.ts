@@ -148,14 +148,20 @@ test.describe("appearance: light, dark, or the device", () => {
     await expect(group.getByRole("radio")).toHaveCount(3);
     await expect(group.getByRole("radio", { name: /Light/ })).toHaveAttribute("aria-checked", "true");
 
+    // Both columns polled together: the route writes site_theme and then, in
+    // a second write, the old follow_device_theme switch, and a one-shot read
+    // of the second straight after the first landed between them (a flake
+    // that failed the release PR #153 once).
     await group.getByRole("radio", { name: /^Dark/ }).click();
-    await expect.poll(async () => (await readTheme())?.site_theme).toBe("dark");
-    expect((await readTheme())?.follow_device_theme).toBe(false);
+    await expect
+      .poll(async () => await readTheme())
+      .toMatchObject({ site_theme: "dark", follow_device_theme: false });
 
     await group.getByRole("radio", { name: /visitor's device/ }).click();
-    await expect.poll(async () => (await readTheme())?.site_theme).toBe("device");
     // The old switch is kept meaning the same thing.
-    expect((await readTheme())?.follow_device_theme).toBe(true);
+    await expect
+      .poll(async () => await readTheme())
+      .toMatchObject({ site_theme: "device", follow_device_theme: true });
     await group.screenshot({ path: `${SHOT}/appearance-three.png` }).catch(() => {});
     await ctx.close();
   });
