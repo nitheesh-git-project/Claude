@@ -303,7 +303,14 @@ export function renderPatientSessionCard(
               refundWindowHours={
                 visit?.visit_mode === "home_visit"
                   ? adminSettings.homeVisitCancellationRefundHours
-                  : undefined
+                  : adminSettings.onlineCancellationRefundHours
+              }
+              payLater={a.payment_terms === "pay_later"}
+              viaProgramme={Boolean(a.package_purchase_id || visit?.home_visit_purchase_id)}
+              refundablePaise={
+                a.payment_status === "paid"
+                  ? Math.max(0, (a.amount_paid_paise ?? 0) - (a.refund_amount_paise ?? 0))
+                  : 0
               }
               cutoffMinutes={
                 visit?.visit_mode === "home_visit" ? null : adminSettings.patientCancelCutoffMinutes
