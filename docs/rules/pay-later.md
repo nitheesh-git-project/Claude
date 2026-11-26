@@ -370,6 +370,20 @@ A trusted patient treated first and settling afterwards: the grant, the booking 
        one would take the whole check to "unknown" on an unmigrated
        database. One receipt per payment, not one per session: four receipts
        for one transfer reads as four payments.
+     - **Money in is counted the day a payment is confirmed, and once.**
+       Admin Money -> Payment History and the patient's Payments screen both
+       pass the confirmed payments to `buildPatientReceipts` and
+       `buildPatientTransactions` (`readSettlementsForMoneyIn` on the admin
+       page, `loadPatientPayLater().settlements` / `settledBy` on the
+       patient's), and a session a payment closed carries that payment's id
+       so it is listed inside it, never counted beside it. Neither screen
+       passed them before, so a payment confirmed ahead of its session --
+       held as credit, applied to nothing yet -- left Money in at zero and
+       wrote no receipt. `paymentHistory.test.ts` pins both halves.
+     - **"Paid by Cash" refuses a pay-later session** (409, and the button is
+       not drawn for one). The pool is the one way a pay-later session's
+       money is recorded; marking the session paid as well counted the same
+       rupees twice.
 
   9. **Money out is a cost, and a refund is a hand-back.** Two paths, and
      both were half-wired before they existed: `pay_later_outcome =

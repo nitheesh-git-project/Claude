@@ -82,6 +82,7 @@ import {
   readSettlementReconciliation,
   readPayLaterManualRefunds,
   readPayLaterWriteOffs,
+  readSettlementsForMoneyIn,
   readUnallocatedSettlements,
   readWriteOffReconciliation,
 } from "@/lib/payLaterSettlementServer";
@@ -323,6 +324,9 @@ export default async function AdminDashboardPage({
   // People deleted with their records kept, for the "Deleted user" tag on the
   // People lists. Started now, awaited where the lists are built.
   const accountDeletionsRead = readAccountDeletions(admin);
+  // Confirmed pay-later payments, for Money in and the receipts log. Started
+  // now, awaited where Payment History is built.
+  const settlementsForMoneyInRead = readSettlementsForMoneyIn(admin);
 
   // Runs before the big read below so this same request already sees any
   // purchase this sweep just flipped to 'expired' -- see the helper's own
@@ -1970,6 +1974,7 @@ export default async function AdminDashboardPage({
       : withRefund;
   });
 
+  const settlementsForMoneyIn = await settlementsForMoneyInRead;
   const appointmentsWithPayoutBatch = appointmentsWithSessionCode.map((a) => ({
     ...a,
     therapist_payout_batch_id: payoutBatchIdByAppointmentId.get(a.id) ?? null,
@@ -3708,6 +3713,9 @@ export default async function AdminDashboardPage({
         code: roleCodeMap.get(t.id)?.therapist_code ?? null,
       }))}
       appointments={appointmentsWithPayoutBatch}
+      settlements={settlementsForMoneyIn?.settlements ?? []}
+      settledBy={settlementsForMoneyIn?.settledBy ?? {}}
+      settlementsUnreadable={settlementsForMoneyIn === null}
       packagePurchases={packagePurchases ?? []}
       paymentFailures={paymentFailures ?? []}
       payoutBatches={payoutBatches ?? []}

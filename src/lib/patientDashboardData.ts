@@ -1246,6 +1246,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     pendingDeclaration: { id: string; amount_paise: number; method: string; declared_at: string | null } | null;
     lastRejection: { amount_paise: number; rejection_reason: string | null; confirmed_at: string | null } | null;
     settlements: ReceiptSettlement[];
+    settledBy: Record<string, string>;
   } | null = null;
   if (needFeed || needReceipts) {
     payLater = await (payLaterEarly as NonNullable<typeof payLaterEarly>);

@@ -396,13 +396,16 @@ export async function loadPatientPayLater(
   pendingDeclaration: { id: string; amount_paise: number; method: string; declared_at: string | null } | null;
   lastRejection: { amount_paise: number; rejection_reason: string | null; confirmed_at: string | null } | null;
   settlements: ReceiptSettlement[];
+  /** appointment id -> the confirmed payment that closed it, so a receipt
+   *  lists the session inside its payment rather than a second time. */
+  settledBy: Record<string, string>;
 } | null> {
   try {
     const [sessionsRes, paymentsRes] = await Promise.all([
       admin
         .from("appointments")
         .select(
-          "id, patient_id, concern, status, slot_time, timezone, payment_status, payment_terms, amount_due_paise, pay_later_outcome"
+          "id, patient_id, concern, status, slot_time, timezone, payment_status, payment_terms, amount_due_paise, pay_later_outcome, pay_later_payment_id"
         )
         .eq("patient_id", patientId)
         .eq("payment_terms", "pay_later")
@@ -469,6 +472,11 @@ export async function loadPatientPayLater(
           confirmed_at: p.confirmed_at,
           declared_at: p.declared_at,
         })),
+      settledBy: Object.fromEntries(
+        rows
+          .map((a) => [a.id, (a as { pay_later_payment_id?: string | null }).pay_later_payment_id ?? null] as const)
+          .filter((e): e is readonly [string, string] => !!e[1])
+      ),
     };
   } catch {
     return null;
@@ -482,3 +490,62 @@ export type PayLaterOwedSession = {
   timezone: string | null;
   amount_due_paise: number | null;
 };
+
+/** A confirmed pay-later payment as the admin's receipts log and Money in
+ *  need it: whose it is, and the receipt fields. */
+export type AdminSettlementRow = ReceiptSettlement & { patient_id: string };
+
+/**
+ * Every confirmed pay-later payment, and which session each one closed.
+ *
+ * The admin's "Money in - from patients" and receipts log were built from
+ * sessions marked paid, so a payment confirmed before its session was
+ * delivered -- money in the clinic's hands, applied to nothing yet -- showed
+ * nowhere: Money in stayed at zero and there was no receipt. The money
+ * arrived the day it was confirmed, so that is when it is counted, and a
+ * session it later closes is listed inside that payment rather than counted
+ * a second time.
+ *
+ * Its own isolated read, walked to the end (these figures are sums). Null
+ * when it could not be read or was cut short, which the screen states
+ * rather than showing zero.
+ */
+export async function readSettlementsForMoneyIn(
+  admin: AdminClient
+): Promise<{ settlements: AdminSettlementRow[]; settledBy: Record<string, string> } | null> {
+  try {
+    const [payments, settled] = await Promise.all([
+      readAllRows<{
+        id: string;
+        patient_id: string;
+        amount_paise: number;
+        method: string;
+        reference: string | null;
+        confirmed_at: string | null;
+        declared_at: string | null;
+      }>(() =>
+        admin
+          .from("pay_later_payments")
+          .select("id, patient_id, amount_paise, method, reference, confirmed_at, declared_at")
+          .eq("status", "confirmed")
+          .order("id", { ascending: true })
+      ),
+      readAllRows<{ id: string; pay_later_payment_id: string | null }>(() =>
+        admin
+          .from("appointments")
+          .select("id, pay_later_payment_id")
+          .not("pay_later_payment_id", "is", null)
+          .order("id", { ascending: true })
+      ),
+    ]);
+    if (payments.error || settled.error || payments.truncated || settled.truncated) return null;
+    return {
+      settlements: payments.rows,
+      settledBy: Object.fromEntries(
+        settled.rows.filter((a) => !!a.pay_later_payment_id).map((a) => [a.id, a.pay_later_payment_id as string])
+      ),
+    };
+  } catch {
+    return null;
+  }
+}

@@ -211,8 +211,11 @@ export default function ProfileSessionList({
                     <MarkNoShowButton appointmentId={a.id} />
                   </>
                 )}
+                {/* Not for a pay-later session: that is settled through the
+                    patient's balance, and the route refuses it. */}
                 {canSeeMoney &&
                   a.payment_status !== "paid" &&
+                  a.payment_terms !== "pay_later" &&
                   (a.status === "requested" || a.status === "confirmed") && (
                     <MarkPaidByCashButton appointmentId={a.id} />
                   )}

@@ -38,11 +38,18 @@ export default async function Page() {
     }
   })();
 
+  // Confirmed pay-later payments are receipts too -- "Payment received" the
+  // day the clinic confirms it, listing the sessions it closed. They were
+  // built for and never passed in, so a patient who paid ahead of a session
+  // had no receipt at all. A session a payment closed carries that payment's
+  // id, so it is listed inside it rather than a second time.
+  const settledBy = d.payLater?.settledBy ?? {};
   const receipts = buildPatientReceipts(
-    d.appointments ?? [],
+    (d.appointments ?? []).map((a) => (settledBy[a.id] ? { ...a, pay_later_payment_id: settledBy[a.id] } : a)),
     d.allPackagePurchases ?? [],
     d.paymentFailures ?? [],
-    d.categoryTitleMap
+    d.categoryTitleMap,
+    d.payLater?.settlements ?? []
   );
   const summary = paymentsSummary(receipts);
 

@@ -556,7 +556,7 @@ Four consequences worth holding in mind while testing:
 #### `PL-PAY-003` - A part payment settles whole sessions, oldest first · P0
 
 **Steps.** With ₹4,800 owed across four ₹1,200 sessions, pay **₹2,000**.
-**Expected Result.** **Exactly one** session settles, in full, at **its own** frozen price. **₹800 stays unallocated** and is stated on both screens - the patient's reads *"₹800 of your last payment is held against your next session"*, the admin card reads *"received and not yet applied"*. The widget reads **₹3,600**, not ₹4,800. **No session is part-settled.**
+**Expected Result.** **Exactly one** session settles, in full, at **its own** frozen price. **₹800 stays unallocated** and is stated on both screens - the patient's reads *"₹800 of your last payment is held against your next session"*, the admin card reads *"received and not yet applied"*. The widget reads **₹3,600**, not ₹4,800. **No session is part-settled.** The whole ₹2,000 is in **Money in - from patients** on Money → Payment History from the day it was confirmed, with one **Payment Received** receipt there and on the patient's **Payments** screen listing the session it closed; the closed session is not counted a second time. A pay-later session never offers **Paid by Cash** (the route answers 409 if called).
 **Why whole sessions only:** the therapist's cut is computed from `amount_paid_paise`, so spreading ₹500 across four ₹1,200 sessions would silently shrink it on sessions the clinic had **already paid out on**.
 
 #### `PL-PAY-004` - No money figure moves either side of a settlement · P0
