@@ -78,6 +78,7 @@ import {
   readPayLaterCeilingPaise,
   readPayLaterEnabled,
   readPendingPayLaterApprovalIds,
+  readPayLaterApprovalRequired,
 } from "@/lib/payLaterSettingsServer";
 import {
   readPendingSettlementRows,
@@ -335,6 +336,7 @@ export default async function AdminDashboardPage({
   const shareBasesRead = readAllShareBases(admin);
   // Pay-later bookings waiting for an admin's approval (owner's decision).
   const pendingPayLaterApprovalsRead = readPendingPayLaterApprovalIds(admin);
+  const payLaterApprovalRequiredRead = readPayLaterApprovalRequired(admin);
 
   // Runs before the big read below so this same request already sees any
   // purchase this sweep just flipped to 'expired' -- see the helper's own
@@ -1926,6 +1928,7 @@ export default async function AdminDashboardPage({
 
   const shareBases = await shareBasesRead;
   const pendingPayLaterApprovals = await pendingPayLaterApprovalsRead;
+  const payLaterApprovalRequired = await payLaterApprovalRequiredRead;
   const appointmentsWithSessionCode = mergeMeetLinks(
     mergeSessionCodes(
       appointments ?? [],
@@ -6038,6 +6041,7 @@ export default async function AdminDashboardPage({
           nowMs={nowTimestamp()}
           ageSetting={payLaterAgeSetting}
           ceilingPaise={payLaterCeilingPaise}
+          approvalRequired={payLaterApprovalRequired}
           payments={payLaterPoolRows ?? []}
           settlements={payLaterSettlementRows ?? []}
           manualRefunds={payLaterManualRefunds ?? []}

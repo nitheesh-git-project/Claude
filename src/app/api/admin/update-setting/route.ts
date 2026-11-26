@@ -48,6 +48,9 @@ const ALLOWED_COLUMNS = new Set([
   // Whether anybody may be treated on pay-later terms at all. Off for its
   // first release, and read everywhere else in its own call failing closed.
   "pay_later_enabled",
+  // Whether each pay-later booking waits for an admin's approval (owner's
+  // decision, on by default). Its control sits beside the master switch.
+  "pay_later_approval_required",
   "pay_later_aged_after_days",
   "pay_later_max_owed_paise",
   // Whether that ageing warning runs at all. A switch rather than a zero in
@@ -246,6 +249,7 @@ export async function POST(request: NextRequest) {
       key === "follow_device_theme" ||
       key === "pay_later_age_warning_enabled" ||
       key === "pay_later_enabled" ||
+      key === "pay_later_approval_required" ||
       PUBLIC_SECTION_COLUMN_SET.has(key)) &&
     typeof value !== "boolean"
   ) {

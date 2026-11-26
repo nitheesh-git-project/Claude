@@ -45,7 +45,10 @@ A trusted patient treated first and settling afterwards: the grant, the booking 
   characters (a CHECK) and puts the booking back on `prepaid` terms so the
   patient pays online. Both claim on `pending`, so two admins cannot decide
   one booking twice. Rows from before approval existed carry null and
-  confirm as they always did. A clinic could otherwise grant terms once and
+  confirm as they always did. The switch is **Approve each pay-later booking**
+  on Money -> Patients owe (`PayLaterApprovalSwitch`, settings scope),
+  beside the master switch; turning it off approves nothing already waiting.
+  A clinic could otherwise grant terms once and
   have any number of sessions confirmed and delivered on credit with nobody
   looking -- and the therapist is paid at completion either way.
 
