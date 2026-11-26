@@ -7,6 +7,7 @@ import { useOptimistic, useState, useTransition } from "react";
 import { useRouter } from "@/lib/useRouter";
 import TestimonialForm from "./TestimonialForm";
 import { useConfirm } from "@/lib/useConfirm";
+import { isSeededTestimonial } from "@/lib/testimonialTrust";
 
 type Testimonial = {
   id: string;
@@ -17,7 +18,16 @@ type Testimonial = {
   avatar_url: string | null;
   display_order: number;
   active: boolean;
+  consent_recorded_at?: string | null;
+  consent_note?: string | null;
 };
+
+/** What the public site actually does with a story, in the admin's words. */
+function storyStatus(t: Testimonial): { label: string; tone: "live" | "off" | "warn" } {
+  if (isSeededTestimonial(t)) return { label: "Sample copy - never shown", tone: "warn" };
+  if (!t.consent_recorded_at) return { label: t.active ? "Not shown - no consent recorded" : "Hidden - no consent recorded", tone: t.active ? "warn" : "off" };
+  return t.active ? { label: "Shown on the site", tone: "live" } : { label: "Hidden", tone: "off" };
+}
 
 function DeleteButton({ id }: { id: string }) {
   // The parent only renders this row while the testimonial still exists, so
@@ -73,7 +83,7 @@ export default function TestimonialManager({ testimonials }: { testimonials: Tes
   const [visibility, setVisibility] = useState<"all" | "active" | "inactive">("all");
   const [addingNew, setAddingNew] = useState(false);
   const visible = testimonials.filter((row) =>
-    visibility === "all" ? true : visibility === "active" ? row.active : !row.active
+    visibility === "all" ? true : visibility === "active" ? storyStatus(row).tone === "live" : storyStatus(row).tone !== "live"
   );
   const { rows: pageTestimonials, pager } = usePagedList(visible, {
     storageKey: "admin-testimonials",
@@ -88,8 +98,8 @@ export default function TestimonialManager({ testimonials }: { testimonials: Tes
           onChange={setVisibility}
           choices={[
             { key: "all", label: "All", count: testimonials.length },
-            { key: "active", label: "Shown on the site", count: testimonials.filter((r) => r.active).length },
-            { key: "inactive", label: "Hidden", count: testimonials.filter((r) => !r.active).length },
+            { key: "active", label: "Shown on the site", count: testimonials.filter((r) => storyStatus(r).tone === "live").length },
+            { key: "inactive", label: "Not shown", count: testimonials.filter((r) => storyStatus(r).tone !== "live").length },
           ]}
         />
       )}
@@ -126,13 +136,20 @@ export default function TestimonialManager({ testimonials }: { testimonials: Tes
                   </div>
                   <span
                     className={`font-semibold px-2.5 py-1 rounded-full ${
-                      t.active ? "text-teal-700 bg-teal-50" : "text-slate-600 bg-slate-100"
+                      storyStatus(t).tone === "live"
+                        ? "text-teal-700 bg-teal-50"
+                        : storyStatus(t).tone === "warn"
+                          ? "text-amber-800 bg-amber-50"
+                          : "text-slate-600 bg-slate-100"
                     }`}
                   >
-                    {t.active ? "Active" : "Inactive"}
+                    {storyStatus(t).label}
                   </span>
                 </div>
                 <p className="text-slate-600 leading-relaxed">&quot;{t.quote}&quot;</p>
+                {t.consent_recorded_at && t.consent_note && (
+                  <p className="text-[11px] text-slate-500">Consent on file: {t.consent_note}</p>
+                )}
                 <div className="flex items-center justify-between pt-2 border-t border-slate-100">
                   <p className="text-slate-500">Order: {t.display_order}</p>
                   <div className="flex items-center gap-3">

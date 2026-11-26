@@ -31,6 +31,12 @@ export async function POST(request: NextRequest) {
   }
 
   const admin = createAdminClient();
+  // The default it replaces, for the log's before/after (best effort).
+  const { data: previousDefault } = await admin
+    .from("treatment_categories")
+    .select("title")
+    .eq("is_default", true)
+    .maybeSingle();
   let label = "No default service";
   if (id) {
     const { data: row, error: readError } = await admin
@@ -70,6 +76,10 @@ export async function POST(request: NextRequest) {
     action: "catalog.update",
     targetId: id,
     targetLabel: label,
+    details: {
+      from: (previousDefault as { title?: string } | null)?.title ?? "No default service",
+      to: label.replace(/^Booking default: /, ""),
+    },
   });
 
   // Both booking pages are what this changes; they are ISR-cached, so

@@ -185,3 +185,20 @@ test("FR-002: the admin reads the rating and the note in the session drawer on t
   // than leaving a gap.
   await expect(drawer.getByText(/Therapist's rating:\s*not rated yet/)).toBeVisible();
 });
+
+test("FR-003: Sessions -> Ratings & feedback lists the rating, with the session's time", async () => {
+  // The route once selected a column sessions do not have (a referral's
+  // assigned_slot_time), so the whole screen answered 500 for every admin.
+  const adminCtx = await contextFor(QA_EMAILS.admin);
+  try {
+    const res = await adminCtx.get("/api/admin/session-ratings");
+    expect(res.status()).toBe(200);
+    const body = (await res.json()) as { rows: Array<{ appointmentId: string; side: string; rating: number; feedback: string | null; slotTime: string | null }> };
+    const mine = body.rows.filter((r) => r.appointmentId === completedId);
+    expect(mine).toHaveLength(1);
+    expect(mine[0]).toMatchObject({ side: "patient", rating: 4, feedback: NOTE });
+    expect(mine[0].slotTime).toBeTruthy();
+  } finally {
+    await adminCtx.dispose();
+  }
+});

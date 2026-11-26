@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
   // orders, claims, free bookings or what is written back.
   // Priced for the request's own country, re-derived here rather than taken
   // from anything the wizard sent.
-  const { pricing } = await pricingForRequest(createAdminClient(), request);
+  const { pricing } = await pricingForRequest(createAdminClient(), request, { patientId: user.id });
   const minted = await mintAppointmentOrder({
     supabase,
     appointment,

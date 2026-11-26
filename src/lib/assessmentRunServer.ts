@@ -253,14 +253,18 @@ export async function requireOpenRun(
   rawRunId: unknown,
   opts: { patientId?: string } = {}
 ): Promise<{ ok: true; gate: RunGate } | { ok: false; response: NextResponse }> {
-  const who = await requireSignedInUser();
-  if (!who.ok) return who;
   if (typeof rawRunId !== "string" || !rawRunId.trim()) {
+    const who = await requireSignedInUser();
+    if (!who.ok) return who;
     return { ok: false, response: NextResponse.json({ error: "Missing runId", code: "bad_request" }, { status: 400 }) };
   }
-  // The service role reads the run to learn whose it is; nothing is
-  // answered from it until the caller has passed the therapist gate below.
-  const read = await loadRun(createAdminClient(), rawRunId.trim());
+  // Every guided-check step goes through this gate, so its reads run side by
+  // side where they do not depend on each other: a therapist saving steps
+  // during a live call waited on about seven round trips in a row. The
+  // service role reads the run to learn whose it is; nothing is answered
+  // from it until the caller has passed the therapist gate below.
+  const [who, read] = await Promise.all([requireSignedInUser(), loadRun(createAdminClient(), rawRunId.trim())]);
+  if (!who.ok) return who;
   if (read.status === "not_migrated") return { ok: false, response: databaseNotReady() };
   if (read.status === "unreadable") return { ok: false, response: couldNotCheck() };
   if (read.status === "not_found") {
@@ -268,20 +272,25 @@ export async function requireOpenRun(
   }
   const { run, events } = read;
 
-  const gate = await requireAssignedTherapist(
-    who.userId,
-    run.patientId,
-    "You can only run an assessment for a patient you've been assigned to."
-  );
-  if (!gate.ok) return gate;
+  // Assigned, and inside a started session: asked together. The session
+  // answer is used only once the assignment gate has passed, so a caller who
+  // is not this patient's therapist learns nothing from it.
   const nowMs = serverNowMs(request);
-  const notStarted = await requireStartedSession(
-    gate.admin,
-    gate.therapistId,
-    run.patientId,
-    nowMs,
-    "A guided check runs inside a session you've started with this patient."
-  );
+  const [gate, notStarted] = await Promise.all([
+    requireAssignedTherapist(
+      who.userId,
+      run.patientId,
+      "You can only run an assessment for a patient you've been assigned to."
+    ),
+    requireStartedSession(
+      createAdminClient(),
+      who.userId,
+      run.patientId,
+      nowMs,
+      "A guided check runs inside a session you've started with this patient."
+    ),
+  ]);
+  if (!gate.ok) return gate;
   if (notStarted) return { ok: false, response: notStarted };
 
   const protocol = sessionProtocol(run.protocolKey);

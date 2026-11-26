@@ -15,8 +15,10 @@ import { useRouter } from "@/lib/useRouter";
 import Link from "next/link";
 import EditBookingForm from "@/components/admin/EditBookingForm";
 import AssignTherapistForm from "@/components/admin/AssignTherapistForm";
+import ConfirmAssignedSessionButton from "@/components/admin/ConfirmAssignedSessionButton";
+import PayLaterApprovalControls from "@/components/admin/PayLaterApprovalControls";
 import ProgrammeTherapistAssign from "@/components/admin/ProgrammeTherapistAssign";
-import type { ProgrammePick } from "@/lib/sessionAssignQueue";
+import { awaitsPayLaterApproval, confirmsOnAssign, needsConfirming, type ProgrammePick } from "@/lib/sessionAssignQueue";
 import type { ProgrammeTag } from "@/lib/programmeId";
 import ProgrammeIdChip from "@/components/dashboard/ProgrammeIdChip";
 import { adminScreenHref, adminScreenKey } from "@/lib/adminNav";
@@ -737,11 +739,18 @@ export default function SessionDetailDrawer({
                   </p>
                 ) : (
                   <>
+                    {needsConfirming(a) && a.therapist_id && (
+                      <ConfirmAssignedSessionButton
+                        appointmentId={a.id}
+                        therapistId={a.therapist_id}
+                        therapistName={therapistName ?? "The therapist"}
+                      />
+                    )}
                     {needsAssigning && programmePick && (
                       <ProgrammeTherapistAssign
                         appointmentId={a.id}
                         pick={programmePick}
-                        confirms={a.payment_status === "paid" || a.payment_terms === "pay_later"}
+                        confirms={confirmsOnAssign(a)}
                       />
                     )}
                     {needsAssigning && (
@@ -764,6 +773,7 @@ export default function SessionDetailDrawer({
                       currentTherapistId={a.therapist_id}
                       currentSlotTime={a.slot_time}
                       currentCategoryId={a.category_id}
+                      timeZone={a.timezone}
                       therapists={therapists}
                       categories={categories}
                       onSaved={onClose}
@@ -965,6 +975,16 @@ export default function SessionDetailDrawer({
                   // test here, and the route re-derives it from the column
                   // this drawer does not load.
                   byHand={a.payment_terms === "pay_later"}
+                />
+              </div>
+            )}
+
+            {canSeeMoney && awaitsPayLaterApproval(a) && (
+              <div className="pt-3 border-t border-slate-100">
+                <PayLaterApprovalControls
+                  appointmentId={a.id}
+                  therapistId={a.therapist_id}
+                  therapistName={therapistName}
                 />
               </div>
             )}

@@ -54,6 +54,10 @@ export type QuotedAppointment = {
 export type CheckoutQuote = {
   /** The service line before anything came off. */
   listPricePaise: number;
+  /** The Indian list price before country pricing raised it. Equal to
+   *  `listPricePaise` for a rupee booking; the therapist's share is worked
+   *  out on this (shareBase.ts), never on the markup. */
+  homeListPricePaise: number;
   discountPaise: number;
   /** The service line after the discount. */
   payablePaise: number;
@@ -232,6 +236,7 @@ export async function resolveCheckoutQuote(
 
   return {
     listPricePaise,
+    homeListPricePaise: basePricePaise,
     discountPaise: discount.discountPaise,
     payablePaise: discount.payablePaise,
     travelFeePaise,

@@ -322,14 +322,29 @@ test("PL-UI-004 completion puts the money in three places at once", async ({ pag
   // refuses a therapist who is not rostered for the hour (and says why), so
   // the booked hour is opened on their roster first; on a fresh stack
   // nobody has a roster at all.
-  const { data: booked } = await db.from("appointments").select("slot_time").eq("id", bookedId).single();
+  const { data: booked } = await db
+    .from("appointments")
+    .select("slot_time,pay_later_approval")
+    .eq("id", bookedId)
+    .single();
+  // Every pay-later booking waits for an admin's approval (owner's
+  // decision): booked, but not confirmed by assigning until it is approved.
+  expect(booked!.pay_later_approval).toBe("pending");
   const closeHour = await openTherapistHour(db, therapistId, booked!.slot_time);
-  const assigned = await post("/api/admin/assign-appointment", {
+  const heldAssign = await post("/api/admin/assign-appointment", {
     appointmentId: bookedId,
     therapistId,
   });
+  expect(heldAssign.status, await heldAssign.clone().text()).toBe(200);
+  const { data: held } = await db.from("appointments").select("status").eq("id", bookedId).single();
+  expect(held!.status).toBe("requested");
+  // Approving it with a therapist on it confirms it, as Assign & Confirm would.
+  const approved = await post("/api/admin/pay-later-approval", {
+    appointmentId: bookedId,
+    decision: "approve",
+  });
   await closeHour();
-  expect(assigned.status, await assigned.clone().text()).toBe(200);
+  expect(approved.status, await approved.clone().text()).toBe(200);
   const { data: afterAssign } = await db
     .from("appointments")
     .select("status,payment_terms")
@@ -507,6 +522,10 @@ async function deliverAnotherSession(): Promise<string> {
       body: JSON.stringify(body),
     });
 
+  // The hour is opened on the therapist's roster before booking: create
+  // refuses an hour nobody can take (openHours.ts).
+  const slotTime = clinicSlot(2 + Math.floor(Math.random() * 30), 6 + Math.floor(Math.random() * 17));
+  const closeHour = await openTherapistHour(db, therapistId, slotTime);
   const created = await post(
     "/api/appointments/create",
     {
@@ -516,7 +535,7 @@ async function deliverAnotherSession(): Promise<string> {
       // can hold, and opening the therapist's hour was refused. Random, as
       // the other roster-opening specs are, so a rerun on a long-lived
       // project does not meet the session the last run delivered.
-      slotTime: clinicSlot(2 + Math.floor(Math.random() * 30), 6 + Math.floor(Math.random() * 17)),
+      slotTime,
       timezone: "Asia/Kolkata",
       notes: "pay-later journey fixture",
     },
@@ -549,10 +568,10 @@ async function deliverAnotherSession(): Promise<string> {
   expect(frozen!.amount_due_paise).toBeGreaterThan(0);
   expect(frozen!.amount_due_paise).toBeLessThanOrEqual(categoryPricePaise);
 
-  // Opened on the therapist's roster first, as in PL-UI-004: assigning
-  // someone not rostered for the hour is refused.
-  const { data: slotRow } = await db.from("appointments").select("slot_time").eq("id", appointmentId).single();
-  const closeHour = await openTherapistHour(db, therapistId, slotRow!.slot_time);
+  // Approved, then assigned -- assigning confirms it once approved. The hour
+  // opened above is still open, so the roster check passes.
+  const approved = await post("/api/admin/pay-later-approval", { appointmentId, decision: "approve" }, adminCookie);
+  expect(approved.status, await approved.clone().text()).toBe(200);
   const assigned = await post("/api/admin/assign-appointment", { appointmentId, therapistId }, adminCookie);
   await closeHour();
   expect(assigned.status, await assigned.clone().text()).toBe(200);

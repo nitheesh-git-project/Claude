@@ -1,5 +1,13 @@
 "use client";
 
+import {
+  defaultExamSide,
+  examSideDiffers,
+  examSideMismatchMessage,
+  reportedSides,
+  type ExamSide,
+  type ReportedArea,
+} from "@/lib/examSide";
 import { useId, useMemo, useState, useTransition } from "react";
 import OverlayPortal from "@/components/system/OverlayPortal";
 import { useDialogChrome } from "@/lib/useDialogChrome";
@@ -49,6 +57,7 @@ export default function PainExamDialog({
   overridesByRegion,
   initialRegion,
   initialSide,
+  reportedAreas = [],
   onClose,
 }: {
   endpoint: string;
@@ -57,10 +66,22 @@ export default function PainExamDialog({
   overridesByRegion: Record<string, QuestionOverrideRow[]>;
   initialRegion?: PainMapRegionKey | null;
   initialSide?: "left" | "right" | null;
+  /** The areas the patient marked on their intake (`area_pain`), so the exam
+   *  opens on their side and a different one is confirmed before saving. */
+  reportedAreas?: ReportedArea[];
   onClose: () => void;
 }) {
   const [region, setRegion] = useState<PainMapRegionKey | null>(initialRegion ?? null);
-  const [side, setSide] = useState<"left" | "right">(initialSide ?? "left");
+  // Never a guessed "left" (examSide.ts): the caller's side, else the one the
+  // patient marked, else none until the therapist picks.
+  const [side, setSide] = useState<ExamSide | null>(() =>
+    defaultExamSide(initialRegion ?? null, reportedAreas, initialSide ?? null)
+  );
+  // An exam on a side the patient did not report is saved only once the
+  // therapist confirms it -- flagged here, or by the route when this form
+  // did not have the patient's answers.
+  const [sideConfirmed, setSideConfirmed] = useState(false);
+  const [serverMismatch, setServerMismatch] = useState<string | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   // The overall pain, picked on the eleven 0-10 buttons and stored times
   // ten. Nothing is picked until someone taps: the old slider sat at 0 and
@@ -92,7 +113,7 @@ export default function PainExamDialog({
   const previous = useMemo(() => {
     if (!region) return null;
     return (
-      latestAssessmentByRegionSide(assessments).get(`${region}:${needsSide ? side : "na"}`) ?? null
+      latestAssessmentByRegionSide(assessments).get(`${region}:${needsSide ? side ?? "" : "na"}`) ?? null
     );
   }, [assessments, region, side, needsSide]);
 
@@ -100,10 +121,33 @@ export default function PainExamDialog({
     setRegion(next);
     setAnswers({});
     setPainScore(null);
+    setSide(defaultExamSide(next, reportedAreas));
+    setSideConfirmed(false);
+    setServerMismatch(null);
   }
+
+  function chooseSide(next: ExamSide) {
+    setSide(next);
+    setSideConfirmed(false);
+    setServerMismatch(null);
+  }
+
+  const reported = reportedSides(region, reportedAreas);
+  const mismatchText =
+    needsSide && side && examSideDiffers(region, side, reportedAreas)
+      ? examSideMismatchMessage(side, reported)
+      : serverMismatch;
 
   function submit() {
     if (!region) return;
+    if (needsSide && !side) {
+      setError("Choose the side you examined - left or right.");
+      return;
+    }
+    if (mismatchText && !sideConfirmed) {
+      setError("Confirm the side below before saving.");
+      return;
+    }
     if (painPercent === null) {
       setError("Choose the overall pain for this area, 0 to 10.");
       return;
@@ -121,6 +165,7 @@ export default function PainExamDialog({
           patientId,
           region,
           side: needsSide ? side : undefined,
+          sideConfirmed,
           answers: Object.entries(answers).map(([key, value]) => ({ key, value })),
           painPercent,
         }),
@@ -130,6 +175,14 @@ export default function PainExamDialog({
         onClose();
       } else {
         const data = await res.json().catch(() => ({}));
+        if (data.code === "exam_side_unconfirmed") {
+          // The route knew the patient's side when this form did not: show
+          // the confirmation and let the therapist answer it.
+          setServerMismatch(data.error ?? "Confirm the side before it is saved.");
+          setSideConfirmed(false);
+          setError("Confirm the side below before saving.");
+          return;
+        }
         setError(data.error ?? "Could not save this exam. Please try again.");
       }
     });
@@ -158,7 +211,7 @@ export default function PainExamDialog({
               </p>
               <h2 id={titleId} className="font-display text-lg font-bold text-slate-900">
                 {regionDef
-                  ? `${regionDef.label}${needsSide ? ` - ${side}` : ""}`
+                  ? `${regionDef.label}${needsSide ? ` - ${side ?? "choose a side"}` : ""}`
                   : "Which area did you examine?"}
               </h2>
               {previous && (
@@ -235,7 +288,7 @@ export default function PainExamDialog({
                           key={s}
                           type="button"
                           aria-pressed={side === s}
-                          onClick={() => setSide(s)}
+                          onClick={() => chooseSide(s)}
                           className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold capitalize transition ${
                             side === s
                               ? "bg-white text-slate-800 shadow-sm"
@@ -248,6 +301,24 @@ export default function PainExamDialog({
                     </div>
                   )}
                 </div>
+
+                {needsSide && reported.length > 0 && !mismatchText && side && (
+                  <p className="text-xs text-slate-500">The patient reported the {reported.join(" and ")} side.</p>
+                )}
+                {mismatchText && (
+                  <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 px-3.5 py-3 text-xs text-amber-900">
+                    <p className="font-semibold">{mismatchText}</p>
+                    <label className="mt-2 flex items-start gap-2">
+                      <input
+                        type="checkbox"
+                        checked={sideConfirmed}
+                        onChange={(e) => setSideConfirmed(e.target.checked)}
+                        className="mt-0.5"
+                      />
+                      <span>I examined the {side ?? "chosen"} side, not the one the patient reported.</span>
+                    </label>
+                  </div>
+                )}
 
                 <p className="rounded-xl bg-slate-50 px-3.5 py-2.5 text-xs text-slate-500">
                   Nothing here is required - record what you checked and leave the rest. Saving adds a

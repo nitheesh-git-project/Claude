@@ -117,6 +117,7 @@ export type LayoutSettingsRow = {
       enabled: boolean;
       markup_percent: number | string;
       units_per_inr: number | string | null;
+      price_rounding?: string | null;
     }[];
   };
 };
@@ -129,7 +130,7 @@ export type DevContactRow = {
 async function readLayoutSettings(): Promise<LayoutSettingsRow> {
   const supabase = createPublicClient();
 
-  const [brand, social, homeVisit, farewell, splash, devContact, pricingSettings, pricingRows, theme, siteTheme] = await Promise.all([
+  const [brand, social, homeVisit, farewell, splash, devContact, pricingSettings, pricingRows, theme, siteTheme, pricingRounding] = await Promise.all([
     supabase.from("site_settings").select(BRAND_COLUMNS).maybeSingle(),
     supabase.from("site_settings").select(SOCIAL_LINKS_SELECT).maybeSingle(),
     supabase.from("site_settings").select("home_visit_enabled").maybeSingle(),
@@ -148,7 +149,18 @@ async function readLayoutSettings(): Promise<LayoutSettingsRow> {
     // Its own read: a database without the newer column must still get the
     // old switch's answer rather than lose both.
     supabase.from("site_settings").select("site_theme").maybeSingle(),
+    // Each country's rounding step, on its own for the same reason: a
+    // database without the column prices on .99, as it always did.
+    supabase.from("country_pricing").select("country_code, price_rounding").eq("enabled", true),
   ]);
+  const roundingByCode = new Map(
+    pricingRounding.error
+      ? []
+      : ((pricingRounding.data ?? []) as { country_code: string; price_rounding: string | null }[]).map((r) => [
+          r.country_code,
+          r.price_rounding,
+        ])
+  );
 
   return {
     brand: (brand.data as LayoutSettingsRow["brand"]) ?? null,
@@ -159,7 +171,12 @@ async function readLayoutSettings(): Promise<LayoutSettingsRow> {
     devContact: (devContact.data as LayoutSettingsRow["devContact"]) ?? null,
     pricing: {
       settings: pricingSettings.error ? null : ((pricingSettings.data as LayoutSettingsRow["pricing"]["settings"]) ?? null),
-      rows: pricingRows.error ? [] : ((pricingRows.data ?? []) as LayoutSettingsRow["pricing"]["rows"]),
+      rows: pricingRows.error
+        ? []
+        : ((pricingRows.data ?? []) as LayoutSettingsRow["pricing"]["rows"]).map((r) => ({
+            ...r,
+            price_rounding: roundingByCode.get(r.country_code) ?? null,
+          })),
     },
     // A failed read is light, as the app was before this setting existed.
     themeMode: resolveThemeMode(

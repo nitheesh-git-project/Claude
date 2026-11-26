@@ -385,17 +385,18 @@ function AccountingFindings({ health }: { health: AccountingHealth }) {
     );
   }
 
-  const { balanceMismatches, unmatchedPayments, sessionsWithoutBacking } = health;
+  const { balanceMismatches, unmatchedPayments, sessionsWithoutBacking, pricingMismatches } = health;
   if (
     balanceMismatches.length === 0 &&
     unmatchedPayments.length === 0 &&
-    sessionsWithoutBacking.length === 0
+    sessionsWithoutBacking.length === 0 &&
+    pricingMismatches.length === 0
   ) {
     return (
       <EmptyState
         icon="fa-circle-check"
         title="Everything adds up"
-        body="Balances match their history, every payment is attached to something, and every delivered session has something behind it."
+        body="Balances match their history, every payment is attached to something, every delivered session has something behind it, and every booking priced abroad charged what its own price and markup say."
       />
     );
   }
@@ -428,6 +429,14 @@ function AccountingFindings({ health }: { health: AccountingHealth }) {
           key: s.id,
           left: s.sessionCode ?? s.id.slice(0, 8),
           right: s.slotTime ? formatClinicDateTime(s.slotTime) : "no slot time",
+        }))}
+      />
+      <Finding
+        title="Prices that don't add up"
+        rows={pricingMismatches.map((p) => ({
+          key: p.id,
+          left: p.sessionCode ?? p.id.slice(0, 8),
+          right: p.problem,
         }))}
       />
     </div>

@@ -8,9 +8,10 @@ import { pricingForRequest } from "@/lib/countryPricingServer";
 import { recordUserActivity } from "@/lib/userActivityLog";
 import { isGatewayPayable } from "@/lib/discounts";
 import { confirmPayLaterAppointment } from "@/lib/confirmPaidAppointment";
-import { readPayLaterBookingEligibility } from "@/lib/payLaterSettingsServer";
+import { readPayLaterApprovalRequired, readPayLaterBookingEligibility } from "@/lib/payLaterSettingsServer";
 import { payLaterRefusalMessage } from "@/lib/payLaterBooking";
 import { enforceRateLimit } from "@/lib/rateLimitServer";
+import { recordPricingSnapshot } from "@/lib/pricingSnapshotServer";
 
 // A booking by a patient the clinic has agreed to be paid by afterwards.
 //
@@ -107,7 +108,7 @@ export async function POST(request: NextRequest) {
   const admin = createAdminClient();
   // The same country pricing the quote used, so what is owed is what was
   // shown. Still a rupee amount, like every debt here.
-  const { pricing } = await pricingForRequest(admin, request);
+  const { pricing } = await pricingForRequest(admin, request, { patientId: user.id });
 
   // Resolved without claiming first, purely so the eligibility check below
   // has a figure: a ceiling on what a patient may owe has to be applied to
@@ -183,8 +184,14 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Each pay-later booking waits for an admin's approval (owner's decision):
+  // booked, but neither auto-assigned nor confirmed until somebody approves
+  // it on admin Home.
+  const holdForApproval = await readPayLaterApprovalRequired(admin);
+
   const outcome = await confirmPayLaterAppointment(admin, {
     appointment,
+    holdForApproval,
     amountDuePaise: quote.totalPaise,
     // Written inside the same claim that confirms, so no row can be left
     // marked pay-later but unconfirmed, or confirmed with no figure on it.
@@ -211,6 +218,24 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // How it was priced, for the therapist's share (shareBase.ts). Its own
+  // best-effort write, after the claim: a missing column must not stop a
+  // booking.
+  await recordPricingSnapshot(admin, appointmentId, quote);
+
+  // Marked for the approval queue in its own write, after the claim, for the
+  // same reason: the column is newer than this route. Should it fail, the
+  // booking is still held -- unassigned and `requested` -- in front of an
+  // admin, just without the label.
+  if (holdForApproval) {
+    const { error: markError } = await admin
+      .from("appointments")
+      .update({ pay_later_approval: "pending" })
+      .eq("id", appointmentId)
+      .eq("payment_terms", "pay_later");
+    if (markError) console.error("confirm-pay-later: could not mark for approval", appointmentId, markError.message);
+  }
+
   // `settleInvitesOnCapture` is deliberately NOT called. An inviter's reward
   // is earned when their friend's first session is **paid for**, and nothing
   // has been paid for yet -- that happens when this patient settles.
@@ -227,6 +252,8 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     success: true,
     confirmed: outcome.autoConfirmed,
+    // Waiting for an admin to approve the pay-later terms.
+    awaitingApproval: holdForApproval,
     // The figure that was written, not a re-read of it.
     amountDuePaise: quote.totalPaise,
     discountPaise: quote.discountPaise,

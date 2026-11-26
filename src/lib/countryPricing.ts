@@ -114,7 +114,52 @@ export type CountryPricing = {
    *  Null until a rate has been fetched -- such a country cannot be
    *  switched on, and shows the Indian price if it somehow is. */
   unitsPerInr: number | null;
+  /** How the shown price is rounded up (PRICE_ROUNDINGS). Absent means the
+   *  .99 rule, which is how every country was priced before this existed. */
+  rounding?: PriceRounding | null;
 };
+
+/**
+ * How a country's shown price is rounded up. ".99" is the default for every
+ * currency. A high-value currency (Omani rial, Kuwaiti dinar, Bahraini dinar)
+ * moves too far on .99 -- one rial is about Rs 220, so OMR 2.03 rounded to
+ * OMR 2.99 is nearly half as much again -- so such a country can round up
+ * to the next 0.10, 0.50 or whole unit instead, set per country. Always up,
+ * so the rounding never works against the clinic.
+ */
+export const PRICE_ROUNDINGS = ["0.99", "0.10", "0.50", "1.00"] as const;
+export type PriceRounding = (typeof PRICE_ROUNDINGS)[number];
+
+export function isPriceRounding(value: unknown): value is PriceRounding {
+  return typeof value === "string" && (PRICE_ROUNDINGS as readonly string[]).includes(value);
+}
+
+/** The roundings a currency can use: a currency without cents only has the
+ *  default (it ends in 9), since a tenth of a yen is not a price. */
+export function roundingsFor(currency: string): PriceRounding[] {
+  return currencyDecimals(currency) >= 2 ? [...PRICE_ROUNDINGS] : ["0.99"];
+}
+
+/** The rounding a currency's prices start on before anyone chooses: .99 for all. */
+export const DEFAULT_PRICE_ROUNDING: PriceRounding = "0.99";
+
+/** Currencies whose unit is worth so much that .99 is a big step: the
+ *  admin screen suggests a finer rounding for them. */
+export const HIGH_VALUE_CURRENCIES = new Set(["KWD", "BHD", "OMR", "JOD"]);
+
+/** Human words for a rounding, for the admin screen and the log. */
+export function roundingLabel(rounding: PriceRounding): string {
+  switch (rounding) {
+    case "0.99":
+      return "Up to .99";
+    case "0.10":
+      return "Up to the next 0.10";
+    case "0.50":
+      return "Up to the next 0.50";
+    case "1.00":
+      return "Up to a whole unit";
+  }
+}
 
 export const MAX_MARKUP_PERCENT = 500;
 
@@ -146,12 +191,25 @@ export function roundUpToNinetyNine(minor: number, decimals: number): number {
   return candidate >= amount ? candidate : candidate + unit;
 }
 
+/**
+ * Rounds a minor-unit amount up to a multiple of a step: OMR 2.031 on 0.10
+ * -> 2.100, on 0.50 -> 2.500, on 1.00 -> 3.000. ".99" is roundUpToNinetyNine.
+ * Never rounds down.
+ */
+export function roundUpToStep(minor: number, decimals: number, rounding: PriceRounding): number {
+  if (rounding === "0.99" || decimals < 2) return roundUpToNinetyNine(minor, decimals);
+  const amount = Math.max(0, Math.ceil(minor));
+  const stepMinor = Math.round(Number(rounding) * 10 ** decimals);
+  return Math.ceil(amount / stepMinor) * stepMinor;
+}
+
 export type CountryPrice = {
   /** The Indian price raised by the country's percentage, in paise. */
   raisedPaise: number;
   /** `raisedPaise` converted, before rounding, in the local minor unit. */
   convertedMinor: number;
-  /** What the visitor sees, in the local minor unit (ends in .99). */
+  /** What the visitor sees, in the local minor unit (ends in .99, or on
+   *  the country's own rounding step). */
   displayMinor: number;
   /** What Razorpay is asked for: the INR equal of `displayMinor`, rounded
    *  up to the paisa so the rounding never shortchanges the clinic. */
@@ -175,7 +233,7 @@ export function priceForCountry(basePaise: number, cfg: CountryPricing | null | 
     return { raisedPaise: 0, convertedMinor: 0, displayMinor: 0, chargePaise: 0, currency: cfg.currency, decimals };
   }
   const convertedMinor = paiseToMinor(raisedPaise, cfg.unitsPerInr, decimals);
-  const displayMinor = roundUpToNinetyNine(convertedMinor, decimals);
+  const displayMinor = roundUpToStep(convertedMinor, decimals, cfg.rounding ?? DEFAULT_PRICE_ROUNDING);
   const chargePaise = minorToPaiseUp(displayMinor, cfg.unitsPerInr, decimals);
   return { raisedPaise, convertedMinor, displayMinor, chargePaise, currency: cfg.currency, decimals };
 }
@@ -260,7 +318,13 @@ export function resolveCountry(args: {
   chosen: string | null | undefined;
   detected: string | null | undefined;
   pickerAllowed: boolean;
+  /** A signed-in patient's own country (accountCountry.ts). Wins over the
+   *  visitor's pick and the location header when it is a listed country:
+   *  an account says where someone is from better than an IP does. */
+  account?: string | null;
 }): string {
+  const account = normaliseCountryCode(args.account);
+  if (account && countryInfo(account)) return account;
   const chosen = normaliseCountryCode(args.chosen);
   if (args.pickerAllowed && chosen && countryInfo(chosen)) return chosen;
   const detected = normaliseCountryCode(args.detected);

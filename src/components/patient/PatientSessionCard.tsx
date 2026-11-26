@@ -1,3 +1,5 @@
+import RescheduleSessionButton from "@/components/patient/RescheduleSessionButton";
+import { patientRescheduleBlock } from "@/lib/patientReschedule";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import PayNowButton from "@/components/PayNowButton";
@@ -115,6 +117,9 @@ export function renderPatientSessionCard(
                 no_show: a.no_show,
                 therapist_id: a.therapist_id,
                 package_purchase_id: a.package_purchase_id,
+                pay_later_approval: a.pay_later_approval,
+                payment_status: a.payment_status,
+                payment_terms: a.payment_terms,
                 home_visit_purchase_id: visit?.home_visit_purchase_id ?? null,
               }).label}
             </span>
@@ -295,6 +300,24 @@ export function renderPatientSessionCard(
               durationMinutes={a.duration_minutes}
             />
           )}
+          {/* Moving it themselves: once, up to the clinic's cut-off, video
+              sessions only (patientReschedule.ts). Judged on the page's
+              request clock; the route re-checks on the debug-aware one. */}
+          {!patientRescheduleBlock({
+            status: a.status,
+            visitMode: visit?.visit_mode ?? null,
+            slotTime: a.slot_time,
+            nowMs: data.nowMs,
+            cutoffHours: adminSettings.patientRescheduleCutoffHours,
+            rescheduleCount: a.patient_reschedule_count ?? 0,
+            noShow: a.no_show,
+          }) && (
+            <RescheduleSessionButton
+              appointmentId={a.id}
+              categoryId={a.category_id}
+              leadTimeHours={adminSettings.onlineBookingLeadTimeHours}
+            />
+          )}
           {(a.status === "requested" || a.status === "confirmed") && (
             <CancelSessionButton
               appointmentId={a.id}
@@ -303,7 +326,14 @@ export function renderPatientSessionCard(
               refundWindowHours={
                 visit?.visit_mode === "home_visit"
                   ? adminSettings.homeVisitCancellationRefundHours
-                  : undefined
+                  : adminSettings.onlineCancellationRefundHours
+              }
+              payLater={a.payment_terms === "pay_later"}
+              viaProgramme={Boolean(a.package_purchase_id || visit?.home_visit_purchase_id)}
+              refundablePaise={
+                a.payment_status === "paid"
+                  ? Math.max(0, (a.amount_paid_paise ?? 0) - (a.refund_amount_paise ?? 0))
+                  : 0
               }
               cutoffMinutes={
                 visit?.visit_mode === "home_visit" ? null : adminSettings.patientCancelCutoffMinutes

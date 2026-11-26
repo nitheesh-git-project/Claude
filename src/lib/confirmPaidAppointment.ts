@@ -74,9 +74,13 @@ async function runConfirmation(
     /** Extra columns to write inside the same claim, so a discount fact can
      *  never be recorded against a booking whose claim was lost. */
     extraFields?: Record<string, unknown>;
+    /** Book it but neither auto-assign nor confirm: a pay-later booking
+     *  waiting for an admin's approval (payLaterApproval). */
+    holdForApproval?: boolean;
   }
 ): Promise<ConfirmResult> {
   const { appointment } = args;
+  const hold = args.holdForApproval === true;
 
   // A therapist already being assigned means everything else was already
   // arranged (e.g. a hospital referral) -- payment was the only thing
@@ -87,7 +91,7 @@ async function runConfirmation(
   // see autoAssignTherapist.ts for why the tie-break is deliberately "don't".
   let assignedTherapistId = appointment.therapist_id;
   let autoAssignReason: string | null = null;
-  if (!assignedTherapistId && appointment.status === "requested" && appointment.slot_time) {
+  if (!hold && !assignedTherapistId && appointment.status === "requested" && appointment.slot_time) {
     const settings = await readAutoAssignSettings(admin);
     const picked = await pickAutoAssignTherapist(admin, {
       appointmentId: appointment.id,
@@ -135,7 +139,7 @@ async function runConfirmation(
     }
   }
 
-  const shouldAutoConfirm = Boolean(assignedTherapistId) && appointment.status === "requested";
+  const shouldAutoConfirm = !hold && Boolean(assignedTherapistId) && appointment.status === "requested";
 
   // Atomic claim: only confirm/mark-paid if the appointment is still in the
   // same active state it was read in. Without this, an admin cancelling in
@@ -267,6 +271,9 @@ export async function confirmPayLaterAppointment(
     /** What this session will cost when it has been delivered. */
     amountDuePaise: number;
     extraFields?: Record<string, unknown>;
+    /** The clinic approves each pay-later booking: book it, but leave it
+     *  `requested` and unassigned for an admin to approve. */
+    holdForApproval?: boolean;
   }
 ): Promise<ConfirmResult> {
   return runConfirmation(admin, {
@@ -276,5 +283,6 @@ export async function confirmPayLaterAppointment(
       amount_due_paise: args.amountDuePaise,
     },
     extraFields: args.extraFields,
+    holdForApproval: args.holdForApproval,
   });
 }

@@ -108,6 +108,8 @@ export type FeedAppointment = {
    *  "waiting for a therapist" (isBookedAwaitingTherapist). Optional: a feed
    *  built without it keeps the old wording. */
   awaiting_programme_therapist?: boolean;
+  /** `pending` while the clinic has yet to approve a pay-later booking. */
+  pay_later_approval?: string | null;
   /** Optional, and read through describeRefundForPatient -- a feed built
    *  from a select that did not ask for these simply says nothing about a
    *  refund rather than guessing there wasn't one. */
@@ -267,6 +269,35 @@ export function buildPatientFeed({
         detail: when
           ? `${formatClinicDateTime(when)}. The clinic is confirming your physiotherapist - you'll see the joining details here once it's confirmed.`
           : "The clinic is confirming your physiotherapist - you'll see the joining details here once it's confirmed.",
+        href: "/patient/dashboard/sessions",
+      });
+    } else if (a.status === "requested" && a.pay_later_approval === "pending") {
+      // Pay later is approved by a person for every booking (owner's
+      // decision); until then nothing else about the session is decided.
+      items.push({
+        id: `appt-${a.id}`,
+        at: a.created_at ?? when,
+        icon: "fa-hourglass-half",
+        tone: "info",
+        title: `${mode} - waiting for the clinic to approve pay later`,
+        detail: "The clinic approves each pay-later booking, then confirms your time and your physiotherapist.",
+        href: "/patient/dashboard/sessions",
+      });
+    } else if (
+      a.status === "requested" &&
+      a.therapist_name &&
+      (a.payment_status === "paid" || a.payment_terms === "pay_later")
+    ) {
+      // Somebody is on it already; only the clinic's confirmation is
+      // outstanding. "Waiting for a physiotherapist" here told a patient
+      // nobody had been found when their therapist was named on the card.
+      items.push({
+        id: `appt-${a.id}`,
+        at: a.created_at ?? when,
+        icon: "fa-hourglass-half",
+        tone: "info",
+        title: `${mode} with ${a.therapist_name} - the clinic is confirming`,
+        detail: `${a.therapist_name} is assigned. The clinic confirms your time - you'll see the joining details here once it's confirmed.`,
         href: "/patient/dashboard/sessions",
       });
     } else if (a.status === "requested") {

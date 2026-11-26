@@ -10,6 +10,40 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
 
 ---
 
+- **A picker offers only hours a therapist can take.** The patient's wizard
+  and admin Book a session ask `GET /api/appointments/open-hours`
+  (`?from=YYYY-MM-DD&days=&categoryId=`, public, rate-limited `openHours`,
+  fails open) through `useOpenSlots`, which answers instants from
+  `readOpenSlotStarts` (`openHoursServer.ts`): an hour is open when at least
+  one approved, active therapist passes `assignabilityFromRoster` for it --
+  the very rule Assign & Confirm applies (on leave, no schedule, not working
+  that hour, already booked). The grid helpers in `bookingSlots.ts` take an
+  optional `SlotOpenCheck`; absent or null is "not checked" and offers every
+  hour that clears the lead time, which is how they behaved before.
+  `/api/appointments/create` re-checks the chosen instant and refuses a
+  closed one (409 `slot_not_open`); a roster it could not read lets the
+  booking through, and so does a clinic where **no therapist has any weekly
+  hours at all** -- a roster nobody has filled in cannot say who is free, so
+  it is "not checked", never "nobody is free". `useOpenSlots` returns one
+  function per answer (memoised): callers compare it to see whether the
+  hours changed, and a fresh function per render was a render loop that
+  took the wizard and the admin dashboard down. Before this the picker offered 6 AM to midnight every
+  day: a patient booked a Sunday, read "Booking Confirmed", and the clinic
+  found out at Assign & Confirm that nobody works Sundays. The pay-later
+  success heading now reads **Request received** -- the clinic still
+  confirms the time. `openHours.test.ts` pins the rule.
+- **A patient may move a video session themselves -- once, up to the
+  cut-off.** `POST /api/appointments/reschedule` (owner's decisions:
+  `patient_reschedule_cutoff_hours`, default 24, Settings -> Booking rules;
+  one move per booking, `appointments.patient_reschedule_count`; any open
+  hour). The rule is `patientRescheduleBlock` (`patientReschedule.ts`, tested),
+  read by the card to show **Change time** and by the route to allow it; the
+  route also re-checks the lead time, the whole hour in the booking's zone
+  and open hours. The session goes back to `requested` with **no therapist**
+  and its calendar event deleted, so the clinic confirms the new time from
+  "Sessions with no therapist". Home visits are moved by the clinic only. The
+  write compare-and-sets on status, slot and count.
+
 - **A patient holds one session at a time, and the database says so.**
   `/api/appointments/create` checks for an overlapping live session for
   immediate feedback, but a check and an insert two statements apart let two
@@ -98,6 +132,15 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
   `AdminNewBookingTab` passes 0 only while its existing
   "book inside the window anyway" box is ticked, so the grid opens up exactly
   when the route would accept it. Zero still cannot reach into the past.
+  **A staff picker works in the booking's zone, never the browser's.**
+  `AdminSlotPicker` takes a `timeZone` (default `CLINIC_TIMEZONE`;
+  `EditBookingForm` passes the appointment's own), labels its hours with it,
+  and converts with `slotToMs` / `slotFromIso` / `earliestSlot`, which take
+  the same zone (`zonedSlotMs`, `zonedSlotParts` and `wallClockMs` in
+  `bookingSlots.ts`). The grid helpers stay local-time; the picker hands them
+  a clock shifted to the zone's wall time. Built in local time, an admin on a
+  UTC laptop chose "10:00", sent 15:30 IST, and every route refused it as
+  "Sessions start on the hour". `bookingSlotsZoned.test.ts` pins it.
   **The service is chosen before the slot, from one picker.** Both public
   wizards used a native `<select>` of one line per option -- `/book` in Step
   2, so a patient picked a date and an hour while the header still read

@@ -828,9 +828,12 @@ reset the database.
   end to end. The cost is knowing what that means: completion is what makes a
   therapist's share payable, the bar is on in every environment, and so while
   it is on any signed-in therapist can send the header and complete a session
-  early. That is acceptable only while there are no real patients, and it
-  goes away with the bar - **delete the bar before launch** and the header is
-  ignored. The offset is bounded to a year either way. The same header
+  early. That is acceptable only where there are no real patients, and it
+  goes away with the bar: production runs with
+  `NEXT_PUBLIC_SHOW_DEBUG_NAV=false` (set in Vercel), so the header is
+  ignored there. The bar itself stays in the code for staging -- the owner's
+  standing instruction (`CLAUDE.md`, "Environments") -- so never remove it;
+  keep the production variable `false`. The offset is bounded to a year either way. The same header
   moves two therapist gates the card already judges on the simulated
   clock, because one session judged by two clocks reads as broken: the
   session note's "has it started" check (`session-notes/submit`, which

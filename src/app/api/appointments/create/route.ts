@@ -9,6 +9,8 @@ import {
 } from "@/lib/supabase/requireActiveProfile";
 import { mintAppointmentOrder } from "@/lib/appointmentOrderServer";
 import { OWN_SLOT_CONFLICT_ERROR, ownSlotConflict } from "@/lib/bookingDraft";
+import { readOpenSlotStarts } from "@/lib/openHoursServer";
+import { clinicDateKey } from "@/lib/clinicWeek";
 import { cancelAppointmentAndRefund } from "@/lib/cancelAppointment";
 import { razorpayOrderIsPaid } from "@/lib/razorpayOrderStatus";
 import { buildCheckoutQuoteBody } from "@/lib/checkoutQuoteServer";
@@ -233,6 +235,31 @@ export async function POST(request: NextRequest) {
     concern = category.title;
   }
 
+  // Somebody has to be able to take it. The picker offers only open hours
+  // (openHours.ts), but a page left open for an hour, or a request made
+  // without the picker, can still name one nobody works -- which the clinic
+  // used to find out at Assign & Confirm, after telling the patient
+  // "Booking Confirmed". A roster that could not be read lets the booking
+  // through, as before: the clinic confirms or offers another time.
+  {
+    const slotDayKey = clinicDateKey(slotMs);
+    const open = await readOpenSlotStarts(admin, {
+      fromDateKey: slotDayKey,
+      days: 1,
+      durationMinutes,
+      nowMs: Date.now(),
+    });
+    if (open !== null && !open.includes(slotMs)) {
+      return NextResponse.json(
+        {
+          error: "No physiotherapist is free at that time any more. Please pick another time.",
+          code: "slot_not_open",
+        },
+        { status: 409 }
+      );
+    }
+  }
+
   // A patient double-booking *themselves* is checked in the wizard too, for
   // immediate feedback before the last step; this is the copy that actually
   // binds, since the wizard's is a browser check like any other.
@@ -404,7 +431,7 @@ export async function POST(request: NextRequest) {
   // below price with it, so they cannot disagree.
   const needsPricing = body.withQuote === true || Boolean(body.startPayment);
   const { pricing } = needsPricing
-    ? await pricingForRequest(admin, request)
+    ? await pricingForRequest(admin, request, { patientId: user.id })
     : { pricing: null };
   let quote = null;
   if (body.withQuote === true) {

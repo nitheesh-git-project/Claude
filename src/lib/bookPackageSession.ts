@@ -1,3 +1,4 @@
+import { copyPurchasePricingToSession } from "@/lib/pricingSnapshotServer";
 import type { createAdminClient } from "@/lib/supabase/admin";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 import { mirrorReserve } from "@/lib/sessionCreditMirror";
@@ -249,6 +250,11 @@ export async function bookPackageSession(
     actorId,
     actorRole: actorId === purchase.patient_id ? "patient" : "admin",
   });
+
+  // How the programme was priced, if abroad: the therapist's share on this
+  // session is then worked out on the Indian price (shareBase.ts). Its own
+  // best-effort write -- a missing column must not fail a booking.
+  await copyPurchasePricingToSession(admin, appointment.id, purchase);
 
   // Best-effort audit trail -- never lets a logging failure fail a
   // booking that already succeeded.

@@ -62,6 +62,8 @@ test("HI-001: hospital A's referral lands, owned by hospital A", async () => {
       patientPhone: PHONE,
       medicalIssue: "Shoulder stiffness after surgery",
       visitMode: "online",
+      patientAge: 58,
+      patientConsent: true,
     }),
   });
   expect(res.status, await res.clone().text()).toBe(200);

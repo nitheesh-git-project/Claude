@@ -98,6 +98,7 @@ export async function POST(request: NextRequest) {
   await recordAdminActivity(admin, adminUser.id, {
     action: "pay_later.reject_payment",
     targetId: row.patient_id,
+    amountPaise: row.amount_paise,
     details: {
       paymentId: row.id,
       amountPaise: row.amount_paise,

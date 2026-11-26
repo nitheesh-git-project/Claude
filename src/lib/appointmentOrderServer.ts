@@ -19,6 +19,7 @@ import type { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isGatewayPayable } from "@/lib/discounts";
 import { resolveCheckoutQuote } from "@/lib/checkoutQuote";
+import { recordPricingSnapshot } from "@/lib/pricingSnapshotServer";
 import type { CountryPricing } from "@/lib/countryPricing";
 import { confirmPaidAppointment } from "@/lib/confirmPaidAppointment";
 import { recordPaymentCapture } from "@/lib/recordPaymentCapture";
@@ -333,6 +334,10 @@ export async function mintAppointmentOrder({
       body: { error: "Could not start payment. Please try again." },
     };
   }
+
+  // How it was priced, for the therapist's share (shareBase.ts). Its own
+  // best-effort write: a missing column must not stop a checkout.
+  await recordPricingSnapshot(admin, appointmentId, quote);
 
   return {
     status: 200,

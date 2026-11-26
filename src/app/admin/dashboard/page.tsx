@@ -45,6 +45,9 @@ import HomeVisitPriceList from "@/components/admin/HomeVisitPriceList";
 import HomeVisitAreaManager from "@/components/admin/HomeVisitAreaManager";
 import AdminCountryPricingTab from "@/components/admin/AdminCountryPricingTab";
 import { readCountryPricingAdmin } from "@/lib/countryPricingServer";
+import { DEFAULT_PRICE_ROUNDING, ratesAreStale } from "@/lib/countryPricing";
+import { ratesNeedingAttention } from "@/lib/exchangeRatePlan";
+import { autoAssignReadiness, therapistsWithHours } from "@/lib/autoAssignReadiness";
 import HomeVisitCashLedger from "@/components/admin/HomeVisitCashLedger";
 import AdminSystemHealthTab from "@/components/admin/AdminSystemHealthTab";
 import { readCheckoutSpeed } from "@/lib/checkoutSpeedServer";
@@ -58,6 +61,9 @@ import PriorDeclineChip from "@/components/admin/PriorDeclineChip";
 import { declineReasonLabel, findPriorDecline, type DeclinedApplication } from "@/lib/declineReasons";
 import {
   awaitsPatientPayment,
+  awaitsPayLaterApproval,
+  confirmationIsOverdue,
+  needsConfirming,
   needsTherapist,
   programmeTherapistFor,
   type ProgrammeLocks,
@@ -74,15 +80,19 @@ import {
   readPayLaterAgeSettings,
   readPayLaterCeilingPaise,
   readPayLaterEnabled,
+  readPendingPayLaterApprovalIds,
+  readPayLaterApprovalRequired,
 } from "@/lib/payLaterSettingsServer";
 import {
   readPendingSettlementRows,
   readSettlementReconciliation,
   readPayLaterManualRefunds,
   readPayLaterWriteOffs,
+  readSettlementsForMoneyIn,
   readUnallocatedSettlements,
   readWriteOffReconciliation,
 } from "@/lib/payLaterSettlementServer";
+import { readAllShareBases } from "@/lib/frozenTherapistRatesServer";
 import { reconcileSettlements, settlementWaitDays } from "@/lib/payLaterSettlement";
 import {
   computeClinicReceivable,
@@ -195,6 +205,7 @@ import { hospitalSessionLine } from "@/lib/hospitalEarnings";
 import { PROFILE_FIELD_LABELS, profileChangeValueText } from "@/lib/profileFieldLabels";
 import { mergeSessionCodes } from "@/lib/sessionCode";
 import { mergeMeetLinks } from "@/lib/meetLink";
+import { bookingConfirmationHours } from "@/lib/clinicPromises";
 import { computeTherapistPayoutSummary } from "@/lib/therapistPayouts";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { expireDuePackagePurchases } from "@/lib/expirePackagePurchases";
@@ -320,6 +331,31 @@ export default async function AdminDashboardPage({
   // People deleted with their records kept, for the "Deleted user" tag on the
   // People lists. Started now, awaited where the lists are built.
   const accountDeletionsRead = readAccountDeletions(admin);
+  // Confirmed pay-later payments, for Money in and the receipts log. Started
+  // now, awaited where Payment History is built.
+  const settlementsForMoneyInRead = readSettlementsForMoneyIn(admin);
+  // Completed sessions priced abroad: the therapist's share is taken on the
+  // Indian list price (shareBase.ts). Started now, awaited at the merge.
+  const shareBasesRead = readAllShareBases(admin);
+  // Pay-later bookings waiting for an admin's approval (owner's decision).
+  const pendingPayLaterApprovalsRead = readPendingPayLaterApprovalIds(admin);
+  const payLaterApprovalRequiredRead = readPayLaterApprovalRequired(admin);
+  // A referral's consent, age and email (newest columns on patient_referrals):
+  // their own read, so an unmigrated database costs this line, not the list.
+  const referralFactsRead = (async () => {
+    const r = await readAllRowsAsData<{
+      id: string;
+      patient_age: number | null;
+      patient_email: string | null;
+      patient_consent_at: string | null;
+    }>(() =>
+      admin
+        .from("patient_referrals")
+        .select("id, patient_age, patient_email, patient_consent_at")
+        .order("id", { ascending: true })
+    );
+    return new Map((r.error ? [] : r.data ?? []).map((row) => [row.id, row]));
+  })();
 
   // Runs before the big read below so this same request already sees any
   // purchase this sweep just flipped to 'expired' -- see the helper's own
@@ -1212,6 +1248,7 @@ export default async function AdminDashboardPage({
     categoryFocalRows,
     categoryFeaturedRows,
     testimonialAvatarRows,
+    testimonialConsentRows,
     refundDetailRows,
     googleConnection,
     syncModeRows,
@@ -1316,6 +1353,12 @@ export default async function AdminDashboardPage({
     guard(
       async () => (await admin.from("testimonials").select("id, avatar_url")).data,
       null as { id: string; avatar_url: string | null }[] | null
+    ),
+    // Consent to publish each story (testimonialTrust.ts), isolated for the
+    // same reason: newer columns cost the badge, never the screen.
+    guard(
+      async () => (await admin.from("testimonials").select("id, consent_recorded_at, consent_note")).data,
+      null as { id: string; consent_recorded_at: string | null; consent_note: string | null }[] | null
     ),
     // The refund detail the session drawer shows -- when it went back, why,
     // and the gateway's own reference. Isolated because `refunded_at` and
@@ -1899,6 +1942,7 @@ export default async function AdminDashboardPage({
 
   // testimonials.avatar_url is migration-dependent too, so it stays out of
   // the ~40-query Promise.all above for the reason the category covers do.
+  const testimonialConsentById = new Map((testimonialConsentRows ?? []).map((row) => [row.id, row]));
   const testimonialAvatarById = new Map(
     (testimonialAvatarRows ?? []).map((row) => [row.id, row.avatar_url as string | null])
   );
@@ -1909,6 +1953,10 @@ export default async function AdminDashboardPage({
     (completionRateRows ?? []).map((r) => [r.id, r])
   );
 
+  const shareBases = await shareBasesRead;
+  const pendingPayLaterApprovals = await pendingPayLaterApprovalsRead;
+  const payLaterApprovalRequired = await payLaterApprovalRequiredRead;
+  const referralFacts = await referralFactsRead;
   const appointmentsWithSessionCode = mergeMeetLinks(
     mergeSessionCodes(
       appointments ?? [],
@@ -1938,7 +1986,7 @@ export default async function AdminDashboardPage({
           pay_later_outcome: terms.pay_later_outcome,
         }
       : a;
-    const withRates = frozenRates
+    const withRatesBase = frozenRates
       ? {
           ...withTerms,
           therapist_share_percent_at_completion:
@@ -1946,16 +1994,22 @@ export default async function AdminDashboardPage({
           hospital_share_percent_at_completion:
             frozenRates.hospital_share_percent_at_completion,
           hospital_id_at_completion: frozenRates.hospital_id_at_completion,
+          ...(shareBases.get(a.id) ?? {}),
         }
       : withTerms;
+    // Merged onto every row, not just the frozen ones: an approval is waited
+    // on before completion. confirmsOnAssign and the queues read it.
+    const withApproval = pendingPayLaterApprovals.has(a.id)
+      ? { ...withRatesBase, pay_later_approval: "pending" as const }
+      : withRatesBase;
     const withRefund = refund
       ? {
-          ...withRates,
+          ...withApproval,
           refunded_at: refund.refunded_at,
           refund_reason: refund.refund_reason,
           refund_id: refund.refund_id,
         }
-      : withRates;
+      : withApproval;
     return discount
       ? {
           ...withRefund,
@@ -1967,6 +2021,7 @@ export default async function AdminDashboardPage({
       : withRefund;
   });
 
+  const settlementsForMoneyIn = await settlementsForMoneyInRead;
   const appointmentsWithPayoutBatch = appointmentsWithSessionCode.map((a) => ({
     ...a,
     therapist_payout_batch_id: payoutBatchIdByAppointmentId.get(a.id) ?? null,
@@ -2857,6 +2912,22 @@ export default async function AdminDashboardPage({
                           {r.preferred_language?.trim() || "Language not stated"}
                         </span>
                       </p>
+                      {(() => {
+                        const facts = referralFacts.get(r.id);
+                        return (
+                          <p className="text-slate-500 flex flex-wrap gap-x-3">
+                            {facts?.patient_age !== null && facts?.patient_age !== undefined && (
+                              <span>Age {facts.patient_age}</span>
+                            )}
+                            {facts?.patient_email && <span>{facts.patient_email}</span>}
+                            <span className={facts?.patient_consent_at ? "text-teal-700" : "text-amber-700"}>
+                              {facts?.patient_consent_at
+                                ? `Patient consent confirmed by the hospital, ${formatClinicDate(facts.patient_consent_at)}`
+                                : "No consent recorded - referred before the form asked"}
+                            </span>
+                          </p>
+                        );
+                      })()}
                       <p className="text-slate-500">
                         Referred by:{" "}
                         {hospital?.full_name ?? "Unknown partner"}
@@ -3705,6 +3776,9 @@ export default async function AdminDashboardPage({
         code: roleCodeMap.get(t.id)?.therapist_code ?? null,
       }))}
       appointments={appointmentsWithPayoutBatch}
+      settlements={settlementsForMoneyIn?.settlements ?? []}
+      settledBy={settlementsForMoneyIn?.settledBy ?? {}}
+      settlementsUnreadable={settlementsForMoneyIn === null}
       packagePurchases={packagePurchases ?? []}
       paymentFailures={paymentFailures ?? []}
       payoutBatches={payoutBatches ?? []}
@@ -3925,7 +3999,11 @@ export default async function AdminDashboardPage({
         enabled: r.enabled,
         markupPercent: r.markupPercent,
         unitsPerInr: r.unitsPerInr,
+        rounding: r.rounding ?? DEFAULT_PRICE_ROUNDING,
+        pendingUnitsPerInr: countryPricing.extras?.get(r.code)?.pendingUnitsPerInr ?? null,
+        pendingRateFetchedAt: countryPricing.extras?.get(r.code)?.pendingRateFetchedAt ?? null,
       }))}
+      roundingAvailable={countryPricing.extras !== null}
       settings={countryPricing.settings}
       ratesFetchedAt={countryPricing.ratesFetchedAt}
       samples={(treatmentCategories ?? [])
@@ -4217,6 +4295,8 @@ export default async function AdminDashboardPage({
             testimonials={(testimonials ?? []).map((t) => ({
               ...t,
               avatar_url: testimonialAvatarById.get(t.id) ?? null,
+              consent_recorded_at: testimonialConsentById.get(t.id)?.consent_recorded_at ?? null,
+              consent_note: testimonialConsentById.get(t.id)?.consent_note ?? null,
             }))}
           />
         </div>
@@ -4305,6 +4385,11 @@ export default async function AdminDashboardPage({
           settings={adminSettings}
           therapistSuggestionsEnabled={therapistSuggestionsEnabled}
           autoAssignEnabled={adminSettings.autoAssignTherapistEnabled}
+          autoAssignReadiness={
+            availabilityTemplateRows
+              ? autoAssignReadiness(therapistsWithHours(allTherapists, availabilityTemplateRows))
+              : undefined
+          }
         />
       </SettingsSection>
       <SettingsSection id="prog-home-visits">
@@ -5232,6 +5317,19 @@ export default async function AdminDashboardPage({
   const awaitingPaymentTotal = appointmentsWithSessionCode.filter((a) =>
     awaitsPatientPayment(a, homeVisitIds.has(a.id))
   ).length;
+  // Assigned and committed but still `requested` (sessionAssignQueue.ts):
+  // the rows that used to fall between "no therapist" and "waiting on
+  // payment". Late once past the clinic's confirm-within promise.
+  const needsConfirmingRows = appointmentsWithSessionCode.filter((a) => needsConfirming(a));
+  const confirmPromiseHours = bookingConfirmationHours();
+  const queueNowMs = nowTimestamp();
+  const needsConfirmingOverdue = needsConfirmingRows.filter((a) =>
+    confirmationIsOverdue(a.created_at, confirmPromiseHours, queueNowMs)
+  ).length;
+  const payLaterApprovalRows = appointmentsWithSessionCode.filter((a) => awaitsPayLaterApproval(a));
+  const payLaterApprovalOverdue = payLaterApprovalRows.filter((a) =>
+    confirmationIsOverdue(a.created_at, confirmPromiseHours, queueNowMs)
+  ).length;
   const cashOwedByTherapists = homeVisitRows.filter(
     (v) => v.cash_collected_at && !v.cash_remitted_at
   ).length;
@@ -5269,6 +5367,18 @@ export default async function AdminDashboardPage({
   const refundsFailed = appointmentsWithSessionCode.filter(
     (a) => a.refund_status === "failed"
   ).length;
+
+  const exchangeRateAttention = countryPricing
+    ? ratesNeedingAttention({
+        internationalEnabled: countryPricing.settings.internationalEnabled,
+        rows: countryPricing.rows.map((r) => ({
+          code: r.code,
+          enabled: r.enabled,
+          pendingUnitsPerInr: countryPricing.extras?.get(r.code)?.pendingUnitsPerInr ?? null,
+        })),
+        stale: ratesAreStale(countryPricing.ratesFetchedAt, nowTimestamp()),
+      })
+    : { count: 0, pending: 0, stale: false };
 
   const inboxGroups: InboxGroup[] = [
     {
@@ -5330,6 +5440,39 @@ export default async function AdminDashboardPage({
           view: "unassigned",
           hint: "Booked and nobody is assigned to run them yet. Programme sessions have their therapist pre-picked - one tap to assign.",
           urgent: unassignedToday > 0,
+        },
+        {
+          // Owner's decision: the clinic approves every pay-later booking.
+          // Money scope works it -- agreeing to treat before payment is a
+          // money decision wherever the button sits.
+          label: "Pay-later bookings to approve",
+          count: payLaterApprovalRows.length,
+          section: "sessions",
+          tab: "all",
+          view: "pay_later_approval",
+          workSection: "money",
+          hint:
+            payLaterApprovalOverdue > 0
+              ? `A patient asked to pay after the session. ${payLaterApprovalOverdue} ${
+                  payLaterApprovalOverdue === 1 ? "is" : "are"
+                } past the ${confirmPromiseHours}-hour promise.`
+              : "A patient asked to pay after the session. Open it to approve or decline.",
+          urgent: payLaterApprovalOverdue > 0,
+        },
+        {
+          label: "Assigned, not confirmed",
+          count: needsConfirmingRows.length,
+          section: "sessions",
+          tab: "all",
+          // Opens All Sessions filtered to exactly these rows.
+          view: "needs_confirming",
+          hint:
+            needsConfirmingOverdue > 0
+              ? `A therapist is on it but nobody confirmed it. ${needsConfirmingOverdue} ${
+                  needsConfirmingOverdue === 1 ? "is" : "are"
+                } past the ${confirmPromiseHours}-hour promise.`
+              : "A therapist is on it but nobody confirmed it. Open the session and tap Confirm.",
+          urgent: needsConfirmingOverdue > 0,
         },
         {
           // Never urgent: nothing is owed to these patients yet. Listed so
@@ -5452,6 +5595,18 @@ export default async function AdminDashboardPage({
           view: "refund_failed",
           hint: "The gateway refused the refund. The patient is still out of pocket and has been told to contact you.",
           urgent: true,
+        },
+        {
+          // Catalog works it (the rates screen is catalog scope), but it is
+          // money: a stale or held rate is what a patient abroad is charged.
+          label: "Exchange rates to check",
+          count: exchangeRateAttention.count,
+          section: "catalog",
+          tab: "countries",
+          hint: exchangeRateAttention.stale
+            ? "The stored rates are more than a week old, and switched-on countries are priced from them. Refresh them."
+            : "A new rate would move a price more than 10%, so it is waiting for you. Use it or keep the current one.",
+          urgent: exchangeRateAttention.stale,
         },
         {
           label: "Cash collected, not remitted",
@@ -5965,6 +6120,7 @@ export default async function AdminDashboardPage({
           nowMs={nowTimestamp()}
           ageSetting={payLaterAgeSetting}
           ceilingPaise={payLaterCeilingPaise}
+          approvalRequired={payLaterApprovalRequired}
           payments={payLaterPoolRows ?? []}
           settlements={payLaterSettlementRows ?? []}
           manualRefunds={payLaterManualRefunds ?? []}

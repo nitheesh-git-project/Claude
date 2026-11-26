@@ -146,7 +146,7 @@ export async function POST(request: NextRequest) {
   }
   // Outside India home visits are off unless an admin has allowed them
   // (Catalog -> Countries & currency). The country is the request's own.
-  if (!(await pricingForRequest(admin, request)).homeVisitsOffered) {
+  if (!(await pricingForRequest(admin, request, { patientId: user.id })).homeVisitsOffered) {
     return NextResponse.json({ error: HOME_VISIT_OUTSIDE_INDIA_ERROR }, { status: 403 });
   }
   // Defaults to true (DEFAULT_ADMIN_SETTINGS.homeVisitCashEnabled) -- only

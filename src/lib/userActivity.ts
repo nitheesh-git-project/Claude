@@ -95,6 +95,7 @@ export const USER_ACTIVITY_META = {
     verb: "booked a session from a programme",
   },
   "appointment.cancelled": { label: "Cancelled a session", group: "booking", verb: "cancelled a session" },
+  "appointment.rescheduled": { label: "Moved a session", group: "booking", verb: "moved a session to a new time" },
   "home_visit.booked": { label: "Booked a home visit", group: "booking", verb: "booked a home visit" },
   "session.completed": { label: "Completed a session", group: "booking", verb: "completed a session" },
   "suggestion.sent": { label: "Suggested a session", group: "booking", verb: "suggested a session" },

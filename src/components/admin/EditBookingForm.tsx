@@ -16,6 +16,7 @@ export default function EditBookingForm({
   currentTherapistId,
   currentSlotTime,
   currentCategoryId,
+  timeZone = null,
   therapists,
   categories,
   onSaved,
@@ -24,6 +25,8 @@ export default function EditBookingForm({
   currentTherapistId: string | null;
   currentSlotTime: string | null;
   currentCategoryId?: string | null;
+  /** The zone the session was booked in; its hours are judged there. */
+  timeZone?: string | null;
   therapists: { id: string; full_name: string; active?: boolean }[];
   categories?: { id: string; title: string; active?: boolean }[];
   onSaved?: () => void;
@@ -34,7 +37,7 @@ export default function EditBookingForm({
   );
   // Read once on mount, so the grid and the submit check agree on "now".
   const [nowMs] = useState(() => Date.now());
-  const [slot, setSlot] = useState(() => slotFromIso(currentSlotTime));
+  const [slot, setSlot] = useState(() => slotFromIso(currentSlotTime, timeZone));
   const [categoryId, setCategoryId] = useState(currentCategoryId ?? "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +46,7 @@ export default function EditBookingForm({
 
   async function handleSave(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const slotMs = slotToMs(slot.dateKey, slot.hour);
+    const slotMs = slotToMs(slot.dateKey, slot.hour, timeZone);
     if (!therapistId || slotMs === null) {
       setError("Pick a date and time for the session.");
       return;
@@ -146,6 +149,7 @@ export default function EditBookingForm({
         onChange={setSlot}
         nowMs={nowMs}
         leadTimeMs={0}
+        timeZone={timeZone}
       />
       <div className="flex gap-2">
         <button

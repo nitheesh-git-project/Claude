@@ -18,7 +18,6 @@ const base: RatedAppointment = {
   patient_id: "p1",
   therapist_id: "t1",
   slot_time: "2026-11-20T10:00:00Z",
-  assigned_slot_time: null,
   status: "completed",
   visit_mode: "online",
   duration_minutes: 45,

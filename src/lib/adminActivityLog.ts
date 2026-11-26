@@ -148,6 +148,8 @@ export type AdminActivityAction =
   | "patient.update_notes"
   | "patient.set_pay_later"
   | "pay_later.confirm_payment"
+  | "pay_later.approve_booking"
+  | "pay_later.decline_booking"
   | "pay_later.reject_payment"
   | "pay_later.write_off"
   | "pay_later.reverse_write_off"
@@ -403,6 +405,8 @@ export const ADMIN_ACTIVITY_LABELS: Record<AdminActivityAction, string> = {
   "patient.update_contact": "Changed a patient's contact details",
   "patient.set_pay_later": "Changed whether a patient may pay after treatment",
   "pay_later.confirm_payment": "Confirmed a payment from a patient on pay later",
+  "pay_later.approve_booking": "Approved a pay-later booking",
+  "pay_later.decline_booking": "Declined a pay-later booking (the patient pays online instead)",
   "pay_later.reject_payment": "Turned down a payment a patient said they had made",
   "pay_later.write_off": "Wrote off what a patient owed for a session",
   "pay_later.reverse_write_off": "Brought a written-off session back as owed",

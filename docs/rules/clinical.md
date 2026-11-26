@@ -20,6 +20,18 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
   a submission awaits review. Recorded as an approved
   `condition_change_requests` row (role `admin`) and in the activity log.
   Guard: `admin-type-changes` ATC-002/003.
+- **An exam is never recorded on a guessed side** (owner's decision).
+  `PainExamDialog` opened on the LEFT whenever its caller passed no side, and
+  two of its three callers passed none: a patient who marked their right knee
+  was examined "left", and the auto-written summary copied it. Now the form
+  opens on the caller's side, else the one side the patient marked on their
+  intake (`area_pain`), else none (`defaultExamSide`, `examSide.ts`, tested);
+  a side must be chosen to save; and an exam on a side the patient did not
+  report needs the therapist to tick a confirmation. Both submit routes
+  enforce it (`examSideRefusal`, `examSideServer.ts`: 409
+  `exam_side_unconfirmed` unless `sideConfirmed`), so a form that did not
+  have the intake answers still asks. An unreadable intake lets the exam
+  through -- the form already applied the rule whenever it could.
 - **Patient Care Intake and Pain Map are two separate data layers**, and
   the intake is **per specialty**. A `patient_condition_profiles` row
   carries `specialty` - `ortho`, `neuro`, `pediatrics`, `geriatric` or
@@ -1491,6 +1503,15 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      result, score, number other than the clock and the counter, or note can
      reach the patient's screen. The clock is a start time and a length; the
      screen counts.
+  5b. **A step saves fast, because the therapist is on a live call.** Each
+     step used to take about ten seconds: `requireOpenRun` made some seven
+     database round trips one after another, and the cockpit then called
+     `router.refresh()`, re-rendering the whole patient page on the server.
+     The gate now asks its independent questions side by side (sign-in with
+     the run; assignment with the started session -- the session answer is
+     used only once the assignment has passed), and a save, skip or stop
+     updates the cockpit from its own result with no page refresh. The page
+     is redrawn when the note is saved after the wrap-up.
   6. **Routes.** `/api/therapist/assessment-runs/start` (the protocol from the
      server-derived profile kind; `protocolKey` only chooses among that kind's;
      a linked session must be this therapist's video session; a second start

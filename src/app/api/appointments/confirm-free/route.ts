@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
   const admin = createAdminClient();
   // Priced as the quote was, for the request's country -- a fixed discount
   // that clears a rupee price may not clear the same service priced abroad.
-  const { pricing } = await pricingForRequest(admin, request);
+  const { pricing } = await pricingForRequest(admin, request, { patientId: user.id });
   const quote = await resolveCheckoutQuote(admin, {
     appointment,
     promoCode: typeof body.promoCode === "string" ? body.promoCode : null,

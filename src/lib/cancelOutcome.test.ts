@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cancelDialogMessage, describeCancelOutcome, hoursUntil, type CancelOutcomeInput } from "./cancelOutcome";
+import { cancelDialogMessage, describeCancelOutcome, hoursUntil, patientCancelMessage, type CancelOutcomeInput } from "./cancelOutcome";
 
 const NOW = Date.parse("2026-06-01T06:00:00Z");
 const inHours = (h: number) => new Date(NOW + h * 3_600_000).toISOString();
@@ -66,5 +66,36 @@ describe("describeCancelOutcome", () => {
     const o = describeCancelOutcome({ ...base, paidDirect: false, refundablePaise: 0 });
     expect(o.kind).toBe("unpaid");
     expect(cancelDialogMessage(o)).toContain("nothing to refund");
+  });
+});
+
+describe("patientCancelMessage", () => {
+  const unpaid = { ...base, paidDirect: false, viaProgramme: false, refundablePaise: 0 };
+
+  it("tells a pay-later patient nothing is owed, even inside the window", () => {
+    const m = patientCancelMessage({ ...unpaid, slotTime: inHours(2), payLater: true });
+    expect(m).toContain("nothing is owed");
+    expect(m).not.toContain("won't be refunded");
+  });
+
+  it("tells an unpaid patient there is nothing to refund", () => {
+    expect(patientCancelMessage({ ...unpaid, payLater: false })).toContain("You haven't paid");
+  });
+
+  it("names the refund for a paid session outside the window, and the window inside it", () => {
+    const paid = { ...base, paidDirect: true, refundablePaise: 49_900, payLater: false };
+    expect(patientCancelMessage({ ...paid, slotTime: inHours(30) })).toContain("₹499 will be refunded");
+    expect(patientCancelMessage({ ...paid, slotTime: inHours(5) })).toContain("within 24 hours of your session, so it won't be refunded");
+  });
+
+  it("uses the clinic's own window, not a fixed 24 hours", () => {
+    const paid = { ...base, paidDirect: true, refundablePaise: 49_900, payLater: false, windowHours: 48 };
+    expect(patientCancelMessage({ ...paid, slotTime: inHours(30) })).toContain("within 48 hours");
+  });
+
+  it("gives a programme session back, or says it is used up", () => {
+    const prog = { ...unpaid, viaProgramme: true, payLater: false };
+    expect(patientCancelMessage({ ...prog, slotTime: inHours(30) })).toContain("goes back to your programme");
+    expect(patientCancelMessage({ ...prog, slotTime: inHours(5) })).toContain("used up");
   });
 });

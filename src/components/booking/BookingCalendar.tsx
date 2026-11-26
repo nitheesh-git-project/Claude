@@ -14,6 +14,7 @@ import {
   fromDateKey,
   isMonthEntirelyUnbookable,
   type DateBounds,
+  type SlotOpenCheck,
 } from "@/lib/bookingSlots";
 
 // Month-grid date picker for Step 1. Replaces the old <input type="date">,
@@ -30,6 +31,7 @@ export default function BookingCalendar({
   markedDateKeys,
   gridLabel = "Choose a date",
   bounds,
+  isSlotOpen,
 }: {
   selectedDateKey: string;
   onSelect: (dateKey: string) => void;
@@ -52,6 +54,9 @@ export default function BookingCalendar({
   // their own copy of this month grid for exactly that one difference.
   markedDateKeys?: string[];
   gridLabel?: string;
+  /** Which slot starts a therapist can take (openHours.ts). Absent or null:
+   *  not checked, and every date that clears the lead time is offered. */
+  isSlotOpen?: SlotOpenCheck;
   // Picking a plain date rather than a bookable slot -- a report filter, a
   // leave range, the day a cost was incurred. When present the lead-time rule
   // is not applied and the day is judged by these bounds alone, which is what
@@ -84,7 +89,7 @@ export default function BookingCalendar({
     }
   }
 
-  const calendar = buildCalendarMonth(view.year, view.month, nowMs, leadTimeMs, bounds);
+  const calendar = buildCalendarMonth(view.year, view.month, nowMs, leadTimeMs, bounds, isSlotOpen);
 
   function shiftMonth(delta: number) {
     setView((prev) => {
@@ -102,7 +107,8 @@ export default function BookingCalendar({
     previousMonth.getMonth(),
     nowMs,
     leadTimeMs,
-    bounds
+    bounds,
+    isSlotOpen
   );
 
   // Booking has no forward limit -- a patient may look as far ahead as they
@@ -116,7 +122,8 @@ export default function BookingCalendar({
       nextMonth.getMonth(),
       nowMs,
       leadTimeMs,
-      bounds
+      bounds,
+      isSlotOpen
     );
 
   return (

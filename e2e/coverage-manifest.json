@@ -433,6 +433,18 @@
       "integration": "local",
       "destructive": false
     },
+    "patient-stories.spec.ts": {
+      "runner": "admin",
+      "levels": [
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "dark-mode.spec.ts": {
       "runner": "platform",
       "levels": [
@@ -3440,10 +3452,19 @@
             "HVP-005"
           ],
           "level": "browser"
+        },
+        {
+          "spec": "patient-stories.spec.ts",
+          "tests": [
+            "PS-001",
+            "PS-002"
+          ],
+          "level": "api"
         }
       ],
       "rules": [
-        "docs/rules/admin.md"
+        "docs/rules/admin.md",
+        "docs/rules/public-site.md"
       ]
     },
     {
@@ -4324,7 +4345,8 @@
           "spec": "patient-feedback-ratings.spec.ts",
           "tests": [
             "FR-001",
-            "FR-002"
+            "FR-002",
+            "FR-003"
           ],
           "level": "api"
         }
@@ -4545,7 +4567,9 @@
           "tests": [
             "CP-001",
             "CP-002",
-            "CP-003"
+            "CP-003",
+            "CP-004",
+            "CP-005"
           ],
           "level": "browser"
         }

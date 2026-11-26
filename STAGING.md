@@ -23,6 +23,32 @@ Both branches carry a ruleset requiring changes to arrive through a pull
 request, so neither takes a direct push -- a `git push` to either is refused
 with `GH013`, which is the rule working rather than a credential problem.
 
+## The two sites (the owner's standing instruction)
+
+| | Staging | Production |
+| --- | --- | --- |
+| Address | `staging.moverestorephysio.com` | `moverestorephysio.com` |
+| Branch | `staging` | `main` |
+| Data | Test data only. Anything may be created, changed or reset for testing. | Real patients and real data. Never touched by testing. |
+| Debug bar | On: `NEXT_PUBLIC_SHOW_DEBUG_NAV=true` in Vercel | Off: `NEXT_PUBLIC_SHOW_DEBUG_NAV=false` in Vercel |
+
+**The debug bar stays.** It is how staging is tested -- the page jumper, the
+simulated clock, the country override, test accounts, Reset data. Do not
+remove it, change its default, or list deleting it as a launch task: the
+Vercel variable is what keeps it out of production. (`ALLOW_DEBUG_DATA_RESET`
+is separate and must still never be set where real patients are.)
+
+**Fixing wording seen on the live site.** Production shows what `main` holds.
+When a tester reports wrong wording on `moverestorephysio.com`:
+
+1. Check `staging` says the same as production; if it has drifted, bring it
+   in line first, so the fix lands on the text production really shows.
+2. Fix it on a branch off `staging`, PR into `staging`, check it on
+   `staging.moverestorephysio.com`.
+3. The owner merges `staging` to `main` by hand, and production picks it up.
+
+Never edit production, `main` or the production database directly.
+
 ## The schema is the part that does not follow the merge
 
 `supabase/schema.sql` is applied to a database by

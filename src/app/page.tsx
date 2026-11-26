@@ -28,7 +28,8 @@ import {
   homeVisitComingLine,
   homeVisitWeVisitLine,
 } from "@/lib/homeVisitOffer";
-import { publicTestimonials } from "@/lib/testimonialTrust";
+import { consentedPublicTestimonials } from "@/lib/testimonialTrust";
+import { readConsentedStoryIds } from "@/lib/testimonialConsentServer";
 import { readPublicTeam } from "@/lib/publicTeam";
 import { readPublicContact } from "@/lib/publicContact";
 import { conditionChips } from "@/lib/patientConditionLabels";
@@ -186,7 +187,10 @@ export default async function Home() {
     .eq("active", true)
     .order("display_order", { ascending: true })
     .order("id", { ascending: true })
-    .limit(3);
+    // Filtered below and then cut to three: cutting first let the seeded
+    // samples, which are never shown, take every slot ahead of a real story.
+    .limit(50);
+  const consentedStoryIds = await readConsentedStoryIds(supabase);
 
   // Portraits in their own call: testimonials.avatar_url is
   // migration-dependent, so a database one merge behind loses the faces
@@ -197,11 +201,11 @@ export default async function Home() {
   const avatarById = new Map(
     (testimonialAvatars ?? []).map((row) => [row.id, row.avatar_url as string | null])
   );
-  // The five rows schema.sql seeds are illustrative copy, never real
-  // patients, so they are not shown (testimonialTrust.ts). With only those in
-  // the table the Reviews band and its rail entry are not drawn at all.
+  // Only a story with the patient's written consent on file is shown, and
+  // never the five illustrative rows schema.sql seeds (testimonialTrust.ts).
+  // With none left, the Reviews band and its rail entry are not drawn at all.
   const testimonials: PublicTestimonial[] = sectionsShown.testimonials
-    ? publicTestimonials(testimonialRows).map((t) => ({
+    ? consentedPublicTestimonials(testimonialRows, consentedStoryIds).slice(0, 3).map((t) => ({
         ...t,
         avatar_url: avatarById.get(t.id) ?? null,
       }))

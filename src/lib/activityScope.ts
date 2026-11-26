@@ -105,6 +105,8 @@ export const ACTION_DOMAIN: Record<string, ActionDomain> = {
   // refused at.
   "patient.set_pay_later": "money",
   "pay_later.confirm_payment": "money",
+  "pay_later.approve_booking": "money",
+  "pay_later.decline_booking": "money",
   "pay_later.reject_payment": "money",
   "pay_later.write_off": "money",
   "pay_later.reverse_write_off": "money",

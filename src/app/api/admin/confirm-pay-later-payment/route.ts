@@ -102,6 +102,10 @@ export async function POST(request: NextRequest) {
   await recordAdminActivity(admin, adminUser.id, {
     action: "pay_later.confirm_payment",
     targetId: row.patient_id,
+    // On the row itself, not only in the details: the Logs screens' Amount
+    // column and its export read this field, and a payment logged without it
+    // showed as a blank where the money should be.
+    amountPaise: row.amount_paise,
     details: {
       paymentId: row.id,
       amountPaise: row.amount_paise,

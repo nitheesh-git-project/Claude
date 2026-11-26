@@ -39,6 +39,12 @@ export type PatientSessionStatusInput = {
   therapist_id?: string | null;
   package_purchase_id?: string | null;
   home_visit_purchase_id?: string | null;
+  /** `pending` while the clinic has yet to approve a pay-later booking. */
+  pay_later_approval?: string | null;
+  /** Whether the session is paid or on pay-later terms -- only then is an
+   *  assigned request waiting on the clinic rather than on a payment. */
+  payment_status?: string | null;
+  payment_terms?: string | null;
 };
 
 /** Drawn from a purchase, still `requested`, and nobody on it yet. */
@@ -57,7 +63,24 @@ export function isBookedAwaitingTherapist(a: PatientSessionStatusInput): boolean
  * "Requested". A single consultation keeps "Requested" -- it is not paid
  * from a programme, and it may still be waiting on the patient's payment.
  */
+export const PAY_LATER_PENDING_LABEL = "Waiting for pay-later approval";
+export const ASSIGNED_CONFIRMING_LABEL = "Requested - clinic confirming";
+
 export function patientSessionStatus(a: PatientSessionStatusInput): { label: string; tone: RowStatusTone } {
+  if (a.status === "requested" && !a.no_show && a.pay_later_approval === "pending") {
+    return { label: PAY_LATER_PENDING_LABEL, tone: "info" };
+  }
   if (isBookedAwaitingTherapist(a)) return { label: PROGRAMME_BOOKED_LABEL, tone: "info" };
+  // A therapist is on it, it is paid or on terms, and only the clinic's
+  // confirmation is outstanding. An assigned cash visit or an unpaid
+  // checkout is waiting on a payment instead, and keeps "Requested".
+  if (
+    a.status === "requested" &&
+    !a.no_show &&
+    a.therapist_id &&
+    (a.payment_status === "paid" || a.payment_terms === "pay_later")
+  ) {
+    return { label: ASSIGNED_CONFIRMING_LABEL, tone: "info" };
+  }
   return sessionRowStatus(a.status, a.no_show ?? false);
 }

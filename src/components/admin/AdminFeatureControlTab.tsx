@@ -426,6 +426,17 @@ export default function AdminFeatureControlTab({
         initial={settings.patientCancelCutoffMinutes}
       />
 
+      <NumberSetting
+        settingKey="patient_reschedule_cutoff_hours"
+        title="Patient reschedule cut-off"
+        help="A patient may move an online session themselves once, up to this many hours before it starts, to any hour a therapist is free. The session then goes back to Requested and appears under Sessions with no therapist for you to confirm again. Inside the cut-off they message the clinic. Home visits are always moved by the clinic."
+        unit="hours"
+        label="Hours before an online session when patients can no longer move it"
+        min={1}
+        max={168}
+        initial={settings.patientRescheduleCutoffHours}
+      />
+
       <BookingLanguagesSection
         languages={settings.bookingLanguages}
         onSave={(languages) => saveSetting("booking_languages", languages)}

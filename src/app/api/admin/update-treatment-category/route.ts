@@ -9,6 +9,7 @@ import { writeCatalogFeatured } from "@/lib/catalogFeaturedServer";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { serverError } from "@/lib/apiError";
 import { isConditionSpecialty } from "@/lib/conditionSpecialty";
+import { auditChanges } from "@/lib/auditChanges";
 
 export async function POST(request: NextRequest) {
   const adminUser = await requireAdminScope("catalog");
@@ -107,6 +108,14 @@ export async function POST(request: NextRequest) {
     patch.active = Boolean(active);
   }
 
+  // The row as it was, so the log can say what this edit changed -- a
+  // price above all. Best effort: a failed read logs the new values alone.
+  const { data: before } = await admin
+    .from("treatment_categories")
+    .select(Object.keys(patch).join(", "))
+    .eq("id", id)
+    .maybeSingle();
+
   const { error } = await admin
     .from("treatment_categories")
     .update(patch)
@@ -131,7 +140,13 @@ export async function POST(request: NextRequest) {
   await recordAdminActivity(admin, adminUser.id, {
     action: "catalog.update",
     targetId: id,
-    targetLabel: "Treatment category",
+    targetLabel: title,
+    amountPaise: patch.price_paise as number,
+    details: auditChanges(
+      (before as Record<string, unknown> | null) ?? null,
+      patch,
+      ["title", "price_paise", "duration_minutes", "active", "display_order", "cta_label", "description", "image_url"]
+    ),
   });
 
   // The public pages reading this table are ISR-cached

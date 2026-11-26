@@ -46,7 +46,11 @@ Dates in the clinic's zone, voice, no browser default ever speaking to a person,
   1. **A session slot** is formatted in the zone the patient booked it in
      (`formatSlotTime`, `appointments.patient_timezone`) -- the booking's own
      record of what they were looking at when they chose it. Its no-zone
-     fallback for legacy rows is the clinic's zone, not the runtime's.
+     fallback for legacy rows is the clinic's zone, not the runtime's. It
+     uses the app's one style (`en-IN`, "27 Nov 2026, 3:30 pm"), and a slot
+     booked in any other zone names that zone and gives the clinic's time
+     beside it ("10:00 am UTC (3:30 pm IST)"). It used to print US style with
+     no zone, so one session read "10:00 AM" and "3:30 pm" on one screen.
   2. **A wall-clock date** -- `new Date(y, m, d)` in `bookingSlots.ts`, which
      has no instant behind it -- must *not* be pinned: formatting a local
      midnight in another zone prints the previous day for any viewer east of

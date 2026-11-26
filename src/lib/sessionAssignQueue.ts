@@ -24,6 +24,9 @@ export type AssignQueueRow = {
   payment_status: string;
   payment_terms?: string | null;
   package_purchase_id?: string | null;
+  /** Pay-later approval (null where it never applied). Migration-dependent,
+   *  so optional: absent reads as no approval needed, as before. */
+  pay_later_approval?: string | null;
 };
 
 /** Unassigned, live, and only waiting on the patient to pay online. */
@@ -42,8 +45,73 @@ export function awaitsPatientPayment(row: AssignQueueRow, isHomeVisit: boolean):
 /** Unassigned, live, and committed -- an admin's to staff. */
 export function needsTherapist(row: AssignQueueRow, isHomeVisit: boolean): boolean {
   return (
-    !row.therapist_id && row.status !== "cancelled" && !awaitsPatientPayment(row, isHomeVisit)
+    !row.therapist_id &&
+    row.status !== "cancelled" &&
+    !awaitsPatientPayment(row, isHomeVisit) &&
+    // Waiting on an admin's approval first, in its own queue: staffing a
+    // session the clinic may yet turn down is work done twice.
+    !awaitsPayLaterApproval(row)
   );
+}
+
+/**
+ * Whether putting a therapist on this session also confirms it: paid, or
+ * on pay-later terms. One rule for every door that assigns -- Assign &
+ * Confirm, "Change time & assign" and the programme pre-pick -- because the
+ * booking editor used to assign without confirming, which left a session
+ * `requested` with a therapist on it: in neither the "no therapist" queue
+ * nor the "waiting on payment" one, so nobody was ever asked to confirm it.
+ */
+export function confirmsOnAssign(
+  row: Pick<AssignQueueRow, "payment_status" | "payment_terms" | "pay_later_approval">
+): boolean {
+  if (row.payment_status === "paid") return true;
+  // A pay-later booking confirms only once an admin has approved it (owner's
+  // decision): pending or declined, a therapist can be put on it but it
+  // stays `requested`.
+  return row.payment_terms === "pay_later" && !isPayLaterHeld(row.pay_later_approval);
+}
+
+function isPayLaterHeld(approval: string | null | undefined): boolean {
+  return approval === "pending" || approval === "declined";
+}
+
+/** A pay-later booking still waiting for an admin to approve its terms: the
+ *  "Pay-later bookings to approve" queue on admin Home. */
+export function awaitsPayLaterApproval(
+  row: Pick<AssignQueueRow, "status" | "payment_status" | "payment_terms" | "pay_later_approval">
+): boolean {
+  return (
+    row.status === "requested" &&
+    row.payment_status !== "paid" &&
+    row.payment_terms === "pay_later" &&
+    row.pay_later_approval === "pending"
+  );
+}
+
+/**
+ * Assigned, committed, and still `requested`: the rows the booking editor
+ * used to leave behind, and any a failed confirmation strands. The admin's
+ * "Assigned, not confirmed" queue. A prepaid online session nobody has paid
+ * for is not here -- payment confirms it by itself.
+ */
+export function needsConfirming(row: AssignQueueRow): boolean {
+  return !!row.therapist_id && row.status === "requested" && confirmsOnAssign(row);
+}
+
+/**
+ * Past the clinic's promise to confirm a requested time within N hours
+ * (clinicPromises.ts), counted from when the booking was made. A row with
+ * no readable creation time is not called late -- unknown is not overdue.
+ */
+export function confirmationIsOverdue(
+  createdAt: string | null | undefined,
+  confirmationHours: number,
+  nowMs: number
+): boolean {
+  const created = createdAt ? Date.parse(createdAt) : NaN;
+  if (!Number.isFinite(created)) return false;
+  return nowMs - created > confirmationHours * 3_600_000;
 }
 
 /**

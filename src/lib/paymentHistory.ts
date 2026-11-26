@@ -39,6 +39,27 @@ export type PaymentAppointment = {
   // section) -- optional so this type keeps compiling for any caller that
   // hasn't started fetching it yet.
   session_code?: string | null;
+  /** The confirmed pay-later payment that closed this session, if any. */
+  pay_later_payment_id?: string | null;
+};
+
+/** A confirmed pay-later payment: money that arrived the day it was
+ *  confirmed, whether or not a session has used it yet. */
+export type SettlementPayment = {
+  id: string;
+  amount_paise: number;
+  method: string;
+  reference: string | null;
+  confirmed_at: string | null;
+  declared_at: string | null;
+};
+
+const SETTLEMENT_METHOD_LABEL: Record<string, string> = {
+  online: MODE_OF_PAYMENT,
+  cash: "Cash",
+  upi: "UPI",
+  bank_transfer: "Bank transfer",
+  other: "Other",
 };
 
 export type PackagePurchase = {
@@ -80,12 +101,21 @@ export type PatientPaymentSummary = {
 // bought. Including it as a second "transaction" would both fabricate a
 // payment that never occurred for that session and double-count the money
 // against the package purchase's own row.
+//
+// A confirmed pay-later payment is its own transaction, dated when it was
+// confirmed. A session it closed is then left out: its money is the
+// payment's, and counting both would put the same rupees in twice. (Before
+// this, only the session was counted, so money paid ahead of a session was
+// counted nowhere until the session was delivered.)
 export function buildPatientTransactions(
   appointments: PaymentAppointment[],
   packagePurchases: PackagePurchase[],
-  categoryTitleById: Map<string, string>
+  categoryTitleById: Map<string, string>,
+  settlements: SettlementPayment[] = []
 ): PatientTransaction[] {
+  const settlementIds = new Set(settlements.map((s) => s.id));
   const sessionTx: PatientTransaction[] = appointments
+    .filter((a) => !(a.pay_later_payment_id && settlementIds.has(a.pay_later_payment_id)))
     .filter((a) => a.payment_status === "paid" && !a.package_purchase_id && a.paid_at)
     .map((a) => ({
       id: a.id,
@@ -116,7 +146,20 @@ export function buildPatientTransactions(
       packagePurchaseId: p.id,
     }));
 
-  return [...sessionTx, ...packageTx].sort(
+  const settlementTx: PatientTransaction[] = settlements
+    .filter((p) => p.confirmed_at || p.declared_at)
+    .map((p) => ({
+      id: p.id,
+      date: (p.confirmed_at ?? p.declared_at) as string,
+      transactionId: p.reference,
+      modeOfPayment: SETTLEMENT_METHOD_LABEL[p.method] ?? "Other",
+      amountPaise: Math.max(0, p.amount_paise),
+      purpose: "Pay-later payment",
+      status: "Successful" as const,
+      sessionCode: null,
+    }));
+
+  return [...sessionTx, ...packageTx, ...settlementTx].sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
   );
 }

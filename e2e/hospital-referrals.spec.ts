@@ -35,6 +35,8 @@ test("REF-001: simultaneous referrals for one patient leave exactly one open", a
         patientPhone: PHONE,
         medicalIssue: "Lower back pain after a fall",
         visitMode: "online",
+        patientAge: 58,
+        patientConsent: true,
       }),
     });
 
@@ -79,9 +81,47 @@ test("REF-002: a withdrawn referral frees the number for a new one", async () =>
       patientPhone: PHONE,
       medicalIssue: "Knee pain again",
       visitMode: "online",
+      patientAge: 58,
+      patientConsent: true,
     }),
   });
   expect(res.status, await res.text()).toBe(200);
+});
+
+test("REF-004: a referral needs the patient's consent and age, and keeps them", async () => {
+  await cleanup();
+  const cookie = await cookieHeaderFor(QA_EMAILS.hospital);
+  const post = (extra: Record<string, unknown>) =>
+    fetch(`${BASE}/api/hospital/submit-referral`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: cookie },
+      body: JSON.stringify({
+        patientName: `${MARKER} consent`,
+        patientPhone: PHONE,
+        medicalIssue: "Hip stiffness after surgery",
+        visitMode: "online",
+        ...extra,
+      }),
+    });
+
+  const noConsent = await post({ patientAge: 64 });
+  expect(noConsent.status).toBe(400);
+  expect((await noConsent.json()).error).toMatch(/agreed to be referred/);
+  const noAge = await post({ patientConsent: true });
+  expect(noAge.status).toBe(400);
+  const badEmail = await post({ patientConsent: true, patientAge: 64, patientEmail: "not-an-email" });
+  expect(badEmail.status).toBe(400);
+
+  const ok = await post({ patientConsent: true, patientAge: 64, patientEmail: "asha@example.test" });
+  expect(ok.status, await ok.clone().text()).toBe(200);
+  const { data } = await db
+    .from("patient_referrals")
+    .select("patient_age, patient_email, patient_consent_at")
+    .like("patient_name", `${MARKER} consent`)
+    .single();
+  expect(data?.patient_age).toBe(64);
+  expect(data?.patient_email).toBe("asha@example.test");
+  expect(data?.patient_consent_at).toBeTruthy();
 });
 
 test("REF-003: a dropped connection while withdrawing is said, not swallowed", async ({ browser }) => {

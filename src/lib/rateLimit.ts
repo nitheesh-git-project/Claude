@@ -102,6 +102,22 @@ export const RATE_LIMITS = {
   },
 
   /**
+   * The booking picker asking which hours a therapist can take
+   * (/api/appointments/open-hours). Read-only and cheap to answer, but it
+   * walks the whole roster, so it is bounded. Its own scope: a picker paging
+   * through months must not spend the allowance a patient needs to pay.
+   * Fails open -- the picker then offers every hour, as it did before, and
+   * the booking route re-checks.
+   */
+  openHours: {
+    scope: "open-hours",
+    onCheckFailure: "open",
+    limit: 60,
+    windowSeconds: 300,
+    message: "We couldn't check the open times just now.",
+  },
+
+  /**
    * A hospital referral code, typed on the signup form. Enumerable, so it is
    * limited -- but a whole hospital sits behind one office address, and every
    * one of those staff shares this bucket, which is why the cap is well above
