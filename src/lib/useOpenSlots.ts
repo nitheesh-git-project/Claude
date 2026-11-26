@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CLINIC_TIMEZONE, toDateKey, wallClockMs, type SlotOpenCheck } from "@/lib/bookingSlots";
 import { openSlotPredicate } from "@/lib/openHours";
 
@@ -50,5 +50,11 @@ export function useOpenSlots(nowMs: number | null, categoryId: string | null | u
   }, [key, fromKey, categoryId]);
 
   const open = state.key === key ? state.open : null;
-  return { isOpen: openSlotPredicate(open), checked: open !== null };
+  // One function per answer, not per render: callers compare it to decide
+  // whether the open hours changed, and a fresh function every render made
+  // that comparison always true -- a render loop that took the booking
+  // wizard and the whole admin dashboard (which keeps Book a session
+  // mounted) down the moment the hours arrived.
+  const isOpen = useMemo(() => openSlotPredicate(open), [open]);
+  return { isOpen, checked: open !== null };
 }

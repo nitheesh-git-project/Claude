@@ -74,6 +74,11 @@ export async function readOpenSlotStarts(
     ]);
     if (templates.error || overrides.error || bookings.error) return null;
     if (templates.truncated || overrides.truncated || bookings.truncated) return null;
+    // Nobody in the clinic has any weekly hours: the roster is not in use, so
+    // it cannot say who is free. "Not checked" (every hour offered, and the
+    // clinic confirms), never "nobody is free" -- which would refuse every
+    // booking in a clinic that simply has not filled its roster in.
+    if (templates.rows.length === 0) return null;
 
     const roster: RosterTherapist[] = therapists.map((t) => ({
       id: t.id as string,

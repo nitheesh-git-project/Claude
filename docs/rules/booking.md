@@ -22,7 +22,12 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
   hour that clears the lead time, which is how they behaved before.
   `/api/appointments/create` re-checks the chosen instant and refuses a
   closed one (409 `slot_not_open`); a roster it could not read lets the
-  booking through. Before this the picker offered 6 AM to midnight every
+  booking through, and so does a clinic where **no therapist has any weekly
+  hours at all** -- a roster nobody has filled in cannot say who is free, so
+  it is "not checked", never "nobody is free". `useOpenSlots` returns one
+  function per answer (memoised): callers compare it to see whether the
+  hours changed, and a fresh function per render was a render loop that
+  took the wizard and the admin dashboard down. Before this the picker offered 6 AM to midnight every
   day: a patient booked a Sunday, read "Booking Confirmed", and the clinic
   found out at Assign & Confirm that nobody works Sundays. The pay-later
   success heading now reads **Request received** -- the clinic still
