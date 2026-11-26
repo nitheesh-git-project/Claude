@@ -21671,3 +21671,18 @@ alter table site_settings add column if not exists pay_later_approval_required b
 alter table appointment_emails drop constraint if exists appointment_emails_event_check;
 alter table appointment_emails add constraint appointment_emails_event_check
   check (event in ('received', 'confirmed', 'cancelled', 'reminder_24h', 'reminder_1h', 'pay_later_declined'));
+
+-- The same pricing facts on an online programme bought from abroad
+-- (care-plan create-order prices it with the country markup, like a single
+-- session). Each session booked against the purchase (bookPackageSession)
+-- copies its share of both prices and the country, so the therapist's share
+-- on a programme session is worked out on the Indian price too, and System
+-- Health checks it. Null on a rupee purchase.
+alter table patient_package_purchases add column if not exists home_list_price_paise integer
+  check (home_list_price_paise is null or home_list_price_paise >= 0);
+alter table patient_package_purchases add column if not exists pricing_country text
+  check (pricing_country is null or pricing_country ~ '^[A-Z]{2}$');
+alter table patient_package_purchases add column if not exists pricing_currency text
+  check (pricing_currency is null or pricing_currency ~ '^[A-Z]{3}$');
+alter table patient_package_purchases add column if not exists pricing_markup_percent numeric(6, 2)
+  check (pricing_markup_percent is null or pricing_markup_percent between 0 and 500);

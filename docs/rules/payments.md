@@ -451,6 +451,15 @@ Razorpay verification, the one capture path, booking idempotency, every refund s
     the columns existed, is unchanged. The facts reach every reader through
     `readFrozenTherapistRates` / `frozenShareFacts` and, on the admin page,
     `readAllShareBases`.
+  - **An online programme bought from abroad carries the same facts.**
+    `care-plan/create-order` records them on `patient_package_purchases`
+    (`recordPurchasePricingSnapshot`), and `bookPackageSession` -- the one
+    path every programme booking takes -- copies each session's share of
+    both prices, the country and the markup onto the session
+    (`copyPurchasePricingToSession`). So a programme session's therapist
+    share is on the Indian price too, and System Health checks it. Both are
+    best-effort writes after the order or the booking. A home-visit
+    programme is priced in rupees and has nothing to record.
   - **System Health checks the price.** `pricingFindings` (`pricingHealth.ts`,
     tested), read by `loadAccountingHealth`, lists **Prices that don't add up**:
     a booking priced abroad in the last 180 days whose charge is below its

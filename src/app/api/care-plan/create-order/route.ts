@@ -1,3 +1,4 @@
+import { recordPurchasePricingSnapshot } from "@/lib/pricingSnapshotServer";
 import { NextRequest, NextResponse } from "next/server";
 import type Razorpay from "razorpay";
 import { createRazorpayClient } from "@/lib/razorpayClient";
@@ -406,6 +407,16 @@ export async function POST(request: NextRequest) {
     // goes ahead; with a discount it must not, or the books would hold a
     // reduced price with no record of why.
     ({ error: updateError } = await admin.from(table).update(baseUpdate).eq("id", purchaseRowId));
+  }
+  // How an online programme was priced abroad, so each session booked from
+  // it pays the therapist's share on the Indian price (shareBase.ts). Its
+  // own best-effort write.
+  if (!updateError && offerKind === "session_package") {
+    await recordPurchasePricingSnapshot(admin, purchaseRowId, {
+      homeListPricePaise: programme.snapshot.pricePaise,
+      listPricePaise: listPricePaise,
+      pricing: requestPricing.pricing,
+    });
   }
   if (updateError) {
     console.error("Failed to save the order for care plan purchase", purchaseRowId, updateError);
