@@ -11,6 +11,8 @@ import {
   claimTherapistSlot,
   describeClaimFailure,
 } from "@/lib/claimTherapistSlot";
+import { confirmsOnAssign } from "@/lib/sessionAssignQueue";
+import { announceConfirmedSession, VISIT_COLUMNS, type VisitRow } from "@/lib/announceConfirmedSession";
 
 export async function POST(request: NextRequest) {
   const adminUser = await requireAdminScope("sessions");
@@ -51,7 +53,7 @@ export async function POST(request: NextRequest) {
   const { data: appointment } = await admin
     .from("appointments")
     .select(
-      "patient_id, status, slot_time, duration_minutes, timezone, category_id, therapist_id, therapist_payout_paid_at, google_event_id"
+      "patient_id, status, payment_status, slot_time, duration_minutes, timezone, category_id, therapist_id, therapist_payout_paid_at, google_event_id"
     )
     .eq("id", appointmentId)
     .single();
@@ -175,9 +177,24 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // "Change time & assign" used to assign without confirming, so a paid or
+  // pay-later session left here `requested` with a therapist on it -- in no
+  // admin queue at all. It now confirms by the same rule as Assign & Confirm
+  // (confirmsOnAssign). Terms in their own read, as assign-appointment does:
+  // the column is newer than this route.
+  const { data: terms } = await admin
+    .from("appointments")
+    .select("payment_terms")
+    .eq("id", appointmentId)
+    .maybeSingle();
+  const shouldConfirm =
+    appointment.status === "requested" &&
+    confirmsOnAssign({ payment_status: appointment.payment_status, payment_terms: terms?.payment_terms ?? null });
+
   const claim = await claimTherapistSlot(admin, {
     appointmentId,
     therapistId,
+    confirm: shouldConfirm,
     // A reschedule is applied only while the therapist this request was
     // read with is still the one on the session. `is not distinct from`
     // inside the function means an unassigned session is matched by a null
@@ -220,7 +237,24 @@ export async function POST(request: NextRequest) {
   // time) if one already exists (i.e. this session was already confirmed
   // with a Meet event); no-ops otherwise, matching duration/category-only
   // edits too since those affect the event's end time.
-  if (therapistChanged || slotChanged || categoryChanged) {
+  if (shouldConfirm) {
+    // Newly confirmed: create the event and tell the patient, exactly as
+    // Assign & Confirm does. There is no event to patch yet.
+    const { data: visit } = await admin
+      .from("appointments")
+      .select(VISIT_COLUMNS)
+      .eq("id", appointmentId)
+      .maybeSingle();
+    await announceConfirmedSession(admin, {
+      appointmentId,
+      patientId: appointment.patient_id,
+      therapistId,
+      slotTime: newSlotIso,
+      durationMinutes,
+      timezone: appointment.timezone,
+      visit: (visit as VisitRow | null) ?? null,
+    });
+  } else if (therapistChanged || slotChanged || categoryChanged) {
     await updateMeetEventForAppointment(admin, {
       appointmentId,
       googleEventId: appointment.google_event_id,
@@ -238,7 +272,7 @@ export async function POST(request: NextRequest) {
   await recordAdminActivity(admin, adminUser.id, {
     action: "session.update",
     targetId: appointmentId,
-    details: { therapistChanged, slotChanged, categoryChanged },
+    details: { therapistChanged, slotChanged, categoryChanged, confirmed: shouldConfirm },
   });
 
   return NextResponse.json({ success: true });

@@ -32,6 +32,11 @@ requested ──assign + paid/terms──> confirmed ──complete──> compl
 
 - **`requested`** — booked and waiting on somebody. Either unpaid, or paid
   with no therapist assigned yet.
+  Assigning confirms whenever the session is paid or on pay-later terms --
+  through Assign & Confirm *and* the booking editor's "Change time &
+  assign" (`confirmsOnAssign`, `src/lib/sessionAssignQueue.ts`). A
+  committed session still `requested` with a therapist on it is the admin's
+  **Assigned, not confirmed** queue (`needsConfirming`), never silence.
 - **`confirmed`** — a therapist is on it *and* it is paid, on pay-later terms,
   drawn from a programme, or cash-on-visit. Only a confirmed session can be
   completed.

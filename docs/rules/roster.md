@@ -314,6 +314,20 @@ Availability as periods over hour rows, specialisation as a value, what readines
      a 503 "try again", never "free". The way round it is the roster itself:
      a one-off exception opens the hour. A spec that assigns opens the hour
      with `openTherapistHour` (`e2e/helpers.ts`).
+     **Both assigning doors confirm by one rule.** `confirmsOnAssign`
+     (`src/lib/sessionAssignQueue.ts`: paid, or on pay-later terms) decides
+     for Assign & Confirm and for the booking editor's "Change time &
+     assign" alike, and `announceConfirmedSession`
+     (`src/lib/announceConfirmedSession.ts`) creates the calendar event and
+     queues the "confirmed" email for both. The editor used to assign
+     without confirming, which left a committed session `requested` with a
+     therapist on it: outside "Sessions with no therapist" (it has one) and
+     "Waiting on payment" (it is paid or on terms), so admin Home said every
+     queue was clear while the patient waited past the confirm-within
+     promise. Such a row is now **Assigned, not confirmed** (`needsConfirming`)
+     on Today, urgent past `bookingConfirmationHours()`, and the drawer's
+     **Confirm session** posts Assign & Confirm with the therapist already
+     on it, so the roster check runs again.
   3. **A ready therapist gets no panel at all.** A green "all set" card on
      every profile is a row a reader learns to scroll past, and then misses
      the one profile that is not -- the same reason an unrefunded session

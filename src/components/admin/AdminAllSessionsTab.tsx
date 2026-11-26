@@ -22,7 +22,7 @@ import { sessionListPricePaise } from "@/lib/sessionListPrice";
 import DateField from "@/components/system/DateField";
 import { rowActivationProps } from "@/lib/rowActivation";
 import { formatRupees } from "@/lib/formatMoney";
-import { awaitsPatientPayment, needsTherapist, type ProgrammePick } from "@/lib/sessionAssignQueue";
+import { awaitsPatientPayment, needsConfirming, needsTherapist, type ProgrammePick } from "@/lib/sessionAssignQueue";
 import { programmeQueryMatches, type ProgrammeTag } from "@/lib/programmeId";
 import ProgrammeIdChip from "@/components/dashboard/ProgrammeIdChip";
 import TapToAssignChip from "@/components/admin/TapToAssignChip";
@@ -239,6 +239,7 @@ export default function AdminAllSessionsTab({
       } else if (viewParam.startsWith("programme:")) setSearchText(viewParam.slice("programme:".length));
       else if (viewParam === "unassigned") setStatusFilter("unassigned");
       else if (viewParam === "awaiting_payment") setStatusFilter("awaiting_payment");
+      else if (viewParam === "needs_confirming") setStatusFilter("needs_confirming");
       else if (viewParam === "cancelled") setStatusFilter("cancelled");
       else if (viewParam === "no_show") setStatusFilter("no_show");
       else if (viewParam === "completed") setStatusFilter("completed");
@@ -364,6 +365,7 @@ export default function AdminAllSessionsTab({
         if (statusFilter === "awaiting_payment") {
           return awaitsPatientPayment(a, homeVisitMap.has(a.id));
         }
+        if (statusFilter === "needs_confirming") return needsConfirming(a);
         if (statusFilter === "no_show") return a.no_show;
         return a.status === statusFilter;
       })
@@ -695,6 +697,7 @@ export default function AdminAllSessionsTab({
             <option value="all">Any status</option>
             <option value="unassigned">Needs a therapist</option>
             <option value="awaiting_payment">Waiting on payment</option>
+            <option value="needs_confirming">Assigned, not confirmed</option>
             <option value="requested">Requested</option>
             <option value="confirmed">Confirmed</option>
             <option value="completed">Completed</option>
@@ -796,6 +799,11 @@ export default function AdminAllSessionsTab({
                   {awaitsPatientPayment(a, homeVisitMap.has(a.id)) && (
                     <span className="ml-1.5 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
                       Awaiting payment
+                    </span>
+                  )}
+                  {needsConfirming(a) && (
+                    <span className="ml-1.5 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                      Tap to confirm
                     </span>
                   )}
                 </span>
@@ -917,6 +925,13 @@ export default function AdminAllSessionsTab({
                       // Not work yet: it assigns itself once paid.
                       <span className="ml-1.5 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
                         Awaiting payment
+                      </span>
+                    )}
+                    {needsConfirming(a) && (
+                      // A therapist is on it and nobody confirmed it: the
+                      // drawer's Confirm button is the action.
+                      <span className="ml-1.5 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                        Tap to confirm
                       </span>
                     )}
                   </td>

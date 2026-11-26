@@ -47,6 +47,43 @@ export function needsTherapist(row: AssignQueueRow, isHomeVisit: boolean): boole
 }
 
 /**
+ * Whether putting a therapist on this session also confirms it: paid, or
+ * on pay-later terms. One rule for every door that assigns -- Assign &
+ * Confirm, "Change time & assign" and the programme pre-pick -- because the
+ * booking editor used to assign without confirming, which left a session
+ * `requested` with a therapist on it: in neither the "no therapist" queue
+ * nor the "waiting on payment" one, so nobody was ever asked to confirm it.
+ */
+export function confirmsOnAssign(row: Pick<AssignQueueRow, "payment_status" | "payment_terms">): boolean {
+  return row.payment_status === "paid" || row.payment_terms === "pay_later";
+}
+
+/**
+ * Assigned, committed, and still `requested`: the rows the booking editor
+ * used to leave behind, and any a failed confirmation strands. The admin's
+ * "Assigned, not confirmed" queue. A prepaid online session nobody has paid
+ * for is not here -- payment confirms it by itself.
+ */
+export function needsConfirming(row: AssignQueueRow): boolean {
+  return !!row.therapist_id && row.status === "requested" && confirmsOnAssign(row);
+}
+
+/**
+ * Past the clinic's promise to confirm a requested time within N hours
+ * (clinicPromises.ts), counted from when the booking was made. A row with
+ * no readable creation time is not called late -- unknown is not overdue.
+ */
+export function confirmationIsOverdue(
+  createdAt: string | null | undefined,
+  confirmationHours: number,
+  nowMs: number
+): boolean {
+  const created = createdAt ? Date.parse(createdAt) : NaN;
+  if (!Number.isFinite(created)) return false;
+  return nowMs - created > confirmationHours * 3_600_000;
+}
+
+/**
  * Every programme session reaches a person. A session booked against a
  * programme -- by the patient, by accepting a therapist's suggestion, or a
  * visit on a home-visit programme -- lands here `requested` and unassigned

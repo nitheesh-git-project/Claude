@@ -58,6 +58,8 @@ import PriorDeclineChip from "@/components/admin/PriorDeclineChip";
 import { declineReasonLabel, findPriorDecline, type DeclinedApplication } from "@/lib/declineReasons";
 import {
   awaitsPatientPayment,
+  confirmationIsOverdue,
+  needsConfirming,
   needsTherapist,
   programmeTherapistFor,
   type ProgrammeLocks,
@@ -195,6 +197,7 @@ import { hospitalSessionLine } from "@/lib/hospitalEarnings";
 import { PROFILE_FIELD_LABELS, profileChangeValueText } from "@/lib/profileFieldLabels";
 import { mergeSessionCodes } from "@/lib/sessionCode";
 import { mergeMeetLinks } from "@/lib/meetLink";
+import { bookingConfirmationHours } from "@/lib/clinicPromises";
 import { computeTherapistPayoutSummary } from "@/lib/therapistPayouts";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { expireDuePackagePurchases } from "@/lib/expirePackagePurchases";
@@ -5232,6 +5235,15 @@ export default async function AdminDashboardPage({
   const awaitingPaymentTotal = appointmentsWithSessionCode.filter((a) =>
     awaitsPatientPayment(a, homeVisitIds.has(a.id))
   ).length;
+  // Assigned and committed but still `requested` (sessionAssignQueue.ts):
+  // the rows that used to fall between "no therapist" and "waiting on
+  // payment". Late once past the clinic's confirm-within promise.
+  const needsConfirmingRows = appointmentsWithSessionCode.filter((a) => needsConfirming(a));
+  const confirmPromiseHours = bookingConfirmationHours();
+  const queueNowMs = nowTimestamp();
+  const needsConfirmingOverdue = needsConfirmingRows.filter((a) =>
+    confirmationIsOverdue(a.created_at, confirmPromiseHours, queueNowMs)
+  ).length;
   const cashOwedByTherapists = homeVisitRows.filter(
     (v) => v.cash_collected_at && !v.cash_remitted_at
   ).length;
@@ -5330,6 +5342,21 @@ export default async function AdminDashboardPage({
           view: "unassigned",
           hint: "Booked and nobody is assigned to run them yet. Programme sessions have their therapist pre-picked - one tap to assign.",
           urgent: unassignedToday > 0,
+        },
+        {
+          label: "Assigned, not confirmed",
+          count: needsConfirmingRows.length,
+          section: "sessions",
+          tab: "all",
+          // Opens All Sessions filtered to exactly these rows.
+          view: "needs_confirming",
+          hint:
+            needsConfirmingOverdue > 0
+              ? `A therapist is on it but nobody confirmed it. ${needsConfirmingOverdue} ${
+                  needsConfirmingOverdue === 1 ? "is" : "are"
+                } past the ${confirmPromiseHours}-hour promise.`
+              : "A therapist is on it but nobody confirmed it. Open the session and tap Confirm.",
+          urgent: needsConfirmingOverdue > 0,
         },
         {
           // Never urgent: nothing is owed to these patients yet. Listed so
