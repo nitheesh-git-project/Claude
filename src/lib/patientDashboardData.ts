@@ -178,13 +178,21 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
       try {
         const { data, error } = await supabase
           .from("appointments")
-          .select("id, patient_reschedule_count")
+          .select("id, patient_reschedule_count, pay_later_approval")
           .eq("patient_id", user.id)
           .in("status", ["requested", "confirmed"]);
-        if (error) return new Map<string, number>();
-        return new Map((data ?? []).map((r) => [r.id as string, (r.patient_reschedule_count as number | null) ?? 0]));
+        if (error) return new Map<string, { count: number; approval: string | null }>();
+        return new Map(
+          (data ?? []).map((r) => [
+            r.id as string,
+            {
+              count: (r.patient_reschedule_count as number | null) ?? 0,
+              approval: (r.pay_later_approval as string | null) ?? null,
+            },
+          ])
+        );
       } catch {
-        return new Map<string, number>();
+        return new Map<string, { count: number; approval: string | null }>();
       }
     })()
   );
@@ -555,7 +563,10 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
       // scolded a trusted patient for a session that was booked, and the
       // session card offered them a Pay Now button that checkout refuses.
       payment_terms: payLaterTermsById.get(a.id) ?? null,
-      patient_reschedule_count: rescheduleCountById.get(a.id) ?? 0,
+      patient_reschedule_count: rescheduleCountById.get(a.id)?.count ?? 0,
+      // A pay-later booking still waiting for the clinic's approval, so the
+      // feed and the card can say that rather than "waiting for a therapist".
+      pay_later_approval: rescheduleCountById.get(a.id)?.approval ?? null,
     };
     return discount
       ? {
@@ -1072,6 +1083,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
         package_purchase_id: a.package_purchase_id,
         home_visit_purchase_id: visitDetailById.get(a.id)?.home_visit_purchase_id ?? null,
       }),
+      pay_later_approval: a.pay_later_approval,
       refund_status: a.refund_status,
       ...refundDetailById.get(a.id),
     })),

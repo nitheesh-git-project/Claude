@@ -516,7 +516,7 @@ After the third, that line is replaced by an amber panel: *"Having trouble payin
 
 #### `PAT-SESS-002` - An unassigned session reads as Requested · P2
 
-**Expected Result.** A paid but unassigned session shows a `Requested` status pill and **no therapist name**. It must not claim a therapist it does not have.
+**Expected Result.** A paid but unassigned session shows a `Requested` status pill and **no therapist name**. It must not claim a therapist it does not have. Once a therapist is assigned to a paid (or pay-later) session that the clinic has not confirmed yet, the pill reads **Requested - clinic confirming** and Home reads *"Video session with <therapist> - the clinic is confirming"*, never *"waiting for a physiotherapist"*. A pay-later booking the clinic has not approved yet reads **Waiting for pay-later approval** and *"... waiting for the clinic to approve pay later"*. An assigned session still waiting on a payment (an unpaid checkout, a cash visit) keeps **Requested**.
 
 #### `PAT-SESS-003` - Tap to Join appears only inside the join window (scenario TIME-E) · P1
 

@@ -117,6 +117,9 @@ export function renderPatientSessionCard(
                 no_show: a.no_show,
                 therapist_id: a.therapist_id,
                 package_purchase_id: a.package_purchase_id,
+                pay_later_approval: a.pay_later_approval,
+                payment_status: a.payment_status,
+                payment_terms: a.payment_terms,
                 home_visit_purchase_id: visit?.home_visit_purchase_id ?? null,
               }).label}
             </span>
