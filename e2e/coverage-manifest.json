@@ -2024,6 +2024,22 @@
       ],
       "integration": "local",
       "destructive": false
+    },
+    "no-therapist-rescue.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/booking.md"
+      ],
+      "integration": "local",
+      "destructive": false
     }
   },
   "flows": [
@@ -2700,6 +2716,27 @@
             "PCC-001",
             "PCC-002",
             "PCC-003"
+          ],
+          "level": "browser"
+        }
+      ]
+    },
+    {
+      "id": "patient.no-therapist-rescue",
+      "runner": "patient",
+      "title": "No physiotherapist close to the time offers a refund or a new time; Pay and Join follow the session",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "no-therapist-rescue.spec.ts",
+          "tests": [
+            "NTR-001",
+            "NTR-002",
+            "NTR-003",
+            "NTR-004",
+            "NTR-005",
+            "NTR-006"
           ],
           "level": "browser"
         }

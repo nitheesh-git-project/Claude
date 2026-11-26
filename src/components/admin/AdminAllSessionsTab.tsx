@@ -22,7 +22,7 @@ import { sessionListPricePaise } from "@/lib/sessionListPrice";
 import DateField from "@/components/system/DateField";
 import { rowActivationProps } from "@/lib/rowActivation";
 import { formatRupees } from "@/lib/formatMoney";
-import { awaitsPatientPayment, awaitsPayLaterApproval, needsConfirming, needsTherapist, type ProgrammePick } from "@/lib/sessionAssignQueue";
+import { awaitsPatientPayment, awaitsPayLaterApproval, missedNeedsFollowUp, needsConfirming, needsTherapist, type ProgrammePick } from "@/lib/sessionAssignQueue";
 import { programmeQueryMatches, type ProgrammeTag } from "@/lib/programmeId";
 import ProgrammeIdChip from "@/components/dashboard/ProgrammeIdChip";
 import TapToAssignChip from "@/components/admin/TapToAssignChip";
@@ -239,6 +239,7 @@ export default function AdminAllSessionsTab({
       } else if (viewParam.startsWith("programme:")) setSearchText(viewParam.slice("programme:".length));
       else if (viewParam === "unassigned") setStatusFilter("unassigned");
       else if (viewParam === "awaiting_payment") setStatusFilter("awaiting_payment");
+      else if (viewParam === "missed_unassigned") setStatusFilter("missed_unassigned");
       else if (viewParam === "needs_confirming") setStatusFilter("needs_confirming");
       else if (viewParam === "pay_later_approval") setStatusFilter("pay_later_approval");
       else if (viewParam === "cancelled") setStatusFilter("cancelled");
@@ -363,6 +364,7 @@ export default function AdminAllSessionsTab({
         if (statusFilter === "unassigned") {
           return needsTherapist(a, homeVisitMap.has(a.id));
         }
+        if (statusFilter === "missed_unassigned") return missedNeedsFollowUp(a, homeVisitMap.has(a.id));
         if (statusFilter === "awaiting_payment") {
           return awaitsPatientPayment(a, homeVisitMap.has(a.id));
         }
@@ -698,6 +700,7 @@ export default function AdminAllSessionsTab({
           >
             <option value="all">Any status</option>
             <option value="unassigned">Needs a therapist</option>
+            <option value="missed_unassigned">Missed: no therapist</option>
             <option value="awaiting_payment">Waiting on payment</option>
             <option value="needs_confirming">Assigned, not confirmed</option>
             <option value="pay_later_approval">Pay later to approve</option>
@@ -797,6 +800,11 @@ export default function AdminAllSessionsTab({
                   {needsTherapist(a, homeVisitMap.has(a.id)) && (
                     <span className="ml-1.5 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
                       Tap to assign
+                    </span>
+                  )}
+                  {missedNeedsFollowUp(a, homeVisitMap.has(a.id)) && (
+                    <span className="ml-1.5 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-800">
+                      Missed - refund or move
                     </span>
                   )}
                   {awaitsPatientPayment(a, homeVisitMap.has(a.id)) && (
@@ -928,6 +936,12 @@ export default function AdminAllSessionsTab({
                       // Reassign", which is the wrong verb for a session
                       // nobody has ever been assigned to.
                       <TapToAssignChip pick={programmePicks[a.id]} />
+                    )}
+                    {missedNeedsFollowUp(a, homeVisitMap.has(a.id)) && (
+                      // Its time passed with nobody on it: not an assign.
+                      <span className="ml-1.5 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-800">
+                        Missed - refund or move
+                      </span>
                     )}
                     {awaitsPatientPayment(a, homeVisitMap.has(a.id)) && (
                       // Not work yet: it assigns itself once paid.

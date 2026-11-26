@@ -15,6 +15,7 @@ import {
   applyLedgerVisitBalances,
 } from "@/lib/ledgerBalances";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
+import { readUnassignedRescueHours } from "@/lib/rescueHoursServer";
 import { mergeSessionCodes } from "@/lib/sessionCode";
 import { mergeMeetLinks } from "@/lib/meetLink";
 import { countAnswered, countedQuestions, patientIntakeGate, questionsForSpecialty } from "@/lib/conditionIntake";
@@ -131,6 +132,8 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
   // a scheduled job. This admin client instance is reused further down for
   // the category/therapist/package-info lookups that already needed one.
   const admin = createAdminClient();
+  // Isolated (rescueHoursServer): the "no physiotherapist in time" window.
+  const unassignedRescueHoursRead = readUnassignedRescueHours(admin);
   // The two sweeps touch different tables, so they run together.
   await Promise.all([expireDuePackagePurchases(admin), expireDueHomeVisitPurchases(admin)]);
 
@@ -1378,6 +1381,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     sessionPrep: sessionPrepEarly ? await sessionPrepEarly : ({ status: "none" } as const),
     recap,
     nowMs: nowMsForPackages,
+    unassignedRescueHours: await unassignedRescueHoursRead,
   };
 }
 

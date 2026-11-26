@@ -9,8 +9,12 @@ import { isProfileActiveAndApproved, profileCheckUnavailable } from "@/lib/supab
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { patientCancelClosed } from "@/lib/patientCancelCutoff";
 import { serverNowMs } from "@/lib/debugClock";
+import { readUnassignedRescueHours } from "@/lib/rescueHoursServer";
+import { unassignedRescueState } from "@/lib/sessionPatientActions";
+import { queueSessionCancelledStaffNotices } from "@/lib/sessionChangeNoticesServer";
 
 const MAX_REASON_LENGTH = 500;
+const NO_THERAPIST_CANCEL_REASON = "No physiotherapist was confirmed in time - refunded in full";
 
 export async function POST(request: NextRequest) {
 
@@ -50,17 +54,24 @@ export async function POST(request: NextRequest) {
   const admin = createAdminClient();
   const { data: appointment } = await admin
     .from("appointments")
-    .select("id, patient_id, slot_time, visit_mode")
+    .select("id, patient_id, slot_time, visit_mode, therapist_id, status, no_show, session_code")
     .eq("id", appointmentId)
     .single();
   if (!appointment || appointment.patient_id !== user.id) {
     return NextResponse.json({ error: "Appointment not found" }, { status: 404 });
   }
 
+  // Nobody was confirmed close to its start (owner's rule, default 4 hours):
+  // the patient may cancel it with a full refund right up to -- and past --
+  // its time. The refund itself is decided in cancelAppointmentAndRefund,
+  // which applies the same rule for whoever cancels.
+  const rescue = unassignedRescueState(appointment, serverNowMs(request), await readUnassignedRescueHours(admin));
+  const noTherapistInTime = rescue !== "none";
+
   // The clinic's cut-off: an online session can't be cancelled by the
   // patient in its last N minutes. An unreadable setting is "we couldn't
   // check", not a green light or a refusal.
-  if (appointment.visit_mode !== "home_visit") {
+  if (appointment.visit_mode !== "home_visit" && !noTherapistInTime) {
     const { data: settingsRow, error: settingsError } = await admin
       .from("site_settings")
       .select(SITE_SETTINGS_SELECT)
@@ -86,7 +97,8 @@ export async function POST(request: NextRequest) {
   const result = await cancelAppointmentAndRefund(admin, {
     appointmentId,
     cancelledBy: user.id,
-    reason,
+    nowMs: serverNowMs(request),
+    reason: reason?.trim() ? reason : noTherapistInTime ? NO_THERAPIST_CANCEL_REASON : reason,
   });
   if ("error" in result) {
     // Patients never see the internal "payout settled" reasoning - it's
@@ -112,12 +124,24 @@ export async function POST(request: NextRequest) {
         : null,
     details: {
       reason: reason?.trim() ? reason.trim().slice(0, 200) : null,
+      noTherapistInTime,
       refunded: result.refunded,
       refundFailed: result.refundFailed ?? false,
     },
     dedupeKey: `cancelled:${appointmentId}`,
   });
   queueAppointmentEmail(appointmentId, "cancelled", { byClinic: false });
+  if (appointment.slot_time) {
+    queueSessionCancelledStaffNotices({
+      appointmentId,
+      patientId: user.id,
+      previousTherapistId: appointment.therapist_id ?? null,
+      sessionRef: appointment.session_code ?? null,
+      mode: appointment.visit_mode === "home_visit" ? "home_visit" : "online",
+      oldSlotTime: appointment.slot_time,
+      noTherapistInTime,
+    });
+  }
   return NextResponse.json({
     success: true,
     refunded: result.refunded,

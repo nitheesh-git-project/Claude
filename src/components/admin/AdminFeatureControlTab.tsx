@@ -1,6 +1,7 @@
 "use client";
 
 import CheckoutAccessSection, { NumberSetting } from "@/components/admin/CheckoutAccessSection";
+import { DEFAULT_UNASSIGNED_RESCUE_HOURS } from "@/lib/sessionPatientActions";
 import { useOptimistic, useState, useTransition } from "react";
 import { useSaveSetting } from "@/lib/useSaveSetting";
 import { useRouter } from "@/lib/useRouter";
@@ -12,8 +13,11 @@ export default function AdminFeatureControlTab({
   settings,
   adminEmail,
   view,
+  unassignedRescueHours = DEFAULT_UNASSIGNED_RESCUE_HOURS,
 }: {
   settings: AdminSettings;
+  /** `unassigned_rescue_hours`, read on its own by the page (rescueHoursServer). */
+  unassignedRescueHours?: number;
   adminEmail: string;
   // Which slice of this component to render. It used to be one "Feature
   // Control" tab holding three unrelated jobs at once: the rules that govern
@@ -435,6 +439,17 @@ export default function AdminFeatureControlTab({
         min={1}
         max={168}
         initial={settings.patientRescheduleCutoffHours}
+      />
+
+      <NumberSetting
+        settingKey="unassigned_rescue_hours"
+        title="No physiotherapist yet: refund or new time"
+        help="When a booked session still has no physiotherapist with less than this many hours to go, the patient is offered a full refund or a new time on their session card. Neither counts against them: the refund window and the one-move limit do not apply, because the clinic missed its side. Both choices email the patient and the clinic. Once the time passes with nobody assigned, the session moves out of Sessions with no therapist into Missed: no therapist was assigned."
+        unit="hours"
+        label="Hours before a session when an unassigned booking offers a refund or a new time"
+        min={1}
+        max={48}
+        initial={unassignedRescueHours}
       />
 
       <BookingLanguagesSection

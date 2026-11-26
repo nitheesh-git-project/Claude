@@ -7,7 +7,10 @@ import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
 import { serverNowMs } from "@/lib/debugClock";
 import { patientRescheduleBlock } from "@/lib/patientReschedule";
 import { isWholeHourSlot, leadTimeMsFromHours, NOT_WHOLE_HOUR_ERROR } from "@/lib/bookingSlots";
-import { readOpenSlotStarts } from "@/lib/openHoursServer";
+import { readOpenSlotStarts, readTravelBufferMinutes } from "@/lib/openHoursServer";
+import { readUnassignedRescueHours } from "@/lib/rescueHoursServer";
+import { unassignedRescueState } from "@/lib/sessionPatientActions";
+import { queueSessionMovedNotices } from "@/lib/sessionChangeNoticesServer";
 import { clinicDateKey } from "@/lib/clinicWeek";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 import { deleteMeetEventForAppointment } from "@/lib/googleCalendarSync";
@@ -61,7 +64,7 @@ export async function POST(request: NextRequest) {
   const admin = createAdminClient();
   const { data: appointment, error: readError } = await admin
     .from("appointments")
-    .select("id, patient_id, status, slot_time, timezone, visit_mode, therapist_id, google_event_id, duration_minutes, no_show")
+    .select("id, patient_id, status, slot_time, timezone, visit_mode, therapist_id, google_event_id, duration_minutes, no_show, session_code")
     .eq("id", appointmentId)
     .maybeSingle();
   if (readError) {
@@ -92,7 +95,15 @@ export async function POST(request: NextRequest) {
   const rescheduleCount = (countRow?.patient_reschedule_count as number | null) ?? 0;
   const nowMs = serverNowMs(request);
 
-  const blocked = patientRescheduleBlock({
+  // Nobody was confirmed close to its start (owner's rule): the patient may
+  // pick a new time whatever the cut-off, whether or not they have moved it
+  // before, and for a home visit too -- the clinic missed its side, so it
+  // does not count as their one move.
+  const rescueHours = await readUnassignedRescueHours(admin);
+  const noTherapistInTime = unassignedRescueState(appointment, nowMs, rescueHours) !== "none";
+  const isHomeVisit = appointment.visit_mode === "home_visit";
+
+  const blocked = noTherapistInTime ? null : patientRescheduleBlock({
     status: appointment.status,
     visitMode: appointment.visit_mode,
     slotTime: appointment.slot_time,
@@ -109,9 +120,10 @@ export async function POST(request: NextRequest) {
   if (appointment.slot_time && Date.parse(appointment.slot_time) === slotMs) {
     return NextResponse.json({ error: "That's the time this session already has." }, { status: 400 });
   }
-  if (slotMs < nowMs + leadTimeMsFromHours(settings.onlineBookingLeadTimeHours)) {
+  const leadTimeHours = isHomeVisit ? settings.homeVisitLeadTimeHours : settings.onlineBookingLeadTimeHours;
+  if (slotMs < nowMs + leadTimeMsFromHours(leadTimeHours)) {
     return NextResponse.json(
-      { error: `Please pick a time at least ${settings.onlineBookingLeadTimeHours} hours from now.` },
+      { error: `Please pick a time at least ${leadTimeHours} hours from now.` },
       { status: 409 }
     );
   }
@@ -130,6 +142,8 @@ export async function POST(request: NextRequest) {
     nowMs: Date.now(),
     // Its own place on the roster is the one being given up.
     excludeAppointmentId: appointment.id,
+    // A home visit also needs the travel time either side of it.
+    ...(isHomeVisit ? { bufferMinutes: await readTravelBufferMinutes(admin) } : {}),
   });
   if (open !== null && !open.includes(slotMs)) {
     return NextResponse.json(
@@ -145,7 +159,8 @@ export async function POST(request: NextRequest) {
       timezone,
       status: "requested",
       therapist_id: null,
-      patient_reschedule_count: rescheduleCount + 1,
+      // A move the clinic caused is not the patient's one move.
+      patient_reschedule_count: noTherapistInTime ? rescheduleCount : rescheduleCount + 1,
     })
     .eq("id", appointmentId)
     .eq("status", appointment.status)
@@ -189,7 +204,23 @@ export async function POST(request: NextRequest) {
     actor: { id: user.id, role: "patient" },
     appointmentId,
     patientId: user.id,
+    note: noTherapistInTime ? "no physiotherapist was confirmed in time" : null,
+    details: { from: appointment.slot_time, to: newSlotIso, noTherapistInTime },
   });
+
+  if (appointment.slot_time) {
+    queueSessionMovedNotices({
+      appointmentId,
+      patientId: user.id,
+      previousTherapistId: appointment.therapist_id ?? null,
+      sessionRef: appointment.session_code ?? null,
+      mode: isHomeVisit ? "home_visit" : "online",
+      oldSlotTime: appointment.slot_time,
+      newSlotTime: newSlotIso,
+      noTherapistInTime,
+      reason: noTherapistInTime ? "no_therapist" : "patient",
+    });
+  }
 
   return NextResponse.json({ success: true, slotTime: newSlotIso });
 }

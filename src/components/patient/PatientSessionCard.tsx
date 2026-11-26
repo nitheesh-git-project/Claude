@@ -12,6 +12,12 @@ import JoinSessionButton from "@/components/JoinSessionButton";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { formatClinicDate } from "@/lib/formatDateTime";
 import { patientSessionStatus } from "@/lib/sessionRowStatus";
+import {
+  joinHeldForPayment,
+  patientPaymentView,
+  unassignedRescueState,
+  type SessionActionRow,
+} from "@/lib/sessionPatientActions";
 import { describeRefundForPatient } from "@/lib/refundState";
 import { describeSessionPaymentForPatient } from "@/lib/sessionPaymentState";
 import { SESSION_FEE_PAISE, CANCELLATION_FULL_REFUND_HOURS } from "@/lib/pricing";
@@ -29,6 +35,25 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 const NO_SHOW_STYLE = "text-orange-700 bg-orange-50";
+
+/** The columns sessionPatientActions.ts reads, from the dashboard's row. */
+export function sessionActionRowOf(
+  data: PatientDashboardData,
+  a: PatientDashboardData["appointments"][number]
+): SessionActionRow {
+  const visit = data.visitDetailById.get(a.id);
+  return {
+    status: a.status,
+    no_show: a.no_show,
+    therapist_id: a.therapist_id,
+    slot_time: a.slot_time,
+    payment_status: a.payment_status,
+    payment_terms: a.payment_terms ?? null,
+    package_purchase_id: a.package_purchase_id ?? null,
+    home_visit_purchase_id: visit?.home_visit_purchase_id ?? null,
+    visit_mode: visit?.visit_mode ?? "online",
+  };
+}
 
 // One session card, shared by Your Sessions, Your Home Visits and the
 // Calendar's day panel. It was a closure inside the old single-page
@@ -54,6 +79,13 @@ export function renderPatientSessionCard(
     const visitAddress = visit ? visitAddressFromAppointment(visit) : null;
     const addressLines = visitAddress ? formatAddressBlock(visitAddress) : [];
     const mapsUrl = visitAddress ? mapsSearchUrl(visitAddress) : null;
+    // What there is to do about money, time and the link -- one rule for
+    // this card, Home and the routes behind them (sessionPatientActions.ts).
+    const actionRow = sessionActionRowOf(data, a);
+    const rescue = unassignedRescueState(actionRow, data.nowMs, data.unassignedRescueHours);
+    const paymentView = patientPaymentView(actionRow, data.nowMs, data.unassignedRescueHours);
+    const joinHeld = joinHeldForPayment(actionRow);
+    const isHomeVisit = visit?.visit_mode === "home_visit";
     return (
       <div className="p-4 rounded-xl border border-slate-200 text-sm space-y-3">
         {visit?.visit_mode === "home_visit" && (
@@ -177,6 +209,20 @@ export function renderPatientSessionCard(
               >
                 {payment.label}
               </span>
+            ) : paymentView.kind === "no_action" ? (
+              // Unpaid, and nothing to press: the time has passed, the
+              // session was completed or cancelled, it is paid at the
+              // door, or nobody can be confirmed in time. A Pay button on
+              // any of these took money for a session that cannot happen
+              // (or already has) -- and create-order now refuses them.
+              <span
+                data-testid="session-payment-note"
+                className={`font-semibold px-3 py-1 rounded-full ${
+                  paymentView.tone === "warn" ? "text-amber-800 bg-amber-50" : "text-slate-600 bg-slate-100"
+                }`}
+              >
+                {paymentView.label}
+              </span>
             ) : a.payment_status === "unpaid" &&
               canResumeInWizard({
                 visit_mode: data.visitDetailById.get(a.id)?.visit_mode ?? null,
@@ -254,6 +300,63 @@ export function renderPatientSessionCard(
           </div>
         )}
 
+        {paymentView.kind === "no_action" && paymentView.note && rescue === "none" && (
+          <p className="rounded-lg bg-slate-50 p-3 text-slate-600">{paymentView.note}</p>
+        )}
+
+        {/* Nobody confirmed close to its start, or its time has come with
+            nobody on it (owner's rule): the clinic missed its side, so the
+            patient chooses -- a full refund, or a new time that does not
+            count as their one move. Both tell the patient, the clinic, and
+            whoever was on it. */}
+        {rescue !== "none" && (
+          <div
+            data-testid="no-therapist-rescue"
+            className="rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-2"
+          >
+            <p className="font-semibold text-amber-900">
+              {rescue === "lapsed"
+                ? "We couldn't confirm a physiotherapist for this session, so it didn't go ahead."
+                : "We haven't been able to confirm a physiotherapist for this session yet."}
+            </p>
+            <p className="text-amber-900">
+              We&apos;re sorry. {a.payment_status === "paid"
+                ? a.package_purchase_id || visit?.home_visit_purchase_id
+                  ? "You can cancel it and have the session back on your programme, or pick a new time."
+                  : "You can cancel it for a full refund, or pick a new time."
+                : "You can cancel it - nothing has been charged - or pick a new time."}{" "}
+              {rescue === "at_risk" && "If a physiotherapist is confirmed before then, we'll let you know straight away."}
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <RescheduleSessionButton
+                appointmentId={a.id}
+                categoryId={a.category_id}
+                leadTimeHours={
+                  isHomeVisit ? adminSettings.homeVisitLeadTimeHours : adminSettings.onlineBookingLeadTimeHours
+                }
+                visitMode={isHomeVisit ? "home_visit" : "online"}
+                rescue
+              />
+              <CancelSessionButton
+                appointmentId={a.id}
+                paid={a.payment_status === "paid"}
+                slotTime={a.slot_time}
+                noTherapistInTime
+                payLater={a.payment_terms === "pay_later"}
+                viaProgramme={Boolean(a.package_purchase_id || visit?.home_visit_purchase_id)}
+                refundablePaise={
+                  a.payment_status === "paid"
+                    ? Math.max(0, (a.amount_paid_paise ?? 0) - (a.refund_amount_paise ?? 0))
+                    : 0
+                }
+                cutoffMinutes={null}
+                serverNowMs={data.nowMs}
+                label={a.payment_status === "paid" && !a.package_purchase_id && !visit?.home_visit_purchase_id ? "Cancel and refund" : "Cancel session"}
+              />
+            </div>
+          </div>
+        )}
+
         {addressLines.length > 0 && (
           <div className="rounded-lg bg-slate-50 p-3 space-y-1">
             <p className="text-[13px] font-semibold uppercase tracking-wide text-slate-600">
@@ -294,7 +397,10 @@ export function renderPatientSessionCard(
           {visit?.visit_mode !== "home_visit" && (
             <JoinSessionButton
               size="large"
-              meetLink={a.meet_link}
+              // Left out of what is sent while it is held, so the link is
+              // never in the page until the session is paid for.
+              meetLink={joinHeld ? null : a.meet_link}
+              paymentHold={joinHeld}
               slotTime={a.slot_time}
               status={a.status}
               durationMinutes={a.duration_minutes}
@@ -303,7 +409,7 @@ export function renderPatientSessionCard(
           {/* Moving it themselves: once, up to the clinic's cut-off, video
               sessions only (patientReschedule.ts). Judged on the page's
               request clock; the route re-checks on the debug-aware one. */}
-          {!patientRescheduleBlock({
+          {rescue === "none" && !patientRescheduleBlock({
             status: a.status,
             visitMode: visit?.visit_mode ?? null,
             slotTime: a.slot_time,
@@ -318,7 +424,7 @@ export function renderPatientSessionCard(
               leadTimeHours={adminSettings.onlineBookingLeadTimeHours}
             />
           )}
-          {(a.status === "requested" || a.status === "confirmed") && (
+          {rescue === "none" && (a.status === "requested" || a.status === "confirmed") && (
             <CancelSessionButton
               appointmentId={a.id}
               paid={a.payment_status === "paid"}

@@ -21781,3 +21781,18 @@ alter table testimonials add constraint testimonials_consent_needs_note check (
 drop policy if exists "testimonials_select_active" on testimonials;
 create policy "testimonials_select_active" on testimonials
   for select using (active = true and consent_recorded_at is not null);
+
+-- ---------------------------------------------------------------------------
+-- A session nobody was put on, close to its time (owner's rule).
+--
+-- With fewer than this many hours to go and no physiotherapist confirmed --
+-- from 3 h 59 min onwards at the default 4 -- the patient is offered a full
+-- refund and a new time, neither counting against them (no refund window,
+-- no "once" limit on moving). Once the time passes with nobody assigned the
+-- session is a follow-up for the clinic, never "assign a therapist".
+-- Read on its own (isolated), so a database without the column keeps the
+-- default rather than losing every other setting.
+-- ---------------------------------------------------------------------------
+alter table site_settings add column if not exists unassigned_rescue_hours integer not null default 4
+  check (unassigned_rescue_hours between 1 and 48);
+

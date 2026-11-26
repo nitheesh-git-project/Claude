@@ -894,3 +894,18 @@ Additionally: if an admin switches **Home Visit enabled** off, `/api/care-plan/c
 2. Therapist A taps **Your turn**.
 3. Therapist A marks it.
 **Expected Result.** 1: the dark screen says *Exercise 2 of 4* and the exercise's name, *Watch how it is done.*, the picture and the steps as large numbered lines, and the calm line; no clock, no button. 2: *Your turn. Show us how you do it.* with the picture and no steps. 3: the screen says *Well done. You can rest now.* Nothing on it can be pressed; at 390 px the picture, the lines and the steps all fit without sideways scrolling; a screen reader hears the counter, the name and the steps.
+
+#### `PAT-HP-010` - No physiotherapist close to the time: refund or a new time · P1
+**Preconditions.** Patient B has a paid online session starting in 3 hours with no physiotherapist assigned, and a second one whose time passed an hour ago, also unassigned. Settings -> Booking rules shows *No physiotherapist yet: refund or new time* at 4 hours.
+1. Open Your Sessions and find the session starting in 3 hours.
+2. Tap **Pick a new time**, choose an open hour, save.
+3. On the past session, tap **Cancel and refund**, confirm.
+4. As Admin, open Home and All Sessions.
+**Expected Result.** 1: an amber panel says no physiotherapist has been confirmed yet, with **Pick a new time** and **Cancel and refund**; there is no Pay, no *Change time* and no ordinary Cancel. At 4 h 00 min to go the panel is absent; at 3 h 59 min it appears. 2: the session moves, the move is not counted as the patient's one change, and the patient (email and WhatsApp), the clinic's contact address and any physiotherapist who was on it are told. 3: the dialog promises the full amount back; the session is Cancelled with a full refund even inside the refund window, and the clinic's contact address is emailed. 4: the past session is never under *Sessions with no therapist* and its drawer has no Assign & Confirm; an unrefunded one is counted under *Missed: no therapist was assigned* and filtered by *Missed: no therapist*.
+
+#### `PAT-HP-011` - Pay and Join follow the session, not just the money · P1
+**Preconditions.** Patient B has: an unpaid online session an admin booked and confirmed for tomorrow; an unpaid session whose time passed yesterday; an unpaid session marked completed; a pay-later session.
+1. Open Home.
+2. Open Your Sessions -> Upcoming, then Past.
+3. On Home, tap **Cancel Session** on the waiting session and confirm.
+**Expected Result.** 1: *A session is waiting for payment* lists tomorrow's session with **Pay now** and **Cancel Session**. The hero, in the join window, says *Pay for this session to unlock the video link*, never a Join button. 2: tomorrow's card has **Pay now** and the held message instead of Tap to Join; the past one says *Not paid* with no Pay; the completed one says *Payment due* with no Pay; the pay-later one has no Pay and no hold. 3: the dialog says there is nothing to refund; the row leaves Home and the session shows as Cancelled under Cancelled/Past with *Not charged*.

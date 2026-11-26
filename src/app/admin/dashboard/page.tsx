@@ -65,6 +65,7 @@ import {
   confirmationIsOverdue,
   needsConfirming,
   needsTherapist,
+  missedNeedsFollowUp,
   programmeTherapistFor,
   type ProgrammeLocks,
   type ProgrammePick,
@@ -258,6 +259,7 @@ import { readReferralAttributionHealth } from "@/lib/referralAttribution";
 import { readRefundHealth } from "@/lib/refundHealthServer";
 import { readStorageReconciliation } from "@/lib/storageReconciliation";
 import { countAwaitingFirstBooking } from "@/lib/unscheduledPurchases";
+import { readUnassignedRescueHours } from "@/lib/rescueHoursServer";
 import {
   readHomeVisitAreaCommitments,
   readHomeVisitCommitmentTotal,
@@ -328,6 +330,8 @@ export default async function AdminDashboardPage({
 
   const supabase = await createClient();
   const admin = createAdminClient();
+  // Isolated (rescueHoursServer): a database without the column keeps 4.
+  const unassignedRescueHoursRead = readUnassignedRescueHours(admin);
   // People deleted with their records kept, for the "Deleted user" tag on the
   // People lists. Started now, awaited where the lists are built.
   const accountDeletionsRead = readAccountDeletions(admin);
@@ -4320,11 +4324,13 @@ export default async function AdminDashboardPage({
   // the discount that decides what every new patient pays, so the other two
   // groups are their own screens now (Offers & Discounts, Programmes & Home
   // Visits) and each one says what it is in the header.
+  const unassignedRescueHours = await unassignedRescueHoursRead;
   const settingsBookingTab = (
     <AdminFeatureControlTab
       settings={adminSettings}
       adminEmail={adminProfile?.email ?? user.email ?? ""}
       view="booking"
+      unassignedRescueHours={unassignedRescueHours}
     />
   );
 
@@ -5308,14 +5314,28 @@ export default async function AdminDashboardPage({
   // the admin's to staff -- it assigns itself once paid, when the roster has
   // one clear answer (src/lib/sessionAssignQueue.ts).
   const homeVisitIds = new Set(homeVisitRows.map((v) => v.id));
+  const queueNowMsEarly = nowTimestamp();
   const unassignedToday = sessionsToday.filter((a) =>
-    needsTherapist(a, homeVisitIds.has(a.id))
+    needsTherapist(a, homeVisitIds.has(a.id), queueNowMsEarly)
   ).length;
   const unassignedTotal = appointmentsWithSessionCode.filter((a) =>
-    needsTherapist(a, homeVisitIds.has(a.id))
+    needsTherapist(a, homeVisitIds.has(a.id), queueNowMsEarly)
+  ).length;
+  // Its time came with nobody on it: a follow-up (refund or a new time),
+  // never "assign a therapist" (sessionPatientActions.ts).
+  const missedUnassignedTotal = appointmentsWithSessionCode.filter((a) =>
+    missedNeedsFollowUp(a, homeVisitIds.has(a.id), queueNowMsEarly)
+  ).length;
+  // Starts within the rescue window and still nobody on it: the patient is
+  // already being offered a refund or a new time.
+  const unassignedAtRiskTotal = appointmentsWithSessionCode.filter(
+    (a) =>
+      needsTherapist(a, homeVisitIds.has(a.id), queueNowMsEarly) &&
+      !!a.slot_time &&
+      Date.parse(a.slot_time) - queueNowMsEarly < unassignedRescueHours * 3_600_000
   ).length;
   const awaitingPaymentTotal = appointmentsWithSessionCode.filter((a) =>
-    awaitsPatientPayment(a, homeVisitIds.has(a.id))
+    awaitsPatientPayment(a, homeVisitIds.has(a.id), queueNowMsEarly)
   ).length;
   // Assigned and committed but still `requested` (sessionAssignQueue.ts):
   // the rows that used to fall between "no therapist" and "waiting on
@@ -5438,8 +5458,20 @@ export default async function AdminDashboardPage({
           // Opens All Sessions already filtered to exactly these rows --
           // the count and the list it links to have to agree.
           view: "unassigned",
-          hint: "Booked and nobody is assigned to run them yet. Programme sessions have their therapist pre-picked - one tap to assign.",
-          urgent: unassignedToday > 0,
+          hint:
+            unassignedAtRiskTotal > 0
+              ? `${unassignedAtRiskTotal} start${unassignedAtRiskTotal === 1 ? "s" : ""} within ${unassignedRescueHours} hours - the patient is being offered a refund or a new time. Assign now to keep it.`
+              : "Booked and nobody is assigned to run them yet. Programme sessions have their therapist pre-picked - one tap to assign.",
+          urgent: unassignedToday > 0 || unassignedAtRiskTotal > 0,
+        },
+        {
+          label: "Missed: no therapist was assigned",
+          count: missedUnassignedTotal,
+          section: "sessions",
+          tab: "all",
+          view: "missed_unassigned",
+          hint: "Their time passed with nobody on them. The patient can take a refund or a new time; refund or move it here if they haven't.",
+          urgent: missedUnassignedTotal > 0,
         },
         {
           // Owner's decision: the clinic approves every pay-later booking.

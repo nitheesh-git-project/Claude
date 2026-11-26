@@ -146,6 +146,11 @@ export const SETTING_MESSAGES: Record<string, SettingMessage> = {
     describe: (v) =>
       `Patients can now move an online session themselves up to ${plural(v, "hour", "hours")} before it starts, once per booking.`,
   },
+  unassigned_rescue_hours: {
+    kind: "number",
+    describe: (v) =>
+      `A session with no physiotherapist ${plural(v, "hour", "hours")} before it starts now offers the patient a refund or a new time.`,
+  },
   abandoned_booking_account_days: {
     kind: "number",
     describe: (v) =>

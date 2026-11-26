@@ -115,6 +115,7 @@
       "numeric-input.spec.ts": 7,
       "pain-trend.spec.ts": 7,
       "patient-cancel-cutoff.spec.ts": 11,
+      "no-therapist-rescue.spec.ts": 14,
       "patient-feedback-ratings.spec.ts": 20,
       "patient-isolation.spec.ts": 5,
       "patient-session-summary.spec.ts": 45,
