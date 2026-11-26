@@ -686,7 +686,7 @@ test.describe("Therapist roster - concurrency", () => {
   });
 });
 
-test.describe("Therapist roster - booking is untouched", () => {
+test.describe("Therapist roster - bookings and the booking page", () => {
   test("R-B01: changing hours never changes an appointment", async () => {
     const admin = adminClient();
     const therapistId = await profileIdFor(admin, QA_EMAILS.therapistA);
@@ -745,18 +745,17 @@ test.describe("Therapist roster - booking is untouched", () => {
     }
   });
 
-  test("R-B02: the booking page offers the same times it always did", async ({ browser }) => {
-    // Two roster writes, /book twice and a browser-side profile read: its own
-    // first wait is 30s, which was the whole test's budget (testing.md's
-    // multi-round-trip rule for a hosted project).
+  test("R-B02: the booking page offers exactly the hours the roster says are open", async ({ browser }) => {
+    // Two roster writes, /book and an API read: its own first wait is 30s,
+    // which was the whole test's budget (testing.md's multi-round-trip rule
+    // for a hosted project).
     test.setTimeout(90_000);
-    // Availability is a planning tool in this app -- the booking picker is
-    // driven by the lead-time rule, not by the roster (see
-    // src/lib/bookingSlots.ts and the schema comment on
-    // therapist_availability_template). This test is the guard on that: the
-    // redesign must not have quietly wired the two together in either
-    // direction, since doing so would change who is bookable on a deploy
-    // rather than on somebody's decision.
+    // This used to guard the opposite: that the booking picker ignored the
+    // roster. Since the open-hours picker (docs/rules/booking.md, "A picker
+    // offers only hours a therapist can take") the roster is exactly what
+    // decides it, so the guard is now that the page and the rule agree --
+    // the times offered on the chosen date are the open-hours answer for
+    // that date, no more and no fewer.
     const admin = adminClient();
     const therapistId = await profileIdFor(admin, QA_EMAILS.therapistA);
     const cookie = await cookieHeaderFor(QA_EMAILS.admin);
@@ -766,43 +765,56 @@ test.describe("Therapist roster - booking is untouched", () => {
     const page = await context.newPage();
     // BookingWizard only renders its time picker once the browser has read
     // the signed-in profile for itself, so with no egress from the page
-    // there is no radiogroup to count and the regression this guards
-    // cannot be observed either way.
+    // there is no radiogroup to read.
     await skipWithoutBrowserEgress(page);
 
     await post(WEEKLY, cookie, {
       therapistId,
       days: days({ 1: [{ startHour: 9, endHour: 18 }] }),
     });
-    await page.goto(`${BASE}/book`);
-    const times = page.getByRole("radiogroup", { name: /^(Time|Available times)$/ }).getByRole("radio");
-    // `count()` is a one-shot read with no auto-waiting, and the picker is
-    // rendered by a client component after hydration -- so counting straight
-    // after a navigation races the render and returns 0. That failure reads
-    // as "the roster emptied the patient's picker", which is the exact
-    // regression this case exists to catch, so it has to be waited out
-    // rather than left to chance. `toBeVisible` is the waiting half; the
-    // count that follows is then a real one.
-    await expect(times.first()).toBeVisible({ timeout: 30_000 });
-    const before = await times.count();
-    expect(before).toBeGreaterThan(0);
+    try {
+      await page.goto(`${BASE}/book`);
+      const group = page.getByRole("radiogroup", { name: /^(Time|Available times)$/ });
+      // Waits out the "Checking available times…" state: the list only
+      // renders once the answer is in.
+      await expect(group.getByRole("radio").first()).toBeVisible({ timeout: 30_000 });
+      const offered = (await group.getByRole("radio").allTextContents()).map((t) => hourOf(t));
+      // The date the wizard chose, as it prints it ("Monday, November 30, 2026").
+      const dateText = (await page.getByText(/^[A-Z][a-z]+day, [A-Z][a-z]+ \d{1,2}, \d{4}$/).first().textContent()) ?? "";
+      const dateKey = istDateKeyOf(new Date(`${dateText.replace(/^[A-Za-z]+, /, "")} 12:00 GMT+0530`).getTime());
 
-    // Wipe this therapist's roster entirely and put them on leave, then ask
-    // the patient's picker again.
-    await post(WEEKLY, cookie, { therapistId, days: days({}) });
-    await post(LEAVE, cookie, { therapistId, onLeave: true });
-    await page.reload();
-    // Same race on the way back, and this is the side that matters: an
-    // un-awaited 0 here would read as the roster having emptied the picker
-    // and pass the test's own premise off as a product bug.
-    await expect(times.first()).toBeVisible({ timeout: 30_000 });
-    const after = await times.count();
-    await post(LEAVE, cookie, { therapistId, onLeave: false });
-
-    expect(after).toBe(before);
-    await context.close();
+      const res = await fetch(`${BASE}/api/appointments/open-hours?from=${dateKey}&days=1`);
+      const body = (await res.json()) as { checked: boolean; open?: number[] };
+      // Therapist A now has weekly hours, so the roster is in use and answers.
+      expect(body.checked).toBe(true);
+      await expect(group).toHaveAccessibleName("Available times");
+      const open = (body.open ?? []).filter((ms) => istDateKeyOf(ms) === dateKey).map(istHourOf);
+      expect(offered.length).toBeGreaterThan(0);
+      // The wizard also applies the lead time, so it may offer fewer on the
+      // first day -- never an hour the roster calls closed.
+      for (const h of offered) expect(open, `offered ${h}:00 on ${dateKey}`).toContain(h);
+    } finally {
+      await post(WEEKLY, cookie, { therapistId, days: days({}) });
+      await context.close();
+    }
   });
 });
+
+/** "10 AM – 11 AM" -> 10, "12 PM – 1 PM" -> 12. */
+function hourOf(label: string): number {
+  const m = label.trim().match(/^(\d{1,2})\s?(AM|PM)/i);
+  if (!m) throw new Error(`not a time label: ${label}`);
+  const h = Number(m[1]) % 12;
+  return m[2].toUpperCase() === "PM" ? h + 12 : h;
+}
+
+const IST_MS = 330 * 60_000;
+function istDateKeyOf(ms: number): string {
+  return new Date(ms + IST_MS).toISOString().slice(0, 10);
+}
+function istHourOf(ms: number): number {
+  return new Date(ms + IST_MS).getUTCHours();
+}
 
 function mondayOnOrAfter(dateKey: string): string {
   let at = Date.parse(`${dateKey}T00:00:00Z`);
