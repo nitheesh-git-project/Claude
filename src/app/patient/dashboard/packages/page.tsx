@@ -4,6 +4,8 @@ import { loadPatientDashboard } from "@/lib/patientDashboardData";
 import PatientPackageWidget from "@/components/packages/PatientPackageWidget";
 import HomeVisitPackageWidget from "@/components/patient/HomeVisitPackageWidget";
 import TabSummary from "@/components/dashboard/TabSummary";
+import SurfaceCard, { EmptyState } from "@/components/dashboard/SurfaceCard";
+import Link from "next/link";
 import { pickHomeProgramme } from "@/lib/patientHomeCards";
 
 export const metadata: Metadata = {
@@ -104,6 +106,29 @@ export default async function Page() {
         </div>
       )}
 
+      {/* The tab is hidden from the nav until there is a programme, but the
+          URL, the tutorial and an old bookmark still reach it -- and it used
+          to answer with a title over a blank page. */}
+      {!d.ownedPackages?.length && !d.ownedHomeVisitPackages?.length && (
+        <div className="mt-8" data-testid="programme-empty">
+          <SurfaceCard title="No programme yet" icon="fa-box-open">
+            <EmptyState
+              icon="fa-box-open"
+              title="Nothing arranged yet"
+              body="When your physiotherapist recommends a course of sessions and you accept it, it shows up here with the sessions you have left to book."
+              action={
+                <Link
+                  href="/patient/dashboard/suggested"
+                  className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-teal-700 px-4 text-sm font-bold text-white hover:bg-teal-800"
+                >
+                  <i aria-hidden="true" className="fa-solid fa-lightbulb"></i>
+                  See recommendations
+                </Link>
+              }
+            />
+          </SurfaceCard>
+        </div>
+      )}
     </PatientDashboardShell>
   );
 }

@@ -86,7 +86,7 @@ export default function TabSummary({
               <ProgressLink
                 href={secondary.href}
                 className={`inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold transition sm:flex-none ${
-                  hero ? "bg-white/15 text-white hover:bg-white/25" : "border border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
+                  hero ? "bg-teal-800 text-white hover:bg-teal-900" : "border border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
                 }`}
               >
                 {secondary.icon && <i aria-hidden className={`fa-solid ${secondary.icon} text-sm`} />}
@@ -114,7 +114,9 @@ export default function TabSummary({
                 )}
               </>
             );
-            const cls = `mr-rise block min-w-0 rounded-xl px-3 py-2.5 ${hero ? "bg-white/10" : "bg-slate-50"}`;
+            // A deeper teal, not a white tint: white over teal-700 lightened the box
+            // until white text fell under 4.5:1.
+            const cls = `mr-rise block min-w-0 rounded-xl px-3 py-2.5 ${hero ? "bg-teal-800" : "bg-slate-50"}`;
             const style = { "--d": `${80 + i * 50}ms` } as CSSProperties;
             return f.href ? (
               <div key={f.label} style={style} className={cls}>

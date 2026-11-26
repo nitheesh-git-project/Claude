@@ -90,12 +90,16 @@ test("HS-003: Chat to book ends on a link into the real booking wizard", async (
   const care = page.getByRole("group", { name: "What do you need help with?" });
   await expect(care).toBeVisible({ timeout: 60_000 });
   await care.getByRole("button", { name: category.title }).click();
-  // Only asked when this care can also be a home visit.
+  // Only asked when this care can also be a home visit. The reply arrives
+  // after a short typing beat, so wait for whichever comes next -- the
+  // question or the link -- rather than checking once (`isVisible` does not
+  // wait, whatever timeout it is given).
   const mode = page.getByRole("group", { name: "Video consultation or home visit?" });
-  if (await mode.isVisible({ timeout: 3_000 }).catch(() => false)) {
+  const pick = page.getByRole("link", { name: "Pick a time" });
+  await expect(mode.or(pick)).toBeVisible({ timeout: 10_000 });
+  if (await mode.isVisible()) {
     await mode.getByRole("button", { name: /Video consultation/ }).click();
   }
-  const pick = page.getByRole("link", { name: "Pick a time" });
   await expect(pick).toBeVisible({ timeout: 10_000 });
   await expect(pick).toHaveAttribute("href", `/book?from=dashboard&category=${category.id}`);
   await page.setViewportSize({ width: 390, height: 844 });
@@ -119,8 +123,9 @@ const PATIENT_TABS: [string, string | null][] = [
   ["/patient/dashboard/sessions", "sessions-summary"],
   ["/patient/dashboard/payments", "payments-summary"],
   ["/patient/dashboard/health-profile", "progress-summary"],
-  // Recommendations and My programme only summarise what exists; a patient
-  // with neither has no card there, so they are checked for the page alone.
+  // My programme only summarises a programme that exists. This patient owns
+  // none, and the tab says so instead of a title over a blank page.
+  ["/patient/dashboard/packages", "programme-empty"],
   ["/patient/dashboard/profile", null],
 ];
 
@@ -131,7 +136,7 @@ test("HS-005: each patient tab opens with its answer", async ({ page }) => {
   for (const [path, testId] of PATIENT_TABS) {
     await page.goto(`${BASE}${path}`, { waitUntil: "domcontentloaded" });
     await waitForSplashToClear(page);
-    if (testId) await expect(page.getByTestId(testId), path).toBeVisible({ timeout: 60_000 });
+    if (testId) await expect(page.getByTestId(testId).filter({ visible: true }), path).toBeVisible({ timeout: 60_000 });
     else await expect(page.getByRole("navigation", { name: "On this page" })).toBeVisible({ timeout: 60_000 });
     const sideways = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expect(sideways, `${path} scrolls sideways`).toBeLessThanOrEqual(1);
@@ -141,7 +146,7 @@ test("HS-005: each patient tab opens with its answer", async ({ page }) => {
   // Upcoming, on both the card and the list (sessionBucket).
   await page.goto(`${BASE}/patient/dashboard/sessions`, { waitUntil: "domcontentloaded" });
   await waitForSplashToClear(page);
-  await expect(page.getByTestId("sessions-summary")).toContainText("Nothing coming up", { timeout: 60_000 });
+  await expect(page.getByTestId("sessions-summary").filter({ visible: true })).toContainText("Nothing coming up", { timeout: 60_000 });
 });
 
 test("HS-006: each therapist tab opens with its answer", async ({ page }) => {
@@ -156,7 +161,7 @@ test("HS-006: each therapist tab opens with its answer", async ({ page }) => {
   ] as const) {
     await page.goto(`${BASE}${path}`, { waitUntil: "domcontentloaded" });
     await waitForSplashToClear(page);
-    await expect(page.getByTestId(testId), path).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId(testId).filter({ visible: true }), path).toBeVisible({ timeout: 60_000 });
     const sideways = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expect(sideways, `${path} scrolls sideways`).toBeLessThanOrEqual(1);
   }

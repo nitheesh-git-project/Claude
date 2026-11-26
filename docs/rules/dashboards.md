@@ -410,8 +410,30 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   shells (`dashboard/DashboardShell.tsx`, `admin/AdminShell.tsx`) carry a
   **Back to Home** entry in every render (sidebar, icon rail, phone More
   sheet / admin menu). It is a plain `<a>`, not
-  `next/link`, for the reason the nav entries document: client-side
-  transitions into a differently-chromed route were silently not completing.
+  `next/link`: client-side transitions into a differently-chromed route were
+  silently not completing.
+- **Switching tabs is instant, the way the admin dashboard's screens are.**
+  The admin dashboard renders every screen at once and switches with
+  `setState`; the patient, therapist and hospital dashboards are one route
+  per tab, so each tap used to be a full page load with the loader frame in
+  between. Now every `DashboardShell` entry whose `href` is a screen of the
+  *same* dashboard (`basePath` or below it -- `NavEntry`, `inApp`) is a
+  `ProgressLink` with `prefetch`: Next fetches that screen's whole render in
+  the background as the entry comes on screen and keeps it in the client
+  cache (five minutes), so the tap swaps the content in with no request and
+  no loader. It is safe because the destination shares this chrome -- the
+  reason above is about *leaving* it -- so Back to Home, the hospital's
+  sign-out and anything that is not under `basePath` stay plain anchors with
+  `useLeavingPage`. Fresh by construction: every `router.refresh()` (a save,
+  a realtime event via `RealtimeRefresh`) empties that cache, and prefetching
+  happens only in a production build, so `next dev` still shows the loader
+  on a tap. The price is a server render per visible tab once per five
+  minutes, which is the trade the admin dashboard already makes in one go.
+  The tap with nothing cached yet (just after a refresh, or a tab that was
+  never on screen) still gets the loader and keeps the sidebar:
+  `e2e/chrome-and-loader.spec.ts` CHROME-002 refuses the prefetch to test
+  exactly that. The e2e suite runs on `next dev`, which never prefetches,
+  so the instant tap itself is checked on a production build by hand.
 - **An online session's tile says when its Meet link shows.** With no link
   yet, `JoinSessionButton` renders a note in place of the button - "The Meet
   link will show here - you can join from 5:45 pm" (or "...once a therapist
@@ -725,7 +747,10 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   patient has bought is **My programme** (`/packages`). The brand label is the
   clinic's own name from settings (`adminSettings.siteName`), never "Patient
   Panel". The strip's programme tile ("Programme sessions left") exists only
-  for a patient who owns a programme. Change a label here and change it in
+  for a patient who owns a programme. My programme's nav entry is hidden
+  until there is one, but its URL still answers (the tutorial, an old
+  bookmark), so with nothing owned it says so and points at Recommendations
+  (`programme-empty`) instead of a title over a blank page. Change a label here and change it in
   `src/lib/tutorial.ts` and `patientScenes.tsx` in the same commit; the
   therapist, hospital and admin dashboards keep their own words.
 - **Under the headline, Home is the shortest way to the next booking.**

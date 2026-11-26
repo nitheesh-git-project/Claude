@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ComponentProps, type MouseEvent, type ReactNode } from "react";
 import TutorialInfoButton from "@/components/tutorial/TutorialInfoButton";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -13,6 +13,7 @@ import SessionTimeoutDialog from "@/components/SessionTimeoutDialog";
 import { LOGIN_HREF_BY_BASE_PATH, TABS_BY_BASE_PATH } from "@/lib/dashboardNavItems";
 import { isMoreActive, isNavItemActive, splitTabs } from "@/lib/dashboardTabs";
 import AnnouncementBar from "@/components/dashboard/extras/AnnouncementBar";
+import ProgressLink from "@/components/system/ProgressLink";
 import NotebookLauncher from "@/components/dashboard/extras/NotebookLauncher";
 
 // `href` marks a real page navigation (e.g. "Edit Profile") rather than a
@@ -210,20 +211,30 @@ export default function DashboardShell({
   }
 
   // Anchor items resolve to a real URL so they work from any page this
-  // shell wraps. A plain anchor throughout (not next/link): client-side
-  // transitions into a differently-chromed route were silently not
-  // completing in this environment.
+  // shell wraps. A plain anchor for anything that leaves this chrome (not
+  // next/link): client-side transitions into a differently-chromed route
+  // were silently not completing in this environment.
+  //
+  // A screen of this same dashboard is the exception: it shares this chrome,
+  // so the reason above does not apply, and it is a prefetched `next/link`
+  // (`inApp`). Each one is fetched in the background as its entry comes on
+  // screen and kept in the client cache, so a tap opens it at once instead of
+  // rebuilding the page -- the way the admin dashboard's screens switch. Any
+  // `router.refresh()` (a save, a realtime event) clears that cache, so a
+  // prefetched screen is never older than the last change made here.
   function navProps(item: ShellNavItem, onNavigate?: () => void) {
     const targetHref = item.href ?? `${basePath}#${item.id}`;
     const active = isActive(item);
+    const inApp = !!item.href && (item.href === basePath || item.href.startsWith(`${basePath}/`));
     return {
       href: targetHref,
+      inApp,
       "aria-current": active ? ("page" as const) : undefined,
       onClick: (e: MouseEvent) => {
         if (!item.href && onBasePage) {
           e.preventDefault();
           scrollToSection(item.id);
-        } else if (targetHref !== pathname) {
+        } else if (!inApp && targetHref !== pathname) {
           markLeaving();
         }
         onNavigate?.();
@@ -251,7 +262,7 @@ export default function DashboardShell({
     const showChildren = item.href && item.children && pathname === item.href;
     return (
       <div key={item.id}>
-        <a
+        <NavEntry
           {...navProps(item)}
           className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm transition ${
             active
@@ -262,7 +273,7 @@ export default function DashboardShell({
           <i aria-hidden="true" className={`fa-solid ${item.icon} w-4 text-center text-sm`}></i>
           <span className="min-w-0 flex-1 truncate">{item.label}</span>
           {badge(item.badge)}
-        </a>
+        </NavEntry>
         {showChildren && (
           <div className="mb-1 ml-5 mt-1 space-y-0.5 border-l-2 border-slate-100 pl-2">
             {item.children!.map((child) => {
@@ -297,7 +308,7 @@ export default function DashboardShell({
     const active = isActive(item);
     const short = item.short ?? item.label;
     return (
-      <a
+      <NavEntry
         key={item.id}
         {...navProps(item)}
         aria-label={short !== item.label ? item.label : undefined}
@@ -311,7 +322,7 @@ export default function DashboardShell({
         <i aria-hidden="true" className={`fa-solid ${item.icon} text-base`}></i>
         <span className="max-w-full break-words">{short}</span>
         {badge(item.badge, "absolute left-1/2 top-1 ml-2 ring-2 ring-white")}
-      </a>
+      </NavEntry>
     );
   }
 
@@ -322,7 +333,7 @@ export default function DashboardShell({
     const short = item.short ?? item.label;
     if (item.id === centerId) {
       return (
-        <a
+        <NavEntry
           key={item.id}
           {...navProps(item)}
           aria-label={short !== item.label ? item.label : undefined}
@@ -332,11 +343,11 @@ export default function DashboardShell({
             <i aria-hidden="true" className={`fa-solid ${item.icon} text-lg`}></i>
           </span>
           <span className="max-w-full text-center leading-tight">{short}</span>
-        </a>
+        </NavEntry>
       );
     }
     return (
-      <a
+      <NavEntry
         key={item.id}
         {...navProps(item)}
         aria-label={short !== item.label ? item.label : undefined}
@@ -347,7 +358,7 @@ export default function DashboardShell({
         <i aria-hidden="true" className={`fa-solid ${item.icon} text-lg`}></i>
         <span className="max-w-full break-words px-0.5 text-center">{short}</span>
         {badge(item.badge, "absolute left-1/2 top-1 ml-1.5 ring-2 ring-white")}
-      </a>
+      </NavEntry>
     );
   }
 
@@ -552,7 +563,7 @@ export default function DashboardShell({
                   {more.map((item) => {
                     const active = isActive(item);
                     return (
-                      <a
+                      <NavEntry
                         key={item.id}
                         {...navProps(item, () => setSheetOpen(false))}
                         className={`relative flex min-h-[84px] flex-col items-center justify-center gap-2 rounded-2xl px-1.5 py-3 text-center text-sm font-bold ${
@@ -562,7 +573,7 @@ export default function DashboardShell({
                         <i aria-hidden="true" className={`fa-solid ${item.icon} text-lg text-teal-700`}></i>
                         <span className="leading-tight">{item.label}</span>
                         {badge(item.badge, "absolute right-2 top-2")}
-                      </a>
+                      </NavEntry>
                     );
                   })}
                 </div>
@@ -610,5 +621,25 @@ export default function DashboardShell({
       {/* The person's private notebook, on every screen of the dashboard. */}
       <NotebookLauncher />
     </div>
+  );
+}
+
+/**
+ * One nav entry: a prefetched `next/link` for a screen of this dashboard
+ * (`inApp`), a plain anchor for anything else -- leaving the dashboard's
+ * chrome, or a same-page section. See navProps in DashboardShell.
+ */
+function NavEntry({ inApp, href, children, ...rest }: { inApp: boolean; href: string } & ComponentProps<"a">) {
+  if (inApp) {
+    return (
+      <ProgressLink href={href} prefetch {...rest}>
+        {children}
+      </ProgressLink>
+    );
+  }
+  return (
+    <a href={href} {...rest}>
+      {children}
+    </a>
   );
 }
