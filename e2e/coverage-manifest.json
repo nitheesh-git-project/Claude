@@ -662,6 +662,17 @@
       "integration": "mocked",
       "destructive": false
     },
+    "open-hours.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "api"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "booking-rules.spec.ts": {
       "runner": "patient",
       "levels": [
@@ -2083,6 +2094,15 @@
             "BR-CANCEL-001",
             "BR-CANCEL-002",
             "create-order rejects a pincode"
+          ],
+          "level": "api"
+        },
+        {
+          "spec": "open-hours.spec.ts",
+          "tests": [
+            "OH-001",
+            "OH-002",
+            "OH-003"
           ],
           "level": "api"
         }

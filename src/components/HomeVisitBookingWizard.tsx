@@ -27,7 +27,9 @@ import {
   earliestBookableDateKey,
   formatDateKeyLong,
   leadTimeMsFromHours,
+  type SlotOpenCheck,
 } from "@/lib/bookingSlots";
+import { useOpenSlots } from "@/lib/useOpenSlots";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { formatHourLabel } from "@/lib/therapistAvailability";
 import { debugNow } from "@/lib/debugNow";
@@ -156,6 +158,32 @@ export default function HomeVisitBookingWizard({
   const [categoryId, setCategoryId] = useState(() =>
     conditions.some((c) => c.id === initialCategoryId) ? initialCategoryId : ""
   );
+  // Only arrival times a physiotherapist can make, with the clinic's travel
+  // time kept clear around their other visits -- the rule the visit is
+  // assigned by (openHours.ts). Until the answer arrives the calendar says
+  // it is checking, as on the video-session wizard.
+  const { isOpen: isSlotOpen, checked: openHoursChecked, loading: openHoursLoading } = useOpenSlots(
+    nowMs,
+    categoryId || null,
+    { visitMode: "home_visit" }
+  );
+  // Once they arrive, an automatically chosen date or hour nobody can take
+  // moves to the first one somebody can; a date the visitor chose stays,
+  // shown greyed out.
+  const [appliedOpenHours, setAppliedOpenHours] = useState<SlotOpenCheck>(null);
+  if (isSlotOpen !== appliedOpenHours) {
+    setAppliedOpenHours(() => isSlotOpen);
+    if (isSlotOpen && bookDate) {
+      const dayHours = bookableHoursForDate(bookDate, nowMs, leadTimeMs, isSlotOpen);
+      if (autoPicked.date && dayHours.length === 0) {
+        const earliest = earliestBookableDateKey(nowMs, leadTimeMs, isSlotOpen);
+        setBookDate(earliest ?? "");
+        setBookHour(earliest ? (bookableHoursForDate(earliest, nowMs, leadTimeMs, isSlotOpen)[0] ?? "") : "");
+      } else if (bookHour !== "" && !dayHours.includes(Number(bookHour))) {
+        setBookHour(autoPicked.hour ? (dayHours[0] ?? "") : "");
+      }
+    }
+  }
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -271,10 +299,10 @@ export default function HomeVisitBookingWizard({
   // haven't earned yet.
   function primeSlotDefaults() {
     if (bookDate) return;
-    const earliest = earliestBookableDateKey(nowMs, leadTimeMs);
+    const earliest = earliestBookableDateKey(nowMs, leadTimeMs, isSlotOpen);
     if (!earliest) return;
     setBookDate(earliest);
-    const hours = bookableHoursForDate(earliest, nowMs, leadTimeMs);
+    const hours = bookableHoursForDate(earliest, nowMs, leadTimeMs, isSlotOpen);
     setBookHour(hours[0] ?? "");
   }
 
@@ -355,7 +383,7 @@ export default function HomeVisitBookingWizard({
   }
 
   const hourOptions: ChipOption[] = bookDate
-    ? bookableHoursForDate(bookDate, nowMs, leadTimeMs).map((h) => ({
+    ? bookableHoursForDate(bookDate, nowMs, leadTimeMs, isSlotOpen).map((h) => ({
         value: String(h),
         label: formatHourLabel(h),
       }))
@@ -901,7 +929,7 @@ export default function HomeVisitBookingWizard({
             onSelect={(dateKey) => {
               setBookDate(dateKey);
               setAutoPicked((p) => ({ ...p, date: false }));
-              const hours = bookableHoursForDate(dateKey, nowMs, leadTimeMs);
+              const hours = bookableHoursForDate(dateKey, nowMs, leadTimeMs, isSlotOpen);
               if (bookHour === "" || !hours.includes(Number(bookHour))) {
                 setBookHour(hours[0] ?? "");
               }
@@ -909,9 +937,12 @@ export default function HomeVisitBookingWizard({
             nowMs={nowMs}
             autoSelected={autoPicked.date}
             leadTimeMs={leadTimeMs}
+            isSlotOpen={isSlotOpen}
+            loading={openHoursLoading}
           />
           </div>
 
+          {!openHoursLoading && (
           <SelectableChipGroup
             options={hourOptions}
             value={bookHour === "" ? "" : String(bookHour)}
@@ -919,11 +950,12 @@ export default function HomeVisitBookingWizard({
               setBookHour(Number(v));
               setAutoPicked((p) => ({ ...p, hour: false }));
             }}
-            label="Arrival time"
+            label={openHoursChecked ? "Available arrival times" : "Arrival time"}
             idPrefix="hv-hour"
             autoSelectedValue={autoPicked.hour && bookHour !== "" ? String(bookHour) : null}
             emptyMessage="No times left on this date - pick another day."
           />
+          )}
 
           {error && (
             <p data-form-error role="alert" className="text-sm text-red-600">
@@ -942,7 +974,8 @@ export default function HomeVisitBookingWizard({
             <button
               type="button"
               onClick={goToStep3}
-              className="flex-1 rounded-xl bg-teal-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-teal-700"
+              disabled={openHoursLoading}
+              className="flex-1 rounded-xl bg-teal-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-teal-700 disabled:opacity-60"
             >
               Continue
             </button>

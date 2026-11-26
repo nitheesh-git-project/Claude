@@ -129,3 +129,51 @@ describe("openSlotStarts gives the assign rule's answer, slot for slot", () => {
     expect(fast).toEqual(slow);
   });
 });
+
+describe("openSlotStarts with a home-visit buffer and a session being moved", () => {
+  it("matches assignabilityFromRoster given the same buffer and exclusion", () => {
+    const template: { day_of_week: number; hour: number }[] = [];
+    for (let d = 1; d <= 6; d++) for (let h = 9; h < 19; h++) template.push({ day_of_week: d, hour: h });
+    const therapists: RosterTherapist[] = [
+      {
+        id: "a",
+        onLeave: false,
+        template,
+        overrides: [],
+        bookings: [
+          { id: "moving", slot_time: "2026-12-01T05:30:00.000Z", duration_minutes: 60, status: "confirmed" },
+          { id: "other", slot_time: "2026-12-02T08:30:00.000Z", duration_minutes: 60, status: "confirmed" },
+        ],
+      },
+    ];
+    const nowMs = Date.parse("2026-11-30T06:15:00.000Z");
+    const opts = { bufferMinutes: 30, excludeAppointmentId: "moving" };
+    const fast = openSlotStarts({ fromDateKey: "2026-11-30", days: 7, therapists, durationMinutes: 60, nowMs, ...opts });
+    const slow: number[] = [];
+    for (let i = 0; i < 7; i++) {
+      const dateKey = addDaysToKey("2026-11-30", i);
+      for (const hour of AVAILABILITY_HOURS) {
+        const ms = zonedSlotMs(dateKey, hour, CLINIC_TIMEZONE);
+        if (ms === null || ms <= nowMs) continue;
+        const t = therapists[0];
+        const free =
+          assignabilityFromRoster({
+            slotTime: new Date(ms).toISOString(),
+            durationMinutes: 60,
+            onLeave: false,
+            template: t.template,
+            overrides: t.overrides,
+            bookings: t.bookings,
+            ...opts,
+          }).length === 0;
+        if (free) slow.push(ms);
+      }
+    }
+    expect(fast).toEqual(slow);
+    // The session being moved does not block its own hour (11:00 IST)...
+    expect(fast).toContain(Date.parse("2026-12-01T05:30:00.000Z"));
+    // ...while the buffer closes the hours either side of another visit.
+    expect(fast).not.toContain(Date.parse("2026-12-02T07:30:00.000Z"));
+    expect(fast).not.toContain(Date.parse("2026-12-02T09:30:00.000Z"));
+  });
+});

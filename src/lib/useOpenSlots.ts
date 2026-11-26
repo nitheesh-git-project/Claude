@@ -25,7 +25,21 @@ export const OPEN_SLOT_WAIT_MS = 6000;
  * times appear and then vanish. After OPEN_SLOT_WAIT_MS without an answer
  * it stops waiting and offers every hour.
  */
-export function useOpenSlots(nowMs: number | null, categoryId: string | null | undefined): {
+export type OpenSlotOptions = {
+  /** Only this therapist's hours: the one suggesting a session, or the one
+   *  an admin has chosen. Needs a signed-in caller. */
+  therapistId?: string | null;
+  /** The session being moved: its own slot does not block it. */
+  excludeAppointmentId?: string | null;
+  /** A home visit: other visits are padded by the travel buffer. */
+  visitMode?: "online" | "home_visit";
+};
+
+export function useOpenSlots(
+  nowMs: number | null,
+  categoryId: string | null | undefined,
+  options: OpenSlotOptions = {}
+): {
   isOpen: SlotOpenCheck;
   checked: boolean;
   loading: boolean;
@@ -33,13 +47,19 @@ export function useOpenSlots(nowMs: number | null, categoryId: string | null | u
   const [state, setState] = useState<{ key: string; open: number[] | null }>({ key: "", open: null });
   // No clock yet (a screen that reads it after mount): nothing to ask.
   const fromKey = nowMs === null ? "" : toDateKey(new Date(wallClockMs(nowMs, CLINIC_TIMEZONE)));
-  const key = `${fromKey}|${categoryId ?? ""}`;
+  const therapistId = options.therapistId ?? "";
+  const exclude = options.excludeAppointmentId ?? "";
+  const visitMode = options.visitMode === "home_visit" ? "home_visit" : "";
+  const key = `${fromKey}|${categoryId ?? ""}|${therapistId}|${exclude}|${visitMode}`;
 
   useEffect(() => {
     if (!fromKey) return;
     let cancelled = false;
     const params = new URLSearchParams({ from: fromKey, days: String(OPEN_SLOT_WINDOW_DAYS) });
     if (categoryId) params.set("categoryId", categoryId);
+    if (therapistId) params.set("therapistId", therapistId);
+    if (exclude) params.set("exclude", exclude);
+    if (visitMode) params.set("visitMode", visitMode);
     fetch(`/api/appointments/open-hours?${params.toString()}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((body: { checked?: boolean; open?: unknown } | null) => {
@@ -62,7 +82,7 @@ export function useOpenSlots(nowMs: number | null, categoryId: string | null | u
       cancelled = true;
       clearTimeout(giveUp);
     };
-  }, [key, fromKey, categoryId]);
+  }, [key, fromKey, categoryId, therapistId, exclude, visitMode]);
 
   const open = state.key === key ? state.open : null;
   // One function per answer, not per render: callers compare it to decide

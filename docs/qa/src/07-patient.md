@@ -458,7 +458,7 @@ After the third, that line is replaced by an amber panel: *"Having trouble payin
 4. Read the confirmation line. It must agree with the visit named above it: a visit whose price already covers travel reads *"Travel is included"*, and one that does not quotes the per-visit travel fee for this area. That is why the visit is chosen before the pincode is asked for.
 5. Fill the address form: Address line 1 `12, 3rd Cross, Indiranagar`; line 2 `Near Metro Station`; City `Bengaluru`; State `Karnataka`; PIN `560038`.
 6. Tap **Continue**.
-7. On **When suits you?** pick a date at least 24 hours out and an arrival time.
+7. On **When suits you?** pick a date at least 24 hours out and an arrival time. The calendar says *"Checking available times…"* briefly, then offers only arrival times a physiotherapist can make (*Available arrival times*), with the clinic's travel time kept clear around their other visits.
 8. Tap **Continue**.
 9. On **About you**, read the teal line naming the condition chosen on Step 1 - it must name `QA Back & Spine Care` with its visit price and length, and carry a **Change** link. There is no package dropdown on this step. Complete the identity fields (or confirm the "booking as" strip if signed in).
 10. Tap **Continue**.

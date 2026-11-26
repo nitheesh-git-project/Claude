@@ -32,6 +32,7 @@ export default function BookingCalendar({
   gridLabel = "Choose a date",
   bounds,
   isSlotOpen,
+  loading = false,
 }: {
   selectedDateKey: string;
   onSelect: (dateKey: string) => void;
@@ -65,6 +66,11 @@ export default function BookingCalendar({
   // mode: this is the only month grid in the app and forking it is how the
   // two come to disagree about which days exist.
   bounds?: DateBounds;
+  /** The open hours are still on their way (useOpenSlots): the grid is
+   *  dimmed and not tappable, with "Checking available times…" under it,
+   *  rather than offering every date and taking most of them back a moment
+   *  later. Every session picker passes it, so they all wait the same way. */
+  loading?: boolean;
 }) {
   const reduceMotion = useReducedMotion();
   // Open on the selected date's month so the preselection is on screen
@@ -127,13 +133,15 @@ export default function BookingCalendar({
     );
 
   return (
-    // Tight padding on phones: a 7-column month grid only has ~55px of
-    // viewport per column at 390px, so every px of chrome comes straight
-    // out of the day cells' width.
+    <div>
+    {/* Tight padding on phones: a 7-column month grid only has ~55px of
+        viewport per column at 390px, so every px of chrome comes straight
+        out of the day cells' width. */}
     <div
-      className={`rounded-2xl border border-slate-200 bg-white ${
+      aria-busy={loading || undefined}
+      className={`rounded-2xl border border-slate-200 bg-white transition-opacity ${
         compact ? "p-2" : "p-2 sm:p-4"
-      }`}
+      } ${loading ? "pointer-events-none select-none opacity-40" : ""}`}
     >
       <div className={`flex items-center justify-between ${compact ? "mb-1.5" : "mb-3"}`}>
         <button
@@ -250,6 +258,17 @@ export default function BookingCalendar({
           );
         })}
       </div>
+    </div>
+    {loading && (
+      <p
+        role="status"
+        data-testid="booking-hours-checking"
+        className={`flex items-center gap-2 font-semibold text-slate-600 ${compact ? "mt-1.5 text-[11px]" : "mt-3 text-sm"}`}
+      >
+        <i className="fa-solid fa-circle-notch fa-spin text-teal-700" aria-hidden="true"></i>
+        Checking available times…
+      </p>
+    )}
     </div>
   );
 }

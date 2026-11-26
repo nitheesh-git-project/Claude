@@ -175,7 +175,12 @@ Consultation first, how a course of treatment is bought, the therapist lock, wha
   via `/api/appointments/book-package-sessions`, which loops
   `bookPackageSession()` per slot after enforcing the package's own
   minimum-gap/max-per-week rules and the bulk limit - it's the batch-level
-  rules layer, not a second booking implementation. Guard:
+  rules layer, not a second booking implementation. `bookPackageSession`
+  also refuses a time nobody can take (`isSlotClosed`), **before** it claims
+  the session, so a refusal never uses one up; the scheduler's calendar
+  offers only open hours and drops any proposed time nobody can take once
+  they arrive, saying how many. A therapist's Suggest a session offers only
+  their own free hours (`therapistId=me`). Guard:
   `e2e/programme-sessions-via-admin.spec.ts`, and SCH-001 in
   `session-scheduling`.
 - **A programme's expiry is said only near its end, as a date.** Every

@@ -11,6 +11,7 @@ import {
   leadTimeMsFromHours,
 } from "@/lib/bookingSlots";
 import BookingCalendar from "@/components/booking/BookingCalendar";
+import { useOpenSlots } from "@/lib/useOpenSlots";
 import { formatHourRange } from "@/lib/therapistAvailability";
 import { bookingCellClass, BOOKING_OPTION_GRID, BOOKING_OPTION_CELL } from "@/lib/bookingCellStyles";
 
@@ -51,6 +52,12 @@ export default function HomeVisitBulkScheduler({
   const [nowMs] = useState(() => Date.now());
   const leadTimeMs = useMemo(() => leadTimeMsFromHours(leadTimeHours), [leadTimeHours]);
   const [activeDateKey, setActiveDateKey] = useState<string | null>(null);
+  // Only hours a physiotherapist can take, with the clinic's travel time
+  // kept clear either side of their other visits -- the rule the visit is
+  // assigned by. Nothing is preselected here, so nothing needs dropping.
+  const { isOpen, checked: openHoursChecked, loading: openHoursLoading } = useOpenSlots(nowMs, null, {
+    visitMode: "home_visit",
+  });
   const [selected, setSelected] = useState<Slot[]>([]);
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -99,8 +106,8 @@ export default function HomeVisitBulkScheduler({
   }
 
   const activeHours = useMemo(
-    () => (activeDateKey ? bookableHoursForDate(activeDateKey, nowMs, leadTimeMs) : []),
-    [activeDateKey, nowMs, leadTimeMs]
+    () => (activeDateKey ? bookableHoursForDate(activeDateKey, nowMs, leadTimeMs, isOpen) : []),
+    [activeDateKey, nowMs, leadTimeMs, isOpen]
   );
 
   async function handleSubmit() {
@@ -238,11 +245,16 @@ export default function HomeVisitBulkScheduler({
                   autoSelected={false}
                   markedDateKeys={selected.map((s) => s.dateKey)}
                   gridLabel="Choose dates"
+                  isSlotOpen={isOpen}
+                  loading={openHoursLoading}
                 />
 
-                {activeDateKey && (
+                {activeDateKey && !openHoursLoading && (
                   <div className="mt-4">
-                    <p className="mb-2 text-xs font-semibold text-slate-700">{formatDateKeyLong(activeDateKey)}</p>
+                    <p className="mb-2 text-xs font-semibold text-slate-700">
+                      {formatDateKeyLong(activeDateKey)}
+                      {openHoursChecked && <span className="font-normal text-slate-500"> · Available times</span>}
+                    </p>
                     {activeHours.length === 0 ? (
                       <p className="text-xs text-slate-500">No bookable times on this date.</p>
                     ) : (
@@ -304,7 +316,7 @@ export default function HomeVisitBulkScheduler({
 
                 <button
                   onClick={handleSubmit}
-                  disabled={submitting || selected.length === 0}
+                  disabled={submitting || openHoursLoading || selected.length === 0}
                   className="mt-5 w-full rounded-xl bg-teal-700 py-3.5 text-sm font-bold text-white shadow-lg transition hover:bg-teal-800 disabled:opacity-60"
                 >
                   {submitting

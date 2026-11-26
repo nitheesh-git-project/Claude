@@ -47,10 +47,15 @@ export function openSlotStarts(input: {
   therapists: RosterTherapist[];
   durationMinutes: number;
   nowMs: number;
+  /** Travel time either side of a home visit, as Assign & Confirm pads it. */
+  bufferMinutes?: number;
+  /** A session being moved: its own place on the roster does not block it. */
+  excludeAppointmentId?: string;
 }): number[] {
   const open: number[] = [];
   const days = Math.max(0, Math.min(input.days, 120));
   const durationMs = input.durationMinutes * 60_000;
+  const bufferMs = Math.max(0, input.bufferMinutes ?? 0) * 60_000;
   // Someone on leave can take nothing (the rule's first reason), so they
   // are left out up front rather than asked 2,000 times.
   const working = input.therapists.filter((t) => !t.onLeave);
@@ -77,7 +82,7 @@ export function openSlotStarts(input: {
             slotState: dayByTherapist[n][hour] ?? null,
             hourLabel: "",
             dateLabel: "",
-            alreadyBooked: bookingOverlaps(t.bookings, ms, ms + durationMs),
+            alreadyBooked: bookingOverlaps(t.bookings, ms - bufferMs, ms + durationMs + bufferMs, input.excludeAppointmentId),
           }).length === 0
       );
       if (someoneFree) open.push(ms);

@@ -35,7 +35,10 @@ describe("whole-clinic roster reads are paged", () => {
         const oneTherapist = /\.eq\("therapist_id"/.test(after);
         const paged = /readAllRows(AsData|ByIds)?\(/.test(before);
         const write = /\.(insert|delete|upsert|update)\(/.test(after);
-        if (!oneTherapist && !paged && !write) {
+        // A count with `head: true` returns a number and no rows, so the
+        // 1,000-row cap this guards against cannot cut it short.
+        const countOnly = /head:\s*true/.test(after);
+        if (!oneTherapist && !paged && !write && !countOnly) {
           offenders.push(`${path.relative(SRC, file)}:${i + 1}`);
         }
       });

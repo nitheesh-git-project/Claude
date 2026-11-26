@@ -128,25 +128,15 @@ export default function BookingStepOne({
             (at least {leadTimeHours} hour{leadTimeHours === 1 ? "" : "s"} from now)
           </span>
         </p>
-        <div
-          aria-busy={openHoursLoading}
-          className={openHoursLoading ? "pointer-events-none select-none opacity-40 transition-opacity" : "transition-opacity"}
-        >
-          <BookingCalendar
-            selectedDateKey={dateKey}
-            onSelect={onDateChange}
-            nowMs={nowMs}
-            leadTimeMs={leadTimeMs}
-            isSlotOpen={isSlotOpen}
-            autoSelected={autoPicked.date}
-          />
-        </div>
-        {openHoursLoading && (
-          <p role="status" data-testid="booking-hours-checking" className="mt-3 flex items-center gap-2 text-sm font-semibold text-slate-600">
-            <i className="fa-solid fa-circle-notch fa-spin text-teal-700" aria-hidden="true"></i>
-            Checking available times…
-          </p>
-        )}
+        <BookingCalendar
+          selectedDateKey={dateKey}
+          onSelect={onDateChange}
+          nowMs={nowMs}
+          leadTimeMs={leadTimeMs}
+          isSlotOpen={isSlotOpen}
+          autoSelected={autoPicked.date}
+          loading={openHoursLoading}
+        />
         {dateKey && !openHoursLoading && (
           <p className="text-sm text-teal-800 font-semibold mt-2">
             <i className="fa-solid fa-calendar-check mr-1" aria-hidden="true"></i>

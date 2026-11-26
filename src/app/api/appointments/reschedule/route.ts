@@ -128,6 +128,8 @@ export async function POST(request: NextRequest) {
     days: 1,
     durationMinutes,
     nowMs: Date.now(),
+    // Its own place on the roster is the one being given up.
+    excludeAppointmentId: appointment.id,
   });
   if (open !== null && !open.includes(slotMs)) {
     return NextResponse.json(

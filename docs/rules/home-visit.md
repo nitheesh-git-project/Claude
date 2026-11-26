@@ -260,7 +260,13 @@ A delivery mode rather than a parallel booking system: service areas, the travel
   `findTherapistConflict`'s `bufferMinutes` option, since a therapist
   finishing one visit cannot be at another minutes later; online passes 0)
   therefore applies **at assign time** -- in `/api/admin/assign-appointment`
-  and in the queue's own "no longer free" warning -- rather than at booking.
+  and in the queue's own "no longer free" warning -- and, since the open-hours
+  pickers, **at booking too**: the home-visit wizard and scheduler ask
+  `open-hours?visitMode=home_visit`, which pads every therapist's other
+  visits by the same buffer, and `book-visits` / `book-cash` refuse a
+  closed arrival time (`isSlotClosed`, `docs/rules/booking.md`). The
+  wizard's label reads "Available arrival times" when the roster decided
+  them.
   Assigning a prepaid visit confirms it and sends the calendar invite with
   the address; an unpaid cash visit is assigned and stays `requested`, as
   before.

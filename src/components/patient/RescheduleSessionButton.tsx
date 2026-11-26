@@ -47,7 +47,11 @@ export default function RescheduleSessionButton({
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const { show } = useToast();
-  const { isOpen, checked, loading } = useOpenSlots(open ? nowMs : null, categoryId);
+  // Its own place on the roster must not block the hour it already has
+  // neighbours of -- the session is the one being moved.
+  const { isOpen, checked, loading } = useOpenSlots(open ? nowMs : null, categoryId, {
+    excludeAppointmentId: appointmentId,
+  });
   useUnloadWarning(saving);
 
   const leadTimeMs = leadTimeMsFromHours(leadTimeHours);
@@ -107,7 +111,6 @@ export default function RescheduleSessionButton({
         your booking.
       </p>
       {nowMs !== null && (
-        <div aria-busy={loading} className={loading ? "pointer-events-none select-none opacity-40" : undefined}>
         <BookingCalendar
           compact
           selectedDateKey={dateKey}
@@ -119,14 +122,8 @@ export default function RescheduleSessionButton({
           leadTimeMs={leadTimeMs}
           isSlotOpen={isOpen}
           autoSelected={false}
+          loading={loading}
         />
-        </div>
-      )}
-      {loading && (
-        <p role="status" className="flex items-center gap-2 text-sm font-semibold text-slate-600">
-          <i className="fa-solid fa-circle-notch fa-spin text-teal-700" aria-hidden="true"></i>
-          Checking available times…
-        </p>
       )}
       {dateKey && !loading && (
         <SelectableChipGroup

@@ -10,7 +10,29 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
 
 ---
 
-- **A picker offers only hours a therapist can take.** The patient's wizard
+- **A picker offers only hours a therapist can take -- every picker.** The
+  same answer feeds all of them, through `useOpenSlots` and the shared
+  calendar's `loading` state:
+
+  | Picker | Asks about |
+  | --- | --- |
+  | Booking wizard, programme scheduler (`PackageBulkScheduler`), admin Book a session | anyone free |
+  | Patient Change time (`RescheduleSessionButton`) | anyone free, `exclude` = the session being moved |
+  | Suggest a session (`SuggestSessionControl`) | `therapistId=me` -- the therapist's own hours |
+  | Admin edit booking (`EditBookingForm`), assign referral (`AssignReferralForm`) | the chosen therapist; edit also `exclude`s its session |
+  | Home-visit wizard and home-visit scheduler | anyone free, `visitMode=home_visit` (travel buffer either side) |
+
+  `therapistId` and `exclude` need a signed-in caller (401 otherwise); the
+  clinic-wide answer stays public. The binding copy is on the server:
+  `/api/appointments/create`, `reschedule`, `bookPackageSession` (every
+  programme booking, checked **before** the session is claimed),
+  `home-visit/book-visits` and `book-cash` refuse a closed hour
+  (`isSlotClosed`, 409 `SLOT_NOT_OPEN_ERROR`); suggest-session, the admin
+  edit and assign-referral already check the named therapist. A prepaid
+  single home visit is not re-checked after payment (`verify`): money has
+  moved, so its picker is the guard. The programme scheduler drops any
+  proposed time nobody can take once the hours arrive and says how many.
+- The patient's wizard
   and admin Book a session ask `GET /api/appointments/open-hours`
   (`?from=YYYY-MM-DD&days=&categoryId=`, public, rate-limited `openHours`,
   fails open) through `useOpenSlots`, which answers instants from
