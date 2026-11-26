@@ -30,6 +30,21 @@ way, and the reasoning is in there with the rule.
 Everything here is a rule whose failure is **unrecoverable, silent, or
 destroys something real**. Everything else is in `docs/rules/`.
 
+### Environments (the owner's standing instruction, every session)
+
+| Site | Branch | Data | Debug bar |
+| --- | --- | --- | --- |
+| `staging.moverestorephysio.com` | `staging` | **Test data only** -- do whatever testing needs | **On** (`NEXT_PUBLIC_SHOW_DEBUG_NAV=true` in Vercel) |
+| `moverestorephysio.com` | `main` | **Real patients and real data** | **Off** (`NEXT_PUBLIC_SHOW_DEBUG_NAV=false` in Vercel) |
+
+- **Never remove or change the debug bar.** It is how staging is tested; the
+  Vercel setting is what hides it in production. Do not delete its code,
+  change its default, or plan its removal as a launch task.
+- **A wording fix found on the live site:** first make sure `staging` says
+  the same thing as production, then fix it on `staging`. The owner's merge
+  to `main` carries the fix to production. Never edit production directly.
+- Details: `STAGING.md`, "The two sites".
+
 ### Branches
 
 **`staging` is the default branch and the only one anything merges to.
