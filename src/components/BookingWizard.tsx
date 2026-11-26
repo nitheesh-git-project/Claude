@@ -482,7 +482,11 @@ export default function BookingWizard({
   // themselves is left alone: the calendar now shows it greyed out.
   const [appliedOpenHours, setAppliedOpenHours] = useState<SlotOpenCheck>(null);
   if (isSlotOpen !== appliedOpenHours) {
-    setAppliedOpenHours(isSlotOpen);
+    // Wrapped: the value is itself a function, and a bare function passed
+    // to a state setter is run as an updater -- React would store its
+    // boolean result, the comparison above would never match, and the
+    // component would re-render until React gave up.
+    setAppliedOpenHours(() => isSlotOpen);
     if (isSlotOpen) {
       const lead = leadTimeMsFromHours(bookingLeadTimeHours);
       if (autoPicked.date && bookDate && !isDateBookable(bookDate, nowMs, lead, isSlotOpen)) {

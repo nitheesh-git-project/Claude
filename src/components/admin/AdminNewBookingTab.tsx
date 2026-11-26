@@ -82,7 +82,11 @@ export default function AdminNewBookingTab({
   const { isOpen: isSlotOpen } = useOpenSlots(nowMs, categoryId || null);
   const [appliedOpenHours, setAppliedOpenHours] = useState<SlotOpenCheck>(null);
   if (isSlotOpen !== appliedOpenHours) {
-    setAppliedOpenHours(isSlotOpen);
+    // Wrapped: the value is itself a function, and a bare function passed
+    // to a state setter is run as an updater -- React would store its
+    // boolean result, the comparison above would never match, and the
+    // component would re-render until React gave up.
+    setAppliedOpenHours(() => isSlotOpen);
     const chosenMs = slotToMs(slot.dateKey, slot.hour);
     if (isSlotOpen && chosenMs !== null && !isSlotOpen(chosenMs)) {
       setSlot({ dateKey: slot.dateKey, hour: null });
