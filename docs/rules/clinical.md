@@ -1503,6 +1503,15 @@ Per-specialty intake, the Pain Map, care plans and their review, session notes, 
      result, score, number other than the clock and the counter, or note can
      reach the patient's screen. The clock is a start time and a length; the
      screen counts.
+  5b. **A step saves fast, because the therapist is on a live call.** Each
+     step used to take about ten seconds: `requireOpenRun` made some seven
+     database round trips one after another, and the cockpit then called
+     `router.refresh()`, re-rendering the whole patient page on the server.
+     The gate now asks its independent questions side by side (sign-in with
+     the run; assignment with the started session -- the session answer is
+     used only once the assignment has passed), and a save, skip or stop
+     updates the cockpit from its own result with no page refresh. The page
+     is redrawn when the note is saved after the wrap-up.
   6. **Routes.** `/api/therapist/assessment-runs/start` (the protocol from the
      server-derived profile kind; `protocolKey` only chooses among that kind's;
      a linked session must be this therapist's video session; a second start
