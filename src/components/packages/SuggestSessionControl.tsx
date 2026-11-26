@@ -9,6 +9,8 @@ import {
   leadTimeMsFromHours,
 } from "@/lib/bookingSlots";
 import BookingCalendar from "@/components/booking/BookingCalendar";
+import { useOpenSlots } from "@/lib/useOpenSlots";
+import type { SlotOpenCheck } from "@/lib/bookingSlots";
 import {
   BOOKING_OPTION_CELL_COMPACT,
   BOOKING_OPTION_GRID_COMPACT,
@@ -66,6 +68,25 @@ export default function SuggestSessionControl({
 
   const nowMs = debugNow();
   const leadMs = leadTimeMsFromHours(leadTimeHours);
+  // The therapist's own free hours ("me"): the time they propose is one the
+  // assign rule would accept for them -- working, not on leave, not booked.
+  const { isOpen, checked, loading: hoursLoading } = useOpenSlots(open ? nowMs : null, null, { therapistId: "me" });
+  // Once their hours arrive, a seeded date or hour they cannot take moves to
+  // the first one they can.
+  const [appliedOpen, setAppliedOpen] = useState<SlotOpenCheck>(null);
+  if (isOpen !== appliedOpen) {
+    setAppliedOpen(() => isOpen);
+    if (isOpen && date) {
+      const dayHours = bookableHoursForDate(date, nowMs, leadMs, isOpen);
+      if (dayHours.length === 0) {
+        const earliest = earliestBookableDateKey(nowMs, leadMs, isOpen);
+        setDate(earliest ?? "");
+        setHour(earliest ? (bookableHoursForDate(earliest, nowMs, leadMs, isOpen)[0] ?? "") : "");
+      } else if (hour === "" || !dayHours.includes(hour)) {
+        setHour(dayHours[0]);
+      }
+    }
+  }
 
   // Seeded when the picker is opened rather than in an effect: the earliest
   // bookable slot is a function of the clock at that moment, so computing it
@@ -81,7 +102,7 @@ export default function SuggestSessionControl({
     setOpen(true);
   }
 
-  const hours = date ? bookableHoursForDate(date, nowMs, leadMs) : [];
+  const hours = date ? bookableHoursForDate(date, nowMs, leadMs, isOpen) : [];
 
   async function send() {
     // Synchronous guard -- see the component comment.
@@ -215,7 +236,7 @@ export default function SuggestSessionControl({
           selectedDateKey={date}
           onSelect={(nextDate) => {
             setDate(nextDate);
-            const nextHours = bookableHoursForDate(nextDate, nowMs, leadMs);
+            const nextHours = bookableHoursForDate(nextDate, nowMs, leadMs, isOpen);
             // Keep the hour when the new day still offers it, so moving a
             // proposal a week later does not silently change the time too.
             setHour((prev) =>
@@ -225,10 +246,13 @@ export default function SuggestSessionControl({
           nowMs={nowMs}
           leadTimeMs={leadMs}
           autoSelected={false}
+          isSlotOpen={isOpen}
+          loading={hoursLoading}
         />
+        {!hoursLoading && (
         <div>
           <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">
-            Time
+            {checked ? "Your available times" : "Time"}
           </p>
           {hours.length === 0 ? (
             <p className="text-[11px] text-slate-500">
@@ -253,6 +277,7 @@ export default function SuggestSessionControl({
             </div>
           )}
         </div>
+        )}
       </div>
 
       <label className="mt-2 block">
@@ -275,7 +300,7 @@ export default function SuggestSessionControl({
         <button
           type="button"
           onClick={send}
-          disabled={busy || hours.length === 0}
+          disabled={busy || hoursLoading || hours.length === 0}
           className="rounded-lg bg-teal-700 px-3 py-1.5 text-[11px] font-bold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {busy ? "Sending…" : "Send suggestion"}

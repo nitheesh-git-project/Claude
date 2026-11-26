@@ -1,3 +1,4 @@
+import { isSlotClosed, SLOT_NOT_OPEN_ERROR } from "@/lib/openHoursServer";
 import { copyPurchasePricingToSession } from "@/lib/pricingSnapshotServer";
 import type { createAdminClient } from "@/lib/supabase/admin";
 import { BASE_DURATION_MINUTES } from "@/lib/pricing";
@@ -133,6 +134,23 @@ export async function bookPackageSession(
     return { success: false, status: 400, error: "No sessions remaining on this package." };
   }
 
+  // Read before the claim below, because the time has to be checked first:
+  // a refused time must not use up a session.
+  const { data: category } = await admin
+    .from("treatment_categories")
+    .select("id, title, duration_minutes")
+    .eq("id", purchase.category_id)
+    .single();
+  const durationMinutes =
+    sessionDurationMinutesOverride ?? category?.duration_minutes ?? BASE_DURATION_MINUTES;
+
+  // Somebody has to be able to take it -- the rule the scheduler's own
+  // calendar offers by (openHours.ts), so a page left open or a request made
+  // without it cannot book an hour nobody works. Unreadable is not closed.
+  if (await isSlotClosed(admin, slotDateTime, { durationMinutes })) {
+    return { success: false, status: 409, error: SLOT_NOT_OPEN_ERROR };
+  }
+
   // Atomically claim one session: only succeeds if sessions_used still
   // matches what was just read, closing the race where two concurrent
   // requests (two browser tabs, or two slots in the same bulk-schedule
@@ -156,14 +174,6 @@ export async function bookPackageSession(
     };
   }
 
-  const { data: category } = await admin
-    .from("treatment_categories")
-    .select("id, title, duration_minutes")
-    .eq("id", purchase.category_id)
-    .single();
-
-  const durationMinutes =
-    sessionDurationMinutesOverride ?? category?.duration_minutes ?? BASE_DURATION_MINUTES;
   const perSessionAmountPaise = purchase.amount_paid_paise
     ? Math.round(purchase.amount_paid_paise / purchase.session_count)
     : 0;

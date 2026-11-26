@@ -39,11 +39,11 @@ test.describe("booking wizard: honest Step 1, plain Step 2", () => {
     await settleNetwork(page);
 
     // Plain labels, not "Preferred ...".
-    await expect(page.getByRole("radiogroup", { name: "Time", exact: true })).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByRole("radiogroup", { name: /^(Time|Available times)$/ })).toBeVisible({ timeout: 60_000 });
     await expect(page.getByText("Preferred Time", { exact: true })).toHaveCount(0);
     await expect(page.getByText("Preferred Date", { exact: true })).toHaveCount(0);
 
-    const times = page.getByRole("radiogroup", { name: "Time", exact: true });
+    const times = page.getByRole("radiogroup", { name: /^(Time|Available times)$/ });
     await expect(times.getByRole("radio", { checked: true })).toHaveCount(0);
 
     // Service first (the picker has two shapes), then the time is still open.

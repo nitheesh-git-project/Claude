@@ -4,6 +4,7 @@ import { useTherapistUnavailable } from "@/components/admin/TherapistUnavailable
 import { useEffect, useState } from "react";
 import { useRouter } from "@/lib/useRouter";
 import AdminSlotPicker, { earliestSlot, slotToMs } from "@/components/admin/AdminSlotPicker";
+import { useOpenSlots } from "@/lib/useOpenSlots";
 import { BOOKING_LEAD_TIME_HOURS, leadTimeMsFromHours } from "@/lib/bookingSlots";
 import { specialtyLabel } from "@/lib/therapistSpecialties";
 
@@ -55,6 +56,14 @@ export default function AssignReferralForm({
     /* eslint-enable react-hooks/set-state-in-effect */
   }, []);
   const [loading, setLoading] = useState(false);
+  // The chosen therapist's free hours (openHours.ts): the assign route
+  // refuses a therapist who is not working or already booked, so the picker
+  // offers only the hours it would accept.
+  const {
+    isOpen: isSlotOpen,
+    checked: openHoursChecked,
+    loading: openHoursLoading,
+  } = useOpenSlots(nowMs, null, { therapistId: therapistId || null });
   const [error, setError] = useState<string | null>(null);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const router = useRouter();
@@ -180,6 +189,9 @@ export default function AssignReferralForm({
           nowMs={nowMs}
           leadTimeMs={leadTimeMs}
           disabled={loading}
+          isSlotOpen={isSlotOpen}
+          openHoursLoading={openHoursLoading}
+          openHoursChecked={openHoursChecked}
         />
       )}
       {unavailableDialog}

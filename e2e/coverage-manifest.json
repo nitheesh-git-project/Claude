@@ -662,6 +662,17 @@
       "integration": "mocked",
       "destructive": false
     },
+    "open-hours.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "api"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "booking-rules.spec.ts": {
       "runner": "patient",
       "levels": [
@@ -2085,6 +2096,15 @@
             "create-order rejects a pincode"
           ],
           "level": "api"
+        },
+        {
+          "spec": "open-hours.spec.ts",
+          "tests": [
+            "OH-001",
+            "OH-002",
+            "OH-003"
+          ],
+          "level": "api"
         }
       ],
       "rules": [
@@ -2477,7 +2497,8 @@
             "R-T06",
             "R-S01",
             "R-C02",
-            "R-B01"
+            "R-B01",
+            "R-B02"
           ],
           "level": "api"
         },

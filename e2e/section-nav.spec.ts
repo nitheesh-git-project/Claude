@@ -141,7 +141,7 @@ test.describe("Section rail and scroll arrow on the public pages", () => {
     await page.getByRole("link", { name: /FAQ/i }).first().click();
     await page.waitForURL(/\/faq$/);
     await expect(rail(page).first()).toBeVisible();
-    // At the very top of a public page its own hero cue ("Scroll for more")
+    // At the very top of a public page its own hero cue ("See what's below")
     // stands in for the corner arrow; a little way down, the corner arrow is
     // the one in play, and it is the one that carries the swapped list.
     await page.evaluate(() => window.scrollTo(0, 300));
@@ -153,12 +153,12 @@ test.describe("Section rail and scroll arrow on the public pages", () => {
     await expect(activePill(page)).toHaveCount(1);
   });
 
-  test("SN-009: on a large screen a public page opens with its own Scroll for more cue, and the corner arrow waits", async ({
+  test("SN-009: on a large screen a public page opens with its own See what's below cue, and the corner arrow waits", async ({
     page,
   }) => {
     await page.goto(`${BASE}/faq`);
     await waitForSplashToClear(page);
-    const cue = page.getByRole("button", { name: "Scroll for more" });
+    const cue = page.getByRole("button", { name: "See what's below" });
     await expect(cue).toBeVisible();
     await expect(arrow(page)).toHaveCount(0);
     // The handler arrives with hydration, so click until the page moves.
@@ -171,7 +171,7 @@ test.describe("Section rail and scroll arrow on the public pages", () => {
     // The home page keeps the corner arrow alone.
     await page.goto(`${BASE}/`);
     await waitForSplashToClear(page);
-    await expect(page.getByRole("button", { name: "Scroll for more" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "See what's below" })).toHaveCount(0);
     await expect(arrow(page)).toBeVisible();
   });
 

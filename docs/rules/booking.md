@@ -10,7 +10,29 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
 
 ---
 
-- **A picker offers only hours a therapist can take.** The patient's wizard
+- **A picker offers only hours a therapist can take -- every picker.** The
+  same answer feeds all of them, through `useOpenSlots` and the shared
+  calendar's `loading` state:
+
+  | Picker | Asks about |
+  | --- | --- |
+  | Booking wizard, programme scheduler (`PackageBulkScheduler`), admin Book a session | anyone free |
+  | Patient Change time (`RescheduleSessionButton`) | anyone free, `exclude` = the session being moved |
+  | Suggest a session (`SuggestSessionControl`) | `therapistId=me` -- the therapist's own hours |
+  | Admin edit booking (`EditBookingForm`), assign referral (`AssignReferralForm`) | the chosen therapist; edit also `exclude`s its session |
+  | Home-visit wizard and home-visit scheduler | anyone free, `visitMode=home_visit` (travel buffer either side) |
+
+  `therapistId` and `exclude` need a signed-in caller (401 otherwise); the
+  clinic-wide answer stays public. The binding copy is on the server:
+  `/api/appointments/create`, `reschedule`, `bookPackageSession` (every
+  programme booking, checked **before** the session is claimed),
+  `home-visit/book-visits` and `book-cash` refuse a closed hour
+  (`isSlotClosed`, 409 `SLOT_NOT_OPEN_ERROR`); suggest-session, the admin
+  edit and assign-referral already check the named therapist. A prepaid
+  single home visit is not re-checked after payment (`verify`): money has
+  moved, so its picker is the guard. The programme scheduler drops any
+  proposed time nobody can take once the hours arrive and says how many.
+- The patient's wizard
   and admin Book a session ask `GET /api/appointments/open-hours`
   (`?from=YYYY-MM-DD&days=&categoryId=`, public, rate-limited `openHours`,
   fails open) through `useOpenSlots`, which answers instants from
@@ -27,7 +49,14 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
   it is "not checked", never "nobody is free". `useOpenSlots` returns one
   function per answer (memoised): callers compare it to see whether the
   hours changed, and a fresh function per render was a render loop that
-  took the wizard and the admin dashboard down. Before this the picker offered 6 AM to midnight every
+  took the wizard and the admin dashboard down. It also returns `loading`
+  until the answer arrives: the wizard and the reschedule picker dim the
+  calendar, say "Checking available times…" and hold the time list back,
+  rather than drawing every hour and narrowing it a moment later (the
+  staging review saw exactly that). After `OPEN_SLOT_WAIT_MS` (6 s) with no
+  answer they stop waiting and offer every hour, as for an unreadable
+  roster. The list is labelled "Available times" when the roster decided
+  it, "Time" when it could not. Before this the picker offered 6 AM to midnight every
   day: a patient booked a Sunday, read "Booking Confirmed", and the clinic
   found out at Assign & Confirm that nobody works Sundays. The pay-later
   success heading now reads **Request received** -- the clinic still

@@ -4,6 +4,7 @@ import { useTherapistUnavailable } from "@/components/admin/TherapistUnavailable
 import { useState } from "react";
 import { useRouter } from "@/lib/useRouter";
 import AdminSlotPicker, { slotFromIso, slotToMs } from "@/components/admin/AdminSlotPicker";
+import { useOpenSlots } from "@/lib/useOpenSlots";
 
 // Sentinel for the category <select>, distinct from both a real category id
 // and the empty string (which means "leave the category unchanged"). Lets
@@ -39,6 +40,17 @@ export default function EditBookingForm({
   const [nowMs] = useState(() => Date.now());
   const [slot, setSlot] = useState(() => slotFromIso(currentSlotTime, timeZone));
   const [categoryId, setCategoryId] = useState(currentCategoryId ?? "");
+  // The chosen therapist's free hours, with this session's own slot not
+  // counted against them -- it is the one being moved. Asked only while the
+  // form is open. The assign route stays the authority either way.
+  const {
+    isOpen: isSlotOpen,
+    checked: openHoursChecked,
+    loading: openHoursLoading,
+  } = useOpenSlots(open ? nowMs : null, categoryId && categoryId !== CLEAR_CATEGORY_VALUE ? categoryId : currentCategoryId, {
+    therapistId: therapistId || null,
+    excludeAppointmentId: appointmentId,
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -150,6 +162,9 @@ export default function EditBookingForm({
         nowMs={nowMs}
         leadTimeMs={0}
         timeZone={timeZone}
+        isSlotOpen={isSlotOpen}
+        openHoursLoading={openHoursLoading}
+        openHoursChecked={openHoursChecked}
       />
       <div className="flex gap-2">
         <button

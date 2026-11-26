@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { motion, useReducedMotion } from "motion/react";
+import { motion } from "motion/react";
+import { useHydrationSafeReducedMotion } from "@/lib/useHydrationSafeReducedMotion";
+import { heroCueAtTop } from "@/lib/heroScrollCue";
 
 /**
- * "There is more below", at the foot of a public page's opening screen.
+ * "See what's below", at the foot of a public page's opening screen.
  *
  * On a large screen the hero is a complete composition -- photograph, headline,
  * buttons -- and where the page ends there it reads as a finished landing page
@@ -13,23 +15,38 @@ import { motion, useReducedMotion } from "motion/react";
  * next band shows. So the cue is for lg and up only, where the fold can land
  * beneath the hero.
  *
- * It sits in the hero's own flow (a fixed-height row, not laid over the
- * photograph) so it can never cover the overlay card or the figures at any
- * width, and it goes quiet the moment the visitor scrolls: its job is done
- * once they have found the rest. The small corner arrow (ScrollHint) takes
- * over from there, and stays out of the way while this one is showing.
+ * The owner chose this design from five on a canvas: a short line over three
+ * chevrons that light up one after another, with no circle or box around
+ * them. It replaced a bouncing arrow in a 40 px circle that was taller than
+ * the fixed 64 px row it sat in, so the next band was drawn over its bottom,
+ * and that stayed on screen until the visitor had scrolled 120 px.
  *
- * The hop is decoration, so it stops under reduced motion; the label and the
- * chevron stay, and the control still works.
+ * Now the row is as tall as its content plus a reserved margin, so nothing
+ * can clip it, and it fades out after the first few pixels of scroll
+ * (`HERO_CUE_HIDE_AFTER_PX`) -- the same moment the small corner arrow
+ * (ScrollHint) takes over. Hidden, it keeps its space, so the page never
+ * shifts. It sits in the hero's own flow rather than over the photograph, so
+ * it cannot cover the overlay card or the figures at any width.
+ *
+ * The cascade is decoration: under reduced motion the chevrons stand still
+ * at a steady tint, and the control works the same. That setting is read
+ * hydration-safely, so the server's HTML and the first client render agree.
  */
-export default function HeroScrollCue({ label = "Scroll for more" }: { label?: string }) {
-  const reduceMotion = useReducedMotion();
+const STEPS = [0, 1, 2] as const;
+
+export default function HeroScrollCue({ label = "See what's below" }: { label?: string }) {
+  // Not motion's own useReducedMotion: the server cannot know the setting,
+  // so it drew the cascade's first frame while a reduced-motion browser drew
+  // the resting tint -- a hydration mismatch on every public page
+  // (public-hydration HY-001). This answers "no" on the server and while
+  // hydrating, then the real answer.
+  const reduceMotion = useHydrationSafeReducedMotion();
   const rootRef = useRef<HTMLDivElement>(null);
   const [atTop, setAtTop] = useState(true);
 
   useEffect(() => {
     function update() {
-      setAtTop(window.scrollY < 120);
+      setAtTop(heroCueAtTop(window.scrollY));
     }
     update();
     window.addEventListener("scroll", update, { passive: true });
@@ -48,13 +65,15 @@ export default function HeroScrollCue({ label = "Scroll for more" }: { label?: s
     window.scrollBy({ top: Math.round(window.innerHeight * 0.85), behavior: reduceMotion ? "auto" : "smooth" });
   }
 
+  const animate = !reduceMotion && atTop;
+
   return (
     <div
       ref={rootRef}
       data-hero-scroll-cue=""
-      // A fixed-height row, so hiding the button on scroll never shifts the
-      // page. Absent below lg altogether.
-      className="relative hidden h-16 items-start justify-center lg:flex"
+      // Sized by its content plus a reserved bottom margin -- never a fixed
+      // height smaller than what it draws. Absent below lg altogether.
+      className="relative hidden justify-center pb-7 pt-2 lg:flex"
     >
       <button
         type="button"
@@ -63,32 +82,46 @@ export default function HeroScrollCue({ label = "Scroll for more" }: { label?: s
         aria-hidden={atTop ? undefined : true}
         // No aria-label: the visible words are the accessible name (an
         // aria-label that does not contain them fails WCAG 2.5.3).
-        className={`group flex cursor-pointer flex-col items-center gap-1.5 rounded-full px-4 py-1 text-teal-800 transition-opacity duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 ${
-          atTop ? "opacity-100" : "pointer-events-none opacity-0"
+        className={`group flex min-h-11 cursor-pointer flex-col items-center gap-2 rounded-xl px-4 py-1.5 transition-[opacity,transform] duration-300 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 ${
+          atTop ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-1.5 opacity-0"
         }`}
       >
-        <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-teal-700/90 transition-colors group-hover:text-teal-900">
+        <span className="text-[13px] font-semibold text-teal-700 transition-colors group-hover:text-teal-900">
           {label}
         </span>
-        <span className="flex h-10 w-10 items-center justify-center rounded-full border border-teal-200 bg-white/90 shadow-md shadow-teal-900/10 transition-colors group-hover:border-teal-400 group-hover:bg-teal-50">
-          <motion.i
-            aria-hidden="true"
-            className="fa-solid fa-chevron-down text-sm"
-            initial={false}
-            // Up-and-over then a smaller second hop and a rest, the same beat
-            // as the corner arrow so the two read as one family.
-            animate={reduceMotion || !atTop ? { y: 0 } : { y: [0, 6, 0, 3, 0, 0] }}
-            transition={
-              reduceMotion || !atTop
-                ? { duration: 0 }
-                : {
-                    duration: 1.8,
-                    repeat: Infinity,
-                    ease: ["easeOut", "easeIn", "easeOut", "easeIn", "linear"],
-                    times: [0, 0.18, 0.36, 0.48, 0.6, 1],
-                  }
-            }
-          />
+        <span aria-hidden="true" className="flex flex-col items-center">
+          {STEPS.map((step) => (
+            <motion.svg
+              key={step}
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              // Overlapped so the three read as one downward stroke.
+              className={`block text-teal-700 group-hover:text-teal-900 ${step > 0 ? "-mt-2" : ""}`}
+              initial={false}
+              // Each chevron brightens in turn, top to bottom, then rests --
+              // a cascade pointing down, with no hop to catch the eye twice.
+              animate={animate ? { opacity: [0.18, 1, 0.18, 0.18], y: [-2, 1, 2, -2] } : { opacity: 0.7, y: 0 }}
+              transition={
+                animate
+                  ? {
+                      duration: 1.8,
+                      repeat: Infinity,
+                      ease: "easeInOut",
+                      times: [0, 0.35, 0.6, 1],
+                      delay: step * 0.22,
+                    }
+                  : { duration: 0.2 }
+              }
+            >
+              <path d="M6 9l6 6 6-6" />
+            </motion.svg>
+          ))}
         </span>
       </button>
     </div>

@@ -161,9 +161,20 @@ test("LAYOUT: the chosen-service summary keeps its title readable on a phone", a
     // measured in the fallback face, the display font then reflowed it a line
     // taller, and Change (measured after) read as beside the title's old box.
     await page.evaluate(() => document.fonts.ready.then(() => undefined));
-    const box = await summary.boundingBox();
-    const title = await summary.locator("h3").boundingBox();
-    const change = await summary.getByRole("button", { name: "Change" }).boundingBox();
+    // One read, in one frame: Continue scrolls the page to the card, and three
+    // separate boundingBox calls could straddle that scroll -- the title read
+    // before it and Change after, which reads as Change beside the title
+    // when it is a full row below it.
+    const measured = await summary.evaluate((el) => {
+      const r = (n: Element | null) => {
+        if (!n) return null;
+        const b = n.getBoundingClientRect();
+        return { x: b.x, y: b.y, width: b.width, height: b.height };
+      };
+      const change = Array.from(el.querySelectorAll("button")).find((b) => b.textContent?.trim() === "Change") ?? null;
+      return { box: r(el), title: r(el.querySelector("h3")), change: r(change) };
+    });
+    const { box, title, change } = measured;
     expect(box && title && change, `${width}px: summary, title and Change all measured`).toBeTruthy();
     // A title narrower than a few words is the squeeze.
     expect(title!.width, `${width}px: the service name has room to read`).toBeGreaterThan(140);

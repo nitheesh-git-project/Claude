@@ -79,7 +79,10 @@ export default function AdminNewBookingTab({
   }, [leadTimeHours]);
   // Only hours a therapist can take (openHours.ts) -- the patient's own
   // picker's rule. Book a session used to offer a Sunday nobody works.
-  const { isOpen: isSlotOpen } = useOpenSlots(nowMs, categoryId || null);
+  const { isOpen: isSlotOpen, checked: openHoursChecked, loading: openHoursLoading } = useOpenSlots(
+    nowMs,
+    categoryId || null
+  );
   const [appliedOpenHours, setAppliedOpenHours] = useState<SlotOpenCheck>(null);
   if (isSlotOpen !== appliedOpenHours) {
     // Wrapped: the value is itself a function, and a bare function passed
@@ -244,6 +247,8 @@ export default function AdminNewBookingTab({
             nowMs={nowMs}
             leadTimeMs={overrideLeadTime ? 0 : leadTimeMsFromHours(leadTimeHours)}
             isSlotOpen={isSlotOpen}
+            openHoursLoading={openHoursLoading}
+            openHoursChecked={openHoursChecked}
           />
         )}
 

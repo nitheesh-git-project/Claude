@@ -47,7 +47,11 @@ export default function RescheduleSessionButton({
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const { show } = useToast();
-  const { isOpen } = useOpenSlots(open ? nowMs : null, categoryId);
+  // Its own place on the roster must not block the hour it already has
+  // neighbours of -- the session is the one being moved.
+  const { isOpen, checked, loading } = useOpenSlots(open ? nowMs : null, categoryId, {
+    excludeAppointmentId: appointmentId,
+  });
   useUnloadWarning(saving);
 
   const leadTimeMs = leadTimeMsFromHours(leadTimeHours);
@@ -118,12 +122,13 @@ export default function RescheduleSessionButton({
           leadTimeMs={leadTimeMs}
           isSlotOpen={isOpen}
           autoSelected={false}
+          loading={loading}
         />
       )}
-      {dateKey && (
+      {dateKey && !loading && (
         <SelectableChipGroup
           idPrefix={`reschedule-hour-${appointmentId}`}
-          label="New time"
+          label={checked ? "Available times" : "New time"}
           options={hours.map((h) => ({ value: String(h), label: formatHourRange(h) }))}
           value={hour === "" ? "" : String(hour)}
           onChange={(next) => setHour(Number(next))}
@@ -139,7 +144,7 @@ export default function RescheduleSessionButton({
         <button
           type="button"
           onClick={save}
-          disabled={saving || !dateKey || hour === ""}
+          disabled={saving || loading || !dateKey || hour === ""}
           className="rounded-xl bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
         >
           {saving ? (

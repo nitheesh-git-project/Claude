@@ -56,6 +56,8 @@ export default function AdminSlotPicker({
   startOpen = false,
   timeZone = CLINIC_TIMEZONE,
   isSlotOpen = null,
+  openHoursLoading = false,
+  openHoursChecked = false,
 }: {
   dateKey: string;
   hour: number | null;
@@ -81,6 +83,11 @@ export default function AdminSlotPicker({
   /** Which real slot starts a therapist can take (useOpenSlots). Null: not
    *  checked, and every hour that clears the lead time is offered. */
   isSlotOpen?: SlotOpenCheck;
+  /** The open hours are on their way: the calendar says it is checking and
+   *  the hours wait, as on the patient's picker. */
+  openHoursLoading?: boolean;
+  /** The hours on screen are the roster's ("Available times"). */
+  openHoursChecked?: boolean;
 }) {
   const [open, setOpen] = useState(startOpen);
   // "Now" as the zone's wall clock, so the lead time and "today" are judged
@@ -135,10 +142,12 @@ export default function AdminSlotPicker({
             isSlotOpen={openOnGrid}
             leadTimeMs={leadTimeMs}
             autoSelected={false}
+            loading={openHoursLoading}
           />
+          {!openHoursLoading && (
           <div>
             <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500 mb-1.5">
-              Time ({zoneLabel(timeZone)})
+              {openHoursChecked ? "Available times" : "Time"} ({zoneLabel(timeZone)})
             </p>
             {hours.length === 0 ? (
               <p className="text-[11px] text-slate-500">
@@ -163,6 +172,7 @@ export default function AdminSlotPicker({
               </div>
             )}
           </div>
+          )}
           {/* Says why yesterday and this afternoon are not on offer, rather
               than leaving an admin to work it out from greyed-out cells. */}
           <p className="text-[10px] text-slate-500">

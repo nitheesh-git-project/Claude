@@ -13,7 +13,7 @@
 //
 // Passes when every page's 95th percentile is under --p95-ms (default 2000,
 // the staging review's "pages stay under 2 seconds") and nothing failed:
-// no 5xx, no network error, no timeout. A 429 is the rate limiter doing its
+// no 4xx (bar 429) or 5xx, no network error, no timeout. A 429 is the rate limiter doing its
 // job against fifty users sharing one IP, so it is counted on its own line
 // and never as a failure (a 429 is not a "no", and it is not an error).
 //
@@ -98,7 +98,10 @@ async function main() {
       await res.arrayBuffer();
       const ms = performance.now() - started;
       if (res.status === 429) row.rateLimited += 1;
-      else if (res.status >= 500) row.failed.push(`HTTP ${res.status}`);
+      // Any other 4xx is a failure too: a route that answers 404 is fast
+      // and wrong, and the first runs of this script counted exactly that
+      // as success against a deploy that did not have the route yet.
+      else if (res.status >= 400) row.failed.push(`HTTP ${res.status}`);
       else {
         row.ok += 1;
         row.ms.push(ms);

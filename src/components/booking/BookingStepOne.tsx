@@ -42,6 +42,7 @@ export default function BookingStepOne({
   continuePending = false,
   isSlotOpen = null,
   openHoursChecked = false,
+  openHoursLoading = false,
 }: {
   /** The service picker, rendered first. Taken as a node rather than as
    *  catalogue props so this component stays a screen of scheduling
@@ -86,6 +87,10 @@ export default function BookingStepOne({
   isSlotOpen?: SlotOpenCheck;
   /** Whether the hours on screen are the roster's, so the screen can say so. */
   openHoursChecked?: boolean;
+  /** The open hours have not arrived yet: the picker says it is checking
+   *  instead of drawing every date and hour and narrowing them a moment
+   *  later (useOpenSlots). */
+  openHoursLoading?: boolean;
 }) {
   const reduceMotion = useReducedMotion();
   const leadTimeMs = leadTimeMsFromHours(leadTimeHours);
@@ -130,8 +135,9 @@ export default function BookingStepOne({
           leadTimeMs={leadTimeMs}
           isSlotOpen={isSlotOpen}
           autoSelected={autoPicked.date}
+          loading={openHoursLoading}
         />
-        {dateKey && (
+        {dateKey && !openHoursLoading && (
           <p className="text-sm text-teal-800 font-semibold mt-2">
             <i className="fa-solid fa-calendar-check mr-1" aria-hidden="true"></i>
             {formatDateKeyLong(dateKey)}
@@ -143,18 +149,17 @@ export default function BookingStepOne({
           Normally one is preselected on arrival so they're visible
           immediately; this collapses cleanly if nothing is bookable. */}
       <AnimatePresence initial={false}>
-        {dateKey && (
+        {dateKey && !openHoursLoading && (
           <motion.div key="time" {...(reduceMotion ? {} : REVEAL)} className="space-y-5">
             <div>
+              {/* "Available times" when the roster decided them; plain "Time"
+                  when it could not be read and every hour is offered. */}
               <p id="booking-time-label" className="block font-semibold mb-1.5 text-slate-900">
-                Time
-                {openHoursChecked && (
-                  <span className="font-normal text-sm text-slate-600"> (only times a physiotherapist is free)</span>
-                )}
+                {openHoursChecked ? "Available times" : "Time"}
               </p>
               <SelectableChipGroup
                 idPrefix="booking-hour"
-                label="Time"
+                label={openHoursChecked ? "Available times" : "Time"}
                 options={hours.map((h) => ({ value: String(h), label: formatHourRange(h) }))}
                 value={hour === "" ? "" : String(hour)}
                 onChange={(next) => onHourChange(Number(next))}

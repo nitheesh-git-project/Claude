@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { BASE_DURATION_MINUTES } from "@/lib/pricing";
+import { isSlotClosed, readTravelBufferMinutes, SLOT_NOT_OPEN_ERROR } from "@/lib/openHoursServer";
 import { lookupServiceArea } from "@/lib/serviceAreaServer";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -171,6 +173,19 @@ export async function POST(request: NextRequest) {
       { error: "We don't currently visit that pincode. Please check it and try again." },
       { status: 400 }
     );
+  }
+
+  // Somebody has to be able to make it, with the clinic's travel time kept
+  // clear around their other visits -- the rule the wizard's calendar
+  // offers by (openHours.ts). Checked before the purchase row exists, so a
+  // refused time leaves nothing behind. Unreadable is not closed.
+  if (
+    await isSlotClosed(admin, slotDateTime, {
+      durationMinutes: rate.durationMinutes ?? BASE_DURATION_MINUTES,
+      bufferMinutes: await readTravelBufferMinutes(admin),
+    })
+  ) {
+    return NextResponse.json({ error: SLOT_NOT_OPEN_ERROR, code: "slot_not_open" }, { status: 409 });
   }
 
   let addressId: string | null = null;

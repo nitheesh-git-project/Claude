@@ -3,6 +3,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { readAllRowsByIds } from "@/lib/supabase/readAllRows";
 import { addDaysToKey, openSlotStarts, type RosterTherapist } from "@/lib/openHours";
 import { zonedSlotMs, CLINIC_TIMEZONE } from "@/lib/bookingSlots";
+import { clinicDateKey } from "@/lib/clinicWeek";
+import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
 
 type TemplateReadRow = { therapist_id: string; day_of_week: number; hour: number };
 
@@ -17,7 +19,22 @@ type TemplateReadRow = { therapist_id: string; day_of_week: number; hour: number
  */
 export async function readOpenSlotStarts(
   admin: SupabaseClient,
-  input: { fromDateKey: string; days: number; durationMinutes: number; nowMs: number }
+  // The length may still be on its way (the route reads it from the
+  // service): it is awaited only when the roster is in hand, so the two
+  // reads overlap instead of queueing.
+  input: {
+    fromDateKey: string;
+    days: number;
+    durationMinutes: number | Promise<number>;
+    nowMs: number;
+    /** Only these therapists' hours -- the therapist suggesting a session,
+     *  or the one an admin has chosen. Absent: anyone in the clinic. */
+    therapistIds?: string[];
+    /** Travel time either side of a home visit (the clinic's setting). */
+    bufferMinutes?: number;
+    /** The session being moved, so its own slot does not block it. */
+    excludeAppointmentId?: string;
+  }
 ): Promise<number[] | null> {
   try {
     const days = Math.max(1, Math.min(input.days, 120));
@@ -33,8 +50,10 @@ export async function readOpenSlotStarts(
       .eq("approved", true)
       .eq("active", true);
     if (error || !therapists) return null;
-    if (therapists.length === 0) return [];
-    const ids = therapists.map((t) => t.id as string);
+    const wanted = input.therapistIds ? new Set(input.therapistIds) : null;
+    const chosen = wanted ? therapists.filter((t) => wanted.has(t.id as string)) : therapists;
+    if (chosen.length === 0) return [];
+    const ids = chosen.map((t) => t.id as string);
 
     // A session that started up to a day before the window can still run
     // into it, so the bookings read reaches back a day.
@@ -78,9 +97,19 @@ export async function readOpenSlotStarts(
     // it cannot say who is free. "Not checked" (every hour offered, and the
     // clinic confirms), never "nobody is free" -- which would refuse every
     // booking in a clinic that simply has not filled its roster in.
-    if (templates.rows.length === 0) return null;
+    if (templates.rows.length === 0) {
+      if (!wanted) return null;
+      // A named therapist with no weekly hours: whether that means "the
+      // clinic does not use the roster" or "this one cannot be booked"
+      // depends on whether anybody else has hours.
+      const { count, error: countError } = await admin
+        .from("therapist_availability_template")
+        .select("therapist_id", { count: "exact", head: true });
+      if (countError) return null;
+      if (!count) return null;
+    }
 
-    const roster: RosterTherapist[] = therapists.map((t) => ({
+    const roster: RosterTherapist[] = chosen.map((t) => ({
       id: t.id as string,
       onLeave: t.on_leave === true,
       leaveFrom: (t.on_leave_from as string | null) ?? null,
@@ -96,11 +125,57 @@ export async function readOpenSlotStarts(
       fromDateKey: input.fromDateKey,
       days,
       therapists: roster,
-      durationMinutes: input.durationMinutes,
+      durationMinutes: await input.durationMinutes,
+      bufferMinutes: input.bufferMinutes,
+      excludeAppointmentId: input.excludeAppointmentId,
       nowMs: input.nowMs,
     });
   } catch (err) {
     console.error("readOpenSlotStarts failed", err);
     return null;
+  }
+}
+
+/** What a booking route says when nobody can take the time asked for. */
+export const SLOT_NOT_OPEN_ERROR = "No physiotherapist is free at that time any more. Please pick another time.";
+
+/**
+ * Whether one slot is closed -- checked and nobody can take it -- for the
+ * routes that book a time a picker offered (openHours.ts). The pickers show
+ * only open hours; this is the copy that binds, for a page left open or a
+ * request made without the picker. "Could not check" is not closed: the
+ * booking goes through and the clinic confirms or offers another time, as
+ * before this existed. Never call it after money has moved -- a paid
+ * booking is never refused for this.
+ */
+export async function isSlotClosed(
+  admin: SupabaseClient,
+  slotIso: string,
+  opts: { durationMinutes: number; bufferMinutes?: number; excludeAppointmentId?: string }
+): Promise<boolean> {
+  const slotMs = Date.parse(slotIso);
+  if (!Number.isFinite(slotMs)) return false;
+  const open = await readOpenSlotStarts(admin, {
+    fromDateKey: clinicDateKey(slotMs),
+    days: 1,
+    durationMinutes: opts.durationMinutes,
+    nowMs: Date.now(),
+    bufferMinutes: opts.bufferMinutes,
+    excludeAppointmentId: opts.excludeAppointmentId,
+  });
+  return open !== null && !open.includes(slotMs);
+}
+
+/** The clinic's travel time around a home visit, or the default when the
+ *  setting cannot be read. */
+export async function readTravelBufferMinutes(admin: SupabaseClient): Promise<number> {
+  try {
+    const { data } = await admin.from("site_settings").select("home_visit_travel_buffer_minutes").maybeSingle();
+    return (
+      (data as { home_visit_travel_buffer_minutes?: number | null } | null)?.home_visit_travel_buffer_minutes ??
+      DEFAULT_ADMIN_SETTINGS.homeVisitTravelBufferMinutes
+    );
+  } catch {
+    return DEFAULT_ADMIN_SETTINGS.homeVisitTravelBufferMinutes;
   }
 }

@@ -11,7 +11,8 @@ import {
 } from "@/lib/bookingSlots";
 import BookingCalendar from "@/components/booking/BookingCalendar";
 import { formatHourRange } from "@/lib/therapistAvailability";
-import { BOOKING_LEAD_TIME_MS } from "@/lib/bookingSlots";
+import { BOOKING_LEAD_TIME_MS, type SlotOpenCheck } from "@/lib/bookingSlots";
+import { useOpenSlots } from "@/lib/useOpenSlots";
 import { proposeSessionRhythm } from "@/lib/sessionRhythm";
 import { bookingCellClass, BOOKING_OPTION_GRID, BOOKING_OPTION_CELL } from "@/lib/bookingCellStyles";
 
@@ -89,6 +90,25 @@ export default function PackageBulkScheduler({
   // silently putting the suggestion back is the calendar overruling the
   // person using it.
   const [selected, setSelected] = useState<Slot[]>(() => proposal);
+  // Only hours a physiotherapist can take (openHours.ts), as on the booking
+  // wizard. The proposal is worked out before they arrive, so once they do,
+  // a suggested time nobody can take is dropped -- and the patient is told
+  // how many, rather than finding out from a refusal after Confirm.
+  const { isOpen, checked: openHoursChecked, loading: openHoursLoading } = useOpenSlots(nowMs, null);
+  const isOpenSlot = useCallback((s: Slot) => !isOpen || isOpen(new Date(slotDateTimeOf(s)).getTime()), [isOpen]);
+  const openProposal = useMemo(() => proposal.filter(isOpenSlot), [proposal, isOpenSlot]);
+  const [appliedOpen, setAppliedOpen] = useState<SlotOpenCheck>(null);
+  const [droppedCount, setDroppedCount] = useState(0);
+  if (isOpen !== appliedOpen) {
+    setAppliedOpen(() => isOpen);
+    if (isOpen) {
+      const kept = selected.filter((s) => isOpen(new Date(slotDateTimeOf(s)).getTime()));
+      if (kept.length !== selected.length) {
+        setDroppedCount(selected.length - kept.length);
+        setSelected(kept);
+      }
+    }
+  }
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -99,9 +119,9 @@ export default function PackageBulkScheduler({
   const maxSelectable = Math.max(0, Math.min(pendingCount, bulkScheduleMax));
 
   const isProposal =
-    proposal.length > 0 &&
-    selected.length === proposal.length &&
-    selected.every((s, i) => s.dateKey === proposal[i].dateKey && s.hour === proposal[i].hour);
+    openProposal.length > 0 &&
+    selected.length === openProposal.length &&
+    selected.every((s, i) => s.dateKey === openProposal[i].dateKey && s.hour === openProposal[i].hour);
 
   // Held in a ref so `close` is stable and the open/close effect below runs
   // once per mount. Keyed on `onClose`, it re-ran whenever the parent
@@ -141,8 +161,8 @@ export default function PackageBulkScheduler({
   }
 
   const activeHours = useMemo(
-    () => (activeDateKey ? bookableHoursForDate(activeDateKey, nowMs) : []),
-    [activeDateKey, nowMs]
+    () => (activeDateKey ? bookableHoursForDate(activeDateKey, nowMs, BOOKING_LEAD_TIME_MS, isOpen) : []),
+    [activeDateKey, nowMs, isOpen]
   );
 
   async function handleSubmit() {
@@ -305,11 +325,11 @@ export default function PackageBulkScheduler({
               </div>
             ) : (
               <>
-                {proposal.length > 0 ? (
+                {openProposal.length > 0 ? (
                   <div className="mb-4 rounded-xl border border-teal-100 bg-teal-50/60 p-3">
                     <p className="text-xs font-semibold text-slate-800">
                       {isProposal
-                        ? `We've picked ${proposal.length} time${proposal.length === 1 ? "" : "s"} for you`
+                        ? `We've picked ${openProposal.length} time${openProposal.length === 1 ? "" : "s"} for you`
                         : "Your times"}
                     </p>
                     <p className="mt-1 text-[11px] text-slate-600">
@@ -321,7 +341,10 @@ export default function PackageBulkScheduler({
                     {!isProposal && (
                       <button
                         type="button"
-                        onClick={() => setSelected(proposal)}
+                        onClick={() => {
+                          setSelected(openProposal);
+                          setDroppedCount(0);
+                        }}
                         className="mt-2 text-[11px] font-semibold text-teal-700 underline-offset-2 hover:underline"
                       >
                         Put the suggested times back
@@ -332,6 +355,12 @@ export default function PackageBulkScheduler({
                   <p className="mb-4 text-xs text-slate-500">
                     Pick up to {maxSelectable} session{maxSelectable === 1 ? "" : "s"} to schedule now. You
                     can always come back for the rest.
+                  </p>
+                )}
+                {droppedCount > 0 && (
+                  <p role="status" className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                    {droppedCount} suggested time{droppedCount === 1 ? " was" : "s were"} left out because no
+                    physiotherapist is free then. Pick {droppedCount === 1 ? "another" : "others"} below.
                   </p>
                 )}
                 {error && (
@@ -350,11 +379,16 @@ export default function PackageBulkScheduler({
                   autoSelected={false}
                   markedDateKeys={selected.map((s) => s.dateKey)}
                   gridLabel="Choose dates"
+                  isSlotOpen={isOpen}
+                  loading={openHoursLoading}
                 />
 
-                {activeDateKey && (
+                {activeDateKey && !openHoursLoading && (
                   <div className="mt-4">
-                    <p className="mb-2 text-xs font-semibold text-slate-700">{formatDateKeyLong(activeDateKey)}</p>
+                    <p className="mb-2 text-xs font-semibold text-slate-700">
+                      {formatDateKeyLong(activeDateKey)}
+                      {openHoursChecked && <span className="font-normal text-slate-500"> · Available times</span>}
+                    </p>
                     {activeHours.length === 0 ? (
                       <p className="text-xs text-slate-500">No bookable times on this date.</p>
                     ) : (
@@ -416,7 +450,7 @@ export default function PackageBulkScheduler({
 
                 <button
                   onClick={handleSubmit}
-                  disabled={submitting || selected.length === 0}
+                  disabled={submitting || openHoursLoading || selected.length === 0}
                   className="mt-5 w-full rounded-xl bg-teal-700 py-3.5 text-sm font-bold text-white shadow-lg transition hover:bg-teal-800 disabled:opacity-60"
                 >
                   {submitting

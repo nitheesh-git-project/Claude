@@ -1,5 +1,6 @@
 "use client";
 
+import { heroCueAtTop } from "@/lib/heroScrollCue";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
@@ -49,7 +50,7 @@ export default function ScrollHint() {
       // While a page's own hero cue is showing (lg and up, at the top) the
       // corner arrow would be a second arrow saying the same thing.
       const heroCueShowing =
-        window.scrollY < 120 &&
+        heroCueAtTop(window.scrollY) &&
         window.matchMedia("(min-width: 1024px)").matches &&
         document.querySelector("[data-hero-scroll-cue]") !== null;
       setVisible(scrollable && !heroCueShowing);
