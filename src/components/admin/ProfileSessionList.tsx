@@ -205,7 +205,14 @@ export default function ProfileSessionList({
                     route now refuses a scope that only reads them. A control
                     an admin's scope cannot call must not render, or Finance
                     gets a 403 with nothing on screen to explain it. */}
-                {canManageSessions && a.status === "confirmed" && (
+                {/* Also only once the session has started: the route refuses Done
+                    before that for everyone, so the button would only lead to a
+                    refusal (and an early Done is how Therapist Home came to read
+                    "1 of 1 done" with a 6 PM session still ahead). */}
+                {canManageSessions &&
+                  a.status === "confirmed" &&
+                  !!a.slot_time &&
+                  Date.parse(a.slot_time) <= now && (
                   <>
                     <CompleteSessionButton appointmentId={a.id} slotTime={a.slot_time} />
                     <MarkNoShowButton appointmentId={a.id} />

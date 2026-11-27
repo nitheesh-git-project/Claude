@@ -587,9 +587,15 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
     nowTimestamp(),
     homeVisitSharePercent
   );
-  const openRequest = (payoutRequests ?? []).find(
-    (r) => r.status === "pending" || r.status === "reviewing"
-  );
+  // A request only means something while there is something to pay. With
+  // nothing owed (the sessions were settled another way, or an earlier
+  // request already covered them) an open row is history, and showing it left
+  // "Request pending" / "under review" up on an Earnings page whose balance
+  // read zero.
+  const openRequest =
+    pendingOwedPaise > 0
+      ? (payoutRequests ?? []).find((r) => r.status === "pending" || r.status === "reviewing")
+      : undefined;
   const requestStatus: "none" | "pending" | "reviewing" =
     openRequest?.status === "reviewing" ? "reviewing" : openRequest ? "pending" : "none";
   // The most recent request whose completion the therapist hasn't seen yet

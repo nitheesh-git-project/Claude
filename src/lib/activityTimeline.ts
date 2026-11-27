@@ -206,19 +206,51 @@ export type AdminLogRow = {
   created_at: string;
 };
 
-/** The appointment row's own timestamps, each a line. */
-export function eventsFromSession(row: SessionRow, lookup: NameLookup): ActivityEvent[] {
+/** The admin who made each booking on a patient's behalf: the actor of the
+ *  `session.create` row the admin route writes, by appointment id. */
+export function bookedByAdminMap(rows: AdminLogRow[]): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const r of rows) {
+    if (r.action === "session.create" && r.target_id && r.actor_id && !out.has(r.target_id)) {
+      out.set(r.target_id, r.actor_id);
+    }
+  }
+  return out;
+}
+
+/** The admin log without its `session.create` rows: the booking line is
+ *  already on the session itself (credited to the admin), so listing the log
+ *  row as well said the same thing twice. */
+export function withoutBookingRows(rows: AdminLogRow[]): AdminLogRow[] {
+  return rows.filter((r) => r.action !== "session.create");
+}
+
+/**
+ * The appointment row's own timestamps, each a line.
+ *
+ * `bookedByAdminId`: the booking was made by the clinic on the patient's
+ * behalf. "Session booked" was always credited to the patient, so an admin's
+ * booking read as the patient's own.
+ */
+export function eventsFromSession(row: SessionRow, lookup: NameLookup, bookedByAdminId?: string | null): ActivityEvent[] {
   const out: ActivityEvent[] = [];
   const code = row.session_code ?? null;
   const add = (suffix: string, e: Omit<ActivityEvent, "id" | "sessionCode">) =>
     out.push({ ...e, id: `appt:${row.id}:${suffix}`, sessionCode: code });
 
   if (row.created_at) {
+    const visit = row.visit_mode === "home_visit";
     add("created", {
       at: row.created_at,
       category: "booking",
-      ...who(lookup, row.patient_id, "patient"),
-      title: row.visit_mode === "home_visit" ? "Home visit booked" : "Session booked",
+      ...(bookedByAdminId ? who(lookup, bookedByAdminId, "admin") : who(lookup, row.patient_id, "patient")),
+      title: bookedByAdminId
+        ? visit
+          ? "Home visit booked by the clinic"
+          : "Session booked by the clinic"
+        : visit
+          ? "Home visit booked"
+          : "Session booked",
       detail: row.slot_time ? `For ${formatClinicDateTime(row.slot_time)}` : null,
     });
   }

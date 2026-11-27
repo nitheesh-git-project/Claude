@@ -362,7 +362,8 @@ test("PL-UI-004 completion puts the money in three places at once", async ({ pag
   );
   expect(owedBefore).toHaveLength(0);
 
-  // Deliver it.
+  // Deliver it -- once it has started, which a session booked ahead has not.
+  await db.from("appointments").update({ slot_time: new Date(Date.now() - 2 * 3_600_000).toISOString() }).eq("id", bookedId);
   const completed = await post("/api/appointments/complete-session", {
     appointmentId: bookedId,
   });
@@ -575,6 +576,7 @@ async function deliverAnotherSession(): Promise<string> {
   const assigned = await post("/api/admin/assign-appointment", { appointmentId, therapistId }, adminCookie);
   await closeHour();
   expect(assigned.status, await assigned.clone().text()).toBe(200);
+  await db.from("appointments").update({ slot_time: new Date(Date.now() - 2 * 3_600_000).toISOString() }).eq("id", appointmentId);
   const done = await post("/api/appointments/complete-session", { appointmentId }, adminCookie);
   expect(done.status).toBe(200);
   return appointmentId as string;
