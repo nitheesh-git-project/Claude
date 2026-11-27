@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { readForgivenPaise } from "@/lib/payLaterForgivenServer";
 import { readSessionDiscounts } from "@/lib/sessionDiscountsServer";
 import { CONDITION_SPECIALTIES } from "@/lib/conditionSpecialty";
 import AdminTypeChanger from "@/components/admin/AdminTypeChanger";
@@ -219,6 +220,8 @@ export default async function PatientDetailContent({ id }: { id: string }) {
   // The discount a session was quoted (goodwill, the first-session offer),
   // so its price here is what the patient sees, not the service's full one.
   const discountsById = await readSessionDiscounts(admin, { column: "patient_id", id });
+  // Paise forgiven where a pay-later session closed under a rupee short.
+  const forgivenById = await readForgivenPaise(admin, { column: "patient_id", id });
   const appointments = mergeMeetLinks(
     mergeSessionCodes(rawAppointments ?? [], sessionCodeLinks),
     meetLinkRows
@@ -229,6 +232,7 @@ export default async function PatientDetailContent({ id }: { id: string }) {
     return {
       ...a,
       ...(discountsById.get(a.id) ?? {}),
+      pay_later_forgiven_paise: forgivenById.get(a.id) ?? 0,
       payment_terms: (terms?.payment_terms ?? null) as string | null,
       pay_later_outcome: (terms?.pay_later_outcome ?? null) as string | null,
       amount_due_paise: (terms?.amount_due_paise ?? null) as number | null,
@@ -392,6 +396,7 @@ export default async function PatientDetailContent({ id }: { id: string }) {
         (a.amount_due_paise ?? 0) > 0
     )
     .sort((x, y) => Date.parse(x.slot_time ?? "") - Date.parse(y.slot_time ?? ""))[0];
+  const forgivenSessions = (appointments ?? []).filter((a) => (a.pay_later_forgiven_paise ?? 0) > 0);
   const stillNeededPaise = nextOpenPayLater ? (nextOpenPayLater.amount_due_paise ?? 0) - receivedNotAppliedPaise : 0;
 
   // Profit only exists where the session's therapist has a revenue share
@@ -816,7 +821,14 @@ export default async function PatientDetailContent({ id }: { id: string }) {
             </ul>
             {receivedNotAppliedPaise > 0 && nextOpenPayLater && stillNeededPaise > 0 && (
               <p className="mt-1.5 text-[11px] font-semibold text-amber-800" data-testid="patient-pay-later-shortfall">
-                {`₹${formatRupees(receivedNotAppliedPaise)} is received but not applied: ${nextOpenPayLater.session_code ?? "the next delivered session"} costs ₹${formatRupees(nextOpenPayLater.amount_due_paise ?? 0)}, so ₹${formatRupees(stillNeededPaise)} more is needed before it closes. A payment only closes a whole session.`}
+                {`₹${formatRupees(receivedNotAppliedPaise)} is received but not applied: ${nextOpenPayLater.session_code ?? "the next delivered session"} costs ₹${formatRupees(nextOpenPayLater.amount_due_paise ?? 0)}, so ₹${formatRupees(stillNeededPaise)} more is needed before it closes. A payment closes a whole session; less than ₹1 short is forgiven.`}
+              </p>
+            )}
+            {forgivenSessions.length > 0 && (
+              <p className="mt-1.5 text-[11px] text-slate-600" data-testid="patient-pay-later-forgiven">
+                {`Forgiven: ${forgivenSessions
+                  .map((a) => `₹${formatRupees(a.pay_later_forgiven_paise)} on ${a.session_code ?? "a session"}`)
+                  .join(", ")} - a payment under ₹1 short still closes a delivered pay-later session.`}
               </p>
             )}
             <p className="mt-1.5 text-[11px] text-slate-500">

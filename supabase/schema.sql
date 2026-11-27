@@ -11681,6 +11681,8 @@ declare
   v_remaining integer;
   v_take integer;
   v_taken integer;
+  v_short integer;
+  v_forgiven_total integer := 0;
 begin
   if p_patient_id is null then
     raise exception 'allocate_pay_later_payment needs a patient';
@@ -11695,7 +11697,7 @@ begin
     where patient_id = p_patient_id and status = 'confirmed';
 
   if v_available <= 0 then
-    return jsonb_build_object('settled_count', 0, 'settled_paise', 0, 'unallocated_paise', 0);
+    return jsonb_build_object('settled_count', 0, 'settled_paise', 0, 'unallocated_paise', 0, 'forgiven_paise', 0);
   end if;
 
   for v_session in
@@ -11713,7 +11715,17 @@ begin
     -- Whole sessions only. Stop at the first one the pool cannot cover
     -- rather than skipping to a cheaper one further down: a patient paying
     -- off their oldest session is what they think they are doing.
-    exit when v_session.due > v_available;
+    --
+    -- **Less than one rupee short still covers it** (owner's decision). A
+    -- pay-later balance is settled by hand in whole rupees, so a session due
+    -- Rs 1,059.18 could never be closed by the Rs 1,059 a patient actually
+    -- paid, and the patient was left owing 18 paise for ever. The shortfall
+    -- is forgiven and **recorded** on the session (`pay_later_forgiven_paise`,
+    -- shown on the admin screens and counted by the reconciliation), so the
+    -- books still balance: confirmed + forgiven = settled + unallocated.
+    -- A shortfall of a rupee or more still stops here.
+    exit when v_session.due - v_available >= 100;
+    v_short := greatest(0, v_session.due - v_available);
 
     -- Drawn from the pool as a whole, oldest payment first, taking what
     -- each has until the session is covered.
@@ -11755,7 +11767,7 @@ begin
     -- session's price before entering it. Asserted rather than assumed,
     -- because coming up short here would mark a session paid for money the
     -- clinic never received -- the one thing this function must not do.
-    if v_taken < v_session.due then
+    if v_taken + v_short < v_session.due then
       raise exception
         'allocate_pay_later_payment: covered % of a % session', v_taken, v_session.due;
     end if;
@@ -11768,6 +11780,7 @@ begin
       set payment_status = 'paid',
           paid_at = coalesce(paid_at, now()),
           amount_paid_paise = v_session.due,
+          pay_later_forgiven_paise = v_short,
           pay_later_payment_id = v_last_payment,
           pay_later_outcome = 'settled'
       where id = v_session.id
@@ -11776,6 +11789,7 @@ begin
     v_available := v_available - v_taken;
     v_settled_count := v_settled_count + 1;
     v_settled_paise := v_settled_paise + v_taken;
+    v_forgiven_total := v_forgiven_total + v_short;
   end loop;
 
   select coalesce(sum(unallocated_paise), 0) into v_remaining
@@ -11785,7 +11799,8 @@ begin
   return jsonb_build_object(
     'settled_count', v_settled_count,
     'settled_paise', v_settled_paise,
-    'unallocated_paise', v_remaining
+    'unallocated_paise', v_remaining,
+    'forgiven_paise', v_forgiven_total
   );
 end;
 $$;
@@ -21817,3 +21832,32 @@ update appointments
    and payment_status <> 'paid'
    and amount_due_paise >= 100
    and amount_due_paise % 100 <> 0;
+
+-- ---------------------------------------------------------------------------
+-- Pay later: less than one rupee short still closes a delivered session
+-- (owner's decision). allocate_pay_later_payment (above) forgives the paise
+-- and writes them here, so it is on the record and the reconciliation
+-- (confirmed + forgiven = settled + unallocated) still balances.
+-- ---------------------------------------------------------------------------
+alter table appointments add column if not exists pay_later_forgiven_paise integer not null default 0;
+alter table appointments drop constraint if exists appointments_pay_later_forgiven_range;
+alter table appointments add constraint appointments_pay_later_forgiven_range
+  check (pay_later_forgiven_paise >= 0 and pay_later_forgiven_paise < 100);
+
+-- Patients whose confirmed money is already waiting just under a session's
+-- price get the same answer a new payment would have given them: the
+-- allocator is idempotent and runs on every confirmation and completion, so
+-- this only brings forward what their next event would do. Nobody else is
+-- touched (the loop is over confirmed pools with something left in them).
+do $$
+declare
+  v_patient uuid;
+begin
+  for v_patient in
+    select distinct patient_id from pay_later_payments
+      where status = 'confirmed' and coalesce(unallocated_paise, 0) > 0
+  loop
+    perform allocate_pay_later_payment(v_patient);
+  end loop;
+end $$;
+

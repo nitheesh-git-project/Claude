@@ -183,13 +183,6 @@ export default function PayLaterWidget({
           <p className="mt-1 text-sm text-slate-600">
             {`For ${sessions.length} session${sessions.length === 1 ? "" : "s"} you've already had. Settle whenever suits you.`}
           </p>
-          {/* A few paise left over after a payment is the gap between what was
-              sent and what the session costs, not a new charge: say so. */}
-          {owedPaise < 100 && unallocatedPaise > 0 && sessions[0]?.amount_due_paise ? (
-            <p className="mt-1 text-sm font-semibold text-teal-800" data-testid="pay-later-gap">
-              {`That is the part of your ${formatInr(sessions[0].amount_due_paise)} session your last payment didn't cover.`}
-            </p>
-          ) : null}
         </>
       )}
 

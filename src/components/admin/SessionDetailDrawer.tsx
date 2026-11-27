@@ -69,6 +69,8 @@ export type SessionDetailAppointment = {
   amount_due_paise?: number | null;
   /** pending / approved / declined on a pay-later booking (migration-dependent). */
   pay_later_approval?: string | null;
+  /** Paise forgiven when it was settled under a rupee short (migration-dependent). */
+  pay_later_forgiven_paise?: number | null;
   /** What the session lists at, and anything an admin already took off it.
    *  Migration-dependent, so a database without the columns hands through
    *  undefined and the control simply does not render. */
@@ -590,6 +592,15 @@ export default function SessionDetailDrawer({
                 );
               })()}
             </div>
+
+            {(a.pay_later_forgiven_paise ?? 0) > 0 && (
+              <p
+                className="rounded-lg bg-slate-50 p-2 text-slate-600"
+                data-testid="drawer-forgiven-paise"
+              >
+                {`Settled at its full price. The patient was ₹${formatRupees(a.pay_later_forgiven_paise ?? 0)} short, which was forgiven: a payment under ₹1 short still closes a delivered pay-later session.`}
+              </p>
+            )}
 
             <div>
               <p className="text-slate-500">Patient</p>
