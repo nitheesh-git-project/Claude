@@ -77,6 +77,11 @@ test.beforeAll(async () => {
   await db.from("appointments").delete().like("concern", `${MARKER}%`);
 });
 
+// Each test books its own rows; a retry must not find the first attempt's.
+test.beforeEach(async () => {
+  await db.from("appointments").delete().like("concern", `${MARKER}%`);
+});
+
 test.afterAll(async () => {
   for (const close of closeHours.splice(0)) await close();
   await db.from("appointments").delete().like("concern", `${MARKER}%`);
@@ -97,7 +102,7 @@ test("ABF-001: an unpaid admin booking is confirmed, payable, and held at Join",
   await expect(c.getByRole("button", { name: "Tap to Join" })).toHaveCount(0);
 
   await page.goto(`${BASE}/patient/dashboard`);
-  await expect(page.getByTestId("home-awaiting-payment-row").filter({ hasText: s.concern })).toBeVisible();
+  await expect(page.getByTestId("home-awaiting-payment-row").filter({ hasText: s.concern }).first()).toBeVisible();
 
   await page.context().clearCookies();
   await open(page, QA_EMAILS.therapistC, "/therapist/dashboard/sessions");
@@ -136,7 +141,9 @@ test("ABF-004: an unpaid session paid up front cannot be completed, and its past
     .insert({
       patient_id: patientId,
       therapist_id: therapistId,
-      slot_time: new Date(Date.now() - 2 * HOUR).toISOString(),
+      // A day ago: a session still on the day it was due stays under
+      // Upcoming (sessionBucket), and this test reads it in Past.
+      slot_time: new Date(Date.now() - 26 * HOUR).toISOString(),
       status: "confirmed",
       payment_status: "unpaid",
       duration_minutes: 30,
