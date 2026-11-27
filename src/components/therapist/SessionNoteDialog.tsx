@@ -147,6 +147,11 @@ export default function SessionNoteDialog({
   const onExamStateChange = useCallback((state: SessionExamState) => setExam(state), []);
   const canRecommend = sessionCompleted || completeOnSave;
   const [isPending, startTransition] = useTransition();
+  // Which of the saves is running, so the button says so. A note, its
+  // summary, closing the session and the recommendation are separate calls
+  // made one after another, and a bare "Saving..." for all of them read as
+  // stuck.
+  const [stage, setStage] = useState<"note" | "summary" | "finish" | "plan" | null>(null);
   const router = useRouter();
   const dialogRef = useRef<HTMLDivElement>(null);
   const lastFocused = useRef<HTMLElement | null>(null);
@@ -257,6 +262,7 @@ export default function SessionNoteDialog({
     }
     setMissing(new Set());
     startTransition(async () => {
+      setStage("note");
       const res = await fetch("/api/therapist/session-notes/submit", {
         method: "POST",
         // The debug bar's clock, which the route's "has it started" gate
@@ -286,6 +292,7 @@ export default function SessionNoteDialog({
       // leaves the note stored and the session still open, so trying again
       // repeats nothing that already happened.
       if (summaryToSend) {
+        setStage("summary");
         const summaryRes = await fetch("/api/therapist/session-summary/submit", {
           method: "POST",
           headers: { "Content-Type": "application/json", ...debugNowHeaders() },
@@ -310,6 +317,7 @@ export default function SessionNoteDialog({
       }
 
       if (completeOnSave) {
+        setStage("finish");
         const doneRes = await fetch("/api/appointments/complete-session", {
           method: "POST",
           headers: { "Content-Type": "application/json", ...debugNowHeaders() },
@@ -333,6 +341,7 @@ export default function SessionNoteDialog({
       // therapist their note failed because the recommendation did would
       // send them back to rewrite work that is safely stored.
       if (plan) {
+        setStage("plan");
         const planRes = await fetch("/api/therapist/care-plan/submit", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -369,6 +378,7 @@ export default function SessionNoteDialog({
             ? "Note saved and your recommendation sent."
             : "Session note saved.") + shared
       );
+      setStage(null);
       router.refresh();
       onClose();
     });
@@ -584,7 +594,13 @@ export default function SessionNoteDialog({
                 className="min-h-[44px] rounded-lg bg-teal-700 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:opacity-50"
               >
                 {isPending
-                  ? "Saving..."
+                  ? stage === "summary"
+                    ? "Sending the summary..."
+                    : stage === "finish"
+                      ? "Finishing the session..."
+                      : stage === "plan"
+                        ? "Sending your recommendation..."
+                        : "Saving your note..."
                   : completeOnSave
                     ? plan
                       ? "Save, finish & recommend"

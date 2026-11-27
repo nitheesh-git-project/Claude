@@ -14,6 +14,7 @@ import {
   BOOKING_LEAD_TIME_MS,
   CLINIC_TIMEZONE,
   wallClockMs,
+  wallClockShiftMs,
   zonedSlotMs,
   zonedSlotParts,
   zoneLabel,
@@ -95,7 +96,10 @@ export default function AdminSlotPicker({
   const wallNowMs = wallClockMs(nowMs, timeZone);
   // The grid judges slots on the shifted clock, so a real instant is the
   // shifted one moved back by the same offset before it is looked up.
-  const shift = wallNowMs - nowMs;
+  // Whole minutes: the raw difference carries the sub-second part of `now`
+  // that the zone conversion drops, which broke every exact-hour lookup
+  // below (wallClockShiftMs).
+  const shift = wallClockShiftMs(nowMs, timeZone);
   const openOnGrid: SlotOpenCheck = isSlotOpen ? (shiftedMs: number) => isSlotOpen(shiftedMs - shift) : null;
 
   const hours = dateKey ? bookableHoursForDate(dateKey, wallNowMs, leadTimeMs, openOnGrid) : [];

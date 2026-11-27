@@ -78,6 +78,25 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
   would have refused every such booking. CI's browsers are UTC; its roster
   read "not checked", which is why no spec caught it. Guard: OH-004 and
   `openHours.test.ts`.
+- **The admin picker's clock offset is whole minutes.** `AdminSlotPicker`
+  turns a grid slot (the clinic's date and hour read as the browser's local
+  time) back into the real instant by subtracting the zone offset, then looks
+  that instant up in the open hours **by exact value**. The offset was
+  `wallClockMs(now) - now`, which carries the sub-second part of `now` that
+  the zone conversion drops (-239 ms in a browser already on India time), so
+  every lookup missed and every date on Book a session greyed out in every
+  timezone -- only when the roster answered, so CI (empty roster, "not
+  checked") never saw it. `wallClockShiftMs` (`bookingSlots.ts`) rounds to
+  whole minutes. Guards: `wallClockShift.test.ts`, ABF-007 (a UTC browser on
+  the real screen with weekly hours set).
+- **A visitor outside India sees both clocks after the picker.** Step 1 draws
+  the visitor's own hours and says so; the review row, the "your time moved"
+  notice and the confirmation used to print the clinic's time alone, so a
+  visitor who picked 10:00 UTC was shown 3:30 pm with no word why.
+  `slotInZones` / `describeSlotForVisitor` (`src/lib/slotZones.ts`) say both
+  ("28 Nov 2026, 10:00 am UTC (28 Nov 2026, 3:30 pm India time)"), and the
+  confirmation adds "That's ... where you are." Nothing extra for a visitor
+  on India's clock. Every other screen keeps to the clinic's zone.
 - **A patient may move a video session themselves -- once, up to the
   cut-off.** `POST /api/appointments/reschedule` (owner's decisions:
   `patient_reschedule_cutoff_hours`, default 24, Settings -> Booking rules;

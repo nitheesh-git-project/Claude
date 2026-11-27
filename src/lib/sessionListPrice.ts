@@ -26,11 +26,28 @@
 
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { sessionAmountPaise, type SessionAmountRow } from "@/lib/sessionAmount";
+import { MINIMUM_CHARGE_PAISE } from "@/lib/discounts";
+
+/** The columns a discount is recorded in (goodwill, the first-session offer). */
+export type SessionListPriceRow = SessionAmountRow & {
+  list_price_paise?: number | null;
+  discount_paise?: number | null;
+};
 
 export function sessionListPricePaise(
-  a: SessionAmountRow,
+  a: SessionListPriceRow,
   servicePricePaise: number | null | undefined
 ): number {
+  // Nothing paid and no amount due written yet, but a discount recorded: the
+  // patient is quoted list price less the discount (floored at the gateway
+  // minimum, as applyGoodwillDiscount does), so that is what an admin reads.
+  // The goodwill session showed the service's full price here -- Rs 499 --
+  // while the patient and the therapist both saw the Rs 399 they would pay.
+  if (a.amount_paid_paise == null && a.amount_due_paise == null) {
+    const list = a.list_price_paise ?? 0;
+    const off = a.discount_paise ?? 0;
+    if (list > 0 && off > 0) return Math.max(MINIMUM_CHARGE_PAISE, list - off);
+  }
   return sessionAmountPaise(
     a,
     typeof servicePricePaise === "number" ? servicePricePaise : SESSION_FEE_PAISE

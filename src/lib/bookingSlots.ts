@@ -409,6 +409,23 @@ export function wallClockMs(ms: number, timeZone?: string | null): number {
   return ms + zoneOffsetMs(ms, zone) - localOffsetMs(ms);
 }
 
+/**
+ * How far a zone's wall clock is ahead of the browser's, in whole minutes.
+ *
+ * `wallClockMs(now) - now` is that offset *plus* the sub-second part of `now`
+ * that the zone conversion drops, so it came out as -239 ms on a browser
+ * already in the clinic's zone. The admin pickers subtract it to turn a
+ * wall-clock grid slot back into a real instant and look that instant up in
+ * the open hours -- an exact match on the millisecond -- so every lookup
+ * missed by a few hundred milliseconds, no hour was ever open, and every
+ * date on Book a session greyed out in every timezone. Offsets are whole
+ * minutes, so the noise rounds away.
+ */
+export function wallClockShiftMs(nowMs: number, timeZone?: string | null): number {
+  // `|| 0`: a zero offset must be 0, not -0.
+  return Math.round((wallClockMs(nowMs, timeZone) - nowMs) / 60_000) * 60_000 || 0;
+}
+
 /** The instant for `hour`:00 on `dateKey` in `timeZone`, or null. */
 export function zonedSlotMs(dateKey: string, hour: number | null, timeZone?: string | null): number | null {
   if (!dateKey || hour === null) return null;

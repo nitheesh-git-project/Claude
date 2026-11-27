@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "@/lib/useRouter";
 import { formatRupees } from "@/lib/formatMoney";
+import { useToast } from "@/lib/toast";
 
 const MIN_REASON_LENGTH = 10;
 
@@ -34,6 +35,7 @@ export default function GoodwillDiscountForm({
   existingReason: string | null;
 }) {
   const router = useRouter();
+  const { show } = useToast();
   const [open, setOpen] = useState(false);
   const [rupees, setRupees] = useState("");
   const [reason, setReason] = useState("");
@@ -51,6 +53,8 @@ export default function GoodwillDiscountForm({
     amountPaise < listPricePaise &&
     reason.trim().length >= MIN_REASON_LENGTH;
 
+  const inr = (p: number) => `₹${formatRupees(p)}`;
+
   function submit() {
     if (submitting.current) return;
     submitting.current = true;
@@ -63,6 +67,12 @@ export default function GoodwillDiscountForm({
           body: JSON.stringify({ appointmentId, amountPaise, reason }),
         });
         if (res.ok) {
+          const done = (await res.json().catch(() => ({}))) as { discountPaise?: number; payablePaise?: number };
+          show(
+            typeof done.payablePaise === "number"
+              ? `Taken off ${inr(done.discountPaise ?? amountPaise)} - the patient now pays ${inr(done.payablePaise)}. It's in the session history.`
+              : "Discount applied. It's in the session history."
+          );
           setOpen(false);
           setRupees("");
           setReason("");
@@ -77,8 +87,6 @@ export default function GoodwillDiscountForm({
     });
   }
 
-  const inr = (p: number) => `₹${formatRupees(p)}`;
-
   if (existingDiscountPaise > 0) {
     return (
       <div className="rounded-lg bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
@@ -89,7 +97,8 @@ export default function GoodwillDiscountForm({
         {existingReason && <p className="mt-0.5 text-amber-800">{existingReason}</p>}
         <p className="mt-1 text-amber-700">
           Applied before payment. To change it, cancel and rebook - a discount is not
-          re-editable once the patient has been quoted it.
+          re-editable once the patient has been quoted it. The therapist&apos;s pay is their percentage of
+          what is paid, so it falls with the discount.
         </p>
       </div>
     );
@@ -112,6 +121,13 @@ export default function GoodwillDiscountForm({
       <p className="text-[11px] text-slate-500">
         The session costs {inr(listPricePaise)}. This reduces what the patient is asked
         for - it does not refund anything, because nothing has been paid yet.
+      </p>
+      {/* Said out loud because it is easy to assume otherwise: the therapist's
+          percentage is taken of what is actually paid, so a discount lowers
+          their pay too. */}
+      <p className="mt-1.5 rounded-md bg-amber-50 px-2 py-1.5 text-[11px] text-amber-900" data-testid="goodwill-share-note">
+        <strong>Who bears it:</strong>{" "}
+        {"The therapist's share is a percentage of what is actually paid, so this discount lowers the therapist's pay by their percentage of it and the clinic's by the rest. It is not taken from the clinic alone."}
       </p>
 
       <div className="mt-2 flex items-end gap-2">

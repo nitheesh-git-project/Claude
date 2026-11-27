@@ -193,7 +193,13 @@ export function reconcileSettlements(input: {
   confirmedPaise: number;
   settledPaise: number;
   unallocatedPaise: number;
+  /** Paise forgiven when a session closed less than a rupee short
+   *  (`appointments.pay_later_forgiven_paise`). Money the clinic chose not to
+   *  collect, so it sits on the confirmed side: confirmed + forgiven =
+   *  settled + unallocated. Absent (an older database): none. */
+  forgivenPaise?: number;
 }): { agrees: boolean; differencePaise: number } {
-  const difference = input.confirmedPaise - (input.settledPaise + input.unallocatedPaise);
+  const difference =
+    input.confirmedPaise + (input.forgivenPaise ?? 0) - (input.settledPaise + input.unallocatedPaise);
   return { agrees: difference === 0, differencePaise: difference };
 }

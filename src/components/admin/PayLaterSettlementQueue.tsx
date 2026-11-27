@@ -101,6 +101,10 @@ export default function PayLaterSettlementQueue({
         A patient has told us they have paid. Until one of these is answered, what they
         owe above still includes it - and they cannot tell whether anybody has looked.
       </p>
+      {/* The rule an admin confirming a payment should know. */}
+      <p className="mt-1 text-xs text-slate-600" data-testid="settlement-forgiveness-note">
+        {"Payments close whole sessions, oldest first. If what has been received is less than ₹1 short of a delivered session, that session still closes and the paise are forgiven - recorded on the session and in the patient's payment history."}
+      </p>
 
       <ul className="mt-4 space-y-3">
         {settlements.map((s) => {

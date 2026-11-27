@@ -493,6 +493,54 @@ begin
     raise exception 'A settled session recorded % rather than its own amount', v_amount;
   end if;
 
+  -- ---------------------------------------------------------------------
+  -- 17. Less than a rupee short still closes a session, the paise are
+  --     recorded, and the books still balance. A rupee or more short does
+  --     not. (Patient B: no pool and no delivered sessions from the checks above.)
+  -- ---------------------------------------------------------------------
+  insert into appointments (patient_id, category_id, slot_time, status, payment_status,
+                            payment_terms, amount_due_paise)
+    values (v_other_patient, v_category, now() - interval '3 days', 'completed', 'unpaid',
+            'pay_later', 105918)
+    returning id into v_appt_probe;
+
+  -- Rs 1,058 against Rs 1,059.18: a rupee and 18 paise short -- stays open.
+  insert into pay_later_payments (patient_id, amount_paise, method, status, unallocated_paise)
+    values (v_other_patient, 105800, 'upi', 'confirmed', 105800);
+  perform allocate_pay_later_payment(v_other_patient);
+  select payment_status into v_status from appointments where id = v_appt_probe;
+  if v_status = 'paid' then
+    raise exception 'A session a rupee or more short was closed';
+  end if;
+
+  -- Another Rs 1.00 makes it Rs 1,059: 18 paise short -- closes, forgiving 18.
+  insert into pay_later_payments (patient_id, amount_paise, method, status, unallocated_paise)
+    values (v_other_patient, 100, 'upi', 'confirmed', 100);
+  v_result := allocate_pay_later_payment(v_other_patient);
+  select payment_status, amount_paid_paise into v_status, v_amount
+    from appointments where id = v_appt_probe;
+  if v_status <> 'paid' or v_amount <> 105918 then
+    raise exception 'A session under a rupee short should close at its own amount: % %', v_status, v_amount;
+  end if;
+  if coalesce((select pay_later_forgiven_paise from appointments where id = v_appt_probe), -1) <> 18 then
+    raise exception 'The 18 forgiven paise were not recorded';
+  end if;
+  if coalesce((v_result->>'forgiven_paise')::int, -1) <> 18 then
+    raise exception 'The allocator did not report the forgiven paise: %', v_result;
+  end if;
+
+  select coalesce(sum(amount_paise), 0), coalesce(sum(unallocated_paise), 0)
+    into v_confirmed, v_unallocated
+    from pay_later_payments where patient_id = v_other_patient and status = 'confirmed';
+  select coalesce(sum(amount_paid_paise), 0), coalesce(sum(pay_later_forgiven_paise), 0)
+    into v_settled, v_amount
+    from appointments where pay_later_payment_id is not null and patient_id = v_other_patient;
+  if v_confirmed + v_amount <> v_settled + v_unallocated then
+    raise exception
+      'Money in (%) plus forgiven (%) should equal money on sessions (%) plus the pool (%)',
+      v_confirmed, v_amount, v_settled, v_unallocated;
+  end if;
+
   raise notice 'pay-later SQL checks passed';
 end $$;
 

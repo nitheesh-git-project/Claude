@@ -450,4 +450,25 @@ The revenue split and its two invariants, payouts, settlements, Business Health,
   is built from paid sessions, so a confirmed payment that did not yet cover a
   whole session showed "No payments recorded yet". Each confirmed payment is
   listed with its method, date and anything not yet covering a session.
-
+- **A session's price on the admin lists is what the patient is quoted.**
+  `sessionListPricePaise` falls back, with nothing paid and no amount due, to
+  the service's price -- which showed Rs 499 for a goodwill session the
+  patient and therapist saw at Rs 399. It now subtracts a recorded discount
+  (`list_price_paise` - `discount_paise`, floored at the gateway minimum); the
+  patient and therapist detail pages read those columns in their own isolated
+  query (`sessionDiscountsServer.ts`) so an older database loses the discount,
+  never the list.
+- **Goodwill is borne by the therapist in proportion to their share --
+  confirmed by the owner.** The therapist's percentage is taken of
+  what is actually paid (`shareBase.ts`, `sessionTherapistCutPaise`), so a
+  discount lowers their pay by their percentage of it and the clinic's by the
+  rest. The owner confirmed this is intended ("therapist should be paid as it
+  is"), and the goodwill form says so. Were it ever to come out of the clinic
+  alone, the share base for a session with `discount_source = 'goodwill'`
+  would have to be the list price instead, in `shareBase.ts`, the Money split
+  and the payout maths together.
+- **A received payment shows in Total Paid even before it closes a session.**
+  The admin patient page summed only sessions marked paid, so a confirmed
+  pay-later payment waiting to cover a whole session read "Total Paid Rs 0".
+  It adds the unapplied money, says so, and names the session it is waiting
+  for and how much more it needs.

@@ -233,3 +233,35 @@ test("ABF-005: goodwill on a pay-later session lowers what is owed; a delivered 
   const { data: kept } = await db.from("appointments").select("amount_due_paise").eq("id", delivered).single();
   expect(kept!.amount_due_paise).toBe(99_900);
 });
+
+test("ABF-007: Book a session offers real dates when the roster has hours, in a UTC browser", async ({ browser }) => {
+  // The picker looks each hour up by exact instant. A few hundred
+  // milliseconds of noise in its clock offset made every lookup miss, so
+  // every date greyed out -- but only when the roster answered, and CI's
+  // roster is empty ("not checked", every hour offered), which is why nothing
+  // noticed. Give the test therapist weekly hours so the roster answers, and
+  // read the screen the way the tester did.
+  test.setTimeout(120_000);
+  const days = [0, 1, 2, 3, 4, 5, 6].map((day_of_week) => ({ day_of_week, ranges: [{ startHour: 6, endHour: 23 }] }));
+  const WEEKLY = `${BASE}/api/admin/save-therapist-availability`;
+  const set = await admin.post(WEEKLY, { data: { therapistId, days } });
+  expect(set.ok(), await set.text()).toBe(true);
+  const context = await browser.newContext({ timezoneId: "UTC" });
+  await context.addCookies(await browserCookiesFor(QA_EMAILS.admin));
+  const page = await context.newPage();
+  try {
+    await page.goto(`${BASE}/admin/dashboard?section=sessions&tab=new`);
+    await waitForSplashToClear(page);
+    const calendar = page.getByText("Date & time").first();
+    await expect(calendar).toBeVisible({ timeout: 60_000 });
+    // Wait out "Checking available times…", then count the days a visitor can pick.
+    await expect(page.getByTestId("booking-hours-checking")).toBeHidden({ timeout: 30_000 });
+    const enabledDays = page.locator("button[aria-label*='2026']:not([disabled]), button[aria-label*='2027']:not([disabled])");
+    await expect.poll(async () => await enabledDays.count(), { timeout: 20_000 }).toBeGreaterThan(0);
+  } finally {
+    // Back to no weekly hours, as the roster spec leaves it (the other specs
+    // here rely on an empty roster answering "not checked").
+    await admin.post(WEEKLY, { data: { therapistId, days: days.map((d) => ({ ...d, ranges: [] })) } });
+    await context.close();
+  }
+});

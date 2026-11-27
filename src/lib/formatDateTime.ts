@@ -113,3 +113,31 @@ export function formatClinicDateTimeWithZone(value: string | number | Date | nul
   // absence.
   return rendered === "-" ? rendered : `${rendered} IST`;
 }
+
+/**
+ * An instant in a *named* zone with its short zone name: "28 Nov 2026,
+ * 10:00 am UTC". Only for the one place a time is shown in somebody else's
+ * zone -- the booking wizard, whose picker draws the visitor's own hours --
+ * so every other figure keeps to the clinic's. The zone is always explicit
+ * (never the runtime's), and an unknown zone returns "" rather than throwing.
+ */
+export function formatDateTimeInZone(value: string | number | Date | null | undefined, timeZone: string): string {
+  if (value === null || value === undefined || !timeZone) return "";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  try {
+    return new Intl.DateTimeFormat(LOCALE, {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+      timeZone,
+      timeZoneName: "short",
+    }).format(date);
+  } catch {
+    return "";
+  }
+}
+

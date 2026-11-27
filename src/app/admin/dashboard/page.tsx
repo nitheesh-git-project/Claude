@@ -260,6 +260,7 @@ import { readRefundHealth } from "@/lib/refundHealthServer";
 import { readStorageReconciliation } from "@/lib/storageReconciliation";
 import { countAwaitingFirstBooking } from "@/lib/unscheduledPurchases";
 import { readUnassignedRescueHours } from "@/lib/rescueHoursServer";
+import { readForgivenPaise } from "@/lib/payLaterForgivenServer";
 import { referralIsAssignable, referralNotAssignableMessage } from "@/lib/referralAssignable";
 import {
   readHomeVisitAreaCommitments,
@@ -1967,6 +1968,9 @@ export default async function AdminDashboardPage({
   const pendingPayLaterApprovals = await pendingPayLaterApprovalsRead;
   const payLaterApprovalRequired = await payLaterApprovalRequiredRead;
   const referralFacts = await referralFactsRead;
+  // Paise forgiven on pay-later sessions that closed under a rupee short, in
+  // their own read (the column is the newest on the table).
+  const forgivenPaiseById = await readForgivenPaise(admin);
   const appointmentsWithSessionCode = mergeMeetLinks(
     mergeSessionCodes(
       appointments ?? [],
@@ -2020,7 +2024,7 @@ export default async function AdminDashboardPage({
           refund_id: refund.refund_id,
         }
       : withApproval;
-    return discount
+    const withDiscount = discount
       ? {
           ...withRefund,
           list_price_paise: discount.listPricePaise,
@@ -2029,6 +2033,9 @@ export default async function AdminDashboardPage({
           discount_reason: discount.reason,
         }
       : withRefund;
+    // Paise forgiven when this pay-later session closed under a rupee short.
+    const forgiven = forgivenPaiseById.get(a.id);
+    return forgiven ? { ...withDiscount, pay_later_forgiven_paise: forgiven } : withDiscount;
   });
 
   const settlementsForMoneyIn = await settlementsForMoneyInRead;

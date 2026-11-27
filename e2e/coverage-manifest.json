@@ -2775,7 +2775,8 @@
             "ABF-003",
             "ABF-004",
             "PL-PAISE",
-            "ABF-005"
+            "ABF-005",
+            "ABF-007"
           ],
           "level": "browser"
         }

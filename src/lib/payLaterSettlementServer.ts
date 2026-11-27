@@ -174,7 +174,7 @@ export async function readPendingSettlementRows(
  */
 export async function readSettlementReconciliation(
   admin: AdminClient
-): Promise<{ confirmedPaise: number; settledPaise: number; unallocatedPaise: number } | null> {
+): Promise<{ confirmedPaise: number; settledPaise: number; unallocatedPaise: number; forgivenPaise: number } | null> {
   try {
     // Both sides are paged.
     //
@@ -193,12 +193,19 @@ export async function readSettlementReconciliation(
           .select("amount_paise, unallocated_paise")
           .eq("status", "confirmed")
       ),
-      readAllRows<{ amount_paid_paise: number | null }>(() =>
+      readAllRows<{ amount_paid_paise: number | null; pay_later_forgiven_paise?: number | null }>(() =>
         admin
           .from("appointments")
-          .select("amount_paid_paise")
+          .select("amount_paid_paise, pay_later_forgiven_paise")
           .not("pay_later_payment_id", "is", null)
-      ),
+      ).then(async (withForgiven) => {
+        // An older database has no forgiven column: read without it, and
+        // nothing was forgiven there.
+        if (!withForgiven.error) return withForgiven;
+        return readAllRows<{ amount_paid_paise: number | null; pay_later_forgiven_paise?: number | null }>(() =>
+          admin.from("appointments").select("amount_paid_paise").not("pay_later_payment_id", "is", null)
+        );
+      }),
     ]);
     if (payments.error || settled.error) return null;
     // A walk that stopped at its bound has a partial total, and this
@@ -214,8 +221,12 @@ export async function readSettlementReconciliation(
       unallocatedPaise += Math.max(0, p.unallocated_paise ?? 0);
     }
     let settledPaise = 0;
-    for (const a of settled.rows) settledPaise += Math.max(0, a.amount_paid_paise ?? 0);
-    return { confirmedPaise, settledPaise, unallocatedPaise };
+    let forgivenPaise = 0;
+    for (const a of settled.rows) {
+      settledPaise += Math.max(0, a.amount_paid_paise ?? 0);
+      forgivenPaise += Math.max(0, a.pay_later_forgiven_paise ?? 0);
+    }
+    return { confirmedPaise, settledPaise, unallocatedPaise, forgivenPaise };
   } catch {
     return null;
   }

@@ -34,6 +34,7 @@ import { validateBookingFor, splitBookingNotes } from "@/lib/bookingFor";
 import { initialLanguage } from "@/lib/bookingStepOne";
 import { DEFAULT_BOOKING_CONFIRMATION_HOURS, requestedTimeNotice, hoursPhrase } from "@/lib/clinicPromises";
 import { formatSessionWhen } from "@/lib/sessionWhenLabel";
+import { describeSlotForVisitor, slotInZones } from "@/lib/slotZones";
 import BookingStepOne from "@/components/booking/BookingStepOne";
 import {
   BOOKING_LEAD_TIME_HOURS,
@@ -1261,7 +1262,7 @@ export default function BookingWizard({
           replacedDraftRef.current = booking.id;
           setResumeNotice(
             `The time you picked${
-              booking.slotTime ? ` (${formatClinicDateTime(booking.slotTime)})` : ""
+              booking.slotTime ? ` (${describeSlotForVisitor(booking.slotTime, timezone)})` : ""
             } isn't available any more. Pick a new time - everything else is kept.`
           );
           setStep(1);
@@ -1533,6 +1534,7 @@ export default function BookingWizard({
     const bookedStartIso = resumedSlotIso ?? (slotDateTime ? new Date(slotDateTime).toISOString() : null);
     const bookedMinutes = selectedCategory?.duration_minutes ?? 60;
     const bookedWhen = bookedStartIso ? formatSessionWhen(bookedStartIso, bookedMinutes) : null;
+    const bookedYours = bookedStartIso ? slotInZones(bookedStartIso, timezone).yours : null;
     return (
       <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200">
         {header}
@@ -1552,6 +1554,13 @@ export default function BookingWizard({
           {bookedWhen && (
             <p data-testid="booked-when" className="mt-3 text-lg font-bold text-teal-800">
               {bookedWhen}
+            </p>
+          )}
+          {/* The picker was on the visitor's own clock; the line above is the
+              clinic's. Same instant -- said, when they differ. */}
+          {bookedYours && (
+            <p data-testid="booked-when-yours" className="mt-1 text-base font-semibold text-slate-700">
+              {`That's ${bookedYours} where you are.`}
             </p>
           )}
           <p className="text-base text-slate-700 mt-2 leading-relaxed">
@@ -2031,9 +2040,7 @@ export default function BookingWizard({
                 Time you asked for
               </span>
               <span className="font-bold text-slate-900 text-right text-base min-w-0 [overflow-wrap:anywhere]">
-                {resumedSlotIso
-                  ? formatClinicDateTime(resumedSlotIso)
-                  : slotDateTime && formatClinicDateTime(slotDateTime)}
+                {describeSlotForVisitor(resumedSlotIso ?? slotDateTime ?? null, timezone)}
               </span>
             </div>
             <div className="flex justify-between gap-3 text-sm">

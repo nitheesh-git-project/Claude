@@ -27,3 +27,19 @@ describe("sessionListPricePaise", () => {
     expect(sessionListPricePaise({ amount_paid_paise: null }, null)).toBe(SESSION_FEE_PAISE);
   });
 });
+
+describe("a recorded discount on an unpaid session", () => {
+  it("shows list price less the discount, not the service's full price", () => {
+    expect(sessionListPricePaise({ list_price_paise: 49_900, discount_paise: 10_000 }, 49_900)).toBe(39_900);
+  });
+  it("never goes below the gateway minimum", () => {
+    expect(sessionListPricePaise({ list_price_paise: 49_900, discount_paise: 49_900 }, 49_900)).toBe(100);
+  });
+  it("paid and due amounts still win over any discount columns", () => {
+    expect(sessionListPricePaise({ amount_paid_paise: 39_900, list_price_paise: 49_900, discount_paise: 10_000 }, 49_900)).toBe(39_900);
+    expect(sessionListPricePaise({ amount_due_paise: 89_900, discount_paise: 10_000, list_price_paise: 99_900 }, 99_900)).toBe(89_900);
+  });
+  it("falls back to the service price with no discount", () => {
+    expect(sessionListPricePaise({}, 49_900)).toBe(49_900);
+  });
+});
