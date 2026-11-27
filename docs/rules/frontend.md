@@ -853,3 +853,7 @@ is invisible to any tooling here.
   "Opening secure payment"; until the quote arrives the neutral wording shows.
 - The slot picker shows each hour in the visitor's zone with its IST equivalent;
   the confirmation names IST. "Owed longest" counts clinic calendar days.
+- `RealtimeRefresh` joins a channel afresh twice (4 s apart) if it has not come
+  back, and the banner's tooltip / console carry the status the server gave. A
+  session pop-up shows "Updating this session…" while any refresh is in flight
+  (`usePendingWork`); the wait itself is the server's distance from the database.
