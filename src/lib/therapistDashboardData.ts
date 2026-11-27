@@ -960,8 +960,14 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
                   .sort()[0] ?? null,
               // A session that already took place: "no session booked yet" was
               // said of a patient whose completed session sat in the list.
+              // Taken place: delivered, or its time has passed. A session still
+              // ahead is "the first session" the banner is about.
               hadSession: (appointments ?? []).some(
-                (a) => a.patient_id === id && a.status !== "cancelled" && a.status !== "requested"
+                (a) =>
+                  a.patient_id === id &&
+                  a.status !== "cancelled" &&
+                  (a.status === "completed" ||
+                    (!!a.slot_time && new Date(a.slot_time).getTime() < nowMsForOverview))
               ),
             }))
             // Soonest first session at the top; nothing booked goes last.
