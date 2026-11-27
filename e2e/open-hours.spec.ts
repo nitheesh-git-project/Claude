@@ -41,3 +41,18 @@ test("OH-003: a signed-in therapist asks about their own hours as 'me'", async (
   expect(res.status).toBe(200);
   expect(wellFormed(await res.json())).toBe(true);
 });
+
+test("OH-004: a picker on another zone's clock gets that zone's whole hours", async () => {
+  // A browser in UTC draws whole UTC hours, which fall on India's half hour.
+  // Asked without its zone the answer was clinic hours only, none matched,
+  // and every date on the calendar greyed out.
+  const utc = await fetch(`${URL}&tz=UTC`);
+  expect(utc.status).toBe(200);
+  const body = await utc.json();
+  expect(wellFormed(body)).toBe(true);
+  if (body.checked === true) {
+    for (const ms of body.open as number[]) expect(ms % 3_600_000, "a whole UTC hour").toBe(0);
+  }
+  // A zone nobody has heard of is ignored, not refused.
+  expect((await fetch(`${URL}&tz=Not/AZone`)).status).toBe(200);
+});

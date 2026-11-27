@@ -1,5 +1,6 @@
 "use client";
 
+import { CLINIC_TIMEZONE } from "@/lib/bookingSlots";
 import { useTherapistUnavailable } from "@/components/admin/TherapistUnavailableDialog";
 import { useEffect, useState } from "react";
 import { useRouter } from "@/lib/useRouter";
@@ -63,7 +64,11 @@ export default function AssignReferralForm({
     isOpen: isSlotOpen,
     checked: openHoursChecked,
     loading: openHoursLoading,
-  } = useOpenSlots(nowMs, null, { therapistId: therapistId || null });
+  } = useOpenSlots(nowMs, null, {
+    therapistId: therapistId || null,
+    // AdminSlotPicker draws the clinic's hours.
+    gridTimeZone: CLINIC_TIMEZONE,
+  });
   const [error, setError] = useState<string | null>(null);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const router = useRouter();

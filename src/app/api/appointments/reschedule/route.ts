@@ -142,6 +142,8 @@ export async function POST(request: NextRequest) {
     nowMs: Date.now(),
     // Its own place on the roster is the one being given up.
     excludeAppointmentId: appointment.id,
+    // The chosen instant itself (openStartsAmong), not the clinic grid.
+    starts: [slotMs],
     // A home visit also needs the travel time either side of it.
     ...(isHomeVisit ? { bufferMinutes: await readTravelBufferMinutes(admin) } : {}),
   });

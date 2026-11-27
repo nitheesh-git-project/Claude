@@ -61,6 +61,23 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
   found out at Assign & Confirm that nobody works Sundays. The pay-later
   success heading now reads **Request received** -- the clinic still
   confirms the time. `openHours.test.ts` pins the rule.
+- **Open hours are answered on the picker's own clock.** The patient's
+  and therapist's pickers draw whole hours in the **browser's** zone
+  (`slotStartMs`); the admin pickers draw the clinic's (or the booking's own
+  zone). `useOpenSlots` sends that zone as `tz` (`gridTimeZone`; the admin
+  pickers pass `CLINIC_TIMEZONE`, which sends nothing), and the route answers
+  on that zone's whole hours (`zoneHourStarts`). Each start is judged by
+  `openStartsAmong` in the **clinic hour it falls in** -- the therapist works
+  that hour, is not on leave, and nothing of theirs overlaps the session
+  itself -- the rule Assign & Confirm applies. `/api/appointments/create`,
+  the reschedule route and `isSlotClosed` judge the one instant asked for
+  (`starts: [slotMs]`) instead of looking it up in the clinic grid. Before
+  this, the answer was clinic-hour starts only: India is UTC+5:30, so a
+  browser in UTC, the Gulf, Europe or the Americas had whole hours on the
+  clinic half hour, none matched, every date greyed out, and the routes
+  would have refused every such booking. CI's browsers are UTC; its roster
+  read "not checked", which is why no spec caught it. Guard: OH-004 and
+  `openHours.test.ts`.
 - **A patient may move a video session themselves -- once, up to the
   cut-off.** `POST /api/appointments/reschedule` (owner's decisions:
   `patient_reschedule_cutoff_hours`, default 24, Settings -> Booking rules;

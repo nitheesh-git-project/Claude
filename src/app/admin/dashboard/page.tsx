@@ -742,7 +742,12 @@ export default async function AdminDashboardPage({
       admin
         .from("therapist_availability_override")
         .select("therapist_id, date, hour, available, note")
-        .order("therapist_id", { ascending: true })
+        // A unique order, or the pages are not a partition: therapist_id
+        // alone ties on every row of one therapist, PostgREST may return
+        // those in any order per page, and a range read then skips some rows
+        // and repeats others. An exception that was saved (and logged) went
+        // missing from Upcoming exceptions and from the roster this way.
+        .order("id", { ascending: true })
     ),
 
     // The version each therapist's schedule is at, so an editor opened on
