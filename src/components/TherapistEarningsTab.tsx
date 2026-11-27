@@ -2,7 +2,7 @@
 
 import ListPager from "@/components/dashboard/ListPager";
 import { usePagedList } from "@/lib/usePagedList";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "@/lib/useRouter";
 import RequestPayoutButton from "@/components/RequestPayoutButton";
 import TherapistEarningsChart, { type EarningsDay } from "@/components/TherapistEarningsChart";
@@ -43,6 +43,19 @@ function NotificationBanner({ request }: { request: CompletedRequest }) {
   const [dismissed, setDismissed] = useState(false);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+
+  // Shown once. Seeing it is the news, so it is acknowledged as it appears and
+  // the next visit does not open on a "Paid" banner for a payout the therapist
+  // has long since read, sitting above whatever they are owed now. Dismiss
+  // still closes it at once.
+  const requestId = request.id;
+  useEffect(() => {
+    void fetch("/api/therapist/acknowledge-payout-request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ requestId }),
+    }).catch(() => {});
+  }, [requestId]);
 
   if (dismissed) return null;
 

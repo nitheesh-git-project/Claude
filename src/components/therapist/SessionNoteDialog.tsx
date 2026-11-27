@@ -170,7 +170,10 @@ export default function SessionNoteDialog({
   // A written note is not thrown away by a stray tap: Cancel, the cross, the
   // backdrop and Escape all ask first when anything differs from how the
   // dialog opened (prefilled words included - they are the starting point).
-  const [opened] = useState(() => JSON.stringify({ values, freeText, summaryValues }));
+  const [opened, setOpened] = useState(() => JSON.stringify({ values, freeText, summaryValues }));
+  // The note has reached the server (the save succeeded, a later step may not
+  // have). Closing then must not say "nothing is saved".
+  const [noteSaved, setNoteSaved] = useState(false);
   const dirty = !locked && (plan !== null || JSON.stringify({ values, freeText, summaryValues }) !== opened);
   const [confirmingDiscard, setConfirmingDiscard] = useState(false);
   function requestClose() {
@@ -282,6 +285,9 @@ export default function SessionNoteDialog({
         showError(body.error ?? "Could not save the note. Please try again.");
         return;
       }
+      setNoteSaved(true);
+      // What is on screen is now what is saved, so only edits after this count.
+      setOpened(JSON.stringify({ values, freeText, summaryValues }));
       onProgress?.({ noteSaved: true, summarySaved: false, sessionClosed: false });
 
       // Finishing: the note is saved, so the session can close now. A refusal
@@ -558,7 +564,11 @@ export default function SessionNoteDialog({
 
           {confirmingDiscard ? (
             <div role="alertdialog" aria-label="Discard this note?" data-testid="note-discard-confirm" className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 px-6 py-4">
-              <p className="mr-auto text-sm font-semibold text-slate-800">Discard what you have written? Nothing is saved.</p>
+              <p className="mr-auto text-sm font-semibold text-slate-800">
+                {noteSaved
+                  ? "Your note is saved. Close without sending what is left (the summary, the recommendation or finishing the session)?"
+                  : "Discard what you have written? Nothing is saved."}
+              </p>
               <button
                 type="button"
                 autoFocus
@@ -572,7 +582,7 @@ export default function SessionNoteDialog({
                 onClick={close}
                 className="min-h-[44px] rounded-xl border border-red-200 px-4 text-sm font-semibold text-red-700 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"
               >
-                Discard
+                {noteSaved ? "Close" : "Discard"}
               </button>
             </div>
           ) : (
