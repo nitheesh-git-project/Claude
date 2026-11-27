@@ -67,6 +67,8 @@ export type SessionDetailAppointment = {
   /** A pay-later booking's frozen price. Migration-dependent and optional;
    *  absent, the price reads exactly as it did. */
   amount_due_paise?: number | null;
+  /** pending / approved / declined on a pay-later booking (migration-dependent). */
+  pay_later_approval?: string | null;
   /** What the session lists at, and anything an admin already took off it.
    *  Migration-dependent, so a database without the columns hands through
    *  undefined and the control simply does not render. */
@@ -728,7 +730,23 @@ export default function SessionDetailDrawer({
                 replaces the reassignment-only history that sat here. See
                 src/lib/activityTimeline.ts. */}
             <div className="pt-3 border-t border-slate-100">
-              <ActivityTimeline sessionId={a.id} title="Session history" />
+              <ActivityTimeline
+                sessionId={a.id}
+                title="Session history"
+                // Read again whenever the session itself changes underneath
+                // it -- every admin action refreshes the row.
+                refreshKey={[
+                  a.status,
+                  a.therapist_id,
+                  a.slot_time,
+                  a.payment_status,
+                  a.no_show,
+                  a.refund_status,
+                  a.discount_paise,
+                  a.pay_later_approval,
+                  a.amount_due_paise,
+                ].join("|")}
+              />
             </div>
 
             {canManageSessions && canReassign && (

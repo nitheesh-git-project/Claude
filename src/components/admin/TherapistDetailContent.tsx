@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { readSessionDiscounts } from "@/lib/sessionDiscountsServer";
 import AdminTypeChanger from "@/components/admin/AdminTypeChanger";
 import DeletedUserTag from "@/components/admin/DeletedUserTag";
 import { readAccountDeletions } from "@/lib/accountDeletionsServer";
@@ -204,10 +205,13 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
     readFrozenTherapistRates(admin, id),
   ]);
 
+  // The discount each session was quoted, so a list price here is what the
+  // patient pays, not the service's full price.
+  const discountsById = await readSessionDiscounts(admin, { column: "therapist_id", id });
   const appointments = mergeMeetLinks(
     mergeSessionCodes(rawAppointments ?? [], sessionCodeLinks),
     meetLinkRows
-  );
+  ).map((a) => ({ ...a, ...(discountsById.get(a.id) ?? {}) }));
 
 
   const categoryIds = [

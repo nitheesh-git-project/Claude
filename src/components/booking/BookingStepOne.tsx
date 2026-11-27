@@ -117,7 +117,12 @@ export default function BookingStepOne({
       <div className="w-full rounded-xl bg-teal-50/70 px-4 py-3.5 text-sm text-slate-700">
         <i className="fa-solid fa-globe text-teal-600 mr-2.5" aria-hidden="true"></i>
         Times shown in <strong className="font-bold text-slate-900">{timezone || "your"}</strong>{" "}
-        timezone - detected automatically
+        timezone - detected automatically.
+        {/* The clinic runs sessions in India time; a visitor elsewhere is
+            shown both on the next screens (slotZones.ts), so say so. */}
+        {timezone && timezone !== "Asia/Kolkata" && timezone !== "Asia/Calcutta"
+          ? " The clinic works in India time (IST); you'll see both when you review."
+          : ""}
       </div>
 
       <div>

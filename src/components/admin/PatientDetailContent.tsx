@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { readSessionDiscounts } from "@/lib/sessionDiscountsServer";
 import { CONDITION_SPECIALTIES } from "@/lib/conditionSpecialty";
 import AdminTypeChanger from "@/components/admin/AdminTypeChanger";
 import { loadConditionProfileCore, readEnabledSpecialties } from "@/lib/conditionProfileServer";
@@ -200,7 +201,7 @@ export default async function PatientDetailContent({ id }: { id: string }) {
     // newest on that table, and this select feeds the whole session list.
     admin
       .from("appointments")
-      .select("id, payment_terms, pay_later_outcome")
+      .select("id, payment_terms, pay_later_outcome, amount_due_paise")
       .eq("patient_id", id),
     // The grant itself, and the clinic-wide switch. Both in their own reads
     // for the same reason: newest columns, and a card that cannot say which
@@ -215,18 +216,23 @@ export default async function PatientDetailContent({ id }: { id: string }) {
 
   const payLaterFeatureEnabled = payLaterSettingRow?.pay_later_enabled === true;
   const payLaterById = new Map((payLaterRows ?? []).map((r) => [r.id, r]));
+  // The discount a session was quoted (goodwill, the first-session offer),
+  // so its price here is what the patient sees, not the service's full one.
+  const discountsById = await readSessionDiscounts(admin, { column: "patient_id", id });
   const appointments = mergeMeetLinks(
     mergeSessionCodes(rawAppointments ?? [], sessionCodeLinks),
     meetLinkRows
   ).map((a) => {
     const terms = payLaterById.get(a.id);
-    return terms
-      ? {
-          ...a,
-          payment_terms: terms.payment_terms,
-          pay_later_outcome: terms.pay_later_outcome,
-        }
-      : a;
+    // One shape whether or not the pay-later columns came back (absent reads
+    // as an ordinary prepaid session, as it did before the columns).
+    return {
+      ...a,
+      ...(discountsById.get(a.id) ?? {}),
+      payment_terms: (terms?.payment_terms ?? null) as string | null,
+      pay_later_outcome: (terms?.pay_later_outcome ?? null) as string | null,
+      amount_due_paise: (terms?.amount_due_paise ?? null) as number | null,
+    };
   });
 
   // Confirmed pay-later payments, in their own read (newest table). A
@@ -367,10 +373,26 @@ export default async function PatientDetailContent({ id }: { id: string }) {
       const bt = b.paid_at ? new Date(b.paid_at).getTime() : new Date(b.created_at).getTime();
       return bt - at;
     });
-  const totalPaidPaise = paidAppointments.reduce(
-    (sum, a) => sum + (a.amount_paid_paise ?? SESSION_FEE_PAISE),
-    0
-  );
+  // Money the clinic has confirmed receiving from this patient that has not
+  // yet closed a session (pay-later payments are applied to whole sessions).
+  // It is paid, so it counts: "Total Paid" read Rs 0 beside a confirmed
+  // Rs 1,059 because only sessions marked paid were summed.
+  const receivedNotAppliedPaise = payLaterPayments.reduce((sum, p) => sum + Math.max(0, p.unallocated_paise ?? 0), 0);
+  const totalPaidPaise =
+    paidAppointments.reduce((sum, a) => sum + (a.amount_paid_paise ?? SESSION_FEE_PAISE), 0) + receivedNotAppliedPaise;
+  // The delivered pay-later session this money is waiting to cover, oldest
+  // first (what allocate_pay_later_payment closes next).
+  const nextOpenPayLater = (appointments ?? [])
+    .filter(
+      (a) =>
+        a.payment_terms === "pay_later" &&
+        a.status === "completed" &&
+        a.payment_status !== "paid" &&
+        a.pay_later_outcome !== "written_off" &&
+        (a.amount_due_paise ?? 0) > 0
+    )
+    .sort((x, y) => Date.parse(x.slot_time ?? "") - Date.parse(y.slot_time ?? ""))[0];
+  const stillNeededPaise = nextOpenPayLater ? (nextOpenPayLater.amount_due_paise ?? 0) - receivedNotAppliedPaise : 0;
 
   // Profit only exists where the session's therapist has a revenue share
   // set - without it there's no way to know their cut, so those sessions
@@ -772,6 +794,9 @@ export default async function PatientDetailContent({ id }: { id: string }) {
           <h2 className="font-bold text-sm text-slate-800">Payment History</h2>
           <p className="text-xs text-slate-500">
             Total Paid: <strong className="text-teal-700">₹{formatRupees(totalPaidPaise)}</strong>
+            {receivedNotAppliedPaise > 0 && (
+              <span className="text-slate-500">{` (includes ₹${formatRupees(receivedNotAppliedPaise)} received, not yet applied)`}</span>
+            )}
           </p>
         </div>
         {payLaterPayments.length > 0 && (
@@ -789,6 +814,11 @@ export default async function PatientDetailContent({ id }: { id: string }) {
                 </li>
               ))}
             </ul>
+            {receivedNotAppliedPaise > 0 && nextOpenPayLater && stillNeededPaise > 0 && (
+              <p className="mt-1.5 text-[11px] font-semibold text-amber-800" data-testid="patient-pay-later-shortfall">
+                {`₹${formatRupees(receivedNotAppliedPaise)} is received but not applied: ${nextOpenPayLater.session_code ?? "the next delivered session"} costs ₹${formatRupees(nextOpenPayLater.amount_due_paise ?? 0)}, so ₹${formatRupees(stillNeededPaise)} more is needed before it closes. A payment only closes a whole session.`}
+              </p>
+            )}
             <p className="mt-1.5 text-[11px] text-slate-500">
               Sessions these paid for are listed below as Paid; money not yet covering a whole session waits for the next one.
             </p>

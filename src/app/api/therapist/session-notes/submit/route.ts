@@ -84,21 +84,32 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const active = await isProfileActiveAndApproved(user.id);
+  const admin = createAdminClient();
+
+  // Three independent reads, sent together. They used to run one after the
+  // other, and every one is a round trip to the database -- from a server in
+  // another continent that was most of the wait on Save. Their answers are
+  // still looked at in the same order below: standing first, then whose the
+  // session is, then the existing note.
+  const [active, { data: appointment }, existingRead] = await Promise.all([
+    isProfileActiveAndApproved(user.id),
+    // The appointment must be this therapist's own, and must actually have
+    // happened -- a note on a future session would be a plan, not a record.
+    admin
+      .from("appointments")
+      .select("id, patient_id, therapist_id, status, slot_time")
+      .eq("id", appointmentId)
+      .maybeSingle(),
+    admin
+      .from("session_notes")
+      .select("id, created_at, updated_at, data, free_text")
+      .eq("appointment_id", appointmentId)
+      .maybeSingle(),
+  ]);
   if (active === null) return profileCheckUnavailable();
   if (!active) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
-
-  const admin = createAdminClient();
-
-  // The appointment must be this therapist's own, and must actually have
-  // happened -- a note on a future session would be a plan, not a record.
-  const { data: appointment } = await admin
-    .from("appointments")
-    .select("id, patient_id, therapist_id, status, slot_time")
-    .eq("id", appointmentId)
-    .maybeSingle();
   if (!appointment || appointment.therapist_id !== user.id) {
     return NextResponse.json({ error: "That session isn't yours." }, { status: 403 });
   }
@@ -131,11 +142,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { data: existing, error: existingError } = await admin
-    .from("session_notes")
-    .select("id, created_at, updated_at, data, free_text")
-    .eq("appointment_id", appointmentId)
-    .maybeSingle();
+  const { data: existing, error: existingError } = existingRead;
   if (existingError) return serverError("therapist/session-notes/submit", existingError);
 
   if (existing) {
