@@ -154,6 +154,12 @@ export async function POST(request: NextRequest) {
     // simply nothing to undo -- a clash used to be found only after a paid,
     // unassigned session had been written.
     const assignable = await checkTherapistAssignable(admin, therapistId, new Date(slotMs).toISOString(), durationMinutes);
+    if (assignable.ok === null) {
+      return NextResponse.json(
+        { error: "We couldn't check this therapist's schedule just now. Please try again." },
+        { status: 503 }
+      );
+    }
     if (assignable.ok === false) {
       return NextResponse.json(unassignableBody(assignable.reasons), { status: 409 });
     }
