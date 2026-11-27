@@ -260,6 +260,7 @@ import { readRefundHealth } from "@/lib/refundHealthServer";
 import { readStorageReconciliation } from "@/lib/storageReconciliation";
 import { countAwaitingFirstBooking } from "@/lib/unscheduledPurchases";
 import { readUnassignedRescueHours } from "@/lib/rescueHoursServer";
+import { referralIsAssignable, referralNotAssignableMessage } from "@/lib/referralAssignable";
 import {
   readHomeVisitAreaCommitments,
   readHomeVisitCommitmentTotal,
@@ -2968,6 +2969,12 @@ export default async function AdminDashboardPage({
                         <CopyInviteLinkButton inviteToken={r.invite_token} />
                       )}
                     </div>
+                  ) : canManagePeople && !referralIsAssignable(r.status) ? (
+                    // Declined (or past the invite): nothing to assign, and
+                    // no form that the route would only refuse.
+                    <p className="text-slate-500" data-testid="referral-not-assignable">
+                      {referralNotAssignableMessage(r.status)}
+                    </p>
                   ) : canManagePeople ? (
                     <div className="space-y-2">
                       <div className="flex items-center gap-3 flex-wrap">

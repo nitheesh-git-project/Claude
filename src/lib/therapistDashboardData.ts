@@ -1,4 +1,5 @@
 import { todaysSessions } from "@/lib/therapistToday";
+import { payoutNoticeIsFresh } from "@/lib/payoutNotice";
 import { startEarly } from "@/lib/startEarly";
 import "server-only";
 import { formatClinicTime } from "@/lib/formatDateTime";
@@ -289,7 +290,7 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
     needEarnings
       ? supabase
           .from("therapist_payout_requests")
-          .select("id, requested_amount_paise, status, requested_at, acknowledged_at")
+          .select("id, requested_amount_paise, status, requested_at, completed_at, acknowledged_at")
           .eq("therapist_id", user.id)
           .order("requested_at", { ascending: false })
       : emptyRows<{
@@ -297,6 +298,7 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
           requested_amount_paise: number;
           status: string;
           requested_at: string;
+          completed_at: string | null;
           acknowledged_at: string | null;
         }>(),
 
@@ -593,8 +595,10 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
   // The most recent request whose completion the therapist hasn't seen yet
   // -- acknowledging it (see NotificationBanner) clears it so it doesn't
   // show forever.
+  // Not after PAYOUT_NOTICE_DAYS either: a "you've been paid" note from
+  // weeks ago is not news, it is clutter the therapist has to dismiss.
   const latestCompletedRequest = (payoutRequests ?? []).find(
-    (r) => r.status === "completed" && !r.acknowledged_at
+    (r) => r.status === "completed" && !r.acknowledged_at && payoutNoticeIsFresh(r.completed_at, nowTimestamp())
   );
 
   // ---- Overview -----------------------------------------------------

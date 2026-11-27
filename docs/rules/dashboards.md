@@ -1036,4 +1036,16 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   the request says "couldn't check" rather than offering a second request.
   Each section of the PDF that could not be read says so in the PDF, never as
   an empty table.
-
+- **A therapist's Today counts a no-show apart from done.** `todayProgress`
+  (`src/lib/therapistToday.ts`) fills the bar with what is settled
+  (delivered or a no-show) and labels only delivered sessions as done:
+  "0 of 1 done · 1 no-show" (`todayProgressLabel`, Home and Sessions). A
+  no-show can be marked a quarter of an hour into the slot, and counting it
+  as done had Home read "1 of 1 done" while that session's time was still
+  running.
+- **The therapist's payout banner says Paid, and only for two weeks.** It
+  appears for a completed (paid) request the therapist has not dismissed and
+  that was paid within `PAYOUT_NOTICE_DAYS` (14, `src/lib/payoutNotice.ts`):
+  "Paid. Your payout request for ₹X (requested on D) was paid on D." It read
+  "is being processed by admin" for a request already paid, and stayed until
+  dismissed.

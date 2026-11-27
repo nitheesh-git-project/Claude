@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { REFERRAL_ASSIGNABLE_STATUSES, referralIsAssignable, referralNotAssignableMessage } from "@/lib/referralAssignable";
 import { checkTherapistAssignable, unassignableBody } from "@/lib/therapistAssignability";
 import crypto from "crypto";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
@@ -118,6 +119,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Referral not found" }, { status: 404 });
   }
 
+  // Declined, invited or converted: said in words before any slot is
+  // checked. The claim below refuses these too (same list), but its answer
+  // reads as a race with another admin.
+  if (!referralIsAssignable(referral.status)) {
+    return NextResponse.json(
+      { error: referralNotAssignableMessage(referral.status), code: "referral_not_assignable" },
+      { status: 409 }
+    );
+  }
+
   // A home-visit referral needs the same travel-time padding as every
   // other home-visit scheduling decision -- the therapist finishing one
   // visit cannot be at another minutes later, and a referral's assignment
@@ -168,6 +179,7 @@ export async function POST(request: NextRequest) {
     inviteToken,
     bufferMinutes: travelBufferMinutes,
     durationMinutes: BASE_DURATION_MINUTES,
+    expectedStatuses: [...REFERRAL_ASSIGNABLE_STATUSES],
   });
 
   if (!claim.ok) {

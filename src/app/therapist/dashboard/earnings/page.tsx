@@ -83,6 +83,7 @@ export default async function Page() {
                   id: d.latestCompletedRequest.id,
                   requestedAmountPaise: d.latestCompletedRequest.requested_amount_paise,
                   requestedAt: d.latestCompletedRequest.requested_at,
+                  completedAt: d.latestCompletedRequest.completed_at ?? null,
                 }
               : null
           }

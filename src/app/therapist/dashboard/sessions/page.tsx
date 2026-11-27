@@ -1,6 +1,6 @@
 import TabSummary from "@/components/dashboard/TabSummary";
 import { sessionsSummary } from "@/lib/tabSummaries";
-import { todayProgress } from "@/lib/therapistToday";
+import { todayProgress, todayProgressLabel } from "@/lib/therapistToday";
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import type { Metadata } from "next";
 import TherapistDashboardShell from "@/components/therapist/TherapistDashboardShell";
@@ -68,7 +68,7 @@ export default async function Page() {
         }
         secondary={next ? null : { label: "My availability", href: "/therapist/dashboard/availability", icon: "fa-calendar-days" }}
         facts={[
-          { label: "Today", value: `${today.settled} of ${today.total} done`, tone: "teal" },
+          { label: "Today", value: todayProgressLabel(today), tone: "teal" },
           { label: "Upcoming", value: String(summary.upcoming), tone: "teal" },
           {
             label: "Notes to write",

@@ -190,9 +190,11 @@ export default function PayLaterWidget({
         // Received and not yet covering a whole session. Said out loud,
         // because a total that quietly went down by less than was paid reads
         // as an error.
-        <p className="mt-2 text-sm font-semibold text-teal-800">
-          {formatInr(unallocatedPaise)} of your last payment is held against your next
-          session.
+        <p className="mt-2 text-sm font-semibold text-teal-800" data-testid="pay-later-held">
+          {/* Already taken off the total above. It closes a session only
+              once it covers that session in full, so "held against your
+              next session" read as though it had not counted at all. */}
+          {`${formatInr(unallocatedPaise)} you've already paid is taken off the total above. It's applied to a session once it covers that session in full.`}
         </p>
       )}
 
