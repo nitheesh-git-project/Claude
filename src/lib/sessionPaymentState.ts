@@ -68,6 +68,11 @@ export function describeSessionPayment(a: SessionPaymentRow): SessionPaymentDesc
     if (a.payment_status === "failed") {
       return { state: "failed", label: "Payment failed", tone: "bad", owed: false, onTerms: false };
     }
+    // Delivered and still unpaid: the patient's card says "Payment due"
+    // (sessionPatientActions.ts), so the admin's chip says it too.
+    if (a.status === "completed") {
+      return { state: "unpaid", label: "Payment due", tone: "warn", owed: false, onTerms: false };
+    }
     return { state: "unpaid", label: "Unpaid", tone: "warn", owed: false, onTerms: false };
   }
 

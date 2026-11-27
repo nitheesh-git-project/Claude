@@ -1,5 +1,6 @@
 "use client";
 
+import { describeSessionPayment } from "@/lib/sessionPaymentState";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import RefundChip from "@/components/admin/RefundChip";
 import { describeRefund } from "@/lib/refundState";
@@ -551,7 +552,7 @@ export default function AdminAllSessionsTab({
     // amount always was, and is empty for a desk that cannot read it.
     ...moneyColumns,
     { header: "Status", value: (r) => (r.a.no_show ? "no-show" : r.a.status) },
-    { header: "Payment", value: (r) => r.a.payment_status },
+    { header: "Payment", value: (r) => describeSessionPayment(r.a).label },
     { header: "Patient rating", value: (r) => r.a.patient_rating ?? "" },
     { header: "Therapist rating", value: (r) => r.a.therapist_rating ?? "" },
   ];
@@ -840,12 +841,19 @@ export default function AdminAllSessionsTab({
                     ₹{formatRupees(price)}
                     {a.payment_status !== "paid" && <span className="font-normal text-slate-500"> (est.)</span>}
                   </span>
-                  <span
-                    className={`capitalize font-semibold px-2 py-0.5 rounded-full ${
-                      a.payment_status === "paid" ? "text-green-700 bg-green-50" : "text-slate-600 bg-slate-100"
-                    }`}
-                  >
-                    {a.payment_status}
+                  {/* The shared reading (sessionPaymentState.ts), not the raw
+                      column: "unpaid" on a delivered pay-later session the
+                      patient sees as Owed was two words for one debt. */}
+                  <span className={`font-semibold px-2 py-0.5 rounded-full ${
+                      describeSessionPayment(a).tone === "good"
+                        ? "text-green-700 bg-green-50"
+                        : describeSessionPayment(a).tone === "warn"
+                          ? "text-amber-800 bg-amber-50"
+                          : describeSessionPayment(a).tone === "bad"
+                            ? "text-red-700 bg-red-50"
+                            : "text-slate-600 bg-slate-100"
+                    }`}>
+                    {describeSessionPayment(a).label}
                   </span>
                   {canSeeMoney && <RefundChip row={a} className="flex w-fit text-[10px]" />}
                   {programmeTags[a.id] && <ProgrammeIdChip tag={programmeTags[a.id]} size="xs" />}
@@ -980,14 +988,16 @@ export default function AdminAllSessionsTab({
                     </span>
                   </td>
                   <td className="py-2 pr-3">
-                    <span
-                      className={`capitalize font-semibold px-2 py-1 rounded-full ${
-                        a.payment_status === "paid"
-                          ? "text-green-700 bg-green-50"
-                          : "text-slate-600 bg-slate-100"
-                      }`}
-                    >
-                      {a.payment_status}
+                    <span className={`font-semibold px-2 py-1 rounded-full ${
+                      describeSessionPayment(a).tone === "good"
+                        ? "text-green-700 bg-green-50"
+                        : describeSessionPayment(a).tone === "warn"
+                          ? "text-amber-800 bg-amber-50"
+                          : describeSessionPayment(a).tone === "bad"
+                            ? "text-red-700 bg-red-50"
+                            : "text-slate-600 bg-slate-100"
+                    }`}>
+                      {describeSessionPayment(a).label}
                     </span>
                     {/* Under the payment rather than beside it: this column
                         is already narrow, and a refund is a second fact

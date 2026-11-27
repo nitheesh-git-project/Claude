@@ -597,7 +597,9 @@ export function buildTherapistFeed({
       const upcoming = when ? new Date(when).getTime() > now : false;
       items.push({
         id: `appt-${a.id}`,
-        at: when,
+        // Booked: dated by the booking. Finished and waiting to be marked
+        // complete: dated by the session, which is what makes it overdue.
+        at: upcoming ? a.created_at ?? when : when,
         icon: upcoming ? "fa-calendar-check" : "fa-clipboard-check",
         tone: upcoming ? "good" : "warn",
         title: upcoming

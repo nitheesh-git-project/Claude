@@ -1049,3 +1049,18 @@ Real routes rather than anchors, the shared Overview, the derived feed, realtime
   "Paid. Your payout request for ₹X (requested on D) was paid on D." It read
   "is being processed by admin" for a request already paid, and stayed until
   dismissed.
+- **A feed item is dated by when it happened, and a future time is never
+  "just now".** The patient and therapist feeds dated a booking by its slot
+  time; for an upcoming session that is in the future, minutes-ago came out
+  negative, and every booking read "just now" until its session had
+  happened. A booking is dated by `created_at` now (a session waiting to be
+  marked complete keeps its slot time -- that is what makes it overdue), and
+  `feedTimeLabel` (`src/lib/feedTime.ts`) prints the date for any time more
+  than a minute ahead.
+- **Therapist Home's empty headline says what is true.** With no session in
+  progress and none ahead, it said "No sessions booked yet" over a Today list
+  full of sessions that had already happened. `therapistNoNextUpLine`
+  (`src/lib/therapistNextUp.ts`): sessions to mark complete are counted, any
+  other history reads "Nothing else booked for now", and "No sessions booked
+  yet" is kept for a therapist with none.
+

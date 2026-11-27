@@ -32,3 +32,28 @@ export function pickNextUp<T extends NextUpAppointment>(appointments: readonly T
     .sort((a, b) => slot(a) - slot(b));
   return later.length > 0 ? { appointment: later[0], phase: "later" } : null;
 }
+
+/**
+ * What Home's headline says when there is no session in progress and none
+ * ahead. "No sessions booked yet" was said to a therapist whose Today list
+ * sat right under it with sessions in -- they had all happened, or were
+ * waiting to be marked complete. Booked-yet is only true of nobody's
+ * sessions at all.
+ */
+export function therapistNoNextUpLine<T extends NextUpAppointment>(appointments: readonly T[], nowMs: number): string {
+  const slot = (a: T) => (a.slot_time ? Date.parse(a.slot_time) : NaN);
+  const toFinish = appointments.filter(
+    (a) =>
+      a.status === "confirmed" &&
+      !a.no_show &&
+      Number.isFinite(slot(a)) &&
+      slot(a) + (a.duration_minutes ?? DEFAULT_MINUTES) * 60_000 <= nowMs
+  ).length;
+  if (toFinish > 0) {
+    return `Nothing else booked for now - ${toFinish} session${toFinish === 1 ? "" : "s"} to mark complete.`;
+  }
+  if (appointments.some((a) => a.status !== "cancelled")) {
+    return "Nothing else booked for now - keep your availability open and the clinic assigns work to it.";
+  }
+  return "No sessions booked yet - keep your availability open and the clinic assigns work to it.";
+}

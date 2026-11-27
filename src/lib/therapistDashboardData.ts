@@ -209,7 +209,7 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
       supabase
         .from("appointments")
         .select(
-          "id, slot_time, timezone, concern, status, duration_minutes, notes, patient_id, therapist_rating, therapist_feedback, no_show, patient_rating, patient_rating_excluded, therapist_payout_batch_id, therapist_payout_amount_paise, payment_status, amount_paid_paise, therapist_payout_paid_at, category_id, package_purchase_id"
+          "id, slot_time, timezone, concern, status, duration_minutes, notes, patient_id, therapist_rating, therapist_feedback, no_show, patient_rating, patient_rating_excluded, therapist_payout_batch_id, therapist_payout_amount_paise, payment_status, amount_paid_paise, therapist_payout_paid_at, category_id, package_purchase_id, created_at"
         )
         .eq("therapist_id", user.id)
         .order("created_at", { ascending: false })
@@ -805,7 +805,8 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
       slot_time: a.slot_time,
       status: a.status,
       visit_mode: a.visit?.visit_mode ?? null,
-      created_at: a.slot_time,
+      // When it was booked, not when it is for (see the patient feed).
+      created_at: (a as { created_at?: string | null }).created_at ?? a.slot_time,
       patient_name: patientNameById.get(a.patient_id) ?? null,
     })),
     payouts: (payoutBatches ?? []).map((b) => ({
