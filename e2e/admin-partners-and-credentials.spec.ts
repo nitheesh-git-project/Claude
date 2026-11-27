@@ -92,8 +92,15 @@ test.describe("partner surfaces and back-office credentials", () => {
     await openScreen(page, "people", "partners");
 
     const labels = page.locator("dt:visible").filter({ hasText: /^Onboarded$/ });
-    const count = await labels.count();
-    test.skip(count === 0, "no onboarded hospital in this database -- run npm run seed:qa");
+    // Waited for, not counted on arrival: the partner list renders after the
+    // screen does, and a count taken first read 0 on a slow run and skipped
+    // a test whose hospital was right there a moment later.
+    const appeared = await labels
+      .first()
+      .waitFor({ state: "visible", timeout: 30_000 })
+      .then(() => true)
+      .catch(() => false);
+    test.skip(!appeared, "no onboarded hospital in this database -- run npm run seed:qa");
     await expect(labels.first()).toBeVisible({ timeout: 60_000 });
     await expect(page.locator("dt:visible").filter({ hasText: /^Contact$/ }).first()).toBeVisible();
     await page.screenshot({ path: "/tmp/partners-02-hospital-card.png" });
