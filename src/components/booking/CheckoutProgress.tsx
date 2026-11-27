@@ -79,7 +79,9 @@ export default function CheckoutProgress({
         </ol>
         <p className="text-sm text-slate-500">
           <i aria-hidden className="fa-solid fa-lock mr-1" />
-          Payments are handled by Razorpay. Please don&apos;t close this page.
+          {takesPayment
+            ? "Payments are handled by Razorpay. Please don't close this page."
+            : "Nothing to pay now. Please don't close this page."}
         </p>
       </div>
     </div>

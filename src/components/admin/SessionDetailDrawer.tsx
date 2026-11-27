@@ -28,6 +28,7 @@ import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 import { useCancellationWindows } from "@/lib/cancellationWindowContext";
 import { cancelDialogMessage, describeCancelOutcome } from "@/lib/cancelOutcome";
 import { sessionListPricePaise } from "@/lib/sessionListPrice";
+import { usePendingWork } from "@/lib/pendingWork";
 import PartialRefundForm from "@/components/admin/PartialRefundForm";
 import GoodwillDiscountForm from "@/components/admin/GoodwillDiscountForm";
 import { useConfirm } from "@/lib/useConfirm";
@@ -186,6 +187,10 @@ export default function SessionDetailDrawer({
   programmeTag?: ProgrammeTag | null;
   onClose: () => void;
 }) {
+  // True from the moment an action is sent until the page has been re-read.
+  // The refresh takes several seconds on this screen, and the box used to sit
+  // on the old state (still "waiting for approval") without saying so.
+  const { pending: refreshing } = usePendingWork();
   const [reopening, setReopening] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [clearingRole, setClearingRole] = useState<"patient" | "therapist" | null>(null);
@@ -554,6 +559,16 @@ export default function SessionDetailDrawer({
           </div>
 
           <div className="space-y-3">
+            {refreshing && (
+              <div
+                role="status"
+                data-testid="session-drawer-updating"
+                className="flex items-center gap-2 rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 font-semibold text-teal-800"
+              >
+                <i aria-hidden className="fa-solid fa-rotate fa-spin text-[11px]" />
+                Updating this session - what you see below may be a few seconds behind.
+              </div>
+            )}
             {actionError && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700">
                 {actionError}

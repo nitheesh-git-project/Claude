@@ -41,6 +41,10 @@ const DEFAULT_COOLDOWN_MS = 2000;
 
 /** How long a connection must stay down before the "paused" banner shows. */
 const DEGRADED_AFTER_MS = 12_000;
+/** When a channel that has not come back is joined afresh. */
+const RETRY_AFTER_MS = 4_000;
+/** The last reason a channel gave for being down, for the banner's tooltip. */
+let lastProblem = "";
 
 export default function RealtimeRefresh({
   tables,
@@ -80,6 +84,8 @@ export default function RealtimeRefresh({
   // the dropped socket did not, and the banner stayed until a browser reload.
   const [connectAttempt, setConnectAttempt] = useState(0);
   const [reconnecting, setReconnecting] = useState(false);
+  // Fresh joins still allowed before giving up and leaving it to the banner.
+  const retriesRef = useRef(2);
 
   // A screen can carry more than one of these (the admin dashboard has two
   // channels), and each drew its own banner in the same fixed spot, stacked.
@@ -182,9 +188,12 @@ export default function RealtimeRefresh({
     // admin screens that were in fact fine. So a problem starts a clock, and
     // only one still unanswered when it ends is shown.
     let problemTimer: ReturnType<typeof setTimeout> | null = null;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
     const clearProblemTimer = () => {
       if (problemTimer) clearTimeout(problemTimer);
       problemTimer = null;
+      if (retryTimer) clearTimeout(retryTimer);
+      retryTimer = null;
     };
 
     // Joined through joinRealtimeChannel, never `supabase.channel().subscribe()`
@@ -218,7 +227,7 @@ export default function RealtimeRefresh({
         }
         trail("channel-join", `as ${role}: ${tablesKey.slice(0, 40)}`);
       },
-      (status) => {
+      (status, err) => {
         // Removing the channel on unmount reports CLOSED; that is this screen
         // leaving, not a fault -- and joinRealtimeChannel reports nothing after
         // the cleanup below has run.
@@ -228,6 +237,7 @@ export default function RealtimeRefresh({
           // the banner is cleared here on any successful join, not only on a
           // recovery this channel saw itself.
           clearProblemTimer();
+          retriesRef.current = 2;
           setDegraded(false);
           setReconnecting(false);
           if (hadProblem) {
@@ -242,6 +252,21 @@ export default function RealtimeRefresh({
         if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
           hadProblem = true;
           setReconnecting(false);
+          // What the server said, kept for whoever has to find out why (the
+          // banner's tooltip, and the console) -- a banner with no reason was
+          // unanswerable from a tester's report.
+          lastProblem = `${status}${err?.message ? `: ${err.message}` : ""}`;
+          console.warn(`[live updates] ${tablesKey.slice(0, 40)}... ${lastProblem}`);
+          // One fresh join after a few seconds if the client's own rejoin has
+          // not brought the channel back: a join that went out before the
+          // token was settled can stay dead on its own.
+          if (!retryTimer && retriesRef.current > 0) {
+            retryTimer = setTimeout(() => {
+              retryTimer = null;
+              retriesRef.current -= 1;
+              setConnectAttempt((n) => n + 1);
+            }, RETRY_AFTER_MS);
+          }
           if (!problemTimer) {
             problemTimer = setTimeout(() => {
               problemTimer = null;
@@ -265,6 +290,7 @@ export default function RealtimeRefresh({
     <div
       role="status"
       data-notebook-avoid=""
+      title={lastProblem || undefined}
       className="fixed bottom-[calc(1rem+var(--app-bottom-inset,0px))] left-1/2 z-50 -translate-x-1/2 flex w-max max-w-[calc(100vw-2rem)] items-center gap-2 rounded-2xl sm:rounded-full border border-amber-300 bg-amber-50 px-4 py-2 text-xs font-semibold text-amber-800 shadow-md print:hidden"
     >
       <i aria-hidden className="fa-solid fa-plug-circle-exclamation shrink-0" />
