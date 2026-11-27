@@ -10,6 +10,17 @@ A trusted patient treated first and settling afterwards: the grant, the booking 
 
 ---
 
+- **A pay-later due is whole rupees, and the "I've paid" form never rounds
+  a balance.** A pay-later balance is settled by hand (cash, UPI, transfer),
+  so `/api/appointments/confirm-pay-later` stores the checkout total rounded
+  **down** to the rupee (`payLaterDuePaise`, `src/lib/payLaterDue.ts`): the
+  clinic gives up the paise, the patient is never asked for more than the
+  quote. The discount columns keep what the quote gave. The widget's amount
+  field pre-fills the exact balance (`rupeesInputValue`, paise kept) and
+  takes paise (`step 0.01`): it used to pre-fill `Math.round(owed / 100)`,
+  so a ₹1,059.18 balance was declared as ₹1,059 and the patient was left
+  "You owe ₹0.18" with no way to clear it. A balance written before the
+  rule can still be paid exactly.
 - **A trusted-patient code is the same grant, made ahead of time.** Money
   -> Costs -> **Tap here to create a trusted-patient code** (money scope,
   refused while `pay_later_enabled` is off) takes a name, a reason of at

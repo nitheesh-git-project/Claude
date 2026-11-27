@@ -9,6 +9,7 @@
 //    settings, never typed in; deletion says what DATA-POLICY.md says.
 //  - A fact the owner has not supplied is left out, never invented.
 
+import { DEFAULT_UNASSIGNED_RESCUE_HOURS } from "@/lib/sessionPatientActions";
 import { LEGAL_FACTS, type LegalFacts } from "@/lib/legal/legalFacts";
 
 export type LegalBlock =
@@ -33,6 +34,9 @@ export type LegalContext = {
   leadTimeHours: number;
   /** online_cancellation_refund_hours */
   refundHours: number;
+  /** unassigned_rescue_hours: no physiotherapist this close to the start
+   *  and the patient is offered a refund or a new time. Default 4. */
+  rescueHours?: number;
   facts?: LegalFacts;
 };
 
@@ -348,6 +352,7 @@ function terms(ctx: LegalContext, f: LegalFacts): LegalDoc {
 
 function refunds(ctx: LegalContext, f: LegalFacts): LegalDoc {
   const window = hoursPhrase(ctx.refundHours);
+  const rescue = hoursPhrase(ctx.rescueHours ?? DEFAULT_UNASSIGNED_RESCUE_HOURS);
   return {
     slug: "refunds",
     title: "Refunds & cancellations",
@@ -368,7 +373,16 @@ function refunds(ctx: LegalContext, f: LegalFacts): LegalDoc {
         id: "we-cancel",
         heading: "If we cancel",
         blocks: [
-          "If we or your therapist cancel, or a session cannot go ahead because of a problem on our side, you get a full refund.",
+          "If we or your therapist cancel, or a session cannot go ahead because of a problem on our side, you get a full refund. The cancellation window above does not apply.",
+          "A problem on our side means any of these:",
+          { list: [
+            `No physiotherapist has been confirmed for your session ${rescue} before it starts.`,
+            "Your physiotherapist does not join the video call, or does not arrive for a home visit.",
+            "Our booking system or video link stops the session from starting.",
+          ] },
+          `If no physiotherapist is confirmed ${rescue} before your session, your sessions page offers you two choices: a full refund, or a new time. Neither counts against you. The cancellation window does not apply, and choosing a new time does not use up the one change you can make yourself. If nobody is confirmed by the start time, both choices stay open afterwards.`,
+          "For a session from a programme or package, a refund means the session goes back on your programme to book again.",
+          "Problems on your side, such as your own internet connection or not being available at the time, are covered by the cancellation rules above.",
         ],
       },
       {
