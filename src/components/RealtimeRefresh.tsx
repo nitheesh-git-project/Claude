@@ -39,6 +39,9 @@ import { joinRealtimeChannel } from "@/lib/realtimeJoin";
 // collapses to two refreshes at most.
 const DEFAULT_COOLDOWN_MS = 2000;
 
+/** How long a connection must stay down before the "paused" banner shows. */
+const DEGRADED_AFTER_MS = 12_000;
+
 export default function RealtimeRefresh({
   tables,
   cooldownMs = DEFAULT_COOLDOWN_MS,
@@ -171,6 +174,18 @@ export default function RealtimeRefresh({
     };
 
     let hadProblem = false;
+    // The banner is for a connection that STAYS down. The realtime client
+    // drops and rejoins on its own all the time -- a token refresh, a phone
+    // sleeping, a proxy cutting an idle socket -- and each drop reports an
+    // error or CLOSED for a moment before SUBSCRIBED returns. Drawing the
+    // banner on the first of those had it flashing on patient, therapist and
+    // admin screens that were in fact fine. So a problem starts a clock, and
+    // only one still unanswered when it ends is shown.
+    let problemTimer: ReturnType<typeof setTimeout> | null = null;
+    const clearProblemTimer = () => {
+      if (problemTimer) clearTimeout(problemTimer);
+      problemTimer = null;
+    };
 
     // Joined through joinRealtimeChannel, never `supabase.channel().subscribe()`
     // directly: the join has to carry this person's token, or the server
@@ -212,6 +227,7 @@ export default function RealtimeRefresh({
           // A join from the banner's Refresh starts with hadProblem false, so
           // the banner is cleared here on any successful join, not only on a
           // recovery this channel saw itself.
+          clearProblemTimer();
           setDegraded(false);
           setReconnecting(false);
           if (hadProblem) {
@@ -225,13 +241,19 @@ export default function RealtimeRefresh({
         }
         if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
           hadProblem = true;
-          setDegraded(true);
           setReconnecting(false);
+          if (!problemTimer) {
+            problemTimer = setTimeout(() => {
+              problemTimer = null;
+              setDegraded(true);
+            }, DEGRADED_AFTER_MS);
+          }
         }
       }
     );
 
     return () => {
+      clearProblemTimer();
       if (trailingRef.current) clearTimeout(trailingRef.current);
       trailingRef.current = null;
       leave();

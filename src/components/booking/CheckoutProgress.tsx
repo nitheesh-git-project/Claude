@@ -23,13 +23,19 @@ const STEPS: { stage: Exclude<CheckoutProgressStage, "paying">; label: string }[
 export default function CheckoutProgress({
   stage,
   includeAccount,
+  takesPayment = true,
 }: {
   stage: CheckoutProgressStage;
   /** Whether "Creating your account" is a step at all -- only for a patient
    *  signing up inside the wizard. */
   includeAccount: boolean;
+  /** False for a free or pay-later booking: no payment window opens, so the
+   *  last step must not say "Opening secure payment". */
+  takesPayment?: boolean;
 }) {
-  const steps = STEPS.filter((s) => includeAccount || s.stage !== "account");
+  const steps = STEPS.filter((s) => includeAccount || s.stage !== "account").map((s) =>
+    s.stage === "opening" && !takesPayment ? { ...s, label: "Confirming your booking" } : s
+  );
   const currentIndex =
     stage === "paying" ? steps.length : steps.findIndex((s) => s.stage === stage);
 

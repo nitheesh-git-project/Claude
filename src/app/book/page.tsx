@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import ImpersonationExitIsland from "@/components/system/ImpersonationExitIsland";
 import BookingExitLink from "@/components/booking/BookingExitLink";
 import type { Metadata } from "next";
 import { createPublicClient } from "@/lib/supabase/public";
@@ -132,6 +133,8 @@ export default async function BookPage() {
   }));
 
   return (
+    <>
+      <ImpersonationExitIsland />
     <section className="py-12 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-teal-50/50 to-slate-100 min-h-screen">
       <div className="max-w-2xl mx-auto">
         <Reveal className="text-center mb-8">
@@ -186,5 +189,6 @@ export default async function BookPage() {
         <BookingExitLink />
       </div>
     </section>
+    </>
   );
 }

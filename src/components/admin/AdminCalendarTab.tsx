@@ -86,9 +86,14 @@ export default function AdminCalendarTab({
   const [viewYear, setViewYear] = useState(Number(year));
   const [viewMonth, setViewMonth] = useState(Number(monthStr) - 1); // 0-indexed
   const [selectedDate, setSelectedDate] = useState(initial);
-  const [selectedAppointment, setSelectedAppointment] = useState<SessionDetailAppointment | null>(
-    null
-  );
+  // The id, not the row: a copy taken when the pop-up opened kept showing the
+  // old price and history after Approve, Assign or Goodwill refreshed the
+  // page, until the screen was reloaded. The row is looked up in the props,
+  // which a refresh replaces.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selectedAppointment: SessionDetailAppointment | null =
+    (selectedId ? appointments.find((a) => a.id === selectedId) : null) ?? null;
+  const setSelectedAppointment = (a: SessionDetailAppointment | null) => setSelectedId(a ? a.id : null);
 
   // Cancelled sessions are excluded from the dot count - the dot means
   // "something's still actually happening this day", not "something was
