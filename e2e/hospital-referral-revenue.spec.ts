@@ -122,6 +122,8 @@ test("HRR-001: a paid session earns the partner nothing until it is delivered, o
 
 test("HRR-002: once delivered, the partner's share is taken at that day's rate, and both screens agree", async ({ page }) => {
   test.setTimeout(120_000);
+  // The session has to have started to be delivered (nobody can close one ahead of its time), so the slot is moved back.
+  await db.from("appointments").update({ slot_time: new Date(Date.now() - 2 * 3_600_000).toISOString() }).eq("id", paid.appointmentId);
   const res = await adminCtx.post(`${BASE}/api/appointments/complete-session`, { data: { appointmentId: paid.appointmentId } });
   expect(res.status(), await res.text()).toBe(200);
   const { data: row } = await db

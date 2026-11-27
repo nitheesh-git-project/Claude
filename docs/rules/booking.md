@@ -585,3 +585,17 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
   `data-step-heading`. Without it a shorter next step left a phone at the
   footer. Used by both booking wizards and the health intake pop-up; a new
   stepped flow calls it too. Guard: BWC-005.
+
+## Admin "Book a session": nothing half-made, and no wait on the clinic
+
+- With a physiotherapist chosen, the calendar offers only the hours **that
+  person** is free (`useOpenSlots` with `therapistId`), and
+  `admin/create-booking` asks `checkTherapistAssignable` **before** it inserts.
+  A clash is found while picking, not on submit.
+- If the atomic claim still loses a race, the just-created row is **deleted**
+  (still `requested`, still nobody on it) -- a failed booking must not leave a
+  paid, unassigned session that inflates Total Paid and shows on Admin Home.
+- The route's reads run together and the audit row is written alongside the
+  Meet invite; the success message still waits for the invite outcome.
+- The activity log credits a clinic-made booking to the admin who made it
+  (`bookedByAdminMap`), never to the patient.

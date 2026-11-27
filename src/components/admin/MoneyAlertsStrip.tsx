@@ -1,5 +1,6 @@
 import AdminScreenLink from "@/components/admin/AdminScreenLink";
 import { adminScreenHref, type AdminSectionKey } from "@/lib/adminNav";
+import { formatInr } from "@/lib/formatMoney";
 import { buildMoneyAlerts, moneyAlertsHeadline, type MoneyAlertCounts } from "@/lib/moneyAlerts";
 
 // The line at the top of every Money screen saying whether anything is
@@ -17,8 +18,12 @@ import { buildMoneyAlerts, moneyAlertsHeadline, type MoneyAlertCounts } from "@/
 export default function MoneyAlertsStrip({
   counts,
   reachableSections,
+  patientsOweTotalPaise = 0,
 }: {
   counts: MoneyAlertCounts;
+  /** What patients owe in total, so "all clear" never sits above money that
+   *  is plainly outstanding. */
+  patientsOweTotalPaise?: number;
   /** Sections this admin can actually open, so an item behind a closed door
    *  is dropped rather than linked into a redirect. */
   reachableSections: readonly AdminSectionKey[];
@@ -30,7 +35,9 @@ export default function MoneyAlertsStrip({
       <div className="mb-5 flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50/60 px-4 py-3">
         <i aria-hidden className="fa-solid fa-circle-check text-sm text-emerald-600" />
         <p className="text-xs font-semibold text-emerald-900">
-          Nothing in Money needs you - no cash to chase, no refunds to hand back.
+          {patientsOweTotalPaise > 0
+            ? `Nothing in Money is stuck, but patients owe ${formatInr(patientsOweTotalPaise)} - see Owed by Patients. No refunds to hand back, and nothing overdue yet.`
+            : "Nothing in Money needs you - no cash to chase, no refunds to hand back."}
         </p>
       </div>
     );

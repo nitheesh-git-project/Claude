@@ -7,6 +7,8 @@ import {
   eventsFromReassignments,
   eventsFromRefundAttempts,
   eventsFromSession,
+  bookedByAdminMap,
+  withoutBookingRows,
   eventsFromSessionNotes,
   sortActivity,
   type ActivityActorRole,
@@ -112,9 +114,9 @@ export async function loadSessionTimeline(
       : [];
     const categoryName = (id: string | null | undefined) => categories.find((c) => c.id === id)?.title ?? null;
     return sortActivity([
-      ...eventsFromSession(appointment, lookup),
+      ...eventsFromSession(appointment, lookup, bookedByAdminMap(rows<AdminLogRow>(adminLog)).get(appointment.id) ?? null),
       ...eventsFromReassignments(r, lookup, code, categoryName),
-      ...eventsFromAdminLog(log, lookup, labelFor),
+      ...eventsFromAdminLog(withoutBookingRows(log), lookup, labelFor),
       ...eventsFromPayments(rows(payments), lookup, appointment.patient_id),
       ...eventsFromPaymentFailures(rows(failures), lookup, appointment.patient_id),
       ...eventsFromRefundAttempts(refundRows, lookup),
@@ -368,6 +370,8 @@ function finishCommon(
   adminOnSessions: AdminLogRow[],
   codeFor: (id: string) => string | null
 ): ActivityEvent[] {
+  // Bookings the clinic made on the patient's behalf, by appointment id.
+  const bookedByAdmin = bookedByAdminMap(adminOnSessions);
   const selfRole: ActivityActorRole =
     profile.role === "therapist" || profile.role === "hospital" || profile.role === "admin" ? profile.role : "patient";
   return [
@@ -379,11 +383,11 @@ function finishCommon(
       actorName: profile.full_name,
       title: "Account created",
     },
-    ...sessions.flatMap((s) => eventsFromSession(s, lookup)),
+    ...sessions.flatMap((s) => eventsFromSession(s, lookup, bookedByAdmin.get(s.id) ?? null)),
     ...eventsFromReassignments(reassignments, lookup, codeFor),
     ...eventsFromSessionNotes(notes, lookup, codeFor),
     ...eventsFromAdminLog(adminOnPerson, lookup, labelFor),
-    ...eventsFromAdminLog(withoutDuplicateAssignments(adminOnSessions, reassignments), lookup, labelFor).map((e) => ({
+    ...eventsFromAdminLog(withoutBookingRows(withoutDuplicateAssignments(adminOnSessions, reassignments)), lookup, labelFor).map((e) => ({
       ...e,
       sessionCode: codeFor(adminOnSessions.find((r) => `admin:${r.id}` === e.id)?.target_id ?? ""),
     })),

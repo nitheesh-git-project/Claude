@@ -5869,6 +5869,7 @@ export default async function AdminDashboardPage({
 
   const moneyAlerts = (
     <MoneyAlertsStrip
+      patientsOweTotalPaise={payLaterBalances.totalPaise}
       counts={{
         payoutRequestsOpen: payoutRequestsBadgeCount,
         cashToRemitVisits: cashOwedByTherapists,

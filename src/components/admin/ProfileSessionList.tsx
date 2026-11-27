@@ -71,9 +71,14 @@ export default function ProfileSessionList({
   /** The programme each session came from (PED_PKG001-2/6), by appointment. */
   programmeTags?: Record<string, ProgrammeTag>;
 }) {
-  const [selectedAppointment, setSelectedAppointment] = useState<SessionDetailAppointment | null>(
-    null
-  );
+  // The id, not the row: a copy taken when the pop-up opened kept showing the
+  // old price and history after Approve, Assign or Goodwill refreshed the
+  // page, until the screen was reloaded. The row is looked up in the props,
+  // which a refresh replaces.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selectedAppointment: SessionDetailAppointment | null =
+    (selectedId ? appointments.find((a) => a.id === selectedId) : null) ?? null;
+  const setSelectedAppointment = (a: SessionDetailAppointment | null) => setSelectedId(a ? a.id : null);
   // Lazy initializer -- read once on mount, not on every render, satisfying
   // the "no impure calls during render" rule while still being "now enough"
   // for an isUpcoming check that only needs to be roughly current.
@@ -205,7 +210,14 @@ export default function ProfileSessionList({
                     route now refuses a scope that only reads them. A control
                     an admin's scope cannot call must not render, or Finance
                     gets a 403 with nothing on screen to explain it. */}
-                {canManageSessions && a.status === "confirmed" && (
+                {/* Also only once the session has started: the route refuses Done
+                    before that for everyone, so the button would only lead to a
+                    refusal (and an early Done is how Therapist Home came to read
+                    "1 of 1 done" with a 6 PM session still ahead). */}
+                {canManageSessions &&
+                  a.status === "confirmed" &&
+                  !!a.slot_time &&
+                  Date.parse(a.slot_time) <= now && (
                   <>
                     <CompleteSessionButton appointmentId={a.id} slotTime={a.slot_time} />
                     <MarkNoShowButton appointmentId={a.id} />

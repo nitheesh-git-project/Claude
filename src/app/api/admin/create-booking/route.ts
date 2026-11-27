@@ -11,6 +11,7 @@ import {
   claimTherapistSlot,
   describeClaimFailure,
 } from "@/lib/claimTherapistSlot";
+import { checkTherapistAssignable, unassignableBody } from "@/lib/therapistAssignability";
 import {
   leadTimeMsFromHours,
   isWholeHourSlot,
@@ -77,11 +78,22 @@ export async function POST(request: NextRequest) {
 
   // Never trust the role, the price or the duration the browser sent -- all
   // three are re-derived here, same rule as every other admin route.
-  const { data: patient } = await admin
-    .from("profiles")
-    .select("id, full_name, role, active, approved")
-    .eq("id", patientId)
-    .maybeSingle();
+  // Every read this route needs before it writes, sent together. They used to
+  // run one after another, and each is a round trip to the database -- from
+  // a server in another continent that was most of the wait on Create
+  // booking. The answers are still judged in the order they always were.
+  const [{ data: patient }, { data: category }, { data: settingsRow }, therapistRead] = await Promise.all([
+    admin.from("profiles").select("id, full_name, role, active, approved").eq("id", patientId).maybeSingle(),
+    admin
+      .from("treatment_categories")
+      .select("id, title, price_paise, duration_minutes, active")
+      .eq("id", categoryId)
+      .maybeSingle(),
+    admin.from("site_settings").select(SITE_SETTINGS_SELECT).maybeSingle(),
+    therapistId
+      ? admin.from("profiles").select("id, full_name, role, active, approved").eq("id", therapistId).maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
 
   if (!patient || patient.role !== "patient") {
     return NextResponse.json({ error: "That patient doesn't exist." }, { status: 404 });
@@ -92,9 +104,6 @@ export async function POST(request: NextRequest) {
       { status: 409 }
     );
   }
-  // The approval queue is the decision to take somebody on. Booking for a
-  // patient still in it used to skip that decision silently; approving them
-  // is one click, and it keeps the record of who was let in, and when.
   if (patient.approved === false) {
     return NextResponse.json(
       {
@@ -105,26 +114,9 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { data: category } = await admin
-    .from("treatment_categories")
-    .select("id, title, price_paise, duration_minutes, active")
-    .eq("id", categoryId)
-    .maybeSingle();
-
   if (!category) {
     return NextResponse.json({ error: "That treatment category doesn't exist." }, { status: 404 });
   }
-
-  // `active` was selected here and never read, so an admin could book
-  // against a condition the clinic had switched off -- the row is gone from
-  // the public pages and the patient's own booking screen, so the only way
-  // to reach it is this form's own list, which is exactly where a stale
-  // browser tab keeps offering it. The session that results is priced and
-  // staffed from a row nobody intends to sell any more.
-  //
-  // Stated rather than silently dropped: an admin picking it from a list
-  // that still showed it needs to know why it was refused, and switching
-  // the condition back on is a real answer.
   if (category.active === false) {
     return NextResponse.json(
       {
@@ -135,17 +127,8 @@ export async function POST(request: NextRequest) {
   }
 
   const durationMinutes = category.duration_minutes ?? BASE_DURATION_MINUTES;
-
-  const { data: settingsRow } = await admin
-    .from("site_settings")
-    .select(SITE_SETTINGS_SELECT)
-    .maybeSingle();
   const settings = parseAdminSettings(settingsRow);
 
-  // The same lead time the patient-facing picker enforces, read from the
-  // same setting so the two can't drift. An admin can override it -- someone
-  // on the phone can arrange a session in two hours in a way the website
-  // deliberately won't -- but only by saying so, and the override is logged.
   const earliest = Date.now() + leadTimeMsFromHours(settings.onlineBookingLeadTimeHours);
   if (slotMs < earliest && !body.overrideLeadTime) {
     return NextResponse.json(
@@ -158,12 +141,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (therapistId) {
-    const { data: therapist } = await admin
-      .from("profiles")
-      .select("id, full_name, role, active, approved")
-      .eq("id", therapistId)
-      .maybeSingle();
-
+    const therapist = (therapistRead as { data: { role: string; approved: boolean | null; active: boolean | null } | null }).data;
     if (!therapist || therapist.role !== "therapist" || !therapist.approved) {
       return NextResponse.json({ error: "That therapist isn't available." }, { status: 404 });
     }
@@ -171,22 +149,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "That therapist is suspended." }, { status: 409 });
     }
 
-    // The overlap test that used to sit here has moved into the atomic
-    // claim below -- checking before the insert and then inserting with the
-    // therapist already on the row is the read-then-write this codebase has
-    // removed everywhere else. It is kept out of this block entirely rather
-    // than duplicated, so there is exactly one place that decides whether a
-    // therapist is free.
+    // Free at that hour? Asked BEFORE anything is created. The claim below is
+    // still the binding check (it is atomic), but when this says no there is
+    // simply nothing to undo -- a clash used to be found only after a paid,
+    // unassigned session had been written.
+    const assignable = await checkTherapistAssignable(admin, therapistId, new Date(slotMs).toISOString(), durationMinutes);
+    if (assignable.ok === null) {
+      return NextResponse.json(
+        { error: "We couldn't check this therapist's schedule just now. Please try again." },
+        { status: 503 }
+      );
+    }
+    if (assignable.ok === false) {
+      return NextResponse.json(unassignableBody(assignable.reasons), { status: 409 });
+    }
   }
 
-  // Inserted UNASSIGNED, then the therapist reserved through the one
-  // atomic claim -- the insert needs to have happened for there to be an
-  // appointment id to lock against. A booking an admin makes is confirmed
-  // the moment a therapist is on it (the admin *is* the approver), so the
-  // claim below carries the confirmation in the same statement. Without a
-  // therapist it lands in the same 'requested' queue a patient's own
-  // booking does, which is also where it lands if the slot turns out to be
-  // taken.
   const { data: created, error } = await admin
     .from("appointments")
     .insert({
@@ -246,17 +224,27 @@ export async function POST(request: NextRequest) {
       confirm: true,
     });
     if (!claim.ok) {
-      // The session exists and is paid for (or owed for); only the
-      // assignment failed. Cancelling it would be worse than leaving it in
-      // the queue an unassigned booking already belongs in -- so it is
-      // reported, with the session kept, and the admin assigns from the
-      // Sessions screen where they can see who is free.
+      // Somebody took the hour between the check above and this claim. The
+      // booking was for that therapist and cannot be made, so it is undone
+      // rather than left behind as a paid, unassigned session -- which
+      // counted in the patient's Total Paid and sat on Admin Home as "no
+      // therapist" for a booking the admin had just been told failed. Only
+      // our own untouched row is removed (still requested, still nobody on
+      // it); if that somehow fails the row is reported, not hidden.
+      const { error: undoError } = await admin
+        .from("appointments")
+        .delete()
+        .eq("id", created.id)
+        .eq("status", "requested")
+        .is("therapist_id", null);
+      if (undoError) console.error("admin/create-booking: could not undo a failed booking", created.id, undoError.message);
       const { error: claimErrorMessage } = describeClaimFailure(claim);
       return NextResponse.json(
         {
-          error: `${claimErrorMessage} The session has been created without a therapist - assign one from Sessions.`,
-          appointmentId: created.id,
-          assigned: false,
+          error: undoError
+            ? `${claimErrorMessage} The session was created without a therapist - assign one from Sessions.`
+            : `${claimErrorMessage} Nothing was booked - pick another time or therapist.`,
+          ...(undoError ? { appointmentId: created.id, assigned: false } : {}),
         },
         { status: 409 }
       );
@@ -285,19 +273,20 @@ export async function POST(request: NextRequest) {
   // for every confirmed booking, including on a deployment with no Google
   // connection, where none is ever sent (QA F-13). Null for an unassigned
   // booking, which has no invite to send yet.
-  let calendarInvite: CalendarInviteOutcome | null = null;
-  if (therapistId) {
-    calendarInvite = await createMeetEventForConfirmedAppointment(admin, {
-      appointmentId: created.id,
-      patientId,
-      therapistId,
-      slotTime,
-      durationMinutes,
-      timezone: body.timezone || "Asia/Kolkata",
-    });
-  }
+  // The invite and the audit row are independent, so they go together: the
+  // audit write used to wait for Google's answer before it started.
+  const invite: Promise<CalendarInviteOutcome | null> = therapistId
+    ? createMeetEventForConfirmedAppointment(admin, {
+        appointmentId: created.id,
+        patientId,
+        therapistId,
+        slotTime,
+        durationMinutes,
+        timezone: body.timezone || "Asia/Kolkata",
+      })
+    : Promise.resolve(null);
 
-  await recordAdminActivity(admin, admin_ctx.id, {
+  const audit = recordAdminActivity(admin, admin_ctx.id, {
     action: "session.create",
     targetId: created.id,
     targetLabel: `${patient.full_name ?? "Patient"} · ${category.title}`,
@@ -310,6 +299,8 @@ export async function POST(request: NextRequest) {
       assignedAtCreation: !!therapistId,
     },
   });
+
+  const [calendarInvite] = await Promise.all([invite, audit]);
 
   return NextResponse.json({ success: true, appointmentId: created.id, status, calendarInvite });
 }

@@ -1,3 +1,4 @@
+import PayLaterWidget from "@/components/patient/PayLaterWidget";
 import type { Metadata } from "next";
 import PatientDashboardShell from "@/components/patient/PatientDashboardShell";
 import { loadPatientDashboard } from "@/lib/patientDashboardData";
@@ -78,6 +79,21 @@ export default async function Page() {
       {showTrustedCode && (
         <div className="mt-8">
           <RedeemTrustedCodeCard />
+        </div>
+      )}
+      {/* Completed sessions that are still owed. Receipts list what was paid,
+          so a delivered pay-later session nobody had settled yet appeared
+          nowhere on this screen. Absent when nothing is owed. */}
+      {d.payLater && (
+        <div id="owed" className="mt-8">
+          <PayLaterWidget
+            owedPaise={d.payLater.owedPaise}
+            sessions={d.payLater.sessions}
+            unallocatedPaise={d.payLater.unallocatedPaise}
+            pendingDeclaration={d.payLater.pendingDeclaration}
+            lastRejection={d.payLater.lastRejection}
+            razorpayKeyId={process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ?? null}
+          />
         </div>
       )}
       <div id="receipts" className="mt-8">

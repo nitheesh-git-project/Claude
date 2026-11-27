@@ -5,10 +5,12 @@ import BookingCalendar from "@/components/booking/BookingCalendar";
 import SelectableChipGroup from "@/components/booking/SelectableChipGroup";
 import {
   bookableHoursForDate,
+  slotStartMs,
   leadTimeMsFromHours,
   type SlotOpenCheck,
   formatDateKeyLong,
 } from "@/lib/bookingSlots";
+import { formatClinicTime } from "@/lib/formatDateTime";
 import { formatHourRange } from "@/lib/therapistAvailability";
 import { stepOneBlocker } from "@/lib/bookingStepOne";
 import { requestedTimeNotice } from "@/lib/clinicPromises";
@@ -97,6 +99,7 @@ export default function BookingStepOne({
   const hours = dateKey ? bookableHoursForDate(dateKey, nowMs, leadTimeMs, isSlotOpen) : [];
   // The first unanswered thing, said next to the disabled Continue. Null
   // means the patient may go on.
+  const offIndiaClock = !!timezone && timezone !== "Asia/Kolkata" && timezone !== "Asia/Calcutta";
   const blocker = stepOneBlocker({
     serviceChosen,
     dateKey,
@@ -165,7 +168,15 @@ export default function BookingStepOne({
               <SelectableChipGroup
                 idPrefix="booking-hour"
                 label={openHoursChecked ? "Available times" : "Time"}
-                options={hours.map((h) => ({ value: String(h), label: formatHourRange(h) }))}
+                options={hours.map((h) => ({
+                  value: String(h),
+                  // A visitor outside India sees each hour on their own clock AND
+                  // on the clinic's, so the IST time is not first met on the
+                  // review screen.
+                  label: offIndiaClock
+                    ? `${formatHourRange(h)} (${formatClinicTime(slotStartMs(dateKey, h))} IST)`
+                    : formatHourRange(h),
+                }))}
                 value={hour === "" ? "" : String(hour)}
                 onChange={(next) => onHourChange(Number(next))}
                 emptyMessage="No times left on this date - please pick another day."

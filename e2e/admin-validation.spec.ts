@@ -5,7 +5,7 @@
 // leave. These call the routes directly, past the UI, which is the only
 // honest way to test that.
 import { test, expect } from "@playwright/test";
-import { BASE, QA_EMAILS, adminClient, cookieHeaderFor, profileIdFor, wholeHourFromNow } from "./helpers";
+import { BASE, QA_EMAILS, adminClient, clinicSlot, cookieHeaderFor, openTherapistHour, profileIdFor, wholeHourFromNow } from "./helpers";
 
 async function post(route: string, body: unknown, cookie: string) {
   const res = await fetch(`${BASE}${route}`, {
@@ -220,8 +220,14 @@ test.describe("Suite E: input validation", () => {
     // On the hour, or create-booking refuses it for that reason first and
     // the suspension check below is never reached -- a 400 that reads as the
     // guard failing when the guard was never asked.
-    const slot = wholeHourFromNow(7 * 24);
+    // And an hour the therapist works: create-booking now asks the roster
+    // before it writes anything (the same rule as assigning), so the slots
+    // that must succeed are opened on it first.
+    const slot = clinicSlot(7, 11);
+    const burstSlot = clinicSlot(9, 11);
+    const closeHours = [await openTherapistHour(admin, therapistId, slot), await openTherapistHour(admin, therapistId, burstSlot)];
 
+    try {
     // Suspended patient.
     await admin.from("profiles").update({ active: false }).eq("id", patientId);
     const suspended = await post(
@@ -293,7 +299,6 @@ test.describe("Suite E: input validation", () => {
       // Whole hour, like every other slot here: otherwise all five are
       // refused for their minutes and the burst reports the compare-and-swap
       // failing when not one request reached it.
-      const burstSlot = wholeHourFromNow(9 * 24);
       const burst = await Promise.all(
         Array.from({ length: 5 }, () =>
           post(
@@ -312,6 +317,9 @@ test.describe("Suite E: input validation", () => {
       ).toBe(1);
     } finally {
       await admin.from("appointments").delete().eq("id", createdId);
+    }
+    } finally {
+      for (const close of closeHours) await close();
     }
   });
 });

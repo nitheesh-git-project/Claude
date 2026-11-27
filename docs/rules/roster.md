@@ -408,3 +408,12 @@ Availability as periods over hour rows, specialisation as a value, what readines
   Upcoming exceptions and from the roster. It orders by `id`. Any
   `readAllRows*` read needs a unique final order for the same reason.
 
+
+## Completing a session: the clock binds everyone
+
+`complete-session` refuses Done before the slot starts (and No-Show before the
+late-arrival grace) **for an admin too**; only the payment and note/exam checks
+are the therapist's own. Admin Done / No-Show buttons render only once the
+session has started. An early Done made Therapist Home read "1 of 1 done"
+with a 6 PM session still ahead. A payout request only shows as open while the
+therapist is actually owed something.

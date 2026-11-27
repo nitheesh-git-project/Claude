@@ -22,17 +22,18 @@ export default function CompleteSessionButton({
 
   function openConfirm() {
     // The route refuses Done before the session's start (sessionCompletion.ts)
-    // for a therapist, so asking "mark it done anyway?" only led to a refusal.
-    // An admin is exempt and still gets the warning. Judged against the
+    // for everyone, an admin included. Judged against the
     // debug bar's simulated clock, the same one the route reads while the
     // bar is on, so the warning and the answer agree.
     const isBeforeScheduledTime = slotTime ? new Date(slotTime).getTime() > debugNow() : false;
+    if (isBeforeScheduledTime) {
+      // Said where the button is; a "confirm" that can only be refused is no
+      // confirmation.
+      setError("This session hasn't started yet. You can mark it done once it's under way.");
+      return;
+    }
     setError(null);
-    setConfirmMessage(
-      isBeforeScheduledTime
-        ? "This session's scheduled time hasn't arrived yet. Mark it done anyway? (Only an admin can close a session before it starts.)"
-        : "Mark this session as done? You'll be asked to rate it next."
-    );
+    setConfirmMessage("Mark this session as done? You'll be asked to rate it next.");
   }
 
   async function handleComplete() {

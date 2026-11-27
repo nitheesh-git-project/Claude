@@ -83,8 +83,10 @@ export default function AdminNewBookingTab({
   const { isOpen: isSlotOpen, checked: openHoursChecked, loading: openHoursLoading } = useOpenSlots(
     nowMs,
     categoryId || null,
-    // AdminSlotPicker draws the clinic's hours.
-    { gridTimeZone: CLINIC_TIMEZONE }
+    // AdminSlotPicker draws the clinic's hours. With a physiotherapist chosen
+    // the calendar offers only the hours THEY are free (their own hours, their
+    // leave and their other sessions), so a clash is not found on submit.
+    { gridTimeZone: CLINIC_TIMEZONE, therapistId: therapistId || null }
   );
   const [appliedOpenHours, setAppliedOpenHours] = useState<SlotOpenCheck>(null);
   if (isSlotOpen !== appliedOpenHours) {
@@ -368,7 +370,7 @@ export default function AdminNewBookingTab({
             disabled={isPending}
             className="rounded-xl bg-teal-700 px-5 py-2.5 text-xs font-semibold text-white transition hover:bg-teal-800 disabled:opacity-60"
           >
-            {isPending ? "Booking…" : "Create booking"}
+            {isPending ? "Booking and sending the invite…" : "Create booking"}
           </button>
           <p className="text-[11px] text-slate-500">
             Home visits need an address and a serviceable pincode - book those from the
