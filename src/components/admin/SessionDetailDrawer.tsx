@@ -238,7 +238,10 @@ export default function SessionDetailDrawer({
   // sits with the address and the cash it belongs beside), so the online
   // form is not repeated for a visit. The heading still reads "Assign"
   // whenever nobody is on the session, whichever control does the work.
-  const needsAssigning = canReassign && isUnassigned && !homeVisit;
+  // Not once its time has passed: there is no session left to run then, so
+  // the drawer offers moving it (below) or cancelling it, never "assign".
+  const slotPassed = !!a.slot_time && Date.parse(a.slot_time) <= Date.now();
+  const needsAssigning = canReassign && isUnassigned && !homeVisit && !slotPassed;
   const patientName = peopleMap.get(a.patient_id) ?? "Unknown";
   const therapistName = a.therapist_id ? peopleMap.get(a.therapist_id) ?? "Unknown" : null;
   const categoryTitle = a.category_id ? categoryMap.get(a.category_id)?.title ?? null : null;
@@ -731,8 +734,19 @@ export default function SessionDetailDrawer({
             {canManageSessions && canReassign && (
               <div className="pt-3 border-t border-slate-100">
                 <p className="font-bold text-slate-800 mb-2">
-                  {isUnassigned ? "Assign a therapist" : "Reassign Session"}
+                  {isUnassigned && slotPassed
+                    ? "Missed: no therapist was assigned"
+                    : isUnassigned
+                      ? "Assign a therapist"
+                      : "Reassign Session"}
                 </p>
+                {isUnassigned && slotPassed && (
+                  <p className="mb-2 rounded-lg bg-red-50 p-2 text-red-800" data-testid="drawer-missed-unassigned">
+                    This session&apos;s time passed with nobody assigned, so it didn&apos;t take place. The patient
+                    has been offered a full refund or a new time on their dashboard. Move it to a new time below, or
+                    cancel it to refund them in full.
+                  </p>
+                )}
                 {therapists.length === 0 ? (
                   <p className="text-slate-500">
                     No approved therapists available to {isUnassigned ? "assign" : "reassign to"}.

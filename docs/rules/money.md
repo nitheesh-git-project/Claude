@@ -436,3 +436,18 @@ The revenue split and its two invariants, payouts, settlements, Business Health,
   Pay button actually transfers. It routes through
   `computeTherapistPayoutSummary` now, which already held the rule. A figure on
   a profile that disagrees with the Pay button is worse than a missing field.
+- **One word for one debt, on every admin screen.** All Sessions printed the
+  raw `payment_status` ("unpaid") where the patient's card said Owed. Its
+  table, its phone cards and its export read `describeSessionPayment` now,
+  like the drawer and the profile lists; a delivered prepaid session still
+  unpaid reads **Payment due** on both sides.
+- **A payout row says whose payment a date is.** The therapist detail's
+  payout history printed the session's patient payment as "Paid" -- "Paid
+  date unknown" for a programme session, right above "Settled 25 Nov". It
+  reads "Patient paid D" (or "Patient paid for the programme"), and the payout
+  date is the Settled line.
+- **The admin patient page lists confirmed pay-later payments.** Its history
+  is built from paid sessions, so a confirmed payment that did not yet cover a
+  whole session showed "No payments recorded yet". Each confirmed payment is
+  listed with its method, date and anything not yet covering a session.
+

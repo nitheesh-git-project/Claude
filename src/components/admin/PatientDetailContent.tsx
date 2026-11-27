@@ -53,6 +53,7 @@ import {
   type PayoutAppointment,
 } from "@/lib/therapistPayouts";
 import { formatRupees } from "@/lib/formatMoney";
+import { SETTLEMENT_METHOD_LABELS, type SettlementMethod } from "@/lib/payLaterSettlement";
 import { frozenShareFacts, readFrozenTherapistRates } from "@/lib/frozenTherapistRatesServer";
 
 // A module-level helper rather than an inline `Date.now()` in the component
@@ -227,6 +228,25 @@ export default async function PatientDetailContent({ id }: { id: string }) {
         }
       : a;
   });
+
+  // Confirmed pay-later payments, in their own read (newest table). A
+  // payment that does not yet cover a whole session closes no session, so
+  // the history below -- built from paid sessions -- showed nothing at all
+  // for money the clinic had confirmed receiving.
+  const { data: payLaterPaymentRows } = await admin
+    .from("pay_later_payments")
+    .select("id, amount_paise, method, unallocated_paise, confirmed_at, declared_at")
+    .eq("patient_id", id)
+    .eq("status", "confirmed")
+    .order("confirmed_at", { ascending: false });
+  const payLaterPayments = (payLaterPaymentRows ?? []) as {
+    id: string;
+    amount_paise: number;
+    method: string;
+    unallocated_paise: number | null;
+    confirmed_at: string | null;
+    declared_at: string | null;
+  }[];
 
   const categoryIds = [
     ...new Set((appointments ?? []).map((a) => a.category_id).filter(Boolean)),
@@ -754,8 +774,30 @@ export default async function PatientDetailContent({ id }: { id: string }) {
             Total Paid: <strong className="text-teal-700">₹{formatRupees(totalPaidPaise)}</strong>
           </p>
         </div>
+        {payLaterPayments.length > 0 && (
+          <div className="mb-3 rounded-xl bg-slate-50 p-3" data-testid="patient-pay-later-payments">
+            <p className="text-xs font-semibold text-slate-700">Pay-later payments received</p>
+            <ul className="mt-1.5 space-y-1 text-xs text-slate-600">
+              {payLaterPayments.map((p) => (
+                <li key={p.id}>
+                  <strong className="text-slate-800">₹{formatRupees(p.amount_paise)}</strong>
+                  {` by ${SETTLEMENT_METHOD_LABELS[p.method as SettlementMethod] ?? p.method}`}
+                  {p.confirmed_at ?? p.declared_at ? `, confirmed ${formatClinicDate((p.confirmed_at ?? p.declared_at) as string)}` : ""}
+                  {(p.unallocated_paise ?? 0) > 0
+                    ? ` - ₹${formatRupees(p.unallocated_paise ?? 0)} not yet covering a whole session`
+                    : ""}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-1.5 text-[11px] text-slate-500">
+              Sessions these paid for are listed below as Paid; money not yet covering a whole session waits for the next one.
+            </p>
+          </div>
+        )}
         {paidAppointments.length === 0 ? (
-          <p className="text-xs text-slate-500 py-4 text-center">No payments recorded yet.</p>
+          <p className="text-xs text-slate-500 py-4 text-center">
+            {payLaterPayments.length > 0 ? "No session fully paid yet." : "No payments recorded yet."}
+          </p>
         ) : (
           <ul className="space-y-3 text-xs">
             {paidAppointments.map((a) => {
@@ -776,7 +818,11 @@ export default async function PatientDetailContent({ id }: { id: string }) {
                     </span>
                   </div>
                   <p className="text-slate-500">
-                    Paid {a.paid_at ? formatClinicDateTime(a.paid_at) : "date unknown"}
+                    {a.paid_at
+                      ? `Paid ${formatClinicDateTime(a.paid_at)}`
+                      : a.package_purchase_id
+                        ? "Paid with the programme"
+                        : "Paid"}
                     {therapist && a.therapist_id && (
                       <>
                         {" "}

@@ -36,6 +36,7 @@ type CompletedRequest = {
   id: string;
   requestedAmountPaise: number;
   requestedAt: string;
+  completedAt: string | null;
 };
 
 function NotificationBanner({ request }: { request: CompletedRequest }) {
@@ -63,9 +64,15 @@ function NotificationBanner({ request }: { request: CompletedRequest }) {
   return (
     <div className="bg-teal-50 border border-teal-200 rounded-2xl p-4 mb-6 flex items-center justify-between gap-3 flex-wrap">
       <p className="text-xs text-teal-900">
-        💰 Payment initiated - your payout request for{" "}
+        {/* Only a *completed* request reaches this banner, so it says it
+            was paid. It read "is being processed by admin", which was the
+            opposite of true and stayed up until dismissed. */}
+        <i className="fa-solid fa-circle-check mr-1.5 text-teal-700" aria-hidden="true" />
+        <strong>Paid.</strong> Your payout request for{" "}
         <strong>{formatInr(request.requestedAmountPaise)}</strong> (requested on{" "}
-        {formatDate(request.requestedAt)}) is being processed by admin.
+        {formatDate(request.requestedAt)}) was paid
+        {request.completedAt ? ` on ${formatDate(request.completedAt)}` : ""}. The payout receipts below
+        show what it covered.
       </p>
       <button
         onClick={handleDismiss}

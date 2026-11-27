@@ -759,7 +759,15 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
                     {travelPaise > 0 && (
                       <> + ₹{formatRupees(travelPaise)} travel</>
                     )}{" "}
-                    • Paid {a.paid_at ? formatClinicDate(a.paid_at) : "date unknown"}
+                    {/* The patient's payment, not the payout -- the payout's date is
+                        "Settled" below. A programme session has no payment of
+                        its own, which is how "Paid date unknown" sat over
+                        "Settled 25 Nov". */}
+                    {a.paid_at
+                      ? ` • Patient paid ${formatClinicDate(a.paid_at)}`
+                      : a.package_purchase_id
+                        ? " • Patient paid for the programme"
+                        : ""}
                   </p>
                   {isSettled && (
                     <p className="text-slate-500">

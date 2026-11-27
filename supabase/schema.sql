@@ -21781,3 +21781,39 @@ alter table testimonials add constraint testimonials_consent_needs_note check (
 drop policy if exists "testimonials_select_active" on testimonials;
 create policy "testimonials_select_active" on testimonials
   for select using (active = true and consent_recorded_at is not null);
+
+-- ---------------------------------------------------------------------------
+-- A session nobody was put on, close to its time (owner's rule).
+--
+-- With fewer than this many hours to go and no physiotherapist confirmed --
+-- from 3 h 59 min onwards at the default 4 -- the patient is offered a full
+-- refund and a new time, neither counting against them (no refund window,
+-- no "once" limit on moving). Once the time passes with nobody assigned the
+-- session is a follow-up for the clinic, never "assign a therapist".
+-- Read on its own (isolated), so a database without the column keeps the
+-- default rather than losing every other setting.
+-- ---------------------------------------------------------------------------
+alter table site_settings add column if not exists unassigned_rescue_hours integer not null default 4
+  check (unassigned_rescue_hours between 1 and 48);
+
+
+-- ---------------------------------------------------------------------------
+-- Pay-later dues are whole rupees (src/lib/payLaterDue.ts).
+--
+-- A pay-later balance is settled by hand in whole rupees, and sessions close
+-- whole sessions only (allocate_pay_later_payment), so a due with paise in it
+-- could never be closed by the ₹1,059 a patient paid against ₹1,059.18 -- the
+-- money sat held and the dashboard kept saying they owed something. New dues
+-- are rounded down at booking; this rounds down the ones booked before that,
+-- **upcoming sessions only**: nothing delivered has its due touched, because
+-- a delivered session's settlement row (append-only) already records it as
+-- its gross. Rounded down, never up: the patient is never asked for more.
+-- Re-runnable: a second run finds nothing with paise left.
+-- ---------------------------------------------------------------------------
+update appointments
+   set amount_due_paise = (amount_due_paise / 100) * 100
+ where payment_terms = 'pay_later'
+   and status in ('requested', 'confirmed')
+   and payment_status <> 'paid'
+   and amount_due_paise >= 100
+   and amount_due_paise % 100 <> 0;

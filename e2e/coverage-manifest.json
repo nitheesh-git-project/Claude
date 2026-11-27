@@ -2024,6 +2024,39 @@
       ],
       "integration": "local",
       "destructive": false
+    },
+    "no-therapist-rescue.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/booking.md"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
+    "admin-booking-flow.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "browser",
+        "api",
+        "db"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "rules": [
+        "docs/rules/booking.md",
+        "docs/rules/pay-later.md"
+      ],
+      "integration": "local",
+      "destructive": false
     }
   },
   "flows": [
@@ -2102,7 +2135,8 @@
           "tests": [
             "OH-001",
             "OH-002",
-            "OH-003"
+            "OH-003",
+            "OH-004"
           ],
           "level": "api"
         }
@@ -2700,6 +2734,48 @@
             "PCC-001",
             "PCC-002",
             "PCC-003"
+          ],
+          "level": "browser"
+        }
+      ]
+    },
+    {
+      "id": "patient.no-therapist-rescue",
+      "runner": "patient",
+      "title": "No physiotherapist close to the time offers a refund or a new time; Pay and Join follow the session",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "no-therapist-rescue.spec.ts",
+          "tests": [
+            "NTR-001",
+            "NTR-002",
+            "NTR-003",
+            "NTR-004",
+            "NTR-005",
+            "NTR-006"
+          ],
+          "level": "browser"
+        }
+      ]
+    },
+    {
+      "id": "patient.admin-booking-flow",
+      "runner": "patient",
+      "title": "An admin booking (unpaid, paid offline, goodwill) reaches the patient and therapist with the right Pay and Join; pay-later paise are payable",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "admin-booking-flow.spec.ts",
+          "tests": [
+            "ABF-001",
+            "ABF-002",
+            "ABF-003",
+            "ABF-004",
+            "PL-PAISE",
+            "ABF-005"
           ],
           "level": "browser"
         }
@@ -3637,7 +3713,8 @@
           "tests": [
             "REF-001",
             "REF-002",
-            "REF-003"
+            "REF-003",
+            "REF-005"
           ],
           "level": "api"
         }

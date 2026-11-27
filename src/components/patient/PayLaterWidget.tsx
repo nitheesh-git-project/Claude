@@ -1,5 +1,6 @@
 "use client";
 
+import { rupeesInputValue } from "@/lib/payLaterDue";
 import { useId, useRef, useState, useTransition } from "react";
 import { useRouter } from "@/lib/useRouter";
 import { useToast } from "@/lib/toast";
@@ -70,7 +71,9 @@ export default function PayLaterWidget({
 }) {
   const [declaring, setDeclaring] = useState(false);
   const [method, setMethod] = useState<SettlementMethod>("upi");
-  const [amount, setAmount] = useState(String(Math.round(owedPaise / 100)));
+  // The exact balance, paise and all: rounding it here is how a ₹1,059.18
+  // balance was declared as ₹1,059 and left "You owe ₹0.18" behind.
+  const [amount, setAmount] = useState(rupeesInputValue(owedPaise));
   const [note, setNote] = useState("");
   const [reference, setReference] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -187,9 +190,11 @@ export default function PayLaterWidget({
         // Received and not yet covering a whole session. Said out loud,
         // because a total that quietly went down by less than was paid reads
         // as an error.
-        <p className="mt-2 text-sm font-semibold text-teal-800">
-          {formatInr(unallocatedPaise)} of your last payment is held against your next
-          session.
+        <p className="mt-2 text-sm font-semibold text-teal-800" data-testid="pay-later-held">
+          {/* Already taken off the total above. It closes a session only
+              once it covers that session in full, so "held against your
+              next session" read as though it had not counted at all. */}
+          {`${formatInr(unallocatedPaise)} you've already paid is taken off the total above. It's applied to a session once it covers that session in full.`}
         </p>
       )}
 
@@ -268,8 +273,10 @@ export default function PayLaterWidget({
                   <input
                     id={amountId}
                     type="number"
-                    min={1}
-                    max={Math.round(owedPaise / 100)}
+                    min={0.01}
+                    step={0.01}
+                    inputMode="decimal"
+                    max={owedPaise / 100}
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
                     className="mt-1 w-full rounded-lg border border-slate-300 p-2 text-sm"

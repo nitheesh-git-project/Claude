@@ -193,7 +193,21 @@ Published at moverestorephysio.com/refunds
 
 ## If we cancel
 
-If we or your therapist cancel, or a session cannot go ahead because of a problem on our side, you get a full refund.
+If we or your therapist cancel, or a session cannot go ahead because of a problem on our side, you get a full refund. The cancellation window above does not apply.
+
+A problem on our side means any of these:
+
+- No physiotherapist has been confirmed for your session 4 hours before it starts.
+- Your physiotherapist does not join the video call, or does not arrive for a home visit.
+- Our booking system or video link stops the session from starting.
+
+If no physiotherapist is confirmed 4 hours before your session, your sessions page offers you two choices: a full refund, or a new time. Neither counts against you. The cancellation window does not apply, and choosing a new time does not use up the one change you can make yourself. If nobody is confirmed by the start time, both choices stay open afterwards.
+
+For a session from a programme or package, a refund means the session goes back on your programme to book again.
+
+Problems on your side, such as your own internet connection or not being available at the time, are covered by the cancellation rules above.
+
+(The "4 hours" is the live setting Settings -> Booking rules -> *No physiotherapist yet: refund or new time*; the page always prints the current value.)
 
 ## Programmes and packages
 

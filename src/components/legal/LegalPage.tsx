@@ -5,6 +5,8 @@ import { getLayoutSettings } from "@/lib/siteSettingsCache";
 import { parseAdminSettings } from "@/lib/adminSettings";
 import { readOnlineBookingRules } from "@/lib/homeVisitFlag";
 import { LEGAL_FACTS } from "@/lib/legal/legalFacts";
+import { readUnassignedRescueHours } from "@/lib/rescueHoursServer";
+import { createAdminClient } from "@/lib/supabase/admin";
 import {
   LEGAL_PAGES,
   formatEffectiveDate,
@@ -19,14 +21,29 @@ import {
 // sold, and a reader looking for one clause wants the contents list and the
 // date, not a pitch.
 
+/** Never throws: a build without the service key keeps the default. */
+async function readRescueHoursSafely(): Promise<number | undefined> {
+  try {
+    return await readUnassignedRescueHours(createAdminClient());
+  } catch {
+    return undefined;
+  }
+}
+
 async function loadDoc(slug: LegalSlug): Promise<LegalDoc> {
-  const [{ brand }, rules] = await Promise.all([getLayoutSettings(), readOnlineBookingRules()]);
+  const [{ brand }, rules, rescueHours] = await Promise.all([
+    getLayoutSettings(),
+    readOnlineBookingRules(),
+    // Isolated read; a database without the column keeps the default 4.
+    readRescueHoursSafely(),
+  ]);
   const settings = parseAdminSettings(brand);
   return legalDoc(slug, {
     siteName: settings.siteName,
     contactEmail: settings.contactEmail,
     leadTimeHours: rules.leadTimeHours,
     refundHours: rules.refundHours,
+    rescueHours,
   });
 }
 

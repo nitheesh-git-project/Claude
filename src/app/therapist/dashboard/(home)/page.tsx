@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { therapistNoNextUpLine } from "@/lib/therapistNextUp";
 import TherapistDashboardShell from "@/components/therapist/TherapistDashboardShell";
 import DashboardOverview from "@/components/dashboard/DashboardOverview";
 import { loadTherapistDashboard } from "@/lib/therapistDashboardData";
@@ -60,7 +61,7 @@ export default async function TherapistDashboardPage() {
         // The session in progress, or the next one, as a card with what can
         // be done with it now (renderTherapistNextUp).
         headline={
-          renderTherapistNextUp(d) ?? "No sessions booked yet - keep your availability open and the clinic assigns work to it."
+          renderTherapistNextUp(d) ?? therapistNoNextUpLine(d.appointments, d.nowMs)
         }
         // Today's sessions in order, right under Next up: the shape of the
         // day without opening Sessions.

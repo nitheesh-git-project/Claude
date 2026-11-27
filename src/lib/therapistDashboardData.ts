@@ -1,4 +1,5 @@
 import { todaysSessions } from "@/lib/therapistToday";
+import { payoutNoticeIsFresh } from "@/lib/payoutNotice";
 import { startEarly } from "@/lib/startEarly";
 import "server-only";
 import { formatClinicTime } from "@/lib/formatDateTime";
@@ -208,7 +209,7 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
       supabase
         .from("appointments")
         .select(
-          "id, slot_time, timezone, concern, status, duration_minutes, notes, patient_id, therapist_rating, therapist_feedback, no_show, patient_rating, patient_rating_excluded, therapist_payout_batch_id, therapist_payout_amount_paise, payment_status, amount_paid_paise, therapist_payout_paid_at, category_id, package_purchase_id"
+          "id, slot_time, timezone, concern, status, duration_minutes, notes, patient_id, therapist_rating, therapist_feedback, no_show, patient_rating, patient_rating_excluded, therapist_payout_batch_id, therapist_payout_amount_paise, payment_status, amount_paid_paise, therapist_payout_paid_at, category_id, package_purchase_id, created_at"
         )
         .eq("therapist_id", user.id)
         .order("created_at", { ascending: false })
@@ -289,7 +290,7 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
     needEarnings
       ? supabase
           .from("therapist_payout_requests")
-          .select("id, requested_amount_paise, status, requested_at, acknowledged_at")
+          .select("id, requested_amount_paise, status, requested_at, completed_at, acknowledged_at")
           .eq("therapist_id", user.id)
           .order("requested_at", { ascending: false })
       : emptyRows<{
@@ -297,6 +298,7 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
           requested_amount_paise: number;
           status: string;
           requested_at: string;
+          completed_at: string | null;
           acknowledged_at: string | null;
         }>(),
 
@@ -593,8 +595,10 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
   // The most recent request whose completion the therapist hasn't seen yet
   // -- acknowledging it (see NotificationBanner) clears it so it doesn't
   // show forever.
+  // Not after PAYOUT_NOTICE_DAYS either: a "you've been paid" note from
+  // weeks ago is not news, it is clutter the therapist has to dismiss.
   const latestCompletedRequest = (payoutRequests ?? []).find(
-    (r) => r.status === "completed" && !r.acknowledged_at
+    (r) => r.status === "completed" && !r.acknowledged_at && payoutNoticeIsFresh(r.completed_at, nowTimestamp())
   );
 
   // ---- Overview -----------------------------------------------------
@@ -801,7 +805,8 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
       slot_time: a.slot_time,
       status: a.status,
       visit_mode: a.visit?.visit_mode ?? null,
-      created_at: a.slot_time,
+      // When it was booked, not when it is for (see the patient feed).
+      created_at: (a as { created_at?: string | null }).created_at ?? a.slot_time,
       patient_name: patientNameById.get(a.patient_id) ?? null,
     })),
     payouts: (payoutBatches ?? []).map((b) => ({

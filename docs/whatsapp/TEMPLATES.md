@@ -70,6 +70,26 @@ new approval, so the names carry a version (`_v1`). Generated from
   4. refund line: A refund of ₹499 is on its way; banks usually take 5 to 7 working days.
   5. dashboard link: https://moverestorephysio.com/patient/dashboard
 
+### `mr_booking_moved_v1`
+
+Sent when a session moves to a new time: the patient's own move, or a new
+time picked because no physiotherapist could be confirmed in time.
+
+- **Category:** Utility
+- **Language:** English (`en`)
+- **Body:**
+
+  > Hello {{1}}, your {{2}} on {{3}} has moved to {{4}}. {{5}} Your dashboard: {{6}} Thank you.
+
+- **Samples (one per variable):**
+
+  1. first name: Asha
+  2. session type: video session
+  3. old date and time: 24 Nov 2026, 6:00 pm IST
+  4. new date and time: 26 Nov 2026, 11:00 am IST
+  5. what happens next: We will message you once your physiotherapist is confirmed.
+  6. dashboard link: https://moverestorephysio.com/patient/dashboard
+
 ### `mr_reminder_tomorrow_v1`
 
 - **Category:** Utility

@@ -1,5 +1,6 @@
 "use client";
 
+import { CLINIC_TIMEZONE } from "@/lib/bookingSlots";
 import { useEffect, useState, useTransition } from "react";
 import AdminSlotPicker, { earliestSlot, slotToMs } from "@/components/admin/AdminSlotPicker";
 import { useOpenSlots } from "@/lib/useOpenSlots";
@@ -81,7 +82,9 @@ export default function AdminNewBookingTab({
   // picker's rule. Book a session used to offer a Sunday nobody works.
   const { isOpen: isSlotOpen, checked: openHoursChecked, loading: openHoursLoading } = useOpenSlots(
     nowMs,
-    categoryId || null
+    categoryId || null,
+    // AdminSlotPicker draws the clinic's hours.
+    { gridTimeZone: CLINIC_TIMEZONE }
   );
   const [appliedOpenHours, setAppliedOpenHours] = useState<SlotOpenCheck>(null);
   if (isSlotOpen !== appliedOpenHours) {

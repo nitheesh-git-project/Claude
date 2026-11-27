@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { payLaterDuePaise } from "@/lib/payLaterDue";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdminScope } from "@/lib/supabase/requireAdmin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
@@ -70,7 +71,7 @@ export async function POST(request: NextRequest) {
   const admin = createAdminClient();
   const { data: appointment } = await admin
     .from("appointments")
-    .select("id, patient_id, category_id, payment_status, status, session_code")
+    .select("id, patient_id, category_id, payment_status, status, session_code, payment_terms, list_price_paise, amount_due_paise")
     .eq("id", appointmentId)
     .maybeSingle();
 
@@ -92,12 +93,30 @@ export async function POST(request: NextRequest) {
       { status: 409 }
     );
   }
+  // On pay-later terms what the patient owes is `amount_due_paise`, so the
+  // discount has to reach it -- it used to change the discount columns only,
+  // and the patient still owed the full price. A delivered pay-later
+  // session's amount is fixed (its settlement row is append-only), so there
+  // the answer is a write-off, said in words.
+  const onPayLater = appointment.payment_terms === "pay_later";
+  if (onPayLater && appointment.status === "completed") {
+    return NextResponse.json(
+      {
+        error:
+          "This session was delivered on pay-later terms, so what it costs is already fixed. Write it off if the patient shouldn't pay for it.",
+      },
+      { status: 409 }
+    );
+  }
 
   // The list price, re-derived here rather than trusted, so the admin is
   // told what the discount actually leaves to pay before they commit to it.
   // Checkout resolves it again at order time, which is what governs.
-  let listPricePaise = 0;
-  if (appointment.category_id) {
+  // The booking's own list price first: a session priced for another country
+  // carries its converted price, and re-pricing it from the rupee category
+  // price here overwrote that.
+  let listPricePaise = (appointment.list_price_paise as number | null) ?? 0;
+  if (listPricePaise <= 0 && appointment.category_id) {
     const { data: category } = await admin
       .from("treatment_categories")
       .select("price_paise")
@@ -128,9 +147,20 @@ export async function POST(request: NextRequest) {
       discount_paise: outcome.discountPaise,
       discount_source: "goodwill",
       discount_reason: reason,
+      // Never up: a due already lower (an earlier code) stays where it is.
+      ...(onPayLater
+        ? {
+            amount_due_paise: Math.min(
+              payLaterDuePaise(outcome.payablePaise),
+              (appointment.amount_due_paise as number | null) ?? Number.MAX_SAFE_INTEGER
+            ),
+          }
+        : {}),
     })
     .eq("id", appointmentId)
     .neq("payment_status", "paid")
+    // A pay-later session delivered in the meantime keeps its fixed amount.
+    .in("status", onPayLater ? ["requested", "confirmed"] : ["requested", "confirmed", "completed"])
     .select("id")
     .maybeSingle();
 

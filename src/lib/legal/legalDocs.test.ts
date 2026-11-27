@@ -93,6 +93,14 @@ describe("legal pages", () => {
     expect(textOf("terms", ctx(FULL, { leadTimeHours: 48 }))).toContain("48 hours' notice");
   });
 
+  it("refunds defines a problem on our side and states the no-physiotherapist promise from the setting", () => {
+    const text = textOf("refunds", ctx(FULL));
+    expect(text).toContain("A problem on our side means");
+    expect(text).toContain("No physiotherapist has been confirmed for your session 4 hours before it starts.");
+    expect(text).toContain("a full refund, or a new time");
+    expect(textOf("refunds", ctx(FULL, { rescueHours: 6 }))).toContain("confirmed 6 hours before your session");
+  });
+
   it("the cookie policy lists every cookie and storage key the code sets", () => {
     const text = textOf("cookies", ctx(FULL));
     const sources: [string, string][] = [

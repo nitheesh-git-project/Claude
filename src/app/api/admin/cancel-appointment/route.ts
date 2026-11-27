@@ -5,6 +5,7 @@ import { recordAdminActivity } from "@/lib/adminActivityLog";
 import { parseJsonBody } from "@/lib/parseJsonBody";
 import { cancelAppointmentAndRefund } from "@/lib/cancelAppointment";
 import { queueAppointmentEmail } from "@/lib/appointmentEmailServer";
+import { queueSessionCancelledStaffNotices } from "@/lib/sessionChangeNoticesServer";
 
 const MAX_REASON_LENGTH = 500;
 
@@ -32,6 +33,12 @@ export async function POST(request: NextRequest) {
   }
 
   const admin = createAdminClient();
+  // Who was on it, so they hear it is off their schedule.
+  const { data: before } = await admin
+    .from("appointments")
+    .select("patient_id, therapist_id, slot_time, visit_mode, session_code")
+    .eq("id", appointmentId)
+    .maybeSingle();
   const result = await cancelAppointmentAndRefund(admin, {
     appointmentId,
     cancelledBy: adminUser.id,
@@ -62,6 +69,17 @@ export async function POST(request: NextRequest) {
   });
 
   queueAppointmentEmail(appointmentId, "cancelled", { byClinic: true });
+  if (before?.slot_time && before.therapist_id) {
+    queueSessionCancelledStaffNotices({
+      appointmentId,
+      patientId: before.patient_id,
+      previousTherapistId: before.therapist_id,
+      sessionRef: before.session_code ?? null,
+      mode: before.visit_mode === "home_visit" ? "home_visit" : "online",
+      oldSlotTime: before.slot_time,
+      noTherapistInTime: false,
+    });
+  }
   return NextResponse.json({
     success: true,
     refunded: result.refunded,

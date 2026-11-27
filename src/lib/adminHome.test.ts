@@ -270,7 +270,7 @@ function paramOf(href: string, key: string): string | null {
  *  screen learns a new preset this list is what says so. */
 const KNOWN_VIEWS: Partial<Record<AdminSectionKey, Record<string, string[]>>> = {
   sessions: {
-    all: ["unassigned", "awaiting_payment", "cancelled", "no_show", "completed", "home_visit", "unpaid", "today"],
+    all: ["unassigned", "missed_unassigned", "awaiting_payment", "cancelled", "no_show", "completed", "home_visit", "unpaid", "today"],
   },
   money: { payouts: ["owed", "settled"] },
 };

@@ -27,11 +27,29 @@ export type AssignQueueRow = {
   /** Pay-later approval (null where it never applied). Migration-dependent,
    *  so optional: absent reads as no approval needed, as before. */
   pay_later_approval?: string | null;
+  /** When it is for. Optional so older callers still type-check; absent
+   *  reads as "time not known", which never counts as passed. */
+  slot_time?: string | null;
+  no_show?: boolean | null;
 };
 
-/** Unassigned, live, and only waiting on the patient to pay online. */
-export function awaitsPatientPayment(row: AssignQueueRow, isHomeVisit: boolean): boolean {
+/**
+ * Its time has come and nobody was put on it. Neither "needs a therapist"
+ * nor "waiting on payment": there is no session left to run at that time,
+ * so it is the clinic's follow-up instead -- refund it or agree a new time
+ * (`missedWithoutTherapist`, sessionPatientActions.ts). Asking an admin to
+ * assign a therapist to a session that should have started hours ago was
+ * the bug.
+ */
+export function slotHasPassed(row: Pick<AssignQueueRow, "slot_time">, nowMs: number): boolean {
+  const ms = row.slot_time ? Date.parse(row.slot_time) : NaN;
+  return Number.isFinite(ms) && ms <= nowMs;
+}
+
+/** Unassigned, live, ahead, and only waiting on the patient to pay online. */
+export function awaitsPatientPayment(row: AssignQueueRow, isHomeVisit: boolean, nowMs: number = Date.now()): boolean {
   return (
+    !slotHasPassed(row, nowMs) &&
     !row.therapist_id &&
     row.status !== "cancelled" &&
     row.status !== "completed" &&
@@ -42,12 +60,14 @@ export function awaitsPatientPayment(row: AssignQueueRow, isHomeVisit: boolean):
   );
 }
 
-/** Unassigned, live, and committed -- an admin's to staff. */
-export function needsTherapist(row: AssignQueueRow, isHomeVisit: boolean): boolean {
+/** Unassigned, live, still ahead, and committed -- an admin's to staff. */
+export function needsTherapist(row: AssignQueueRow, isHomeVisit: boolean, nowMs: number = Date.now()): boolean {
   return (
     !row.therapist_id &&
     row.status !== "cancelled" &&
-    !awaitsPatientPayment(row, isHomeVisit) &&
+    row.status !== "completed" &&
+    !slotHasPassed(row, nowMs) &&
+    !awaitsPatientPayment(row, isHomeVisit, nowMs) &&
     // Waiting on an admin's approval first, in its own queue: staffing a
     // session the clinic may yet turn down is work done twice.
     !awaitsPayLaterApproval(row)
@@ -175,4 +195,23 @@ export type ProgrammePick = {
 export function programmePickWarning(pick: ProgrammePick): string | null {
   if (pick.blocks.length === 0) return null;
   return `${pick.therapistName} is no longer free at this time - pick someone else or move it.`;
+}
+
+/**
+ * Committed, nobody was put on it, and its time has passed: the admin's
+ * "Missed: no therapist was assigned" follow-up -- refund it or agree a new
+ * time with the patient. An abandoned unpaid checkout is not here (nothing
+ * was committed, so there is nothing to follow up), nor is a pay-later
+ * request nobody approved.
+ */
+export function missedNeedsFollowUp(row: AssignQueueRow, isHomeVisit: boolean, nowMs: number = Date.now()): boolean {
+  if (row.therapist_id || row.no_show) return false;
+  if (row.status !== "requested" && row.status !== "confirmed") return false;
+  if (!slotHasPassed(row, nowMs)) return false;
+  const uncommittedDraft =
+    row.payment_status === "unpaid" &&
+    (row.payment_terms ?? "prepaid") !== "pay_later" &&
+    !row.package_purchase_id &&
+    !isHomeVisit;
+  return !uncommittedDraft && !awaitsPayLaterApproval(row);
 }
