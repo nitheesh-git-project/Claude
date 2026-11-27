@@ -1,8 +1,8 @@
-import { todaysSessions } from "@/lib/therapistToday";
+import { sameClinicDay, todaysSessions } from "@/lib/therapistToday";
 import { payoutNoticeIsFresh } from "@/lib/payoutNotice";
 import { startEarly } from "@/lib/startEarly";
 import "server-only";
-import { formatClinicTime } from "@/lib/formatDateTime";
+import { formatClinicDateTime, formatClinicTime } from "@/lib/formatDateTime";
 import { loadProgrammeTags } from "@/lib/programmeTagsServer";
 import type { ProgrammeTag } from "@/lib/programmeId";
 import { readAllRowsAsData, readAllRowsByIds } from "@/lib/supabase/readAllRows";
@@ -877,8 +877,12 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
       label: "Today",
       value: String(todayCount),
       unit: todayCount === 1 ? "session" : "sessions",
+      // "Next at 12:30 pm" over a session that is tomorrow read as a time
+      // today. The time alone only when it is today; otherwise the day too.
       note: nextSession?.slot_time
-        ? `Next at ${formatClinicTime(nextSession.slot_time)}`
+        ? sameClinicDay(nextSession.slot_time, nowMsForOverview)
+          ? `Next at ${formatClinicTime(nextSession.slot_time)}`
+          : `Nothing more today - next ${formatClinicDateTime(nextSession.slot_time)}`
         : "Nothing scheduled today",
       accent: "bg-teal-500",
       href: "/therapist/dashboard/sessions",
@@ -954,6 +958,11 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
                   )
                   .map((a) => a.slot_time as string)
                   .sort()[0] ?? null,
+              // A session that already took place: "no session booked yet" was
+              // said of a patient whose completed session sat in the list.
+              hadSession: (appointments ?? []).some(
+                (a) => a.patient_id === id && a.status !== "cancelled" && a.status !== "requested"
+              ),
             }))
             // Soonest first session at the top; nothing booked goes last.
             .sort((a, b) => (a.nextSlot ?? "~").localeCompare(b.nextSlot ?? "~"))
