@@ -28,6 +28,7 @@ import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 import { useCancellationWindows } from "@/lib/cancellationWindowContext";
 import { cancelDialogMessage, describeCancelOutcome } from "@/lib/cancelOutcome";
 import { sessionListPricePaise } from "@/lib/sessionListPrice";
+import { usePendingWork } from "@/lib/pendingWork";
 import PartialRefundForm from "@/components/admin/PartialRefundForm";
 import GoodwillDiscountForm from "@/components/admin/GoodwillDiscountForm";
 import { useConfirm } from "@/lib/useConfirm";
@@ -67,6 +68,10 @@ export type SessionDetailAppointment = {
   /** A pay-later booking's frozen price. Migration-dependent and optional;
    *  absent, the price reads exactly as it did. */
   amount_due_paise?: number | null;
+  /** pending / approved / declined on a pay-later booking (migration-dependent). */
+  pay_later_approval?: string | null;
+  /** Paise forgiven when it was settled under a rupee short (migration-dependent). */
+  pay_later_forgiven_paise?: number | null;
   /** What the session lists at, and anything an admin already took off it.
    *  Migration-dependent, so a database without the columns hands through
    *  undefined and the control simply does not render. */
@@ -182,6 +187,10 @@ export default function SessionDetailDrawer({
   programmeTag?: ProgrammeTag | null;
   onClose: () => void;
 }) {
+  // True from the moment an action is sent until the page has been re-read.
+  // The refresh takes several seconds on this screen, and the box used to sit
+  // on the old state (still "waiting for approval") without saying so.
+  const { pending: refreshing } = usePendingWork();
   const [reopening, setReopening] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [clearingRole, setClearingRole] = useState<"patient" | "therapist" | null>(null);
@@ -238,7 +247,10 @@ export default function SessionDetailDrawer({
   // sits with the address and the cash it belongs beside), so the online
   // form is not repeated for a visit. The heading still reads "Assign"
   // whenever nobody is on the session, whichever control does the work.
-  const needsAssigning = canReassign && isUnassigned && !homeVisit;
+  // Not once its time has passed: there is no session left to run then, so
+  // the drawer offers moving it (below) or cancelling it, never "assign".
+  const slotPassed = !!a.slot_time && Date.parse(a.slot_time) <= Date.now();
+  const needsAssigning = canReassign && isUnassigned && !homeVisit && !slotPassed;
   const patientName = peopleMap.get(a.patient_id) ?? "Unknown";
   const therapistName = a.therapist_id ? peopleMap.get(a.therapist_id) ?? "Unknown" : null;
   const categoryTitle = a.category_id ? categoryMap.get(a.category_id)?.title ?? null : null;
@@ -547,6 +559,16 @@ export default function SessionDetailDrawer({
           </div>
 
           <div className="space-y-3">
+            {refreshing && (
+              <div
+                role="status"
+                data-testid="session-drawer-updating"
+                className="flex items-center gap-2 rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 font-semibold text-teal-800"
+              >
+                <i aria-hidden className="fa-solid fa-rotate fa-spin text-[11px]" />
+                Updating this session - what you see below may be a few seconds behind.
+              </div>
+            )}
             {actionError && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700">
                 {actionError}
@@ -585,6 +607,15 @@ export default function SessionDetailDrawer({
                 );
               })()}
             </div>
+
+            {(a.pay_later_forgiven_paise ?? 0) > 0 && (
+              <p
+                className="rounded-lg bg-slate-50 p-2 text-slate-600"
+                data-testid="drawer-forgiven-paise"
+              >
+                {`Settled at its full price. The patient was ₹${formatRupees(a.pay_later_forgiven_paise ?? 0)} short, which was forgiven: a payment under ₹1 short still closes a delivered pay-later session.`}
+              </p>
+            )}
 
             <div>
               <p className="text-slate-500">Patient</p>
@@ -725,14 +756,41 @@ export default function SessionDetailDrawer({
                 replaces the reassignment-only history that sat here. See
                 src/lib/activityTimeline.ts. */}
             <div className="pt-3 border-t border-slate-100">
-              <ActivityTimeline sessionId={a.id} title="Session history" />
+              <ActivityTimeline
+                sessionId={a.id}
+                title="Session history"
+                // Read again whenever the session itself changes underneath
+                // it -- every admin action refreshes the row.
+                refreshKey={[
+                  a.status,
+                  a.therapist_id,
+                  a.slot_time,
+                  a.payment_status,
+                  a.no_show,
+                  a.refund_status,
+                  a.discount_paise,
+                  a.pay_later_approval,
+                  a.amount_due_paise,
+                ].join("|")}
+              />
             </div>
 
             {canManageSessions && canReassign && (
               <div className="pt-3 border-t border-slate-100">
                 <p className="font-bold text-slate-800 mb-2">
-                  {isUnassigned ? "Assign a therapist" : "Reassign Session"}
+                  {isUnassigned && slotPassed
+                    ? "Missed: no therapist was assigned"
+                    : isUnassigned
+                      ? "Assign a therapist"
+                      : "Reassign Session"}
                 </p>
+                {isUnassigned && slotPassed && (
+                  <p className="mb-2 rounded-lg bg-red-50 p-2 text-red-800" data-testid="drawer-missed-unassigned">
+                    This session&apos;s time passed with nobody assigned, so it didn&apos;t take place. The patient
+                    has been offered a full refund or a new time on their dashboard. Move it to a new time below, or
+                    cancel it to refund them in full.
+                  </p>
+                )}
                 {therapists.length === 0 ? (
                   <p className="text-slate-500">
                     No approved therapists available to {isUnassigned ? "assign" : "reassign to"}.
@@ -961,6 +1019,14 @@ export default function SessionDetailDrawer({
             {canSeeMoney && a.payment_status === "paid" && (
               <div className="pt-3 border-t border-slate-100">
                 <p className="font-bold text-slate-700 mb-1">Refund</p>
+                {a.payment_terms !== "pay_later" && !a.razorpay_payment_id ? (
+                  // Paid outside Razorpay (cash, a transfer): there is no gateway
+                  // payment to reverse and the route refuses it. The form used to
+                  // offer "Refund via Razorpay" here and fail afterwards.
+                  <p className="text-[11px] text-slate-500" data-testid="refund-offline-note">
+                    This session was paid outside Razorpay, so there is nothing to refund through it. Hand any money back in person.
+                  </p>
+                ) : (
                 <PartialRefundForm
                   appointmentId={a.id}
                   // From the same position as the cancellation line: what
@@ -976,6 +1042,7 @@ export default function SessionDetailDrawer({
                   // this drawer does not load.
                   byHand={a.payment_terms === "pay_later"}
                 />
+                )}
               </div>
             )}
 
@@ -1019,7 +1086,9 @@ export default function SessionDetailDrawer({
                 </button>
                 {a.payment_status === "paid" && (
                   <p className="text-[11px] text-slate-500 mt-1">
-                    Refunds the amount paid via Razorpay as part of cancelling.
+                    {a.razorpay_payment_id
+                      ? "Refunds the amount paid via Razorpay as part of cancelling."
+                      : "Paid outside Razorpay (cash, a transfer or a settlement), so nothing is refunded automatically - hand any refund back yourself."}
                   </p>
                 )}
               </div>

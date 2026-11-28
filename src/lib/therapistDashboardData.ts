@@ -1,7 +1,8 @@
-import { todaysSessions } from "@/lib/therapistToday";
+import { sameClinicDay, todaysSessions } from "@/lib/therapistToday";
+import { payoutNoticeIsFresh } from "@/lib/payoutNotice";
 import { startEarly } from "@/lib/startEarly";
 import "server-only";
-import { formatClinicTime } from "@/lib/formatDateTime";
+import { formatClinicDateTime, formatClinicTime } from "@/lib/formatDateTime";
 import { loadProgrammeTags } from "@/lib/programmeTagsServer";
 import type { ProgrammeTag } from "@/lib/programmeId";
 import { readAllRowsAsData, readAllRowsByIds } from "@/lib/supabase/readAllRows";
@@ -208,7 +209,7 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
       supabase
         .from("appointments")
         .select(
-          "id, slot_time, timezone, concern, status, duration_minutes, notes, patient_id, therapist_rating, therapist_feedback, no_show, patient_rating, patient_rating_excluded, therapist_payout_batch_id, therapist_payout_amount_paise, payment_status, amount_paid_paise, therapist_payout_paid_at, category_id, package_purchase_id"
+          "id, slot_time, timezone, concern, status, duration_minutes, notes, patient_id, therapist_rating, therapist_feedback, no_show, patient_rating, patient_rating_excluded, therapist_payout_batch_id, therapist_payout_amount_paise, payment_status, amount_paid_paise, therapist_payout_paid_at, category_id, package_purchase_id, created_at"
         )
         .eq("therapist_id", user.id)
         .order("created_at", { ascending: false })
@@ -289,7 +290,7 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
     needEarnings
       ? supabase
           .from("therapist_payout_requests")
-          .select("id, requested_amount_paise, status, requested_at, acknowledged_at")
+          .select("id, requested_amount_paise, status, requested_at, completed_at, acknowledged_at")
           .eq("therapist_id", user.id)
           .order("requested_at", { ascending: false })
       : emptyRows<{
@@ -297,6 +298,7 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
           requested_amount_paise: number;
           status: string;
           requested_at: string;
+          completed_at: string | null;
           acknowledged_at: string | null;
         }>(),
 
@@ -585,16 +587,24 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
     nowTimestamp(),
     homeVisitSharePercent
   );
-  const openRequest = (payoutRequests ?? []).find(
-    (r) => r.status === "pending" || r.status === "reviewing"
-  );
+  // A request only means something while there is something to pay. With
+  // nothing owed (the sessions were settled another way, or an earlier
+  // request already covered them) an open row is history, and showing it left
+  // "Request pending" / "under review" up on an Earnings page whose balance
+  // read zero.
+  const openRequest =
+    pendingOwedPaise > 0
+      ? (payoutRequests ?? []).find((r) => r.status === "pending" || r.status === "reviewing")
+      : undefined;
   const requestStatus: "none" | "pending" | "reviewing" =
     openRequest?.status === "reviewing" ? "reviewing" : openRequest ? "pending" : "none";
   // The most recent request whose completion the therapist hasn't seen yet
   // -- acknowledging it (see NotificationBanner) clears it so it doesn't
   // show forever.
+  // Not after PAYOUT_NOTICE_DAYS either: a "you've been paid" note from
+  // weeks ago is not news, it is clutter the therapist has to dismiss.
   const latestCompletedRequest = (payoutRequests ?? []).find(
-    (r) => r.status === "completed" && !r.acknowledged_at
+    (r) => r.status === "completed" && !r.acknowledged_at && payoutNoticeIsFresh(r.completed_at, nowTimestamp())
   );
 
   // ---- Overview -----------------------------------------------------
@@ -801,7 +811,8 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
       slot_time: a.slot_time,
       status: a.status,
       visit_mode: a.visit?.visit_mode ?? null,
-      created_at: a.slot_time,
+      // When it was booked, not when it is for (see the patient feed).
+      created_at: (a as { created_at?: string | null }).created_at ?? a.slot_time,
       patient_name: patientNameById.get(a.patient_id) ?? null,
     })),
     payouts: (payoutBatches ?? []).map((b) => ({
@@ -866,8 +877,12 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
       label: "Today",
       value: String(todayCount),
       unit: todayCount === 1 ? "session" : "sessions",
+      // "Next at 12:30 pm" over a session that is tomorrow read as a time
+      // today. The time alone only when it is today; otherwise the day too.
       note: nextSession?.slot_time
-        ? `Next at ${formatClinicTime(nextSession.slot_time)}`
+        ? sameClinicDay(nextSession.slot_time, nowMsForOverview)
+          ? `Next at ${formatClinicTime(nextSession.slot_time)}`
+          : `Nothing more today - next ${formatClinicDateTime(nextSession.slot_time)}`
         : "Nothing scheduled today",
       accent: "bg-teal-500",
       href: "/therapist/dashboard/sessions",
@@ -943,6 +958,17 @@ export async function loadTherapistDashboard(screen: TherapistScreen = "overview
                   )
                   .map((a) => a.slot_time as string)
                   .sort()[0] ?? null,
+              // A session that already took place: "no session booked yet" was
+              // said of a patient whose completed session sat in the list.
+              // Taken place: delivered, or its time has passed. A session still
+              // ahead is "the first session" the banner is about.
+              hadSession: (appointments ?? []).some(
+                (a) =>
+                  a.patient_id === id &&
+                  a.status !== "cancelled" &&
+                  (a.status === "completed" ||
+                    (!!a.slot_time && new Date(a.slot_time).getTime() < nowMsForOverview))
+              ),
             }))
             // Soonest first session at the top; nothing booked goes last.
             .sort((a, b) => (a.nextSlot ?? "~").localeCompare(b.nextSlot ?? "~"))

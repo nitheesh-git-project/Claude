@@ -8,7 +8,7 @@ import WithdrawReferralButton from "@/components/hospital/WithdrawReferralButton
 import { formatSlotTime } from "@/lib/formatSlotTime";
 import { formatClinicDateShort } from "@/lib/formatDateTime";
 import {
-  formatReferralStatus,
+  partnerReferralStatusLabel,
   isReferralAccepted,
   isReferralWithClinic,
 } from "@/lib/referralStatus";
@@ -84,7 +84,7 @@ export default async function Page({
                         </span>
                       )}
                       <span className="font-semibold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-full">
-                        {formatReferralStatus(r.status)}
+                        {partnerReferralStatusLabel(r.status)}
                       </span>
                     </div>
                   </div>

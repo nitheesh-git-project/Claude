@@ -1,5 +1,6 @@
 "use client";
 
+import { CLINIC_TIMEZONE } from "@/lib/bookingSlots";
 import { useEffect, useState, useTransition } from "react";
 import AdminSlotPicker, { earliestSlot, slotToMs } from "@/components/admin/AdminSlotPicker";
 import { useOpenSlots } from "@/lib/useOpenSlots";
@@ -36,6 +37,8 @@ export default function AdminNewBookingTab({
   const [patientId, setPatientId] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [therapistId, setTherapistId] = useState("");
+  // Bumped after a booking so the picker re-reads which hours are still free.
+  const [slotsVersion, setSlotsVersion] = useState(0);
   // Both of these resolve **after mount**, never during render, and that is
   // load-bearing rather than tidy.
   //
@@ -81,7 +84,11 @@ export default function AdminNewBookingTab({
   // picker's rule. Book a session used to offer a Sunday nobody works.
   const { isOpen: isSlotOpen, checked: openHoursChecked, loading: openHoursLoading } = useOpenSlots(
     nowMs,
-    categoryId || null
+    categoryId || null,
+    // AdminSlotPicker draws the clinic's hours. With a physiotherapist chosen
+    // the calendar offers only the hours THEY are free (their own hours, their
+    // leave and their other sessions), so a clash is not found on submit.
+    { gridTimeZone: CLINIC_TIMEZONE, therapistId: therapistId || null, reloadKey: slotsVersion }
   );
   const [appliedOpenHours, setAppliedOpenHours] = useState<SlotOpenCheck>(null);
   if (isSlotOpen !== appliedOpenHours) {
@@ -157,6 +164,7 @@ export default function AdminNewBookingTab({
       setOverrideLeadTime(false);
       setNotes("");
       setSlot(earliestSlot(Date.now(), leadTimeMsFromHours(leadTimeHours)));
+      setSlotsVersion((n) => n + 1);
       router.refresh();
     });
   }
@@ -365,7 +373,7 @@ export default function AdminNewBookingTab({
             disabled={isPending}
             className="rounded-xl bg-teal-700 px-5 py-2.5 text-xs font-semibold text-white transition hover:bg-teal-800 disabled:opacity-60"
           >
-            {isPending ? "Booking…" : "Create booking"}
+            {isPending ? "Booking and sending the invite…" : "Create booking"}
           </button>
           <p className="text-[11px] text-slate-500">
             Home visits need an address and a serviceable pincode - book those from the

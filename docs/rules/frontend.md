@@ -837,3 +837,23 @@ is invisible to any tooling here.
 - **A long value in a two-column summary wraps inside its box.** The label
   `shrink-0`, the value `min-w-0 [overflow-wrap:anywhere]`; an email goes on
   its own line under its label on a phone, breakable after the "@".
+
+## Things the tester found that are easy to undo
+
+- **Never hold a copy of a row in `useState` for a pop-up.** Keep the id and look
+  the row up in the props (`ProfileSessionList`, `AdminCalendarTab`): a refresh
+  replaces props, not state, so a copied row showed the old price and history.
+- **The "Live updates paused" banner waits `DEGRADED_AFTER_MS` (12 s)** before
+  drawing; the realtime client drops and rejoins by itself and a flash is not an
+  outage (`RealtimeRefresh.tsx`).
+- **The admin Exit bar must exist on cached public pages too.** The marker cookie
+  is httpOnly, so `/book` and `/book-home-visit` mount `ImpersonationExitIsland`,
+  which asks `/api/impersonation/status`.
+- A booking that takes no payment (free, pay later) never says "Razorpay" or
+  "Opening secure payment"; until the quote arrives the neutral wording shows.
+- The slot picker shows each hour in the visitor's zone with its IST equivalent;
+  the confirmation names IST. "Owed longest" counts clinic calendar days.
+- `RealtimeRefresh` joins a channel afresh twice (4 s apart) if it has not come
+  back, and the banner's tooltip / console carry the status the server gave. A
+  session pop-up shows "Updating this session…" while any refresh is in flight
+  (`usePendingWork`); the wait itself is the server's distance from the database.

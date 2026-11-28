@@ -41,7 +41,12 @@ export default function JoinSessionButton({
   alwaysActive = false,
   size = "default",
   heroDetail,
+  paymentHold = false,
 }: {
+  /** Unpaid, paid up front: the link stays shut until it is paid
+   *  (joinHeldForPayment, sessionPatientActions.ts). The page also leaves
+   *  the link out of what it sends, so this is the words, not the lock. */
+  paymentHold?: boolean;
   /** `large`: the patient's session card - a 48px button with 16px text.
    *  `hero`: the patient Home headline - one full-width 56px teal "Join your
    *  video call" while the window is open, and before it "Your join button
@@ -191,6 +196,21 @@ export default function JoinSessionButton({
   // 5:45 PM" answers "when do I get my link?" without arithmetic.
   const opensAt =
     slotTimeMs === null ? null : formatClinicTime(new Date(slotTimeMs - beforeMs));
+
+  if (paymentHold && (status === "requested" || status === "confirmed") && !isPastCutoff) {
+    return (
+      <span
+        role="status"
+        data-testid="join-held-for-payment"
+        className={`inline-flex items-center gap-1.5 rounded-lg bg-amber-50 px-2.5 py-1.5 font-semibold text-amber-900 ${
+          size === "hero" ? "w-full justify-center rounded-xl px-4 py-3 text-base" : size === "large" ? "text-sm" : "text-[13px]"
+        }`}
+      >
+        <i className="fa-solid fa-lock text-[13px]" aria-hidden="true" />
+        Pay for this session to unlock the video link.
+      </span>
+    );
+  }
 
   if (size === "hero") {
     const upcomingSession = (status === "requested" || status === "confirmed") && !isPastCutoff;

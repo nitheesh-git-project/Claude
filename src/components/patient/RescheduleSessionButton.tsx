@@ -32,10 +32,17 @@ export default function RescheduleSessionButton({
   appointmentId,
   categoryId,
   leadTimeHours,
+  visitMode = "online",
+  rescue = false,
 }: {
   appointmentId: string;
   categoryId: string | null;
   leadTimeHours: number;
+  /** A home visit's hours keep the travel time either side free. */
+  visitMode?: "online" | "home_visit";
+  /** Offered because nobody was confirmed in time: it does not count as the
+   *  patient's one move, and it is open for home visits too. */
+  rescue?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   // The clock is read when the picker opens, never during render, so the
@@ -51,6 +58,7 @@ export default function RescheduleSessionButton({
   // neighbours of -- the session is the one being moved.
   const { isOpen, checked, loading } = useOpenSlots(open ? nowMs : null, categoryId, {
     excludeAppointmentId: appointmentId,
+    visitMode,
   });
   useUnloadWarning(saving);
 
@@ -96,9 +104,14 @@ export default function RescheduleSessionButton({
       <button
         type="button"
         onClick={openPicker}
-        className="min-h-11 px-1 text-teal-700 hover:underline text-sm font-semibold"
+        data-testid={rescue ? "rescue-pick-new-time" : undefined}
+        className={
+          rescue
+            ? "min-h-11 rounded-lg bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800"
+            : "min-h-11 px-1 text-teal-700 hover:underline text-sm font-semibold"
+        }
       >
-        Change time
+        {rescue ? "Pick a new time" : "Reschedule"}
       </button>
     );
   }
@@ -107,8 +120,9 @@ export default function RescheduleSessionButton({
     <div className="w-full space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
       <p className="text-sm font-semibold text-slate-900">Pick a new time</p>
       <p className="text-sm text-slate-600">
-        You can move a session once. The clinic confirms the new time and who will see you, as it did for
-        your booking.
+        {rescue
+          ? "This doesn't count as your one change. The clinic confirms who will see you at the new time and lets you know."
+          : "You can move a session once. The clinic confirms the new time and who will see you, as it did for your booking."}
       </p>
       {nowMs !== null && (
         <BookingCalendar

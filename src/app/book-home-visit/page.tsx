@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import HomeVisitOnly, { HomeVisitUnavailable } from "@/components/pricing/HomeVisitOnly";
+import ImpersonationExitIsland from "@/components/system/ImpersonationExitIsland";
 import BookingExitLink from "@/components/booking/BookingExitLink";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
@@ -109,6 +110,8 @@ export default async function BookHomeVisitPage({
   const cashEnabled = settingsRow?.home_visit_cash_enabled !== false;
 
   return (
+    <>
+      <ImpersonationExitIsland />
     <section className="min-h-screen bg-gradient-to-b from-teal-50/50 to-slate-100 px-4 py-12 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-2xl">
         <HomeVisitOnly fallback={<HomeVisitUnavailable />}>
@@ -143,5 +146,6 @@ export default async function BookHomeVisitPage({
         <BookingExitLink signedOutHref="/home-visit" signedOutLabel="Back to Home Visit" />
       </div>
     </section>
+    </>
   );
 }

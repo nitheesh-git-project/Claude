@@ -43,7 +43,48 @@ async function open(page: Page, path: string) {
   await answerCookieConsent(page);
   const res = await page.goto(`${BASE}${path}`);
   await waitForSplashToClear(page);
+  await settle(page);
   return res;
+}
+
+/**
+ * Scan the page as a visitor reads it, not mid-entrance. /book holds its
+ * times back until the open hours arrive and then fades them in (0.22 s);
+ * a scan that landed inside that fade read the half-transparent chips as a
+ * contrast failure. Wait for the "Checking available times" state to clear,
+ * then for every finite animation on the page to finish -- the infinite
+ * ones (the hero's scroll cue) are left running.
+ */
+async function settle(page: Page) {
+  await page
+    .getByTestId("booking-hours-checking")
+    .waitFor({ state: "hidden", timeout: 15_000 })
+    .catch(() => {});
+  await page.evaluate(async () => {
+    const finite = document
+      .getAnimations()
+      .filter((a) => Number.isFinite(Number(a.effect?.getComputedTiming().endTime)));
+    await Promise.race([
+      Promise.all(finite.map((a) => a.finished.catch(() => undefined))),
+      new Promise((resolve) => setTimeout(resolve, 3_000)),
+    ]);
+  });
+  // motion may drive the fade on the main thread rather than as a Web
+  // Animation, which getAnimations() does not see: wait for the times
+  // themselves to be fully opaque too.
+  await page
+    .waitForFunction(
+      () => {
+        const label = document.getElementById("booking-time-label");
+        for (let el: Element | null = label; el; el = el.parentElement) {
+          if (Number(getComputedStyle(el).opacity) < 1) return false;
+        }
+        return true;
+      },
+      undefined,
+      { timeout: 5_000 }
+    )
+    .catch(() => {});
 }
 
 test.describe("A11Y-001 axe finds no WCAG 2.2 AA violation", () => {

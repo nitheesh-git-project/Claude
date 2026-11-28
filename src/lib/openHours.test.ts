@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { openSlotPredicate, openSlotStarts, addDaysToKey, type RosterTherapist } from "./openHours";
+import { openSlotPredicate, openSlotStarts, openStartsAmong, zoneHourStarts, addDaysToKey, type RosterTherapist } from "./openHours";
 import { zonedSlotMs, CLINIC_TIMEZONE } from "./bookingSlots";
 import { assignabilityFromRoster } from "./therapistAssignability";
 import { AVAILABILITY_HOURS } from "./therapistAvailability";
@@ -175,5 +175,56 @@ describe("openSlotStarts with a home-visit buffer and a session being moved", ()
     // ...while the buffer closes the hours either side of another visit.
     expect(fast).not.toContain(Date.parse("2026-12-02T07:30:00.000Z"));
     expect(fast).not.toContain(Date.parse("2026-12-02T09:30:00.000Z"));
+  });
+});
+
+describe("open hours on the picker's own clock (openStartsAmong, zoneHourStarts)", () => {
+  // 2026-11-27, 10:30 IST = 05:00 UTC: a whole hour in UTC, the half hour
+  // in the clinic. Every whole hour of a browser in UTC, the Gulf, Europe or
+  // the Americas falls on a clinic half hour.
+  const utc = (iso: string) => Date.parse(iso);
+
+  it("judges a start in the clinic hour it falls in", () => {
+    const open = openStartsAmong({
+      starts: [utc("2026-11-27T05:00:00Z"), utc("2026-11-27T02:00:00Z"), utc("2026-11-27T11:00:00Z")],
+      therapists: [pooja],
+      durationMinutes: 45,
+      nowMs: NOW,
+    });
+    // 10:30 IST is inside 10:00-11:00, which she works; 07:30 and 16:30 IST
+    // are hours she does not (16:00 is her last start, 16:30 sits in 16:00 --
+    // worked -- so it IS open), 07:30 is not.
+    expect(open).toContain(utc("2026-11-27T05:00:00Z"));
+    expect(open).not.toContain(utc("2026-11-27T02:00:00Z"));
+    expect(open).toContain(utc("2026-11-27T11:00:00Z"));
+  });
+
+  it("closes a half-hour start that overlaps a booking", () => {
+    const booked = { ...pooja, bookings: [{ id: "a1", slot_time: new Date(at("2026-11-27", 11)).toISOString(), duration_minutes: 60, status: "confirmed" }] };
+    const open = openStartsAmong({ starts: [utc("2026-11-27T05:00:00Z")], therapists: [booked], durationMinutes: 45, nowMs: NOW });
+    // 10:30-11:15 IST runs into the 11:00 booking.
+    expect(open).toEqual([]);
+  });
+
+  it("a UTC browser's grid finds the therapist's hours -- the calendar no longer greys out", () => {
+    const starts = zoneHourStarts("2026-11-27", 1, "UTC");
+    const open = openStartsAmong({ starts, therapists: [pooja], durationMinutes: 45, nowMs: NOW });
+    // She works 09:00-16:59 IST = 03:30-11:29 UTC; a UTC picker offers its
+    // own 06:00-23:00, so 06:00..11:00 UTC are open and 12:00 is not.
+    expect(open.length).toBeGreaterThan(0);
+    expect(open).toContain(utc("2026-11-27T06:00:00Z"));
+    expect(open).toContain(utc("2026-11-27T11:00:00Z"));
+    expect(open).not.toContain(utc("2026-11-27T12:00:00Z"));
+  });
+
+  it("on the clinic's own grid it agrees with openSlotStarts", () => {
+    const grid = openSlotStarts({ fromDateKey: "2026-11-27", days: 3, therapists: [pooja], durationMinutes: 60, nowMs: NOW });
+    const among = openStartsAmong({
+      starts: zoneHourStarts("2026-11-27", 3, CLINIC_TIMEZONE),
+      therapists: [pooja],
+      durationMinutes: 60,
+      nowMs: NOW,
+    }).filter((ms) => ms >= at("2026-11-27", 0) && ms < at("2026-11-30", 0));
+    expect(among).toEqual(grid);
   });
 });

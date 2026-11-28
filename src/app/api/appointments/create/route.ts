@@ -248,6 +248,9 @@ export async function POST(request: NextRequest) {
       days: 1,
       durationMinutes,
       nowMs: Date.now(),
+      // The chosen instant itself, wherever on the hour the patient's own
+      // clock put it (openStartsAmong).
+      starts: [slotMs],
     });
     if (open !== null && !open.includes(slotMs)) {
       return NextResponse.json(

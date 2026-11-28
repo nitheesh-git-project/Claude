@@ -1,5 +1,6 @@
 "use client";
 
+import { describeSessionPayment } from "@/lib/sessionPaymentState";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import RefundChip from "@/components/admin/RefundChip";
 import { describeRefund } from "@/lib/refundState";
@@ -22,7 +23,7 @@ import { sessionListPricePaise } from "@/lib/sessionListPrice";
 import DateField from "@/components/system/DateField";
 import { rowActivationProps } from "@/lib/rowActivation";
 import { formatRupees } from "@/lib/formatMoney";
-import { awaitsPatientPayment, awaitsPayLaterApproval, needsConfirming, needsTherapist, type ProgrammePick } from "@/lib/sessionAssignQueue";
+import { awaitsPatientPayment, awaitsPayLaterApproval, missedNeedsFollowUp, needsConfirming, needsTherapist, type ProgrammePick } from "@/lib/sessionAssignQueue";
 import { programmeQueryMatches, type ProgrammeTag } from "@/lib/programmeId";
 import ProgrammeIdChip from "@/components/dashboard/ProgrammeIdChip";
 import TapToAssignChip from "@/components/admin/TapToAssignChip";
@@ -239,6 +240,7 @@ export default function AdminAllSessionsTab({
       } else if (viewParam.startsWith("programme:")) setSearchText(viewParam.slice("programme:".length));
       else if (viewParam === "unassigned") setStatusFilter("unassigned");
       else if (viewParam === "awaiting_payment") setStatusFilter("awaiting_payment");
+      else if (viewParam === "missed_unassigned") setStatusFilter("missed_unassigned");
       else if (viewParam === "needs_confirming") setStatusFilter("needs_confirming");
       else if (viewParam === "pay_later_approval") setStatusFilter("pay_later_approval");
       else if (viewParam === "cancelled") setStatusFilter("cancelled");
@@ -363,6 +365,7 @@ export default function AdminAllSessionsTab({
         if (statusFilter === "unassigned") {
           return needsTherapist(a, homeVisitMap.has(a.id));
         }
+        if (statusFilter === "missed_unassigned") return missedNeedsFollowUp(a, homeVisitMap.has(a.id));
         if (statusFilter === "awaiting_payment") {
           return awaitsPatientPayment(a, homeVisitMap.has(a.id));
         }
@@ -549,7 +552,7 @@ export default function AdminAllSessionsTab({
     // amount always was, and is empty for a desk that cannot read it.
     ...moneyColumns,
     { header: "Status", value: (r) => (r.a.no_show ? "no-show" : r.a.status) },
-    { header: "Payment", value: (r) => r.a.payment_status },
+    { header: "Payment", value: (r) => describeSessionPayment(r.a).label },
     { header: "Patient rating", value: (r) => r.a.patient_rating ?? "" },
     { header: "Therapist rating", value: (r) => r.a.therapist_rating ?? "" },
   ];
@@ -698,6 +701,7 @@ export default function AdminAllSessionsTab({
           >
             <option value="all">Any status</option>
             <option value="unassigned">Needs a therapist</option>
+            <option value="missed_unassigned">Missed: no therapist</option>
             <option value="awaiting_payment">Waiting on payment</option>
             <option value="needs_confirming">Assigned, not confirmed</option>
             <option value="pay_later_approval">Pay later to approve</option>
@@ -799,6 +803,11 @@ export default function AdminAllSessionsTab({
                       Tap to assign
                     </span>
                   )}
+                  {missedNeedsFollowUp(a, homeVisitMap.has(a.id)) && (
+                    <span className="ml-1.5 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-800">
+                      Missed - refund or move
+                    </span>
+                  )}
                   {awaitsPatientPayment(a, homeVisitMap.has(a.id)) && (
                     <span className="ml-1.5 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
                       Awaiting payment
@@ -832,12 +841,19 @@ export default function AdminAllSessionsTab({
                     ₹{formatRupees(price)}
                     {a.payment_status !== "paid" && <span className="font-normal text-slate-500"> (est.)</span>}
                   </span>
-                  <span
-                    className={`capitalize font-semibold px-2 py-0.5 rounded-full ${
-                      a.payment_status === "paid" ? "text-green-700 bg-green-50" : "text-slate-600 bg-slate-100"
-                    }`}
-                  >
-                    {a.payment_status}
+                  {/* The shared reading (sessionPaymentState.ts), not the raw
+                      column: "unpaid" on a delivered pay-later session the
+                      patient sees as Owed was two words for one debt. */}
+                  <span className={`font-semibold px-2 py-0.5 rounded-full ${
+                      describeSessionPayment(a).tone === "good"
+                        ? "text-green-700 bg-green-50"
+                        : describeSessionPayment(a).tone === "warn"
+                          ? "text-amber-800 bg-amber-50"
+                          : describeSessionPayment(a).tone === "bad"
+                            ? "text-red-700 bg-red-50"
+                            : "text-slate-600 bg-slate-100"
+                    }`}>
+                    {describeSessionPayment(a).label}
                   </span>
                   {canSeeMoney && <RefundChip row={a} className="flex w-fit text-[10px]" />}
                   {programmeTags[a.id] && <ProgrammeIdChip tag={programmeTags[a.id]} size="xs" />}
@@ -929,6 +945,12 @@ export default function AdminAllSessionsTab({
                       // nobody has ever been assigned to.
                       <TapToAssignChip pick={programmePicks[a.id]} />
                     )}
+                    {missedNeedsFollowUp(a, homeVisitMap.has(a.id)) && (
+                      // Its time passed with nobody on it: not an assign.
+                      <span className="ml-1.5 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-800">
+                        Missed - refund or move
+                      </span>
+                    )}
                     {awaitsPatientPayment(a, homeVisitMap.has(a.id)) && (
                       // Not work yet: it assigns itself once paid.
                       <span className="ml-1.5 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
@@ -966,14 +988,16 @@ export default function AdminAllSessionsTab({
                     </span>
                   </td>
                   <td className="py-2 pr-3">
-                    <span
-                      className={`capitalize font-semibold px-2 py-1 rounded-full ${
-                        a.payment_status === "paid"
-                          ? "text-green-700 bg-green-50"
-                          : "text-slate-600 bg-slate-100"
-                      }`}
-                    >
-                      {a.payment_status}
+                    <span className={`font-semibold px-2 py-1 rounded-full ${
+                      describeSessionPayment(a).tone === "good"
+                        ? "text-green-700 bg-green-50"
+                        : describeSessionPayment(a).tone === "warn"
+                          ? "text-amber-800 bg-amber-50"
+                          : describeSessionPayment(a).tone === "bad"
+                            ? "text-red-700 bg-red-50"
+                            : "text-slate-600 bg-slate-100"
+                    }`}>
+                      {describeSessionPayment(a).label}
                     </span>
                     {/* Under the payment rather than beside it: this column
                         is already narrow, and a refund is a second fact

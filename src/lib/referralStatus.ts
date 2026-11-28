@@ -13,6 +13,13 @@ export const REFERRAL_STATUS_LABELS: Record<string, string> = {
   withdrawn: "Withdrawn",
 };
 
+/** The partner's word for a status: the same as the filter chips on their
+ *  Referrals screen. The clinic says "Pending Review"; a partner sees "Waiting
+ *  on the clinic", and the badge used to disagree with the chip beside it. */
+export function partnerReferralStatusLabel(status: string): string {
+  return status === "pending_review" ? "Waiting on the clinic" : formatReferralStatus(status);
+}
+
 export function formatReferralStatus(status: string) {
   return REFERRAL_STATUS_LABELS[status] ?? status;
 }

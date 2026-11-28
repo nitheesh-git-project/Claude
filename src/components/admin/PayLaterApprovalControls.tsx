@@ -1,5 +1,6 @@
 "use client";
 
+import { useToast } from "@/lib/toast";
 import { useState } from "react";
 import { useRouter } from "@/lib/useRouter";
 import { useUnloadWarning } from "@/lib/useUnloadWarning";
@@ -31,6 +32,7 @@ export default function PayLaterApprovalControls({
   const [busy, setBusy] = useState<"approve" | "decline" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const { show } = useToast();
   const { showIfUnavailable, dialog: unavailableDialog } = useTherapistUnavailable();
   useUnloadWarning(busy !== null);
 
@@ -45,6 +47,13 @@ export default function PayLaterApprovalControls({
     });
     setBusy(null);
     if (res.ok) {
+      show(
+        decision === "approve"
+          ? therapistId
+            ? `Approved. ${therapistName ?? "The therapist"} is confirmed and the patient has been told.`
+            : "Approved. It can be confirmed once a therapist is assigned."
+          : "Declined. The patient has been emailed the reason."
+      );
       router.refresh();
       return;
     }

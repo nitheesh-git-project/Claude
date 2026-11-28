@@ -400,3 +400,20 @@ Availability as periods over hour rows, specialisation as a value, what readines
   exists, so an established clinic keeps its current value until an admin
   toggles it, or until a reset restores defaults. Applying a schema file must
   not turn a live feature on by itself.
+- **A paged roster read orders by a unique key.** The admin dashboard reads
+  every schedule exception in pages of 1,000; ordered by `therapist_id`
+  alone, the rows of one therapist tie, PostgREST may return them in a
+  different order per page, and the range read skipped some and repeated
+  others -- an exception that was saved (and logged) went missing from
+  Upcoming exceptions and from the roster. It orders by `id`. Any
+  `readAllRows*` read needs a unique final order for the same reason.
+
+
+## Completing a session: the clock binds everyone
+
+`complete-session` refuses Done before the slot starts (and No-Show before the
+late-arrival grace) **for an admin too**; only the payment and note/exam checks
+are the therapist's own. Admin Done / No-Show buttons render only once the
+session has started. An early Done made Therapist Home read "1 of 1 done"
+with a 6 PM session still ahead. A payout request only shows as open while the
+therapist is actually owed something.

@@ -34,6 +34,7 @@ import { validateBookingFor, splitBookingNotes } from "@/lib/bookingFor";
 import { initialLanguage } from "@/lib/bookingStepOne";
 import { DEFAULT_BOOKING_CONFIRMATION_HOURS, requestedTimeNotice, hoursPhrase } from "@/lib/clinicPromises";
 import { formatSessionWhen } from "@/lib/sessionWhenLabel";
+import { describeSlotForVisitor, slotInZones } from "@/lib/slotZones";
 import BookingStepOne from "@/components/booking/BookingStepOne";
 import {
   BOOKING_LEAD_TIME_HOURS,
@@ -260,6 +261,42 @@ export default function BookingWizard({
   // is not a completed payment, and a screen that reads as one would be
   // telling somebody they did something they did not do.
   const [paidLater, setPaidLater] = useState(false);
+  // The browser's Back button walks the wizard's steps instead of leaving the
+  // page: Back from step 2 used to leave /book and lose the chosen slot and the
+  // typed details. Moving forward adds a history entry; Back (or Forward)
+  // shows that entry's step with the answers still in memory. Not while a
+  // payment is being taken, and not once the booking is done.
+  const stepSeenRef = useRef(1);
+  const popBlockedRef = useRef(false);
+  const poppedRef = useRef(false);
+  useEffect(() => {
+    if (stepSeenRef.current !== step) {
+      if (step > stepSeenRef.current && !poppedRef.current) {
+        try {
+          window.history.pushState({ bookingStep: step }, "");
+        } catch {
+          // History unavailable: Back simply leaves, as it always did.
+        }
+      }
+      stepSeenRef.current = step;
+      poppedRef.current = false;
+    }
+  }, [step]);
+  useEffect(() => {
+    popBlockedRef.current = done || loading;
+  }, [done, loading]);
+  useEffect(() => {
+    const onPop = (e: PopStateEvent) => {
+      if (popBlockedRef.current) return;
+      const target = typeof e.state?.bookingStep === "number" ? e.state.bookingStep : 1;
+      if (target === stepSeenRef.current) return;
+      poppedRef.current = true;
+      setStep(target);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
   // The clinic approves each pay-later booking before confirming it.
   const [awaitingPayLaterApproval, setAwaitingPayLaterApproval] = useState(false);
   // What the pay-later confirmation actually wrote. Kept because this is the
@@ -1261,7 +1298,7 @@ export default function BookingWizard({
           replacedDraftRef.current = booking.id;
           setResumeNotice(
             `The time you picked${
-              booking.slotTime ? ` (${formatClinicDateTime(booking.slotTime)})` : ""
+              booking.slotTime ? ` (${describeSlotForVisitor(booking.slotTime, timezone)})` : ""
             } isn't available any more. Pick a new time - everything else is kept.`
           );
           setStep(1);
@@ -1532,7 +1569,10 @@ export default function BookingWizard({
     // the clinic confirms it, and the screen says so.
     const bookedStartIso = resumedSlotIso ?? (slotDateTime ? new Date(slotDateTime).toISOString() : null);
     const bookedMinutes = selectedCategory?.duration_minutes ?? 60;
-    const bookedWhen = bookedStartIso ? formatSessionWhen(bookedStartIso, bookedMinutes) : null;
+    // "Wed 28 Oct, 6-7 pm IST, with a physiotherapist": the zone sits right after the
+    // time. Appending it to the whole line read "...with a physiotherapist IST".
+    const bookedWhen = bookedStartIso ? `${formatSessionWhen(bookedStartIso, bookedMinutes, "")} IST, with a physiotherapist` : null;
+    const bookedYours = bookedStartIso ? slotInZones(bookedStartIso, timezone).yours : null;
     return (
       <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200">
         {header}
@@ -1552,6 +1592,13 @@ export default function BookingWizard({
           {bookedWhen && (
             <p data-testid="booked-when" className="mt-3 text-lg font-bold text-teal-800">
               {bookedWhen}
+            </p>
+          )}
+          {/* The picker was on the visitor's own clock; the line above is the
+              clinic's. Same instant -- said, when they differ. */}
+          {bookedYours && (
+            <p data-testid="booked-when-yours" className="mt-1 text-base font-semibold text-slate-700">
+              {`That's ${bookedYours} where you are.`}
             </p>
           )}
           <p className="text-base text-slate-700 mt-2 leading-relaxed">
@@ -1645,7 +1692,7 @@ export default function BookingWizard({
     // can stick to the bottom of the screen rather than to this card.
     <div ref={wizardRootRef} className="relative bg-white rounded-3xl shadow-xl overflow-clip border border-slate-200">
       {loading && payStage && step === 3 && (
-        <CheckoutProgress stage={payStage} includeAccount={payIncludesAccount} />
+        <CheckoutProgress stage={payStage} includeAccount={payIncludesAccount} takesPayment={quote?.settlement !== "free" && quote?.settlement !== "pay_later"} />
       )}
       {header}
       {/* p-5 on phones rather than a flat p-8: Step 1's calendar is a
@@ -2031,9 +2078,7 @@ export default function BookingWizard({
                 Time you asked for
               </span>
               <span className="font-bold text-slate-900 text-right text-base min-w-0 [overflow-wrap:anywhere]">
-                {resumedSlotIso
-                  ? formatClinicDateTime(resumedSlotIso)
-                  : slotDateTime && formatClinicDateTime(slotDateTime)}
+                {describeSlotForVisitor(resumedSlotIso ?? slotDateTime ?? null, timezone)}
               </span>
             </div>
             <div className="flex justify-between gap-3 text-sm">
@@ -2137,7 +2182,11 @@ export default function BookingWizard({
               ? "Nothing to pay - your discount covers this session in full. Your slot is held once you confirm."
               : quote?.settlement === "pay_later"
                 ? "Nothing to pay now. Your slot is held once you confirm, and this session is added to what you owe after it has happened."
-                : "Secure payment via Razorpay. Your slot is held once payment is confirmed."}
+                : quote?.settlement === "gateway"
+                  ? "Secure payment via Razorpay. Your slot is held once payment is confirmed."
+                  : // Not yet quoted: say nothing about Razorpay. A patient on pay-later
+                    // terms read it here for as long as the quote took.
+                    "Your slot is held once your booking is confirmed."}
           </p>
           {/* What cancelling costs, and it is a different sentence for a
               patient on terms -- they are paying nothing now, so a refund

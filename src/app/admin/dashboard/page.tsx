@@ -65,6 +65,7 @@ import {
   confirmationIsOverdue,
   needsConfirming,
   needsTherapist,
+  missedNeedsFollowUp,
   programmeTherapistFor,
   type ProgrammeLocks,
   type ProgrammePick,
@@ -258,6 +259,9 @@ import { readReferralAttributionHealth } from "@/lib/referralAttribution";
 import { readRefundHealth } from "@/lib/refundHealthServer";
 import { readStorageReconciliation } from "@/lib/storageReconciliation";
 import { countAwaitingFirstBooking } from "@/lib/unscheduledPurchases";
+import { readUnassignedRescueHours } from "@/lib/rescueHoursServer";
+import { readForgivenPaise } from "@/lib/payLaterForgivenServer";
+import { referralIsAssignable, referralNotAssignableMessage } from "@/lib/referralAssignable";
 import {
   readHomeVisitAreaCommitments,
   readHomeVisitCommitmentTotal,
@@ -328,6 +332,8 @@ export default async function AdminDashboardPage({
 
   const supabase = await createClient();
   const admin = createAdminClient();
+  // Isolated (rescueHoursServer): a database without the column keeps 4.
+  const unassignedRescueHoursRead = readUnassignedRescueHours(admin);
   // People deleted with their records kept, for the "Deleted user" tag on the
   // People lists. Started now, awaited where the lists are built.
   const accountDeletionsRead = readAccountDeletions(admin);
@@ -737,7 +743,12 @@ export default async function AdminDashboardPage({
       admin
         .from("therapist_availability_override")
         .select("therapist_id, date, hour, available, note")
-        .order("therapist_id", { ascending: true })
+        // A unique order, or the pages are not a partition: therapist_id
+        // alone ties on every row of one therapist, PostgREST may return
+        // those in any order per page, and a range read then skips some rows
+        // and repeats others. An exception that was saved (and logged) went
+        // missing from Upcoming exceptions and from the roster this way.
+        .order("id", { ascending: true })
     ),
 
     // The version each therapist's schedule is at, so an editor opened on
@@ -1957,6 +1968,9 @@ export default async function AdminDashboardPage({
   const pendingPayLaterApprovals = await pendingPayLaterApprovalsRead;
   const payLaterApprovalRequired = await payLaterApprovalRequiredRead;
   const referralFacts = await referralFactsRead;
+  // Paise forgiven on pay-later sessions that closed under a rupee short, in
+  // their own read (the column is the newest on the table).
+  const forgivenPaiseById = await readForgivenPaise(admin);
   const appointmentsWithSessionCode = mergeMeetLinks(
     mergeSessionCodes(
       appointments ?? [],
@@ -2010,7 +2024,7 @@ export default async function AdminDashboardPage({
           refund_id: refund.refund_id,
         }
       : withApproval;
-    return discount
+    const withDiscount = discount
       ? {
           ...withRefund,
           list_price_paise: discount.listPricePaise,
@@ -2019,6 +2033,9 @@ export default async function AdminDashboardPage({
           discount_reason: discount.reason,
         }
       : withRefund;
+    // Paise forgiven when this pay-later session closed under a rupee short.
+    const forgiven = forgivenPaiseById.get(a.id);
+    return forgiven ? { ...withDiscount, pay_later_forgiven_paise: forgiven } : withDiscount;
   });
 
   const settlementsForMoneyIn = await settlementsForMoneyInRead;
@@ -2964,6 +2981,12 @@ export default async function AdminDashboardPage({
                         <CopyInviteLinkButton inviteToken={r.invite_token} />
                       )}
                     </div>
+                  ) : canManagePeople && !referralIsAssignable(r.status) ? (
+                    // Declined (or past the invite): nothing to assign, and
+                    // no form that the route would only refuse.
+                    <p className="text-slate-500" data-testid="referral-not-assignable">
+                      {referralNotAssignableMessage(r.status)}
+                    </p>
                   ) : canManagePeople ? (
                     <div className="space-y-2">
                       <div className="flex items-center gap-3 flex-wrap">
@@ -3611,9 +3634,15 @@ export default async function AdminDashboardPage({
       />
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mt-8">
-        <h2 className="font-display font-bold text-lg text-slate-800 mb-4">
+        <h2 className="font-display font-bold text-lg text-slate-800">
           Category Performance
         </h2>
+        {/* The date range above filters the tables above it; this card counts
+            every booking ever made, and said nothing about it -- it read as a
+            filter that did not work. */}
+        <p className="text-[11px] text-slate-500 mb-4" data-testid="category-performance-scope">
+          All time. This card does not follow the date range above.
+        </p>
         {!treatmentCategories || treatmentCategories.length === 0 ? (
           <p className="text-xs text-slate-500 py-4 text-center">
             No categories yet - add one in Site Content to start tracking bookings.
@@ -4320,11 +4349,13 @@ export default async function AdminDashboardPage({
   // the discount that decides what every new patient pays, so the other two
   // groups are their own screens now (Offers & Discounts, Programmes & Home
   // Visits) and each one says what it is in the header.
+  const unassignedRescueHours = await unassignedRescueHoursRead;
   const settingsBookingTab = (
     <AdminFeatureControlTab
       settings={adminSettings}
       adminEmail={adminProfile?.email ?? user.email ?? ""}
       view="booking"
+      unassignedRescueHours={unassignedRescueHours}
     />
   );
 
@@ -5308,14 +5339,28 @@ export default async function AdminDashboardPage({
   // the admin's to staff -- it assigns itself once paid, when the roster has
   // one clear answer (src/lib/sessionAssignQueue.ts).
   const homeVisitIds = new Set(homeVisitRows.map((v) => v.id));
+  const queueNowMsEarly = nowTimestamp();
   const unassignedToday = sessionsToday.filter((a) =>
-    needsTherapist(a, homeVisitIds.has(a.id))
+    needsTherapist(a, homeVisitIds.has(a.id), queueNowMsEarly)
   ).length;
   const unassignedTotal = appointmentsWithSessionCode.filter((a) =>
-    needsTherapist(a, homeVisitIds.has(a.id))
+    needsTherapist(a, homeVisitIds.has(a.id), queueNowMsEarly)
+  ).length;
+  // Its time came with nobody on it: a follow-up (refund or a new time),
+  // never "assign a therapist" (sessionPatientActions.ts).
+  const missedUnassignedTotal = appointmentsWithSessionCode.filter((a) =>
+    missedNeedsFollowUp(a, homeVisitIds.has(a.id), queueNowMsEarly)
+  ).length;
+  // Starts within the rescue window and still nobody on it: the patient is
+  // already being offered a refund or a new time.
+  const unassignedAtRiskTotal = appointmentsWithSessionCode.filter(
+    (a) =>
+      needsTherapist(a, homeVisitIds.has(a.id), queueNowMsEarly) &&
+      !!a.slot_time &&
+      Date.parse(a.slot_time) - queueNowMsEarly < unassignedRescueHours * 3_600_000
   ).length;
   const awaitingPaymentTotal = appointmentsWithSessionCode.filter((a) =>
-    awaitsPatientPayment(a, homeVisitIds.has(a.id))
+    awaitsPatientPayment(a, homeVisitIds.has(a.id), queueNowMsEarly)
   ).length;
   // Assigned and committed but still `requested` (sessionAssignQueue.ts):
   // the rows that used to fall between "no therapist" and "waiting on
@@ -5438,8 +5483,20 @@ export default async function AdminDashboardPage({
           // Opens All Sessions already filtered to exactly these rows --
           // the count and the list it links to have to agree.
           view: "unassigned",
-          hint: "Booked and nobody is assigned to run them yet. Programme sessions have their therapist pre-picked - one tap to assign.",
-          urgent: unassignedToday > 0,
+          hint:
+            unassignedAtRiskTotal > 0
+              ? `${unassignedAtRiskTotal} start${unassignedAtRiskTotal === 1 ? "s" : ""} within ${unassignedRescueHours} hours - the patient is being offered a refund or a new time. Assign now to keep it.`
+              : "Booked and nobody is assigned to run them yet. Programme sessions have their therapist pre-picked - one tap to assign.",
+          urgent: unassignedToday > 0 || unassignedAtRiskTotal > 0,
+        },
+        {
+          label: "Missed: no therapist was assigned",
+          count: missedUnassignedTotal,
+          section: "sessions",
+          tab: "all",
+          view: "missed_unassigned",
+          hint: "Their time passed with nobody on them. The patient can take a refund or a new time; refund or move it here if they haven't.",
+          urgent: missedUnassignedTotal > 0,
         },
         {
           // Owner's decision: the clinic approves every pay-later booking.
@@ -5818,6 +5875,7 @@ export default async function AdminDashboardPage({
 
   const moneyAlerts = (
     <MoneyAlertsStrip
+      patientsOweTotalPaise={payLaterBalances.totalPaise}
       counts={{
         payoutRequestsOpen: payoutRequestsBadgeCount,
         cashToRemitVisits: cashOwedByTherapists,

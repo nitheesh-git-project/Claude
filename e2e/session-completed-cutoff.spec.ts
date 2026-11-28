@@ -44,6 +44,9 @@ async function seedSession(opts: { minutesOld: number; status?: string; meetLink
       therapist_id: therapistId,
       slot_time: minutesAgo(opts.minutesOld),
       status: opts.status ?? "confirmed",
+      // Paid: an unpaid prepaid session's link stays shut until it is paid
+      // (joinHeldForPayment), which is not what this spec is about.
+      payment_status: "paid",
       duration_minutes: 30,
       meet_link: opts.meetLink === undefined ? "https://meet.google.com/e2e-cutoff-test" : opts.meetLink,
       concern: MARKER,

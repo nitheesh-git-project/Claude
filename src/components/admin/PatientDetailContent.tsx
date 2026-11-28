@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { readForgivenPaise } from "@/lib/payLaterForgivenServer";
+import { readSessionDiscounts } from "@/lib/sessionDiscountsServer";
 import { CONDITION_SPECIALTIES } from "@/lib/conditionSpecialty";
 import AdminTypeChanger from "@/components/admin/AdminTypeChanger";
 import { loadConditionProfileCore, readEnabledSpecialties } from "@/lib/conditionProfileServer";
@@ -53,6 +55,7 @@ import {
   type PayoutAppointment,
 } from "@/lib/therapistPayouts";
 import { formatRupees } from "@/lib/formatMoney";
+import { SETTLEMENT_METHOD_LABELS, type SettlementMethod } from "@/lib/payLaterSettlement";
 import { frozenShareFacts, readFrozenTherapistRates } from "@/lib/frozenTherapistRatesServer";
 
 // A module-level helper rather than an inline `Date.now()` in the component
@@ -199,7 +202,7 @@ export default async function PatientDetailContent({ id }: { id: string }) {
     // newest on that table, and this select feeds the whole session list.
     admin
       .from("appointments")
-      .select("id, payment_terms, pay_later_outcome")
+      .select("id, payment_terms, pay_later_outcome, amount_due_paise")
       .eq("patient_id", id),
     // The grant itself, and the clinic-wide switch. Both in their own reads
     // for the same reason: newest columns, and a card that cannot say which
@@ -214,19 +217,46 @@ export default async function PatientDetailContent({ id }: { id: string }) {
 
   const payLaterFeatureEnabled = payLaterSettingRow?.pay_later_enabled === true;
   const payLaterById = new Map((payLaterRows ?? []).map((r) => [r.id, r]));
+  // The discount a session was quoted (goodwill, the first-session offer),
+  // so its price here is what the patient sees, not the service's full one.
+  const discountsById = await readSessionDiscounts(admin, { column: "patient_id", id });
+  // Paise forgiven where a pay-later session closed under a rupee short.
+  const forgivenById = await readForgivenPaise(admin, { column: "patient_id", id });
   const appointments = mergeMeetLinks(
     mergeSessionCodes(rawAppointments ?? [], sessionCodeLinks),
     meetLinkRows
   ).map((a) => {
     const terms = payLaterById.get(a.id);
-    return terms
-      ? {
-          ...a,
-          payment_terms: terms.payment_terms,
-          pay_later_outcome: terms.pay_later_outcome,
-        }
-      : a;
+    // One shape whether or not the pay-later columns came back (absent reads
+    // as an ordinary prepaid session, as it did before the columns).
+    return {
+      ...a,
+      ...(discountsById.get(a.id) ?? {}),
+      pay_later_forgiven_paise: forgivenById.get(a.id) ?? 0,
+      payment_terms: (terms?.payment_terms ?? null) as string | null,
+      pay_later_outcome: (terms?.pay_later_outcome ?? null) as string | null,
+      amount_due_paise: (terms?.amount_due_paise ?? null) as number | null,
+    };
   });
+
+  // Confirmed pay-later payments, in their own read (newest table). A
+  // payment that does not yet cover a whole session closes no session, so
+  // the history below -- built from paid sessions -- showed nothing at all
+  // for money the clinic had confirmed receiving.
+  const { data: payLaterPaymentRows } = await admin
+    .from("pay_later_payments")
+    .select("id, amount_paise, method, unallocated_paise, confirmed_at, declared_at")
+    .eq("patient_id", id)
+    .eq("status", "confirmed")
+    .order("confirmed_at", { ascending: false });
+  const payLaterPayments = (payLaterPaymentRows ?? []) as {
+    id: string;
+    amount_paise: number;
+    method: string;
+    unallocated_paise: number | null;
+    confirmed_at: string | null;
+    declared_at: string | null;
+  }[];
 
   const categoryIds = [
     ...new Set((appointments ?? []).map((a) => a.category_id).filter(Boolean)),
@@ -347,10 +377,27 @@ export default async function PatientDetailContent({ id }: { id: string }) {
       const bt = b.paid_at ? new Date(b.paid_at).getTime() : new Date(b.created_at).getTime();
       return bt - at;
     });
-  const totalPaidPaise = paidAppointments.reduce(
-    (sum, a) => sum + (a.amount_paid_paise ?? SESSION_FEE_PAISE),
-    0
-  );
+  // Money the clinic has confirmed receiving from this patient that has not
+  // yet closed a session (pay-later payments are applied to whole sessions).
+  // It is paid, so it counts: "Total Paid" read Rs 0 beside a confirmed
+  // Rs 1,059 because only sessions marked paid were summed.
+  const receivedNotAppliedPaise = payLaterPayments.reduce((sum, p) => sum + Math.max(0, p.unallocated_paise ?? 0), 0);
+  const totalPaidPaise =
+    paidAppointments.reduce((sum, a) => sum + (a.amount_paid_paise ?? SESSION_FEE_PAISE), 0) + receivedNotAppliedPaise;
+  // The delivered pay-later session this money is waiting to cover, oldest
+  // first (what allocate_pay_later_payment closes next).
+  const nextOpenPayLater = (appointments ?? [])
+    .filter(
+      (a) =>
+        a.payment_terms === "pay_later" &&
+        a.status === "completed" &&
+        a.payment_status !== "paid" &&
+        a.pay_later_outcome !== "written_off" &&
+        (a.amount_due_paise ?? 0) > 0
+    )
+    .sort((x, y) => Date.parse(x.slot_time ?? "") - Date.parse(y.slot_time ?? ""))[0];
+  const forgivenSessions = (appointments ?? []).filter((a) => (a.pay_later_forgiven_paise ?? 0) > 0);
+  const stillNeededPaise = nextOpenPayLater ? (nextOpenPayLater.amount_due_paise ?? 0) - receivedNotAppliedPaise : 0;
 
   // Profit only exists where the session's therapist has a revenue share
   // set - without it there's no way to know their cut, so those sessions
@@ -752,10 +799,47 @@ export default async function PatientDetailContent({ id }: { id: string }) {
           <h2 className="font-bold text-sm text-slate-800">Payment History</h2>
           <p className="text-xs text-slate-500">
             Total Paid: <strong className="text-teal-700">₹{formatRupees(totalPaidPaise)}</strong>
+            {receivedNotAppliedPaise > 0 && (
+              <span className="text-slate-500">{` (includes ₹${formatRupees(receivedNotAppliedPaise)} received, not yet applied)`}</span>
+            )}
           </p>
         </div>
+        {payLaterPayments.length > 0 && (
+          <div className="mb-3 rounded-xl bg-slate-50 p-3" data-testid="patient-pay-later-payments">
+            <p className="text-xs font-semibold text-slate-700">Pay-later payments received</p>
+            <ul className="mt-1.5 space-y-1 text-xs text-slate-600">
+              {payLaterPayments.map((p) => (
+                <li key={p.id}>
+                  <strong className="text-slate-800">₹{formatRupees(p.amount_paise)}</strong>
+                  {` by ${SETTLEMENT_METHOD_LABELS[p.method as SettlementMethod] ?? p.method}`}
+                  {p.confirmed_at ?? p.declared_at ? `, confirmed ${formatClinicDate((p.confirmed_at ?? p.declared_at) as string)}` : ""}
+                  {(p.unallocated_paise ?? 0) > 0
+                    ? ` - ₹${formatRupees(p.unallocated_paise ?? 0)} not yet covering a whole session`
+                    : ""}
+                </li>
+              ))}
+            </ul>
+            {receivedNotAppliedPaise > 0 && nextOpenPayLater && stillNeededPaise > 0 && (
+              <p className="mt-1.5 text-[11px] font-semibold text-amber-800" data-testid="patient-pay-later-shortfall">
+                {`₹${formatRupees(receivedNotAppliedPaise)} is received but not applied: ${nextOpenPayLater.session_code ?? "the next delivered session"} costs ₹${formatRupees(nextOpenPayLater.amount_due_paise ?? 0)}, so ₹${formatRupees(stillNeededPaise)} more is needed before it closes. A payment closes a whole session; less than ₹1 short is forgiven.`}
+              </p>
+            )}
+            {forgivenSessions.length > 0 && (
+              <p className="mt-1.5 text-[11px] text-slate-600" data-testid="patient-pay-later-forgiven">
+                {`Forgiven: ${forgivenSessions
+                  .map((a) => `₹${formatRupees(a.pay_later_forgiven_paise)} on ${a.session_code ?? "a session"}`)
+                  .join(", ")} - a payment under ₹1 short still closes a delivered pay-later session.`}
+              </p>
+            )}
+            <p className="mt-1.5 text-[11px] text-slate-500">
+              Sessions these paid for are listed below as Paid; money not yet covering a whole session waits for the next one.
+            </p>
+          </div>
+        )}
         {paidAppointments.length === 0 ? (
-          <p className="text-xs text-slate-500 py-4 text-center">No payments recorded yet.</p>
+          <p className="text-xs text-slate-500 py-4 text-center">
+            {payLaterPayments.length > 0 ? "No session fully paid yet." : "No payments recorded yet."}
+          </p>
         ) : (
           <ul className="space-y-3 text-xs">
             {paidAppointments.map((a) => {
@@ -776,7 +860,11 @@ export default async function PatientDetailContent({ id }: { id: string }) {
                     </span>
                   </div>
                   <p className="text-slate-500">
-                    Paid {a.paid_at ? formatClinicDateTime(a.paid_at) : "date unknown"}
+                    {a.paid_at
+                      ? `Paid ${formatClinicDateTime(a.paid_at)}`
+                      : a.package_purchase_id
+                        ? "Paid with the programme"
+                        : "Paid"}
                     {therapist && a.therapist_id && (
                       <>
                         {" "}

@@ -147,6 +147,11 @@ export default function SessionNoteDialog({
   const onExamStateChange = useCallback((state: SessionExamState) => setExam(state), []);
   const canRecommend = sessionCompleted || completeOnSave;
   const [isPending, startTransition] = useTransition();
+  // Which of the saves is running, so the button says so. A note, its
+  // summary, closing the session and the recommendation are separate calls
+  // made one after another, and a bare "Saving..." for all of them read as
+  // stuck.
+  const [stage, setStage] = useState<"note" | "summary" | "finish" | "plan" | null>(null);
   const router = useRouter();
   const dialogRef = useRef<HTMLDivElement>(null);
   const lastFocused = useRef<HTMLElement | null>(null);
@@ -165,7 +170,10 @@ export default function SessionNoteDialog({
   // A written note is not thrown away by a stray tap: Cancel, the cross, the
   // backdrop and Escape all ask first when anything differs from how the
   // dialog opened (prefilled words included - they are the starting point).
-  const [opened] = useState(() => JSON.stringify({ values, freeText, summaryValues }));
+  const [opened, setOpened] = useState(() => JSON.stringify({ values, freeText, summaryValues }));
+  // The note has reached the server (the save succeeded, a later step may not
+  // have). Closing then must not say "nothing is saved".
+  const [noteSaved, setNoteSaved] = useState(false);
   const dirty = !locked && (plan !== null || JSON.stringify({ values, freeText, summaryValues }) !== opened);
   const [confirmingDiscard, setConfirmingDiscard] = useState(false);
   function requestClose() {
@@ -257,6 +265,7 @@ export default function SessionNoteDialog({
     }
     setMissing(new Set());
     startTransition(async () => {
+      setStage("note");
       const res = await fetch("/api/therapist/session-notes/submit", {
         method: "POST",
         // The debug bar's clock, which the route's "has it started" gate
@@ -276,6 +285,9 @@ export default function SessionNoteDialog({
         showError(body.error ?? "Could not save the note. Please try again.");
         return;
       }
+      setNoteSaved(true);
+      // What is on screen is now what is saved, so only edits after this count.
+      setOpened(JSON.stringify({ values, freeText, summaryValues }));
       onProgress?.({ noteSaved: true, summarySaved: false, sessionClosed: false });
 
       // Finishing: the note is saved, so the session can close now. A refusal
@@ -286,6 +298,7 @@ export default function SessionNoteDialog({
       // leaves the note stored and the session still open, so trying again
       // repeats nothing that already happened.
       if (summaryToSend) {
+        setStage("summary");
         const summaryRes = await fetch("/api/therapist/session-summary/submit", {
           method: "POST",
           headers: { "Content-Type": "application/json", ...debugNowHeaders() },
@@ -310,6 +323,7 @@ export default function SessionNoteDialog({
       }
 
       if (completeOnSave) {
+        setStage("finish");
         const doneRes = await fetch("/api/appointments/complete-session", {
           method: "POST",
           headers: { "Content-Type": "application/json", ...debugNowHeaders() },
@@ -333,6 +347,7 @@ export default function SessionNoteDialog({
       // therapist their note failed because the recommendation did would
       // send them back to rewrite work that is safely stored.
       if (plan) {
+        setStage("plan");
         const planRes = await fetch("/api/therapist/care-plan/submit", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -369,6 +384,7 @@ export default function SessionNoteDialog({
             ? "Note saved and your recommendation sent."
             : "Session note saved.") + shared
       );
+      setStage(null);
       router.refresh();
       onClose();
     });
@@ -548,7 +564,11 @@ export default function SessionNoteDialog({
 
           {confirmingDiscard ? (
             <div role="alertdialog" aria-label="Discard this note?" data-testid="note-discard-confirm" className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 px-6 py-4">
-              <p className="mr-auto text-sm font-semibold text-slate-800">Discard what you have written? Nothing is saved.</p>
+              <p className="mr-auto text-sm font-semibold text-slate-800">
+                {noteSaved
+                  ? "Your note is saved. Close without sending what is left (the summary, the recommendation or finishing the session)?"
+                  : "Discard what you have written? Nothing is saved."}
+              </p>
               <button
                 type="button"
                 autoFocus
@@ -562,7 +582,7 @@ export default function SessionNoteDialog({
                 onClick={close}
                 className="min-h-[44px] rounded-xl border border-red-200 px-4 text-sm font-semibold text-red-700 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"
               >
-                Discard
+                {noteSaved ? "Close" : "Discard"}
               </button>
             </div>
           ) : (
@@ -584,7 +604,13 @@ export default function SessionNoteDialog({
                 className="min-h-[44px] rounded-lg bg-teal-700 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:opacity-50"
               >
                 {isPending
-                  ? "Saving..."
+                  ? stage === "summary"
+                    ? "Sending the summary..."
+                    : stage === "finish"
+                      ? "Finishing the session..."
+                      : stage === "plan"
+                        ? "Sending your recommendation..."
+                        : "Saving your note..."
                   : completeOnSave
                     ? plan
                       ? "Save, finish & recommend"

@@ -4,6 +4,7 @@ import MarkNoShowButton from "@/components/MarkNoShowButton";
 import SessionFeedbackForm from "@/components/SessionFeedbackForm";
 import SessionNoteButton from "@/components/therapist/SessionNoteButton";
 import JoinSessionButton from "@/components/JoinSessionButton";
+import { joinHeldForPayment } from "@/lib/sessionPatientActions";
 import CollectCashButton from "@/components/CollectCashButton";
 import PackageChip from "@/components/packages/PackageChip";
 import ProgrammeIdChip from "@/components/dashboard/ProgrammeIdChip";
@@ -205,6 +206,23 @@ export function renderTherapistSessionCard(
           />
         )}
         <OnboardingStrip d={d} a={a} />
+        {/* The patient's link stays shut until they pay (joinHeldForPayment);
+            saying so here saves the therapist waiting in an empty call. */}
+        {(a.status === "requested" || a.status === "confirmed") &&
+          joinHeldForPayment({
+            status: a.status,
+            therapist_id: d.user?.id ?? "self",
+            slot_time: a.slot_time,
+            payment_status: a.payment_status,
+            payment_terms: a.payment_terms ?? null,
+            package_purchase_id: a.package_purchase_id ?? null,
+            home_visit_purchase_id: a.visit?.home_visit_purchase_id ?? null,
+            visit_mode: a.visit?.visit_mode ?? "online",
+          }) && (
+            <p data-testid="therapist-patient-unpaid" className="rounded-lg bg-amber-50 p-2 text-sm text-amber-900">
+              Not paid yet. The patient&apos;s video link opens once they pay; the clinic follows up if they don&apos;t.
+            </p>
+          )}
         <div className="flex items-center gap-2 flex-wrap">
           <JoinSessionButton
             meetLink={a.meet_link}
@@ -233,7 +251,7 @@ export function renderTherapistSessionCard(
           {a.status === "confirmed" && (
             <FinishSessionButton
               {...finishProps(d, a)}
-              beside={<MarkNoShowButton appointmentId={a.id} />}
+              beside={<MarkNoShowButton appointmentId={a.id} slotTime={a.slot_time} />}
             />
           )}
           {/* The note lives on the card, not behind the patient's chart:
@@ -453,7 +471,7 @@ export function renderTherapistHomeVisitCard(
           <div className="flex items-center gap-2 flex-wrap">
             <FinishSessionButton
               {...finishProps(d, a)}
-              beside={<MarkNoShowButton appointmentId={a.id} />}
+              beside={<MarkNoShowButton appointmentId={a.id} slotTime={a.slot_time} />}
             />
           </div>
         )}

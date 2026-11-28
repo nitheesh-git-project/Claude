@@ -13,6 +13,10 @@ import PatientHomeLead from "@/components/patient/PatientHomeLead";
 import { noNextSessionHeadline } from "@/lib/patientOverviewCopy";
 import JoinSessionButton from "@/components/JoinSessionButton";
 import { formatSessionWhen } from "@/lib/sessionWhenLabel";
+import CancelSessionButton from "@/components/CancelSessionButton";
+import { sessionActionRowOf } from "@/components/patient/PatientSessionCard";
+import { joinHeldForPayment, needsPaymentOnHome } from "@/lib/sessionPatientActions";
+import { resumeCheckoutHref } from "@/lib/resumeCheckout";
 
 export const metadata: Metadata = {
   title: "Patient Dashboard | MoveRestore",
@@ -26,6 +30,16 @@ export default async function PatientDashboardPage() {
   const d = await loadPatientDashboard();
   const intakeAnswered = d.intakeAnswered;
   const conditionProfile = d.conditionProfile;
+  // Sessions still waiting for the patient to pay, by the same rule as the
+  // session card's Pay button (sessionPatientActions.ts): live, ahead, and
+  // one the clinic can still run. Each stays on Home until it is paid or
+  // cancelled; cancelled, it leaves here and shows as Cancelled in Past.
+  const awaitingPayment = d.appointments
+    .filter((a) => needsPaymentOnHome(sessionActionRowOf(d, a), d.nowMs, d.unassignedRescueHours))
+    .sort((x, y) => Date.parse(x.slot_time ?? "") - Date.parse(y.slot_time ?? ""));
+  const joinHeld = d.joinSession
+    ? joinHeldForPayment(sessionActionRowOf(d, d.appointments.find((a) => a.id === d.joinSession!.id) ?? (d.joinSession as (typeof d.appointments)[number])))
+    : false;
 
   return (
     <PatientDashboardShell
@@ -47,6 +61,55 @@ export default async function PatientDashboardPage() {
           lastRejection={d.payLater.lastRejection}
           razorpayKeyId={process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ?? null}
         />
+      )}
+
+      {awaitingPayment.length > 0 && (
+        <section
+          data-testid="home-awaiting-payment"
+          aria-labelledby="home-awaiting-payment-title"
+          className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:p-5"
+        >
+          <h2 id="home-awaiting-payment-title" className="text-base font-bold text-amber-900">
+            {awaitingPayment.length === 1 ? "A session is waiting for payment" : `${awaitingPayment.length} sessions are waiting for payment`}
+          </h2>
+          <p className="mt-1 text-sm text-amber-900">
+            Pay to keep your time. The video link opens once it&apos;s paid. Not going ahead? Cancel it and nothing is charged.
+          </p>
+          <ul className="mt-3 space-y-2">
+            {awaitingPayment.map((a) => (
+              <li
+                key={a.id}
+                data-testid="home-awaiting-payment-row"
+                className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-white p-3"
+              >
+                <span className="min-w-0">
+                  <span className="block font-semibold text-slate-900">{a.concern ?? "General Consultation"}</span>
+                  <span className="block text-sm text-slate-700">
+                    {formatSlotTime(a.slot_time, a.timezone)}
+                    {a.therapist_id ? ` · ${d.therapistMap.get(a.therapist_id) ?? "your physiotherapist"}` : ""}
+                  </span>
+                </span>
+                <span className="flex flex-wrap items-center gap-2">
+                  <Link
+                    href={resumeCheckoutHref(a.id)}
+                    data-testid="home-pay-now"
+                    className="inline-flex min-h-11 items-center rounded-lg bg-teal-700 px-4 text-sm font-semibold text-white transition hover:bg-teal-800"
+                  >
+                    Pay now
+                  </Link>
+                  <CancelSessionButton
+                    appointmentId={a.id}
+                    paid={false}
+                    slotTime={a.slot_time}
+                    refundWindowHours={d.adminSettings.onlineCancellationRefundHours}
+                    cutoffMinutes={d.adminSettings.patientCancelCutoffMinutes}
+                    serverNowMs={d.nowMs}
+                  />
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       {/* Before a video session: the few things to have to hand, and "I'm
@@ -129,7 +192,8 @@ export default async function PatientDashboardPage() {
               <span className="mt-4 block">
                 <JoinSessionButton
                   size="hero"
-                  meetLink={d.joinSession.meet_link}
+                  meetLink={joinHeld ? null : d.joinSession.meet_link}
+                  paymentHold={joinHeld}
                   slotTime={d.joinSession.slot_time}
                   status={d.joinSession.status}
                   durationMinutes={d.joinSession.duration_minutes}

@@ -273,3 +273,13 @@ The four acquisition discounts, promo codes, patient invites, and the one module
   minting an order Razorpay would refuse, and `payForAppointment`'s `onFree`
   callback turns that into the confirmation - so a quote that goes stale
   between render and tap still lands correctly instead of erroring.
+- **Goodwill reaches what a pay-later patient owes.** On pay-later terms the
+  amount owed is `amount_due_paise`, so `/api/admin/apply-goodwill-discount`
+  lowers it too (to the payable, rounded down to the rupee, never above the
+  due already there); a delivered pay-later session is refused ("Write it off
+  if the patient shouldn't pay for it") because its amount is fixed in an
+  append-only settlement row. It used to change the discount columns only, and
+  the patient still owed the full price. The route also starts from the
+  booking's own `list_price_paise` (a session priced for another country
+  carries its converted price) and only falls back to the category's rupee
+  price. Guard: `e2e/admin-booking-flow.spec.ts` ABF-005.

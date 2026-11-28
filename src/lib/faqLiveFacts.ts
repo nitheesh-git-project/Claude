@@ -56,3 +56,21 @@ export function quotesDriftingFigure(text: string): boolean {
   const rupees = /(₹|\bRs\.?|\bINR)\s?\d/i;
   return pincode.test(text) || rupees.test(text);
 }
+
+/**
+ * Drops the questions that are about booking or preparing for a home visit
+ * while home visits cannot be booked. The FAQ is admin-typed, and staging's
+ * still explained "How do I book a home visit" under a Home page that said
+ * "coming soon". "What if you don't do home visits where I live?" stays: it
+ * is the honest answer to somebody who asks. Test-site entries (a question
+ * that starts "QA:") never reach the public page.
+ */
+export function withoutUnbookableHomeVisitFaqs<T extends { question: string }>(rows: T[], homeVisitBookable: boolean): T[] {
+  return rows.filter((r) => {
+    if (/^\s*QA\b/i.test(r.question)) return false;
+    if (homeVisitBookable) return true;
+    const q = r.question.toLowerCase();
+    if (!/home[- ]?visit/.test(q)) return true;
+    return /\b(don'?t|do not|not)\b/.test(q) || /where i live/.test(q);
+  });
+}

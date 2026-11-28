@@ -84,6 +84,18 @@ async function settledOpenDays(page: Page): Promise<number> {
   return last;
 }
 
+/** The earliest date the calendar lets a patient pick, as a timestamp. */
+async function firstOpenDate(page: Page): Promise<number> {
+  const label = await page
+    .locator("button:not([disabled])")
+    .filter({ hasText: /^\d{1,2}$/ })
+    .first()
+    .getAttribute("aria-label");
+  const at = Date.parse(`${label ?? ""} 12:00`);
+  expect(Number.isFinite(at), `the first open day's label (${label}) reads as a date`).toBe(true);
+  return at;
+}
+
 test.describe("CFG -- Settings information architecture", () => {
   test.beforeEach(async ({ context }) => {
     await context.addCookies(await browserCookiesFor(QA_EMAILS.admin));
@@ -202,14 +214,20 @@ test.describe("CFG -- Settings information architecture", () => {
       // calendar filters on the same value -- it printed the constant and
       // filtered on the constant before this.
       await expect(book.getByText(/at least 72 hours from now/)).toBeVisible({ timeout: 60_000 });
-      const openDays = { length: await settledOpenDays(book) };
+      await settledOpenDays(book);
+      const farthest = await firstOpenDate(book);
 
       await db.from("site_settings").update({ online_booking_lead_time_hours: 12 }).eq("id", true);
       await book.reload({ waitUntil: "domcontentloaded" });
       await expect(book.getByText(/at least 12 hours from now/)).toBeVisible({ timeout: 60_000 });
-      const nearerDays = { length: await settledOpenDays(book) };
+      await settledOpenDays(book);
+      const nearer = await firstOpenDate(book);
 
-      expect(nearerDays.length).toBeGreaterThan(openDays.length);
+      // The first date a patient can pick moves with the rule. Counting open
+      // days failed in the last days of a month: the calendar shows one month,
+      // so a short lead time left three days there while a long one had
+      // already moved on to the next month's thirty-one.
+      expect(nearer).toBeLessThan(farthest);
       await patient.close();
     } finally {
       await db

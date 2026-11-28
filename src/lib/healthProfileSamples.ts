@@ -38,9 +38,40 @@ import type { ProfileKind } from "@/lib/outcomeMeasures";
 import type { MeasuredProfileReads } from "@/lib/progressProfileBase";
 import type { MilestoneStatus } from "@/lib/milestones";
 
+// The samples were written in February 2026, so by now every date on them was in
+// the past ("Aiming for 30 Apr 2026" on a public page). Every date here is moved
+// forward in whole 28-day blocks, so the sample's "today" stays within four
+// weeks of the real one, weekdays and the gaps between reviews are untouched, and
+// nothing is a different answer between a server render and its hydration unless
+// a block boundary falls in between. Dependency-free.
+const SAMPLE_WRITTEN_ON = "2026-02-20";
+const SHIFT_BLOCK_DAYS = 28;
+const DAY_MS = 86_400_000;
+
+/** How many days the sample dates are moved forward on `nowMs`. */
+export function sampleShiftDays(nowMs: number): number {
+  const anchor = Date.parse(`${SAMPLE_WRITTEN_ON}T00:00:00.000Z`);
+  return Math.max(0, Math.floor((nowMs - anchor) / (DAY_MS * SHIFT_BLOCK_DAYS))) * SHIFT_BLOCK_DAYS;
+}
+
+/** `iso` (YYYY-MM-DD) moved forward by `days`. */
+export function shiftIsoDay(iso: string, days: number): string {
+  return new Date(Date.parse(`${iso}T00:00:00.000Z`) + days * DAY_MS).toISOString().slice(0, 10);
+}
+
+const SHIFT_DAYS = sampleShiftDays(Date.now());
+function sampleDay(iso: string): string {
+  return shiftIsoDay(iso, SHIFT_DAYS);
+}
+
 /** The first review, the three after it, and the day the sample is "read". */
-export const SAMPLE_REVIEW_DAYS = ["2026-01-05", "2026-01-19", "2026-02-02", "2026-02-16"] as const;
-export const SAMPLE_TODAY = "2026-02-20";
+export const SAMPLE_REVIEW_DAYS = [
+  sampleDay("2026-01-05"),
+  sampleDay("2026-01-19"),
+  sampleDay("2026-02-02"),
+  sampleDay("2026-02-16"),
+] as unknown as readonly [string, string, string, string];
+export const SAMPLE_TODAY = sampleDay("2026-02-20");
 export const SAMPLE_NOW_MS = Date.parse(`${SAMPLE_TODAY}T06:30:00.000Z`);
 
 const at = (day: string, time = "05:30:00.000Z") => `${day}T${time}`;
@@ -185,12 +216,12 @@ export function sampleOrtho(): { person: SamplePerson; view: OrthoView } {
   const bend = [88, 98, 106, 114].map((v, i) => row("joint_range", v, days[i], { variant: "knee_flexion_active", side: "right" }));
   const straighten = [-8, -5, -2, 0].map((v, i) => row("joint_range", v, days[i], { variant: "knee_extension_active", side: "right" }));
   const strength = [58, 66, 72, 78].map((v, i) => row("strength_symmetry", v, days[i], { variant: "quadriceps", side: "right" }));
-  const goal = goalFor("ortho", "Climb the stairs at home and walk to the market without pain", "2026-04-30");
+  const goal = goalFor("ortho", "Climb the stairs at home and walk to the market without pain", sampleDay("2026-04-30"));
   const milestones = milestonesFor("ortho", goal, [
-    { template: "ortho_knee_straightens_fully", status: "reached", targetDate: "2026-02-28", reachedOn: days[3], reachedBy: straighten[3].id, side: "right", baseline: -8 },
-    { template: "ortho_knee_bends_125", status: "working", targetDate: "2026-03-31", side: "right", baseline: 88 },
-    { template: "ortho_strength_90", status: "planned", targetDate: "2026-04-30", side: "right", baseline: 58 },
-    { template: "ortho_stairs_step_over_step", status: "planned", targetDate: "2026-04-30" },
+    { template: "ortho_knee_straightens_fully", status: "reached", targetDate: sampleDay("2026-02-28"), reachedOn: days[3], reachedBy: straighten[3].id, side: "right", baseline: -8 },
+    { template: "ortho_knee_bends_125", status: "working", targetDate: sampleDay("2026-03-31"), side: "right", baseline: 88 },
+    { template: "ortho_strength_90", status: "planned", targetDate: sampleDay("2026-04-30"), side: "right", baseline: 58 },
+    { template: "ortho_stairs_step_over_step", status: "planned", targetDate: sampleDay("2026-04-30") },
   ]);
   const view = shapeOrthoView(
     {
@@ -233,12 +264,12 @@ export function sampleNeuroStroke(): SampleNeuro {
   const row = rowMaker("neuro");
   const days = SAMPLE_REVIEW_DAYS;
   const fac = [2, 2, 3, 4].map((v, i) => row("fac", v, days[i]));
-  const goal = goalFor("neuro", "Walk to the gate and back with my stick, on my own", "2026-05-31");
+  const goal = goalFor("neuro", "Walk to the gate and back with my stick, on my own", sampleDay("2026-05-31"));
   const milestones = milestonesFor("neuro", goal, [
-    { template: "neuro_walk_10m_stick", status: "reached", targetDate: "2026-02-15", reachedOn: days[2], reachedBy: fac[2].id },
-    { template: "neuro_walk_to_gate", status: "working", targetDate: "2026-03-31" },
-    { template: "neuro_walk_speed_short_trips", status: "planned", targetDate: "2026-04-30" },
-    { template: "neuro_climb_5_stairs", status: "planned", targetDate: "2026-05-31" },
+    { template: "neuro_walk_10m_stick", status: "reached", targetDate: sampleDay("2026-02-15"), reachedOn: days[2], reachedBy: fac[2].id },
+    { template: "neuro_walk_to_gate", status: "working", targetDate: sampleDay("2026-03-31") },
+    { template: "neuro_walk_speed_short_trips", status: "planned", targetDate: sampleDay("2026-04-30") },
+    { template: "neuro_climb_5_stairs", status: "planned", targetDate: sampleDay("2026-05-31") },
   ]);
   const assessments = [
     neuroExam("exam-1", days[0], 28, 50, 29),
@@ -286,12 +317,12 @@ export function sampleNeuroParkinsons(): SampleNeuro {
     row("pd_symptom_rating", items.reduce((a, b) => a + b, 0), day, { items, ...on(day) });
   const ratings = [rating([2, 2, 3, 3, 2, 2], days[0]), rating([1, 2, 2, 2, 2, 1], days[3])];
   const stage = row("hoehn_yahr", 2, days[0], on(days[0]));
-  const goal = goalFor("neuro_parkinsons", "Walk to the market and back with a bag, without stopping", "2026-05-31");
+  const goal = goalFor("neuro_parkinsons", "Walk to the market and back with a bag, without stopping", sampleDay("2026-05-31"));
   const milestones = milestonesFor("neuro_parkinsons", goal, [
-    { template: "pd_restart_with_beat", status: "reached", targetDate: "2026-02-15", reachedOn: days[2] },
-    { template: "pd_tug_under_11_5", status: "working", targetDate: "2026-03-31", baseline: 14.6 },
-    { template: "pd_three_months_no_fall", status: "planned", targetDate: "2026-04-30" },
-    { template: "pd_walk_30_minutes", status: "planned", targetDate: "2026-05-31" },
+    { template: "pd_restart_with_beat", status: "reached", targetDate: sampleDay("2026-02-15"), reachedOn: days[2] },
+    { template: "pd_tug_under_11_5", status: "working", targetDate: sampleDay("2026-03-31"), baseline: 14.6 },
+    { template: "pd_three_months_no_fall", status: "planned", targetDate: sampleDay("2026-04-30") },
+    { template: "pd_walk_30_minutes", status: "planned", targetDate: sampleDay("2026-05-31") },
   ]);
   const view = shapeNeuroView(
     {
@@ -324,7 +355,7 @@ export function sampleNeuroParkinsons(): SampleNeuro {
 /** Born at 30 weeks, so ten weeks early: on 20 February 2026 she is 14.6
  *  months old and 12.3 months by corrected age, and every milestone she has
  *  not reached is still inside its WHO window. */
-export const SAMPLE_PEDS_BIRTH_DATE = "2024-12-01";
+export const SAMPLE_PEDS_BIRTH_DATE = sampleDay("2024-12-01");
 export const SAMPLE_PEDS_WEEKS_AT_BIRTH = 30;
 
 const pedsExam = (id: string, day: string, milestones: PedsFindings["milestones"]): ParsedPedsAssessment => ({
@@ -346,39 +377,39 @@ export function samplePeds(): SamplePeds {
   // Newest first, as the product's parser returns them.
   const exams: ParsedPedsAssessment[] = [
     pedsExam("pexam-4", days[3], {
-      sitting_without_support: { status: "achieved", firstSeenOn: "2025-10-10", source: "reported", approximate: true },
-      hands_knees_crawling: { status: "achieved", firstSeenOn: "2026-01-15", source: "seen" },
-      standing_with_help: { status: "achieved", firstSeenOn: "2026-01-30", source: "seen" },
-      walking_with_help: { status: "achieved", firstSeenOn: "2026-02-12", source: "seen" },
-      standing_alone: { status: "emerging", firstSeenOn: "2026-02-14", source: "seen" },
+      sitting_without_support: { status: "achieved", firstSeenOn: sampleDay("2025-10-10"), source: "reported", approximate: true },
+      hands_knees_crawling: { status: "achieved", firstSeenOn: sampleDay("2026-01-15"), source: "seen" },
+      standing_with_help: { status: "achieved", firstSeenOn: sampleDay("2026-01-30"), source: "seen" },
+      walking_with_help: { status: "achieved", firstSeenOn: sampleDay("2026-02-12"), source: "seen" },
+      standing_alone: { status: "emerging", firstSeenOn: sampleDay("2026-02-14"), source: "seen" },
       walking_alone: { status: "not_yet" },
     }),
     pedsExam("pexam-3", days[2], {
-      sitting_without_support: { status: "achieved", firstSeenOn: "2025-10-10", source: "reported", approximate: true },
-      hands_knees_crawling: { status: "achieved", firstSeenOn: "2026-01-15", source: "seen" },
-      standing_with_help: { status: "achieved", firstSeenOn: "2026-01-30", source: "seen" },
+      sitting_without_support: { status: "achieved", firstSeenOn: sampleDay("2025-10-10"), source: "reported", approximate: true },
+      hands_knees_crawling: { status: "achieved", firstSeenOn: sampleDay("2026-01-15"), source: "seen" },
+      standing_with_help: { status: "achieved", firstSeenOn: sampleDay("2026-01-30"), source: "seen" },
       walking_with_help: { status: "emerging", source: "seen" },
       standing_alone: { status: "not_yet" },
     }),
     pedsExam("pexam-2", days[1], {
-      sitting_without_support: { status: "achieved", firstSeenOn: "2025-10-10", source: "reported", approximate: true },
-      hands_knees_crawling: { status: "achieved", firstSeenOn: "2026-01-15", source: "seen" },
+      sitting_without_support: { status: "achieved", firstSeenOn: sampleDay("2025-10-10"), source: "reported", approximate: true },
+      hands_knees_crawling: { status: "achieved", firstSeenOn: sampleDay("2026-01-15"), source: "seen" },
       standing_with_help: { status: "emerging", source: "seen" },
       walking_with_help: { status: "not_yet" },
     }),
     pedsExam("pexam-1", days[0], {
-      sitting_without_support: { status: "achieved", firstSeenOn: "2025-10-10", source: "reported", approximate: true },
+      sitting_without_support: { status: "achieved", firstSeenOn: sampleDay("2025-10-10"), source: "reported", approximate: true },
       hands_knees_crawling: { status: "emerging", source: "seen" },
       standing_with_help: { status: "not_yet" },
     }),
   ];
   const standing = [0, 2, 4, 6].map((v, i) => row("peds_standing_seconds", v, days[i]));
-  const goal = goalFor("pediatrics", "Walk across the room to her family", "2026-06-30");
+  const goal = goalFor("pediatrics", "Walk across the room to her family", sampleDay("2026-06-30"));
   const milestones = milestonesFor("pediatrics", goal, [
-    { template: "peds_stand_5_seconds", status: "reached", targetDate: "2026-02-28", reachedOn: days[3], reachedBy: standing[3].id, baseline: 0 },
-    { template: "peds_stand_10_seconds", status: "working", targetDate: "2026-03-31", baseline: 0 },
-    { template: "peds_first_steps", status: "planned", targetDate: "2026-04-30" },
-    { template: "peds_5_steps", status: "planned", targetDate: "2026-06-30" },
+    { template: "peds_stand_5_seconds", status: "reached", targetDate: sampleDay("2026-02-28"), reachedOn: days[3], reachedBy: standing[3].id, baseline: 0 },
+    { template: "peds_stand_10_seconds", status: "working", targetDate: sampleDay("2026-03-31"), baseline: 0 },
+    { template: "peds_first_steps", status: "planned", targetDate: sampleDay("2026-04-30") },
+    { template: "peds_5_steps", status: "planned", targetDate: sampleDay("2026-06-30") },
   ]);
   const intake = {
     peds_caregiver_name: "Priya",
@@ -425,13 +456,13 @@ export function sampleGeriatric(): SampleGeriatric {
   const chair = [7, 8, 10, 11].map((v, i) => row("chair_stand_30s", v, days[i]));
   const balance = [2, 2, 3, 3].map((v, i) => row("four_stage_balance", v, days[i]));
   const gait = [0.58, 0.63, 0.69, 0.74].map((v, i) => row("gait_speed_4m", v, days[i]));
-  const goal = goalFor("geriatric", "Walk to the kitchen and to the gate without the frame", "2026-05-31");
+  const goal = goalFor("geriatric", "Walk to the kitchen and to the gate without the frame", sampleDay("2026-05-31"));
   const milestones = milestonesFor("geriatric", goal, [
-    { template: "geri_tug_under_12", status: "reached", targetDate: "2026-02-28", reachedOn: days[3], reachedBy: tug[3].id, baseline: 15.6 },
-    { template: "geri_heel_to_toe", status: "reached", targetDate: "2026-02-15", reachedOn: days[2], reachedBy: balance[2].id, baseline: 2 },
-    { template: "geri_kitchen_without_frame", status: "working", targetDate: "2026-03-31" },
-    { template: "geri_walk_to_gate", status: "planned", targetDate: "2026-04-30" },
-    { template: "geri_floor_with_chair", status: "planned", targetDate: "2026-05-31" },
+    { template: "geri_tug_under_12", status: "reached", targetDate: sampleDay("2026-02-28"), reachedOn: days[3], reachedBy: tug[3].id, baseline: 15.6 },
+    { template: "geri_heel_to_toe", status: "reached", targetDate: sampleDay("2026-02-15"), reachedOn: days[2], reachedBy: balance[2].id, baseline: 2 },
+    { template: "geri_kitchen_without_frame", status: "working", targetDate: sampleDay("2026-03-31") },
+    { template: "geri_walk_to_gate", status: "planned", targetDate: sampleDay("2026-04-30") },
+    { template: "geri_floor_with_chair", status: "planned", targetDate: sampleDay("2026-05-31") },
   ]);
   // Two falls in the year before the first visit, said at intake, and a
   // third on 27 January that her physiotherapist confirmed: the level stays
@@ -440,15 +471,15 @@ export function sampleGeriatric(): SampleGeriatric {
     id: "sample-fall-1",
     patientId: PATIENT_ID,
     kind: "fall",
-    occurredAt: at("2026-01-27", "08:00:00.000Z"),
+    occurredAt: at(sampleDay("2026-01-27"), "08:00:00.000Z"),
     details: { injured: false },
     note: null,
     enteredBy: PATIENT_ID,
     enteredByRole: "patient",
     confirmedBy: THERAPIST_ID,
     confirmedByRole: "therapist",
-    confirmedAt: at("2026-02-02"),
-    createdAt: at("2026-01-27", "08:05:00.000Z"),
+    confirmedAt: at(sampleDay("2026-02-02")),
+    createdAt: at(sampleDay("2026-01-27"), "08:05:00.000Z"),
   };
   const view = shapeGeriatricView(
     measuredReads([...tug, ...chair, ...balance, ...gait], goal, milestones, {
@@ -486,12 +517,12 @@ export function sampleCardio(): SampleCardio {
     row("lowest_spo2", 95, days[3]),
     row("blood_pressure", 122, days[3], { variant: "rest", items: { systolic: 122, diastolic: 76 } }),
   ];
-  const goal = goalFor("cardiopulmonary", "Walk to the temple and back, and climb two flights of stairs", "2026-05-31");
+  const goal = goalFor("cardiopulmonary", "Walk to the temple and back, and climb two flights of stairs", sampleDay("2026-05-31"));
   const milestones = milestonesFor("cardiopulmonary", goal, [
-    { template: "cardio_walk_10_minutes", status: "reached", targetDate: "2026-02-15", reachedOn: days[2] },
-    { template: "cardio_6mwt_400", status: "working", targetDate: "2026-03-31", baseline: 285 },
-    { template: "cardio_two_flights", status: "planned", targetDate: "2026-04-30" },
-    { template: "cardio_150_active_minutes", status: "planned", targetDate: "2026-05-31" },
+    { template: "cardio_walk_10_minutes", status: "reached", targetDate: sampleDay("2026-02-15"), reachedOn: days[2] },
+    { template: "cardio_6mwt_400", status: "working", targetDate: sampleDay("2026-03-31"), baseline: 285 },
+    { template: "cardio_two_flights", status: "planned", targetDate: sampleDay("2026-04-30") },
+    { template: "cardio_150_active_minutes", status: "planned", targetDate: sampleDay("2026-05-31") },
   ]);
   const raw = shapeCardioView(
     {

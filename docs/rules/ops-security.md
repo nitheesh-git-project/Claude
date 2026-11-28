@@ -1106,3 +1106,12 @@ server already knows it is stale.
   and failing open: the notebook saves itself every few seconds while
   somebody types, and a limiter that cannot be asked must not cost them what
   they wrote.
+- **Where the app runs should be near where the database is.** Staging's
+  database is in `ap-south-1` (Mumbai) and the Vercel functions answered from
+  `iad1` (Washington DC), so every database round trip crossed the world: a
+  therapist's note save (note, summary, completion, plan -- four routes, each
+  several queries) took about ten seconds. Independent reads in a route are
+  sent together (`Promise.all`), and the note dialog names the step it is on,
+  but the large lever is Vercel -> Project Settings -> Functions -> Function
+  Region -> Mumbai (`bom1`). It is a project setting shared by staging and
+  production, so it is the owner's to change.

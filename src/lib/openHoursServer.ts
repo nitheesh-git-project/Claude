@@ -1,7 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { readAllRowsByIds } from "@/lib/supabase/readAllRows";
-import { addDaysToKey, openSlotStarts, type RosterTherapist } from "@/lib/openHours";
+import { addDaysToKey, openSlotStarts, openStartsAmong, zoneHourStarts, type RosterTherapist } from "@/lib/openHours";
 import { zonedSlotMs, CLINIC_TIMEZONE } from "@/lib/bookingSlots";
 import { clinicDateKey } from "@/lib/clinicWeek";
 import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
@@ -34,6 +34,12 @@ export async function readOpenSlotStarts(
     bufferMinutes?: number;
     /** The session being moved, so its own slot does not block it. */
     excludeAppointmentId?: string;
+    /** Answer on this zone's whole hours (the patient's own picker grid)
+     *  instead of the clinic's. Absent or the clinic's zone: the clinic grid. */
+    gridTimeZone?: string | null;
+    /** Judge exactly these instants instead of a grid -- a booking route
+     *  checking the one time it was asked for. */
+    starts?: number[];
   }
 ): Promise<number[] | null> {
   try {
@@ -87,7 +93,9 @@ export async function readOpenSlotStarts(
           .in("therapist_id", chunk)
           .in("status", ["requested", "confirmed"])
           .gte("slot_time", new Date(windowStart - 86_400_000).toISOString())
-          .lt("slot_time", new Date(windowEnd).toISOString())
+          // A day past the window: a grid on a zone ahead of the clinic (and
+          // a session that runs over midnight) reaches into the next day.
+          .lt("slot_time", new Date(windowEnd + 86_400_000).toISOString())
           .order("id", { ascending: true })
       ),
     ]);
@@ -121,11 +129,28 @@ export async function readOpenSlotStarts(
       bookings: bookings.rows.filter((r) => r.therapist_id === t.id),
     }));
 
+    const durationMinutes = await input.durationMinutes;
+    const ownGrid =
+      input.starts ??
+      (input.gridTimeZone && input.gridTimeZone !== CLINIC_TIMEZONE
+        ? zoneHourStarts(input.fromDateKey, days, input.gridTimeZone)
+        : null);
+    if (ownGrid) {
+      return openStartsAmong({
+        starts: ownGrid,
+        therapists: roster,
+        durationMinutes,
+        bufferMinutes: input.bufferMinutes,
+        excludeAppointmentId: input.excludeAppointmentId,
+        nowMs: input.nowMs,
+      });
+    }
+
     return openSlotStarts({
       fromDateKey: input.fromDateKey,
       days,
       therapists: roster,
-      durationMinutes: await input.durationMinutes,
+      durationMinutes,
       bufferMinutes: input.bufferMinutes,
       excludeAppointmentId: input.excludeAppointmentId,
       nowMs: input.nowMs,
@@ -162,6 +187,9 @@ export async function isSlotClosed(
     nowMs: Date.now(),
     bufferMinutes: opts.bufferMinutes,
     excludeAppointmentId: opts.excludeAppointmentId,
+    // The instant itself, not a lookup in the clinic grid: a patient on a
+    // zone whose hours fall on the clinic half hour was refused every time.
+    starts: [slotMs],
   });
   return open !== null && !open.includes(slotMs);
 }

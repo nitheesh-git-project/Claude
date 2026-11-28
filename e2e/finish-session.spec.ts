@@ -119,6 +119,11 @@ test("FS-002: Done before the start says so inline, with No Show still beside it
   expect(n!.y, "No Show starts above Done's bottom edge").toBeLessThan(d!.y + d!.height);
   expect(n!.y + n!.height, "No Show ends below Done's top edge").toBeGreaterThan(d!.y);
   expect(n!.x - (d!.x + d!.width)).toBeLessThan(24);
+  // No Show on a session still ahead says so inline, without opening a
+  // confirmation that could only fail.
+  await noShow.click();
+  await expect(card.getByText("A no-show can only be marked once the session's time has passed.")).toBeVisible();
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
   await card.screenshot({ path: "test-results/finish-session-not-yet.png" });
 });
 

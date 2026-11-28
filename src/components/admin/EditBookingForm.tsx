@@ -1,5 +1,6 @@
 "use client";
 
+import { CLINIC_TIMEZONE } from "@/lib/bookingSlots";
 import { useTherapistUnavailable } from "@/components/admin/TherapistUnavailableDialog";
 import { useState } from "react";
 import { useRouter } from "@/lib/useRouter";
@@ -50,6 +51,8 @@ export default function EditBookingForm({
   } = useOpenSlots(open ? nowMs : null, categoryId && categoryId !== CLEAR_CATEGORY_VALUE ? categoryId : currentCategoryId, {
     therapistId: therapistId || null,
     excludeAppointmentId: appointmentId,
+    // The picker draws this booking's own zone (the clinic's when unset).
+    gridTimeZone: timeZone || CLINIC_TIMEZONE,
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

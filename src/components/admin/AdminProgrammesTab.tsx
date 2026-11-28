@@ -17,6 +17,7 @@ import { useDialogChrome } from "@/lib/useDialogChrome";
 import { adminScreenHref, adminScreenKey } from "@/lib/adminNav";
 import { formatClinicDate, formatClinicDateTime } from "@/lib/formatDateTime";
 import { formatRupees } from "@/lib/formatMoney";
+import { usePendingWork } from "@/lib/pendingWork";
 import { programmeProgress } from "@/lib/programmeId";
 import type { CsvColumn } from "@/lib/csvExport";
 import {
@@ -603,6 +604,10 @@ function ProgrammeDrawer({
   const reasonId = useId();
   const { panelRef, dialogProps } = useDialogChrome({ onClose, labelledBy: titleId });
   const router = useRouter();
+  // The page re-read after an action takes several seconds; until it lands the
+  // buttons still show the old stage. Say so instead of looking unchanged (or
+  // stuck on "Approving...").
+  const { pending: refreshing } = usePendingWork();
   const [mode, setMode] = useState<"idle" | "reject" | "withdraw" | "refund">("idle");
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
@@ -757,11 +762,11 @@ function ProgrammeDrawer({
                     <>
                       <button
                         type="button"
-                        disabled={busy}
+                        disabled={busy || refreshing}
                         onClick={() => post("/api/admin/review-care-plan", { carePlanId: row.carePlanId, decision: "approved", reason: "" })}
                         className="rounded-lg bg-teal-700 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-teal-800 disabled:opacity-60"
                       >
-                        {busy ? "Approving…" : "Approve and send to the patient"}
+                        {busy ? "Approving…" : refreshing ? "Approved - updating…" : "Approve and send to the patient"}
                       </button>
                       <button
                         type="button"

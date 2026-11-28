@@ -1,7 +1,7 @@
 import Image from "next/image";
 import { Reveal, Stagger, StaggerItem } from "@/components/motion/primitives";
 import { photo } from "@/lib/marketingPhotos";
-import { REAL_BENEFITS, WHY_CHOOSE_US, type WhyItem } from "@/lib/whyChooseUs";
+import { REAL_BENEFITS, whyChooseUsFor, type WhyItem } from "@/lib/whyChooseUs";
 
 /**
  * "Why choose us" -- six reasons as a bento grid, each tile carrying a small
@@ -18,7 +18,10 @@ export function WhyChooseUsGrid({
   compact = false,
   languages,
   teamInitials = [],
+  homeVisitBookable = true,
 }: {
+  /** Whether a visitor can book a home visit right now (homeVisitOffer.ts). */
+  homeVisitBookable?: boolean;
   compact?: boolean;
   languages: string[];
   /** Initials of therapists actually published on /team. Empty draws no
@@ -29,7 +32,7 @@ export function WhyChooseUsGrid({
   const wide = new Set(["physios", "progress", "language"]);
   return (
     <Stagger className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 sm:gap-5">
-      {WHY_CHOOSE_US.map((item, index) => (
+      {whyChooseUsFor(homeVisitBookable).map((item, index) => (
         <StaggerItem
           key={item.key}
           className={`h-full ${wide.has(item.key) ? "lg:col-span-2" : ""}`}

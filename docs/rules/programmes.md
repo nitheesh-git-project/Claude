@@ -355,3 +355,11 @@ Consultation first, how a course of treatment is bought, the therapist lock, wha
   isolated query** on the admin dashboard, so a database without the
   migration loses the number on the card rather than the capacity note
   beside it or the referral list itself.
+- **Only a referral before its invite can be assigned.** `pending_review` and
+  `therapist_assigned`, one list (`REFERRAL_ASSIGNABLE_STATUSES`,
+  `src/lib/referralAssignable.ts`) read by the admin Referrals card (the
+  assign form is not drawn otherwise; a declined referral says it was
+  declined), by `/api/admin/assign-referral` (409 `referral_not_assignable`,
+  in words, before any slot is checked) and passed to the claim function as
+  its expected statuses. A declined referral used to show the form and fail
+  with "someone else sent an invite or declined it". Guard: REF-005.

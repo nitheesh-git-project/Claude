@@ -4,6 +4,8 @@ import {
   eventsFromAdminLog,
   eventsFromReassignments,
   eventsFromSession,
+  bookedByAdminMap,
+  withoutBookingRows,
   filterActivity,
   sortActivity,
   type NameLookup,
@@ -42,6 +44,25 @@ describe("activity timeline", () => {
     expect(titles).toContainEqual(["Session cancelled", "admin", "Asha (admin)"]);
     expect(session.find((e) => e.title === "Session booked")?.detail).toMatch(/IST|pm|am/);
     expect(session.every((e) => e.sessionCode === "SS0001")).toBe(true);
+  });
+
+  it("credits a booking the clinic made to the admin, not the patient, and lists it once", () => {
+    const row = { id: "s2", session_code: "SS0002", patient_id: "p1", created_at: "2026-10-01T05:00:00Z", slot_time: "2026-10-10T12:30:00Z" };
+    const log = [
+      { id: "l1", actor_id: "a1", action: "session.create", target_id: "s2", created_at: "2026-10-01T05:00:01Z" },
+      { id: "l2", actor_id: "a1", action: "session.cancel", target_id: "s2", created_at: "2026-10-02T05:00:00Z" },
+    ];
+    const by = bookedByAdminMap(log).get("s2");
+    expect(by).toBe("a1");
+    const booked = eventsFromSession(row, lookup, by).find((e) => e.id === "appt:s2:created");
+    expect(booked).toMatchObject({ title: "Session booked by the clinic", actorRole: "admin", actorName: "Asha (admin)" });
+    // The log row for the same booking is not listed a second time.
+    expect(withoutBookingRows(log).map((r) => r.action)).toEqual(["session.cancel"]);
+    // And a booking the patient made themselves still reads as theirs.
+    expect(eventsFromSession(row, lookup, null).find((e) => e.id === "appt:s2:created")).toMatchObject({
+      title: "Session booked",
+      actorRole: "patient",
+    });
   });
 
   it("says an assignment, a reassignment and a reschedule apart", () => {

@@ -10,6 +10,33 @@ A trusted patient treated first and settling afterwards: the grant, the booking 
 
 ---
 
+- **A payment less than one rupee short still closes a delivered session --
+  the paise are forgiven and recorded (owner's decision).** A pay-later
+  balance is settled by hand in whole rupees, so a session due Rs 1,059.18
+  could never be closed by the Rs 1,059 a patient paid and the patient was
+  left owing 18 paise. `allocate_pay_later_payment` now covers a session when
+  the pool is under 100 paise short of it (`exit when due - available >= 100`),
+  settles it at its own amount as always, and writes the shortfall to
+  `appointments.pay_later_forgiven_paise` (0-99). Nothing is hidden: the
+  session drawer and the admin patient page say so, the settlement queue
+  states the rule, and the reconciliation counts it --
+  `confirmed + forgiven = settled + unallocated` (`reconcileSettlements`'s
+  `forgivenPaise`). A shortfall of a rupee or more still keeps the session
+  open (SQL check 7), and `pay-later-sql-checks.sql` check 17 holds both
+  sides. The schema also runs the allocator once for patients whose confirmed
+  money was already waiting just under a session's price, so nobody is left
+  stuck until their next event; it is idempotent and touches no one else.
+- **A pay-later due is whole rupees, and the "I've paid" form never rounds
+  a balance.** A pay-later balance is settled by hand (cash, UPI, transfer),
+  so `/api/appointments/confirm-pay-later` stores the checkout total rounded
+  **down** to the rupee (`payLaterDuePaise`, `src/lib/payLaterDue.ts`): the
+  clinic gives up the paise, the patient is never asked for more than the
+  quote. The discount columns keep what the quote gave. The widget's amount
+  field pre-fills the exact balance (`rupeesInputValue`, paise kept) and
+  takes paise (`step 0.01`): it used to pre-fill `Math.round(owed / 100)`,
+  so a ₹1,059.18 balance was declared as ₹1,059 and the patient was left
+  "You owe ₹0.18" with no way to clear it. A balance written before the
+  rule can still be paid exactly.
 - **A trusted-patient code is the same grant, made ahead of time.** Money
   -> Costs -> **Tap here to create a trusted-patient code** (money scope,
   refused while `pay_later_enabled` is off) takes a name, a reason of at

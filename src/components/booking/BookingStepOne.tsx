@@ -5,10 +5,12 @@ import BookingCalendar from "@/components/booking/BookingCalendar";
 import SelectableChipGroup from "@/components/booking/SelectableChipGroup";
 import {
   bookableHoursForDate,
+  slotStartMs,
   leadTimeMsFromHours,
   type SlotOpenCheck,
   formatDateKeyLong,
 } from "@/lib/bookingSlots";
+import { formatClinicTime } from "@/lib/formatDateTime";
 import { formatHourRange } from "@/lib/therapistAvailability";
 import { stepOneBlocker } from "@/lib/bookingStepOne";
 import { requestedTimeNotice } from "@/lib/clinicPromises";
@@ -97,6 +99,7 @@ export default function BookingStepOne({
   const hours = dateKey ? bookableHoursForDate(dateKey, nowMs, leadTimeMs, isSlotOpen) : [];
   // The first unanswered thing, said next to the disabled Continue. Null
   // means the patient may go on.
+  const offIndiaClock = !!timezone && timezone !== "Asia/Kolkata" && timezone !== "Asia/Calcutta";
   const blocker = stepOneBlocker({
     serviceChosen,
     dateKey,
@@ -117,7 +120,12 @@ export default function BookingStepOne({
       <div className="w-full rounded-xl bg-teal-50/70 px-4 py-3.5 text-sm text-slate-700">
         <i className="fa-solid fa-globe text-teal-600 mr-2.5" aria-hidden="true"></i>
         Times shown in <strong className="font-bold text-slate-900">{timezone || "your"}</strong>{" "}
-        timezone - detected automatically
+        timezone - detected automatically.
+        {/* The clinic runs sessions in India time; a visitor elsewhere is
+            shown both on the next screens (slotZones.ts), so say so. */}
+        {timezone && timezone !== "Asia/Kolkata" && timezone !== "Asia/Calcutta"
+          ? " The clinic works in India time (IST); you'll see both when you review."
+          : ""}
       </div>
 
       <div>
@@ -160,7 +168,15 @@ export default function BookingStepOne({
               <SelectableChipGroup
                 idPrefix="booking-hour"
                 label={openHoursChecked ? "Available times" : "Time"}
-                options={hours.map((h) => ({ value: String(h), label: formatHourRange(h) }))}
+                options={hours.map((h) => ({
+                  value: String(h),
+                  // A visitor outside India sees each hour on their own clock AND
+                  // on the clinic's, so the IST time is not first met on the
+                  // review screen.
+                  label: offIndiaClock
+                    ? `${formatHourRange(h)} (${formatClinicTime(slotStartMs(dateKey, h))} IST)`
+                    : formatHourRange(h),
+                }))}
                 value={hour === "" ? "" : String(hour)}
                 onChange={(next) => onHourChange(Number(next))}
                 emptyMessage="No times left on this date - please pick another day."

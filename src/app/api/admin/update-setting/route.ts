@@ -129,6 +129,8 @@ const ALLOWED_COLUMNS = new Set([
   "patient_cancel_cutoff_minutes",
   // How close to an online session a patient may still move it themselves.
   "patient_reschedule_cutoff_hours",
+  // Under this many hours with nobody assigned: refund or a new time.
+  "unassigned_rescue_hours",
   // Drives the automatic payment-fee cost line on the Money screens.
   "payment_gateway_fee_percent",
   // How Business Health reads the same money: which cost lines count as the
@@ -404,6 +406,14 @@ export async function POST(request: NextRequest) {
     if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > 168) {
       return NextResponse.json(
         { error: "Choose a whole number of hours from 1 to 168." },
+        { status: 400 }
+      );
+    }
+  }
+  if (key === "unassigned_rescue_hours") {
+    if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > 48) {
+      return NextResponse.json(
+        { error: "Choose a whole number of hours from 1 to 48." },
         { status: 400 }
       );
     }

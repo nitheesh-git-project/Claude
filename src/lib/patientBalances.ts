@@ -266,6 +266,13 @@ export function computeClinicReceivable(
  * Measured from the session's own slot time, since that is when the clinic
  * gave the value.
  */
+const CLINIC_UTC_OFFSET_MS = 5.5 * 3_600_000;
+
+/** Whole days since the epoch on the clinic's (India) calendar. */
+function clinicDayNumber(ms: number): number {
+  return Math.floor((ms + CLINIC_UTC_OFFSET_MS) / 86_400_000);
+}
+
 export function oldestOwedAgeDays(
   appointments: PayLaterAppointment[],
   nowMs: number
@@ -279,7 +286,10 @@ export function oldestOwedAgeDays(
     if (oldestMs === null || slotMs < oldestMs) oldestMs = slotMs;
   }
   if (oldestMs === null) return null;
-  return Math.max(0, Math.floor((nowMs - oldestMs) / 86_400_000));
+  // Counted in the clinic's calendar days, not 24-hour blocks: a session from
+  // 6 PM yesterday read "0 days" until 6 PM today, which is not how anyone
+  // says it. "Yesterday" is 1 day.
+  return Math.max(0, clinicDayNumber(nowMs) - clinicDayNumber(oldestMs));
 }
 
 /**

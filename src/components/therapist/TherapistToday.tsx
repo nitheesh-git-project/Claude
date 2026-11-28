@@ -2,7 +2,7 @@ import type { CSSProperties } from "react";
 import Link from "next/link";
 import ProgressLink from "@/components/system/ProgressLink";
 import { formatClinicTime } from "@/lib/formatDateTime";
-import { todayProgress, type TodayRow, type TodayState } from "@/lib/therapistToday";
+import { todayProgress, todayProgressLabel, type TodayRow, type TodayState } from "@/lib/therapistToday";
 
 const STATE: Record<TodayState, { label: string; className: string }> = {
   done: { label: "Done", className: "bg-emerald-50 text-emerald-700" },
@@ -23,7 +23,8 @@ const STATE: Record<TodayState, { label: string; className: string }> = {
  * Next up card and the Sessions screen, so nothing is offered twice.
  */
 export default function TherapistToday({ rows, names }: { rows: TodayRow[]; names: Map<string, string> }) {
-  const { settled, total } = todayProgress(rows);
+  const progress = todayProgress(rows);
+  const { settled, total } = progress;
   return (
     <section aria-labelledby="therapist-today-title" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
       <div className="flex items-center justify-between gap-3">
@@ -55,7 +56,7 @@ export default function TherapistToday({ rows, names }: { rows: TodayRow[]; name
               />
             </div>
             <span className="shrink-0 text-sm font-semibold text-slate-700">
-              {settled} of {total} done
+              {todayProgressLabel(progress)}
             </span>
           </div>
           <ol className="mt-3 divide-y divide-slate-100">

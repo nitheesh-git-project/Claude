@@ -144,6 +144,53 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Started now and awaited just before the claim: it only needs the row we
+  // already have, so it overlaps the clock and note checks below instead of
+  // adding its own round trip after them. Never rejects (readSettlementRates
+  // falls back), and an unawaited early return simply drops the result.
+  const ratesRead = readSettlementRates(admin, {
+    therapistId: appointment.therapist_id,
+    patientId: appointment.patient_id,
+    isHomeVisit: appointment.visit_mode === "home_visit",
+  });
+
+  // The clock gate binds everyone, an admin included. Only the payment and
+  // note/exam checks below are the therapist's own: an admin correcting the
+  // record is exempt from those, but a session that has not started cannot
+  // be delivered by anybody -- an admin pressing Done on a 6 PM session at
+  // noon made Therapist Home read "1 of 1 done" with the session still ahead.
+  // Read in its own call, per the migration-dependent-column rule, and
+  // defaulting to the same value adminSettings does so a database without
+  // the column behaves as the settings page says it should.
+  const { data: windowRow } = await admin
+    .from("site_settings")
+    .select("join_window_after_minutes")
+    .maybeSingle();
+  const lateGraceMinutes =
+    typeof windowRow?.join_window_after_minutes === "number"
+      ? windowRow.join_window_after_minutes
+      : DEFAULT_ADMIN_SETTINGS.joinWindowAfterMinutes;
+
+  // Done once the session has started; a no-show once the patient is past
+  // the late-arrival grace. It used to open both at "slot minus join
+  // window", so a no-show could forfeit a patient's credit before they
+  // could possibly have been late. See sessionCompletion.ts.
+  const kind = noShow ? "no_show" : "done";
+  const opensAt = completionOpensAtMs(
+    new Date(appointment.slot_time).getTime(),
+    kind,
+    lateGraceMinutes
+  );
+  // The debug bar's simulated clock moves this gate while the bar is on
+  // (isDebugNavVisible); with the bar off it is the real clock.
+  if (serverNowMs(request) < opensAt) {
+    return NextResponse.json(
+      { error: completionRefusal(kind, lateGraceMinutes), notYet: true },
+      { status: 409 }
+    );
+  }
+
+
   if (!adminUser) {
     const coveredByProgramme =
       !!appointment.package_purchase_id || !!appointment.home_visit_purchase_id;
@@ -161,37 +208,6 @@ export async function POST(request: NextRequest) {
           error:
             "This session hasn't been paid for. If you collected cash at the door, record that first; otherwise ask an admin to sort the payment before closing it.",
         },
-        { status: 409 }
-      );
-    }
-
-    // Read in its own call, per the migration-dependent-column rule, and
-    // defaulting to the same value adminSettings does so a database without
-    // the column behaves as the settings page says it should.
-    const { data: windowRow } = await admin
-      .from("site_settings")
-      .select("join_window_after_minutes")
-      .maybeSingle();
-    const lateGraceMinutes =
-      typeof windowRow?.join_window_after_minutes === "number"
-        ? windowRow.join_window_after_minutes
-        : DEFAULT_ADMIN_SETTINGS.joinWindowAfterMinutes;
-
-    // Done once the session has started; a no-show once the patient is past
-    // the late-arrival grace. It used to open both at "slot minus join
-    // window", so a no-show could forfeit a patient's credit before they
-    // could possibly have been late. See sessionCompletion.ts.
-    const kind = noShow ? "no_show" : "done";
-    const opensAt = completionOpensAtMs(
-      new Date(appointment.slot_time).getTime(),
-      kind,
-      lateGraceMinutes
-    );
-    // The debug bar's simulated clock moves this gate while the bar is on
-    // (isDebugNavVisible); with the bar off it is the real clock.
-    if (serverNowMs(request) < opensAt) {
-      return NextResponse.json(
-        { error: completionRefusal(kind, lateGraceMinutes), notYet: true },
         { status: 409 }
       );
     }
@@ -284,11 +300,7 @@ export async function POST(request: NextRequest) {
   // the claim so the claim stays one statement. Best-effort: a failure here
   // must never stop a therapist closing a session, because completion is
   // what creates the debt, the revenue and their own pay.
-  const rates = await readSettlementRates(admin, {
-    therapistId: appointment.therapist_id,
-    patientId: appointment.patient_id,
-    isHomeVisit: appointment.visit_mode === "home_visit",
-  });
+  const rates = await ratesRead;
 
   // Atomic claim, same pattern as cancelAppointmentAndRefund's - the plain
   // read-then-write this used to be let two concurrent requests (e.g. a
@@ -340,13 +352,17 @@ export async function POST(request: NextRequest) {
   // thing that stops a clinic closing a session.
   //
   // After the CAS claim, so a request that lost the race records nothing.
-  await recordSessionSettlement(admin, {
+  // Everything from here is independent of the others and happens after the
+  // claim, so it goes together: a Done used to wait for five round trips in a
+  // row, and "Save note & finish" waited for all of them.
+  const afterClaim: Promise<unknown>[] = [];
+  afterClaim.push(recordSessionSettlement(admin, {
     appointmentId,
     therapistId: appointment.therapist_id ?? null,
     hospitalId: rates.hospitalId,
     therapistSharePercent: rates.therapistSharePercent,
     hospitalSharePercent: rates.hospitalSharePercent,
-  });
+  }));
 
   // Spend the credit this session was booked against. A no-show consumes it
   // too: forfeiting is the same rule a late cancellation already follows,
@@ -356,11 +372,11 @@ export async function POST(request: NextRequest) {
   //
   // Placed after the CAS claim, so a request that lost the race to another
   // completion cannot also spend the credit.
-  await mirrorConsume(admin, {
+  afterClaim.push(mirrorConsume(admin, {
     appointmentId,
     actorId: user.id,
     actorRole: adminUser ? "admin" : "therapist",
-  });
+  }));
 
   // Completion is the moment a pay-later session becomes owed, so it is also
   // the moment money already sitting in this patient's pool might cover it.
@@ -375,7 +391,7 @@ export async function POST(request: NextRequest) {
   // than which payment is recorded against the session, and the next
   // confirmation or completion picks up whatever this one missed.
   if (appointment.payment_terms === "pay_later" && appointment.patient_id) {
-    await allocatePayLaterPayments(admin, appointment.patient_id);
+    afterClaim.push(allocatePayLaterPayments(admin, appointment.patient_id));
   }
 
   // The other half of what completion never recorded. `session_completed`
@@ -398,26 +414,27 @@ export async function POST(request: NextRequest) {
       : null;
 
   if (purchaseEvent) {
-    const { error: eventError } = await admin.from(purchaseEvent.table).insert({
-      purchase_id: purchaseEvent.purchaseId,
-      event_type: purchaseEvent.eventType,
-      actor_id: user.id,
-      appointment_id: appointmentId,
-      detail: { noShow: !!noShow },
-    });
-    if (eventError) {
-      console.error(
-        "Failed to log a completion event for appointment",
-        appointmentId,
-        eventError.message
-      );
-    }
+    afterClaim.push(
+      Promise.resolve(
+        admin.from(purchaseEvent.table).insert({
+          purchase_id: purchaseEvent.purchaseId,
+          event_type: purchaseEvent.eventType,
+          actor_id: user.id,
+          appointment_id: appointmentId,
+          detail: { noShow: !!noShow },
+        })
+      ).then(({ error: eventError }) => {
+        if (eventError) {
+          console.error("Failed to log a completion event for appointment", appointmentId, eventError.message);
+        }
+      })
+    );
   }
 
   // All Logs: the therapist closing their own session. An admin completing
   // one on a therapist's behalf is recorded as that admin elsewhere.
   if (!adminUser) {
-    await recordUserActivity(admin, {
+    afterClaim.push(recordUserActivity(admin, {
       action: "session.completed",
       actor: { id: user.id, role: "therapist" },
       appointmentId,
@@ -425,8 +442,10 @@ export async function POST(request: NextRequest) {
       note: noShow ? "marked as a no-show" : null,
       details: { noShow: !!noShow },
       dedupeKey: `completed:${appointmentId}`,
-    });
+    }));
   }
+
+  await Promise.all(afterClaim);
 
   return NextResponse.json({ success: true });
 }

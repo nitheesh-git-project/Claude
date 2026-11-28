@@ -20,6 +20,7 @@ export type WhatsAppTemplateName =
   | "mr_booking_confirmed_v1"
   | "mr_booking_received_v1"
   | "mr_booking_cancelled_v1"
+  | "mr_booking_moved_v1"
   | "mr_reminder_tomorrow_v1"
   | "mr_reminder_soon_v1";
 
@@ -59,6 +60,21 @@ export const WHATSAPP_TEMPLATES: Record<WhatsAppTemplateName, WhatsAppTemplate> 
     body: "Hello {{1}}, your {{2}} on {{3}} has been cancelled. {{4}} You can book again from your dashboard: {{5}} Thank you.",
     params: ["first name", "session type", "date and time", "refund line", "dashboard link"],
     sample: ["Asha", "video session", "24 Nov 2026, 6:00 pm IST", "A refund of ₹499 is on its way; banks usually take 5 to 7 working days.", "https://moverestorephysio.com/patient/dashboard"],
+  },
+  mr_booking_moved_v1: {
+    name: "mr_booking_moved_v1",
+    language: "en",
+    category: "UTILITY",
+    body: "Hello {{1}}, your {{2}} on {{3}} has moved to {{4}}. {{5}} Your dashboard: {{6}} Thank you.",
+    params: ["first name", "session type", "old date and time", "new date and time", "what happens next", "dashboard link"],
+    sample: [
+      "Asha",
+      "video session",
+      "24 Nov 2026, 6:00 pm IST",
+      "26 Nov 2026, 11:00 am IST",
+      "We will message you once your physiotherapist is confirmed.",
+      "https://moverestorephysio.com/patient/dashboard",
+    ],
   },
   mr_reminder_tomorrow_v1: {
     name: "mr_reminder_tomorrow_v1",
@@ -133,6 +149,26 @@ export function bookingCancelledMessage(f: { name: string; when: string; mode: B
   return {
     template: "mr_booking_cancelled_v1",
     params: [firstName(f.name), sessionType({ mode: f.mode, durationMinutes: null }, false), param(f.when), refundLine(f.refund), param(f.dashboardUrl)],
+  };
+}
+
+export function bookingMovedMessage(f: {
+  name: string;
+  oldWhen: string;
+  newWhen: string;
+  mode: BookingFacts["mode"];
+  dashboardUrl: string;
+}): WhatsAppMessage {
+  return {
+    template: "mr_booking_moved_v1",
+    params: [
+      firstName(f.name),
+      sessionType({ mode: f.mode, durationMinutes: null }, false),
+      param(f.oldWhen),
+      param(f.newWhen),
+      "We will message you once your physiotherapist is confirmed.",
+      param(f.dashboardUrl),
+    ],
   };
 }
 

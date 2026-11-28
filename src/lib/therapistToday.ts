@@ -80,8 +80,20 @@ export function todaysSessions(appointments: TodayAppointment[], nowMs: number):
   });
 }
 
-/** How many of today's sessions are done (delivered or a no-show) -- the
- *  progress bar over the list. */
-export function todayProgress(rows: TodayRow[]): { settled: number; total: number } {
-  return { settled: rows.filter((r) => r.state === "done" || r.state === "no-show").length, total: rows.length };
+/**
+ * Today's progress. `settled` (delivered or a no-show) fills the bar --
+ * neither needs anything more from the therapist. `done` is delivered only,
+ * which is what "N of M done" says: a no-show can be marked a quarter of an
+ * hour into the slot, and counting it as done had Home read "1 of 1 done"
+ * while that session's time was still running and nothing had been done.
+ */
+export function todayProgress(rows: TodayRow[]): { settled: number; done: number; noShow: number; total: number } {
+  const done = rows.filter((r) => r.state === "done").length;
+  const noShow = rows.filter((r) => r.state === "no-show").length;
+  return { settled: done + noShow, done, noShow, total: rows.length };
+}
+
+/** "1 of 2 done", "0 of 1 done · 1 no-show". */
+export function todayProgressLabel(p: { done: number; noShow: number; total: number }): string {
+  return `${p.done} of ${p.total} done${p.noShow > 0 ? ` · ${p.noShow} no-show` : ""}`;
 }

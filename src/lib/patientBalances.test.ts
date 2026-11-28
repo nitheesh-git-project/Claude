@@ -192,6 +192,15 @@ describe("oldestOwedAgeDays", () => {
     expect(oldestOwedAgeDays(rows, NOW)).toBe(5);
   });
 
+  it("counts calendar days in India: yesterday evening is 1 day, not 0", () => {
+    // 6 PM IST on 25 Nov, asked at 10 AM IST on 26 Nov: 16 hours, but yesterday.
+    const slot = Date.parse("2026-11-25T18:00:00+05:30");
+    const now = Date.parse("2026-11-26T10:00:00+05:30");
+    expect(oldestOwedAgeDays([session({ slot_time: new Date(slot).toISOString() })], now)).toBe(1);
+    // The same day is 0.
+    expect(oldestOwedAgeDays([session({ slot_time: new Date(now - 3_600_000).toISOString() })], now)).toBe(0);
+  });
+
   it("is null when nothing is owed", () => {
     expect(oldestOwedAgeDays([], NOW)).toBeNull();
   });

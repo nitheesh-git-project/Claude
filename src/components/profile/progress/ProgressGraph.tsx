@@ -365,7 +365,7 @@ export default function ProgressGraph({
                   <th scope="row">{formatClinicDate(p.measuredAt)}</th>
                   <td>{reading(p.value)}</td>
                   <td>
-                    {p.setting === "video" ? "Over video" : p.setting === "in_person" ? "In person" : "Not recorded"}
+                    {p.setting === "video" ? "Over video" : p.setting === "in_person" ? "In person" : p.recordedBy === "pain_map" ? "From the Pain Map" : "Not recorded"}
                     {p.estimatedFromImage ? ` (${IMAGE_ESTIMATE_LABEL.toLowerCase()})` : ""}
                   </td>
                 </tr>

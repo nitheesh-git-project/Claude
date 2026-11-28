@@ -9,7 +9,7 @@
 //
 // Fixtures are marked by patient name and deleted before and after.
 import { test, expect } from "@playwright/test";
-import { BASE, QA_EMAILS, adminClient, browserCookiesFor, cookieHeaderFor, profileIdFor } from "./helpers";
+import { BASE, QA_EMAILS, adminClient, browserCookiesFor, clinicSlot, cookieHeaderFor, profileIdFor } from "./helpers";
 
 const db = adminClient();
 const MARKER = "E2E Referral Rule";
@@ -149,4 +149,40 @@ test("REF-003: a dropped connection while withdrawing is said, not swallowed", a
 
   await expect(page.getByText(/Couldn't reach the clinic/)).toBeVisible({ timeout: 20_000 });
   await ctx.close();
+});
+
+test("REF-005: a declined referral cannot be assigned, and the screen says so", async () => {
+  await cleanup();
+  const hospitalId = await profileIdFor(db, QA_EMAILS.hospital);
+  const therapistId = await profileIdFor(db, QA_EMAILS.therapistA);
+  const { data: referral } = await db
+    .from("patient_referrals")
+    .insert({
+      hospital_id: hospitalId,
+      patient_name: `${MARKER} declined`,
+      patient_phone: "+91 98111 22399",
+      medical_issue: "Back pain",
+      visit_mode: "online",
+      status: "declined",
+    })
+    .select("id")
+    .single();
+  expect(referral?.id).toBeTruthy();
+
+  const res = await fetch(`${BASE}/api/admin/assign-referral`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Cookie: await cookieHeaderFor(QA_EMAILS.admin) },
+    body: JSON.stringify({
+      referralId: referral!.id,
+      therapistId,
+      slotDateTime: clinicSlot(5, 11),
+    }),
+  });
+  const body = await res.json();
+  expect(res.status, JSON.stringify(body)).toBe(409);
+  expect(body.code).toBe("referral_not_assignable");
+  expect(body.error).toMatch(/was declined/);
+  const { data: after } = await db.from("patient_referrals").select("status, assigned_therapist_id").eq("id", referral!.id).single();
+  expect(after).toMatchObject({ status: "declined", assigned_therapist_id: null });
+  await cleanup();
 });

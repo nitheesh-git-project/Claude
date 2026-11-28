@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { sameClinicDay, todayProgress, todaysSessions, type TodayAppointment } from "./therapistToday";
+import { sameClinicDay, todayProgress,
+  todayProgressLabel, todaysSessions, type TodayAppointment } from "./therapistToday";
 
 // 24 Nov 2026, 11:10 IST = 05:40 UTC.
 const NOW = Date.parse("2026-11-24T05:40:00Z");
@@ -61,6 +62,11 @@ describe("todaysSessions", () => {
   });
 
   it("counts settled sessions for the progress bar", () => {
-    expect(todayProgress(rows)).toEqual({ settled: 2, total: 6 });
+    expect(todayProgress(rows)).toEqual({ settled: 2, done: 1, noShow: 1, total: 6 });
+  });
+
+  it("never calls a no-show done", () => {
+    expect(todayProgressLabel({ done: 0, noShow: 1, total: 1 })).toBe("0 of 1 done · 1 no-show");
+    expect(todayProgressLabel({ done: 2, noShow: 0, total: 3 })).toBe("2 of 3 done");
   });
 });

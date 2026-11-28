@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { payLaterDuePaise } from "@/lib/payLaterDue";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseJsonBody } from "@/lib/parseJsonBody";
@@ -163,6 +164,11 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Settled by hand in whole rupees, so the due is the total rounded down
+  // to the rupee (payLaterDue.ts). The discount columns keep what the quote
+  // gave: the paise given up are not a discount anyone chose.
+  const duePaise = payLaterDuePaise(quote.totalPaise);
+
   // The ceiling again, against the figure actually being written. The check
   // above ran on an unclaimed preview, and claiming can raise the price (a
   // code at its cap, an invite half another checkout holds) -- and the
@@ -174,7 +180,7 @@ export async function POST(request: NextRequest) {
       patientId: user.id,
       visitMode: appointment.visit_mode,
       hasProgramme: !!appointment.package_purchase_id,
-      bookingAmountPaise: quote.totalPaise,
+      bookingAmountPaise: duePaise,
     });
     if (!recheck.allowed) {
       return NextResponse.json(
@@ -192,7 +198,7 @@ export async function POST(request: NextRequest) {
   const outcome = await confirmPayLaterAppointment(admin, {
     appointment,
     holdForApproval,
-    amountDuePaise: quote.totalPaise,
+    amountDuePaise: duePaise,
     // Written inside the same claim that confirms, so no row can be left
     // marked pay-later but unconfirmed, or confirmed with no figure on it.
     extraFields: {
@@ -245,7 +251,7 @@ export async function POST(request: NextRequest) {
     actor: { id: user.id, role: "patient" },
     appointmentId: appointment.id,
     patientId: user.id,
-    amountPaise: quote.totalPaise,
+    amountPaise: duePaise,
     dedupeKey: `booked_pay_later:${appointment.id}`,
   });
 
@@ -255,7 +261,7 @@ export async function POST(request: NextRequest) {
     // Waiting for an admin to approve the pay-later terms.
     awaitingApproval: holdForApproval,
     // The figure that was written, not a re-read of it.
-    amountDuePaise: quote.totalPaise,
+    amountDuePaise: duePaise,
     discountPaise: quote.discountPaise,
   });
 }

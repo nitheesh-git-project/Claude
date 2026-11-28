@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { readSessionDiscounts } from "@/lib/sessionDiscountsServer";
 import AdminTypeChanger from "@/components/admin/AdminTypeChanger";
 import DeletedUserTag from "@/components/admin/DeletedUserTag";
 import { readAccountDeletions } from "@/lib/accountDeletionsServer";
@@ -204,10 +205,13 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
     readFrozenTherapistRates(admin, id),
   ]);
 
+  // The discount each session was quoted, so a list price here is what the
+  // patient pays, not the service's full price.
+  const discountsById = await readSessionDiscounts(admin, { column: "therapist_id", id });
   const appointments = mergeMeetLinks(
     mergeSessionCodes(rawAppointments ?? [], sessionCodeLinks),
     meetLinkRows
-  );
+  ).map((a) => ({ ...a, ...(discountsById.get(a.id) ?? {}) }));
 
 
   const categoryIds = [
@@ -759,7 +763,15 @@ export default async function TherapistDetailContent({ id }: { id: string }) {
                     {travelPaise > 0 && (
                       <> + ₹{formatRupees(travelPaise)} travel</>
                     )}{" "}
-                    • Paid {a.paid_at ? formatClinicDate(a.paid_at) : "date unknown"}
+                    {/* The patient's payment, not the payout -- the payout's date is
+                        "Settled" below. A programme session has no payment of
+                        its own, which is how "Paid date unknown" sat over
+                        "Settled 25 Nov". */}
+                    {a.paid_at
+                      ? ` • Patient paid ${formatClinicDate(a.paid_at)}`
+                      : a.package_purchase_id
+                        ? " • Patient paid for the programme"
+                        : ""}
                   </p>
                   {isSettled && (
                     <p className="text-slate-500">

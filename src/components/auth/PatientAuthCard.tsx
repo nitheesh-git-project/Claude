@@ -39,6 +39,9 @@ export default function PatientAuthCard({
     status: "idle",
   });
   const [forgotMode, setForgotMode] = useState(false);
+  // What was typed in the sign-in box, carried to the reset box so a patient
+  // who taps "Forgot password?" does not type the same address again.
+  const [typedEmail, setTypedEmail] = useState("");
   // Phone code sign-in / reset (PhoneCodeSignIn), offered only while an
   // admin has it switched on (the page reads that on the server).
   const [phoneMode, setPhoneMode] = useState<"signin" | "reset" | null>(null);
@@ -191,10 +194,12 @@ export default function PatientAuthCard({
     <AuthSplitLayout photo={tab === "register" ? "patient-register" : "patient"} kicker="For patients" line="Care that comes to you, at home or on a video call.">
       <div>
         <h2 className="text-2xl font-bold text-slate-900 text-center">
-          Patient Portal Login
+          {tab === "register" ? "Create your patient account" : "Patient Portal Login"}
         </h2>
         <p className="text-xs text-slate-500 text-center mt-1">
-          Access your sessions and your exercise plan
+          {tab === "register"
+            ? "The clinic checks new accounts - you can book straight away"
+            : "Access your sessions and your exercise plan"}
         </p>
 
         <div className="flex border-b border-slate-200 mt-6 mb-6">
@@ -288,6 +293,7 @@ export default function PatientAuthCard({
                 <input
                   type="email"
                   name="email"
+                  defaultValue={typedEmail}
                   autoComplete="email"
                   required
                   maxLength={254}
@@ -342,6 +348,7 @@ export default function PatientAuthCard({
               <input
                 type="email"
                 name="email"
+                onChange={(e) => setTypedEmail(e.target.value)}
                 autoComplete="email"
                 required
                 maxLength={254}
@@ -446,8 +453,8 @@ export default function PatientAuthCard({
               )}
             </label>
             <p className="text-slate-500 leading-relaxed">
-              New accounts are reviewed by our team - you&apos;ll be able to
-              sign in and book sessions once an admin approves yours.
+              Our team checks every new account. You don&apos;t have to wait for
+              that: book your first session straight away and your account opens as you book.
             </p>
             <TermsCheckbox id="patient-register-terms" checked={termsAgreed} onChange={setTermsAgreed} />
             <button

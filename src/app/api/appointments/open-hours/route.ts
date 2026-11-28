@@ -16,6 +16,8 @@ import { BASE_DURATION_MINUTES } from "@/lib/pricing";
 //     [&therapistId=<uuid>|me]   only that therapist's hours, "me" for the caller (signed in only)
 //     [&exclude=<uuid>]          a session being moved does not block itself (signed in only)
 //     [&visitMode=home_visit]    pad other visits by the clinic's travel buffer
+//     [&tz=<IANA zone>]          answer on that zone's whole hours -- the picker's own clock.
+//                                Absent: the clinic's hours (the admin pickers' grid).
 // 200 { checked: true, open: number[] }   epoch ms, ascending
 // 200 { checked: false }                  the roster could not be read; offer every hour
 // 400, 429
@@ -46,6 +48,10 @@ export async function GET(request: NextRequest) {
     if (therapistId === "me") therapistId = data.user.id;
   }
   const homeVisit = params.get("visitMode") === "home_visit";
+  // The picker's own clock. A zone Intl does not know is ignored rather than
+  // refused: the clinic grid is a safe answer, a 400 would grey the picker.
+  const tzRaw = params.get("tz");
+  const gridTimeZone = tzRaw && tzRaw.length <= 64 && isKnownTimeZone(tzRaw) ? tzRaw : null;
 
   const admin = createAdminClient();
   // The service's session length, read alongside the roster rather than
@@ -71,7 +77,17 @@ export async function GET(request: NextRequest) {
     ...(therapistId ? { therapistIds: [therapistId] } : {}),
     ...(exclude ? { excludeAppointmentId: exclude } : {}),
     bufferMinutes,
+    gridTimeZone,
   });
   if (open === null) return NextResponse.json({ checked: false });
   return NextResponse.json({ checked: true, open });
+}
+
+function isKnownTimeZone(zone: string): boolean {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: zone });
+    return true;
+  } catch {
+    return false;
+  }
 }

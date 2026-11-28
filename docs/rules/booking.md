@@ -17,7 +17,7 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
   | Picker | Asks about |
   | --- | --- |
   | Booking wizard, programme scheduler (`PackageBulkScheduler`), admin Book a session | anyone free |
-  | Patient Change time (`RescheduleSessionButton`) | anyone free, `exclude` = the session being moved |
+  | Patient Reschedule (`RescheduleSessionButton`) | anyone free, `exclude` = the session being moved |
   | Suggest a session (`SuggestSessionControl`) | `therapistId=me` -- the therapist's own hours |
   | Admin edit booking (`EditBookingForm`), assign referral (`AssignReferralForm`) | the chosen therapist; edit also `exclude`s its session |
   | Home-visit wizard and home-visit scheduler | anyone free, `visitMode=home_visit` (travel buffer either side) |
@@ -61,6 +61,42 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
   found out at Assign & Confirm that nobody works Sundays. The pay-later
   success heading now reads **Request received** -- the clinic still
   confirms the time. `openHours.test.ts` pins the rule.
+- **Open hours are answered on the picker's own clock.** The patient's
+  and therapist's pickers draw whole hours in the **browser's** zone
+  (`slotStartMs`); the admin pickers draw the clinic's (or the booking's own
+  zone). `useOpenSlots` sends that zone as `tz` (`gridTimeZone`; the admin
+  pickers pass `CLINIC_TIMEZONE`, which sends nothing), and the route answers
+  on that zone's whole hours (`zoneHourStarts`). Each start is judged by
+  `openStartsAmong` in the **clinic hour it falls in** -- the therapist works
+  that hour, is not on leave, and nothing of theirs overlaps the session
+  itself -- the rule Assign & Confirm applies. `/api/appointments/create`,
+  the reschedule route and `isSlotClosed` judge the one instant asked for
+  (`starts: [slotMs]`) instead of looking it up in the clinic grid. Before
+  this, the answer was clinic-hour starts only: India is UTC+5:30, so a
+  browser in UTC, the Gulf, Europe or the Americas had whole hours on the
+  clinic half hour, none matched, every date greyed out, and the routes
+  would have refused every such booking. CI's browsers are UTC; its roster
+  read "not checked", which is why no spec caught it. Guard: OH-004 and
+  `openHours.test.ts`.
+- **The admin picker's clock offset is whole minutes.** `AdminSlotPicker`
+  turns a grid slot (the clinic's date and hour read as the browser's local
+  time) back into the real instant by subtracting the zone offset, then looks
+  that instant up in the open hours **by exact value**. The offset was
+  `wallClockMs(now) - now`, which carries the sub-second part of `now` that
+  the zone conversion drops (-239 ms in a browser already on India time), so
+  every lookup missed and every date on Book a session greyed out in every
+  timezone -- only when the roster answered, so CI (empty roster, "not
+  checked") never saw it. `wallClockShiftMs` (`bookingSlots.ts`) rounds to
+  whole minutes. Guards: `wallClockShift.test.ts`, ABF-007 (a UTC browser on
+  the real screen with weekly hours set).
+- **A visitor outside India sees both clocks after the picker.** Step 1 draws
+  the visitor's own hours and says so; the review row, the "your time moved"
+  notice and the confirmation used to print the clinic's time alone, so a
+  visitor who picked 10:00 UTC was shown 3:30 pm with no word why.
+  `slotInZones` / `describeSlotForVisitor` (`src/lib/slotZones.ts`) say both
+  ("28 Nov 2026, 10:00 am UTC (28 Nov 2026, 3:30 pm India time)"), and the
+  confirmation adds "That's ... where you are." Nothing extra for a visitor
+  on India's clock. Every other screen keeps to the clinic's zone.
 - **A patient may move a video session themselves -- once, up to the
   cut-off.** `POST /api/appointments/reschedule` (owner's decisions:
   `patient_reschedule_cutoff_hours`, default 24, Settings -> Booking rules;
@@ -73,6 +109,51 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
   "Sessions with no therapist". Home visits are moved by the clinic only. The
   write compare-and-sets on status, slot and count.
 
+- **No physiotherapist close to the time: the patient gets a refund or a
+  new time, and a past session is never "assign a therapist".** One rule
+  module, `src/lib/sessionPatientActions.ts` (tested), read by the session
+  card, Home, the routes and the admin queues. With under
+  `site_settings.unassigned_rescue_hours` (default 4, Settings -> Booking
+  rules; read on its own by `rescueHoursServer.ts`) to go -- from 3 h 59 min
+  at the default -- and nobody on a live session, the card drops Pay, Change
+  time and the ordinary Cancel and shows **Pick a new time** and **Cancel and
+  refund** (or **Cancel session** when nothing was paid). The clinic missed
+  its side, so neither counts against the patient: `/api/appointments/cancel`
+  skips the patient cut-off, `cancelAppointmentAndRefund` skips the refund
+  window for an unassigned session in that state (whoever cancels -- the
+  admin's cancel of a missed session refunds in full too), and
+  `/api/appointments/reschedule` skips the cut-off and the one-move limit,
+  does not count the move, and accepts a home visit (with its lead time and
+  travel buffer). Once the time passes with nobody assigned the same two
+  options stay with the patient, and the session leaves "Sessions with no
+  therapist" (`needsTherapist` now asks whether the slot is still ahead) for
+  **Missed: no therapist was assigned** (`missedNeedsFollowUp`, admin Home and
+  the All Sessions filter); the drawer no longer offers Assign & Confirm on a
+  past session. An abandoned unpaid checkout whose time passed is in neither
+  queue. **Every change tells people** (`sessionChangeNoticesServer.ts`,
+  words in `sessionChangeEmails.ts`): a move emails and WhatsApps the patient
+  (`mr_booking_moved_v1`, docs/whatsapp/TEMPLATES.md) and emails the
+  physiotherapist who was on it; a cancel emails the physiotherapist who was
+  on it (the patient has the booking "cancelled" email); and either way out of
+  a no-physiotherapist session emails the clinic's contact address. Guard:
+  `e2e/no-therapist-rescue.spec.ts`.
+- **Pay is offered only where paying means something, and an unpaid
+  session cannot be joined.** `patientPaymentView` decides the card's money
+  pill: Pay only for a live session whose time is ahead and that the clinic
+  can still run; otherwise **Not paid** (time passed), **Payment due**
+  (completed unpaid -- the clinic follows up), **Not charged** (cancelled or
+  no-show), **Pay at the visit** (a cash home visit) or **No payment taken**
+  (no physiotherapist in time). `/api/razorpay/create-order` applies the same
+  rule and refuses anything else (409 `not_payable`). `joinHeldForPayment`:
+  an online session paid up front and still unpaid -- an admin booking
+  marked unpaid included -- shows "Pay for this session to unlock the video
+  link" instead of Tap to Join, on the card and on Home's hero, and the page
+  leaves the Meet link out of what it sends. Pay later, programme sessions
+  and home visits are not held; the therapist's card says the patient has
+  not paid yet. Patient **Home** lists every session waiting for payment
+  (`needsPaymentOnHome`, the same rule) with **Pay now** and **Cancel
+  Session** (the confirm dialog says nothing is charged); cancelled, it leaves
+  Home and shows as Cancelled in Your Sessions.
 - **A patient holds one session at a time, and the database says so.**
   `/api/appointments/create` checks for an overlapping live session for
   immediate feedback, but a check and an insert two statements apart let two
@@ -504,3 +585,17 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
   `data-step-heading`. Without it a shorter next step left a phone at the
   footer. Used by both booking wizards and the health intake pop-up; a new
   stepped flow calls it too. Guard: BWC-005.
+
+## Admin "Book a session": nothing half-made, and no wait on the clinic
+
+- With a physiotherapist chosen, the calendar offers only the hours **that
+  person** is free (`useOpenSlots` with `therapistId`), and
+  `admin/create-booking` asks `checkTherapistAssignable` **before** it inserts.
+  A clash is found while picking, not on submit.
+- If the atomic claim still loses a race, the just-created row is **deleted**
+  (still `requested`, still nobody on it) -- a failed booking must not leave a
+  paid, unassigned session that inflates Total Paid and shows on Admin Home.
+- The route's reads run together and the audit row is written alongside the
+  Meet invite; the success message still waits for the invite outcome.
+- The activity log credits a clinic-made booking to the admin who made it
+  (`bookedByAdminMap`), never to the patient.

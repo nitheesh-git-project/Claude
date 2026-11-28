@@ -33,7 +33,27 @@ export type OpenSlotOptions = {
   excludeAppointmentId?: string | null;
   /** A home visit: other visits are padded by the travel buffer. */
   visitMode?: "online" | "home_visit";
+  /**
+   * The zone the picker draws its hours in. Default: the browser's own, which
+   * is what the patient's and therapist's pickers use (slotStartMs). The
+   * admin pickers draw the clinic's hours and pass CLINIC_TIMEZONE. The
+   * server answers on this grid; asking about the clinic grid from a browser
+   * in UTC (or anywhere not on India's half hour) greyed out every date.
+   */
+  gridTimeZone?: string;
+  /** Bump to ask again: a screen that has just taken an hour (a booking made
+   *  on someone's behalf) re-reads the open hours instead of showing that hour
+   *  free until the page is reloaded. */
+  reloadKey?: number;
 };
+
+function browserTimeZone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || CLINIC_TIMEZONE;
+  } catch {
+    return CLINIC_TIMEZONE;
+  }
+}
 
 export function useOpenSlots(
   nowMs: number | null,
@@ -50,7 +70,9 @@ export function useOpenSlots(
   const therapistId = options.therapistId ?? "";
   const exclude = options.excludeAppointmentId ?? "";
   const visitMode = options.visitMode === "home_visit" ? "home_visit" : "";
-  const key = `${fromKey}|${categoryId ?? ""}|${therapistId}|${exclude}|${visitMode}`;
+  const gridZone = options.gridTimeZone ?? (nowMs === null ? "" : browserTimeZone());
+  const reload = options.reloadKey ?? 0;
+  const key = `${fromKey}|${categoryId ?? ""}|${therapistId}|${exclude}|${visitMode}|${gridZone}|${reload}`;
 
   useEffect(() => {
     if (!fromKey) return;
@@ -60,6 +82,8 @@ export function useOpenSlots(
     if (therapistId) params.set("therapistId", therapistId);
     if (exclude) params.set("exclude", exclude);
     if (visitMode) params.set("visitMode", visitMode);
+    // The clinic's own grid is the server's default; anything else is said.
+    if (gridZone && gridZone !== CLINIC_TIMEZONE) params.set("tz", gridZone);
     fetch(`/api/appointments/open-hours?${params.toString()}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((body: { checked?: boolean; open?: unknown } | null) => {
@@ -82,7 +106,7 @@ export function useOpenSlots(
       cancelled = true;
       clearTimeout(giveUp);
     };
-  }, [key, fromKey, categoryId, therapistId, exclude, visitMode]);
+  }, [key, fromKey, categoryId, therapistId, exclude, visitMode, gridZone]);
 
   const open = state.key === key ? state.open : null;
   // One function per answer, not per render: callers compare it to decide

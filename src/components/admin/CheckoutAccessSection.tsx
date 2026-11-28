@@ -62,7 +62,8 @@ export function NumberSetting({
     | "payment_tries_before_access"
     | "abandoned_booking_account_days"
     | "patient_cancel_cutoff_minutes"
-    | "patient_reschedule_cutoff_hours";
+    | "patient_reschedule_cutoff_hours"
+    | "unassigned_rescue_hours";
   title: string;
   help: string;
   unit: string;

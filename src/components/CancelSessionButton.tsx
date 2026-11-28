@@ -20,7 +20,13 @@ export default function CancelSessionButton({
   payLater = false,
   viaProgramme = false,
   refundablePaise = 0,
+  noTherapistInTime = false,
+  label = "Cancel Session",
 }: {
+  /** Nobody was confirmed in time (sessionPatientActions.ts): no refund
+   *  window applies, so the dialog promises the full refund the route gives. */
+  noTherapistInTime?: boolean;
+  label?: string;
   appointmentId: string;
   paid: boolean;
   slotTime: string | null;
@@ -86,7 +92,7 @@ export default function CancelSessionButton({
       patientCancelMessage({
         slotTime,
         nowMs: debugNow(),
-        windowHours: refundWindowHours,
+        windowHours: noTherapistInTime ? Number.NEGATIVE_INFINITY : refundWindowHours,
         paidDirect: paid && !viaProgramme,
         viaProgramme,
         cashCollected: false,
@@ -121,7 +127,7 @@ export default function CancelSessionButton({
       if (data.refundFailed) {
         show(patientRefundDelayedNotice(data.refundPaise), "info");
       } else {
-        show("Session cancelled. Any refund due is on its way.");
+        show(paid ? "Session cancelled. Any refund due is on its way." : "Session cancelled. Nothing was charged.");
       }
       router.refresh();
     });
@@ -141,7 +147,7 @@ export default function CancelSessionButton({
         disabled={isPending}
         className="min-h-11 px-1 text-red-700 hover:underline text-sm font-semibold disabled:opacity-60"
       >
-        Cancel Session
+        {label}
       </button>
       {error && <span className="text-sm text-red-700">{error}</span>}
       {dialog}

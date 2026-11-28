@@ -15,6 +15,7 @@ import {
   applyLedgerVisitBalances,
 } from "@/lib/ledgerBalances";
 import { parseAdminSettings, SITE_SETTINGS_SELECT } from "@/lib/adminSettings";
+import { readUnassignedRescueHours } from "@/lib/rescueHoursServer";
 import { mergeSessionCodes } from "@/lib/sessionCode";
 import { mergeMeetLinks } from "@/lib/meetLink";
 import { countAnswered, countedQuestions, patientIntakeGate, questionsForSpecialty } from "@/lib/conditionIntake";
@@ -131,6 +132,8 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
   // a scheduled job. This admin client instance is reused further down for
   // the category/therapist/package-info lookups that already needed one.
   const admin = createAdminClient();
+  // Isolated (rescueHoursServer): the "no physiotherapist in time" window.
+  const unassignedRescueHoursRead = readUnassignedRescueHours(admin);
   // The two sweeps touch different tables, so they run together.
   await Promise.all([expireDuePackagePurchases(admin), expireDueHomeVisitPurchases(admin)]);
 
@@ -270,7 +273,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
       supabase
         .from("appointments")
         .select(
-          "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, paid_at, razorpay_payment_id, category_id, duration_minutes, therapist_id, patient_rating, patient_feedback, refund_status, package_purchase_id, no_show, therapist_payout_paid_at"
+          "id, slot_time, timezone, concern, status, payment_status, amount_paid_paise, paid_at, razorpay_payment_id, category_id, duration_minutes, therapist_id, patient_rating, patient_feedback, refund_status, package_purchase_id, no_show, therapist_payout_paid_at, created_at"
         )
         .eq("patient_id", user.id)
         .order("created_at", { ascending: false })
@@ -1074,7 +1077,10 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
       // patient honouring the arrangement the clinic offered them, and it
       // says the wrong one of those to the patients it trusts most.
       payment_terms: a.payment_terms,
-      created_at: a.slot_time,
+      // When it was booked -- not when it is for. The slot time of an
+      // upcoming session is in the future, and the feed read every booking
+      // as "just now" until the session had happened.
+      created_at: (a as { created_at?: string | null }).created_at ?? a.slot_time,
       therapist_name: a.therapist_id ? therapistMap.get(a.therapist_id) ?? null : null,
       awaiting_programme_therapist: isBookedAwaitingTherapist({
         status: a.status,
@@ -1378,6 +1384,7 @@ export async function loadPatientDashboard(screen: PatientScreen = "overview") {
     sessionPrep: sessionPrepEarly ? await sessionPrepEarly : ({ status: "none" } as const),
     recap,
     nowMs: nowMsForPackages,
+    unassignedRescueHours: await unassignedRescueHoursRead,
   };
 }
 

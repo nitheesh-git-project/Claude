@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { patientPaymentView } from "@/lib/sessionPatientActions";
+import { readUnassignedRescueHours } from "@/lib/rescueHoursServer";
+import { serverNowMs } from "@/lib/debugClock";
 import { createClient } from "@/lib/supabase/server";
 import {
   readPatientCheckoutStanding,
@@ -108,6 +111,36 @@ export async function POST(request: NextRequest) {
       {
         error:
           "This session is already booked, and you'll settle it later. You can pay from your dashboard.",
+      },
+      { status: 409 }
+    );
+  }
+
+  // Only a live session whose time is still ahead, and that the clinic can
+  // still run, takes money (sessionPatientActions.ts -- the same rule that
+  // decides whether the card shows Pay). The card stopped offering Pay on a
+  // past, completed or cancelled session; this is the door behind it.
+  const view = patientPaymentView(
+    {
+      status: appointment.status,
+      no_show: null,
+      therapist_id: appointment.therapist_id,
+      slot_time: appointment.slot_time,
+      payment_status: appointment.payment_status,
+      payment_terms: appointment.payment_terms,
+      visit_mode: appointment.visit_mode,
+    },
+    serverNowMs(request),
+    await readUnassignedRescueHours(createAdminClient())
+  );
+  if (view.kind !== "pay") {
+    return NextResponse.json(
+      {
+        error:
+          view.kind === "no_action" && view.label === "No payment taken"
+            ? "We couldn't confirm a physiotherapist in time for this session, so we won't take payment for it. Pick a new time or cancel it from your sessions."
+            : "This session can't be paid for any more. Book a new time from your dashboard.",
+        code: "not_payable",
       },
       { status: 409 }
     );

@@ -99,15 +99,109 @@ export function openSlotStarts(input: {
  * offset holds all day, which the two ends prove. A day where it does not
  * (a clock change, never in India) converts every hour, as before.
  */
-function dayHourStarts(dateKey: string): (hour: number) => number | null {
+function dayHourStarts(dateKey: string, timeZone: string = CLINIC_TIMEZONE): (hour: number) => number | null {
   const first = AVAILABILITY_HOURS[0];
   const last = AVAILABILITY_HOURS[AVAILABILITY_HOURS.length - 1];
-  const firstMs = zonedSlotMs(dateKey, first, CLINIC_TIMEZONE);
-  const lastMs = zonedSlotMs(dateKey, last, CLINIC_TIMEZONE);
+  const firstMs = zonedSlotMs(dateKey, first, timeZone);
+  const lastMs = zonedSlotMs(dateKey, last, timeZone);
   if (firstMs !== null && lastMs !== null && lastMs - firstMs === (last - first) * 3_600_000) {
     return (hour) => firstMs + (hour - first) * 3_600_000;
   }
-  return (hour) => zonedSlotMs(dateKey, hour, CLINIC_TIMEZONE);
+  return (hour) => zonedSlotMs(dateKey, hour, timeZone);
+}
+
+/**
+ * The start instants a picker on `timeZone`'s wall clock offers: each of its
+ * whole hours (AVAILABILITY_HOURS) on each of its dates, one day either side
+ * of the clinic window so a zone ahead of or behind the clinic is covered.
+ *
+ * Why it exists: the patient's pickers draw hours on the **browser's** clock
+ * and looked each one up in a list of clinic-hour starts. India is UTC+5:30,
+ * so a browser in UTC, the Gulf, Europe or the Americas has whole hours that
+ * fall on a clinic half hour -- none of them was ever in the list, and every
+ * date on the calendar greyed out. The server now answers on the caller's
+ * own grid.
+ */
+export function zoneHourStarts(fromDateKey: string, days: number, timeZone: string): number[] {
+  const out: number[] = [];
+  const span = Math.max(1, Math.min(days, 120));
+  for (let i = -1; i <= span; i++) {
+    const startOf = dayHourStarts(addDaysToKey(fromDateKey, i), timeZone);
+    for (const hour of AVAILABILITY_HOURS) {
+      const ms = startOf(hour);
+      if (ms !== null) out.push(ms);
+    }
+  }
+  return out.sort((a, b) => a - b);
+}
+
+/**
+ * The same judgement as `openSlotStarts`, for any start instants -- the
+ * caller's own grid, or the one instant a booking route was asked for.
+ *
+ * A start is judged in the **clinic hour it falls in**, as Assign & Confirm
+ * judges a session (the therapist works that hour, is not on leave, and
+ * nothing of theirs overlaps the session itself), so an instant on the half
+ * hour is not refused just for not being on the clinic's grid. Sorted
+ * ascending; past instants are left out.
+ */
+export function openStartsAmong(input: {
+  starts: number[];
+  therapists: RosterTherapist[];
+  durationMinutes: number;
+  nowMs: number;
+  bufferMinutes?: number;
+  excludeAppointmentId?: string;
+}): number[] {
+  const durationMs = input.durationMinutes * 60_000;
+  const bufferMs = Math.max(0, input.bufferMinutes ?? 0) * 60_000;
+  const working = input.therapists.filter((t) => !t.onLeave);
+  const starts = [...new Set(input.starts)].filter((ms) => Number.isFinite(ms) && ms > input.nowMs).sort((a, b) => a - b);
+  if (starts.length === 0 || working.length === 0) return [];
+  const open: number[] = [];
+  // One clinic day at a time, worked out once: the starts are sorted, so a
+  // day is computed when the first start inside it arrives.
+  let dayKey = "";
+  let dayStarts: ((hour: number) => number | null) | null = null;
+  let dayByTherapist: ReturnType<typeof computeDayAvailability>[] = [];
+  for (const ms of starts) {
+    const key = clinicDateKeyOf(ms);
+    if (key !== dayKey) {
+      dayKey = key;
+      dayStarts = dayHourStarts(key);
+      dayByTherapist = working.map((t) => computeDayAvailability(key, t.template, t.overrides));
+    }
+    const hour = AVAILABILITY_HOURS.find((h) => {
+      const at = dayStarts!(h);
+      return at !== null && at <= ms && ms < at + 3_600_000;
+    });
+    if (hour === undefined) continue;
+    const someoneFree = working.some(
+      (t, n) =>
+        assignabilityReasons({
+          onLeave: false,
+          weeklyHourCount: t.template.length,
+          slotState: dayByTherapist[n][hour] ?? null,
+          hourLabel: "",
+          dateLabel: "",
+          alreadyBooked: bookingOverlaps(t.bookings, ms - bufferMs, ms + durationMs + bufferMs, input.excludeAppointmentId),
+        }).length === 0
+    );
+    if (someoneFree) open.push(ms);
+  }
+  return open;
+}
+
+const clinicDayFormat = new Intl.DateTimeFormat("en-CA", {
+  timeZone: CLINIC_TIMEZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+/** "YYYY-MM-DD" on the clinic's calendar for an instant. */
+function clinicDateKeyOf(ms: number): string {
+  return clinicDayFormat.format(new Date(ms));
 }
 
 /** A lookup the pickers can ask per slot. Null means "could not be checked",

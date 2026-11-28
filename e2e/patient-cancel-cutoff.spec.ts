@@ -20,6 +20,7 @@ const MARKER = "E2E cancel-cutoff";
 const MIN = 60_000;
 
 let patientId: string;
+let therapistId: string;
 let patient: APIRequestContext;
 let admin: APIRequestContext;
 
@@ -28,8 +29,12 @@ async function seed(slotMs: number, concern = MARKER) {
     .from("appointments")
     .insert({
       patient_id: patientId,
+      // Assigned: a session nobody is on that close to its time is offered
+      // a refund or a new time instead (no-therapist-rescue.spec.ts), and
+      // the cut-off does not apply to it.
+      therapist_id: therapistId,
       slot_time: new Date(slotMs).toISOString(),
-      status: "requested",
+      status: "confirmed",
       payment_status: "unpaid",
       duration_minutes: 30,
       visit_mode: "online",
@@ -50,6 +55,7 @@ async function setCutoff(value: number) {
 
 test.beforeAll(async () => {
   patientId = await profileIdFor(db, QA_EMAILS.patientB);
+  therapistId = await profileIdFor(db, QA_EMAILS.therapistA);
   await markDashboardTourSeen(QA_EMAILS.patientB);
   patient = await request.newContext({ extraHTTPHeaders: { Cookie: await cookieHeaderFor(QA_EMAILS.patientB) } });
   admin = await request.newContext({ extraHTTPHeaders: { Cookie: await cookieHeaderFor(QA_EMAILS.admin) } });
@@ -74,7 +80,7 @@ test("PCC-001: inside the cut-off the cancel route refuses", async () => {
   expect(res.status()).toBe(409);
   expect((await res.json()).code).toBe("cancel_cutoff");
   const { data } = await db.from("appointments").select("status").eq("id", id).single();
-  expect(data!.status).toBe("requested");
+  expect(data!.status).toBe("confirmed");
 });
 
 test("PCC-002: the setting moves the cut-off, and is range-checked", async () => {

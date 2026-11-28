@@ -597,7 +597,9 @@ export function buildTherapistFeed({
       const upcoming = when ? new Date(when).getTime() > now : false;
       items.push({
         id: `appt-${a.id}`,
-        at: when,
+        // Booked: dated by the booking. Finished and waiting to be marked
+        // complete: dated by the session, which is what makes it overdue.
+        at: upcoming ? a.created_at ?? when : when,
         icon: upcoming ? "fa-calendar-check" : "fa-clipboard-check",
         tone: upcoming ? "good" : "warn",
         title: upcoming
@@ -661,16 +663,31 @@ export function buildTherapistFeed({
 export function buildHospitalFeed({ referrals }: { referrals: FeedReferral[] }): FeedItem[] {
   return sortFeed(
     referrals.map((r) => {
+      // The column holds pending_review, therapist_assigned, invite_sent,
+      // converted, declined and withdrawn (referralStatus.ts). This used to
+      // test "accepted" and "rejected", which it can never hold, so a referral
+      // whose registration link had gone out, or that was declined, still read
+      // "waiting on the clinic".
       const tone: FeedTone =
-        r.status === "accepted" ? "good" : r.status === "rejected" ? "bad" : r.status === "withdrawn" ? "neutral" : "warn";
-      const title =
-        r.status === "accepted"
-          ? "Referral accepted"
-          : r.status === "rejected"
-            ? "Referral declined"
+        r.status === "converted" || r.status === "invite_sent" || r.status === "therapist_assigned"
+          ? "good"
+          : r.status === "declined"
+            ? "bad"
             : r.status === "withdrawn"
-              ? "Referral withdrawn"
-              : "Referral waiting on the clinic";
+              ? "neutral"
+              : "warn";
+      const title =
+        r.status === "converted"
+          ? "Patient registered"
+          : r.status === "invite_sent"
+            ? "Registration link sent"
+            : r.status === "therapist_assigned"
+              ? "Referral accepted - a physiotherapist is on it"
+              : r.status === "declined"
+                ? "Referral declined"
+                : r.status === "withdrawn"
+                  ? "Referral withdrawn"
+                  : "Referral waiting on the clinic";
       return {
         id: `ref-${r.id}`,
         at: r.created_at,

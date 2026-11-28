@@ -210,6 +210,16 @@ describe("reconcileSettlements", () => {
     expect(r.differencePaise).toBe(120000);
   });
 
+  it("counts paise forgiven on a session that closed under a rupee short", () => {
+    // Rs 1,059 received against a Rs 1,059.18 session: the session is settled
+    // at its own amount, 18 paise were forgiven.
+    expect(
+      reconcileSettlements({ confirmedPaise: 105900, settledPaise: 105918, unallocatedPaise: 0, forgivenPaise: 18 })
+    ).toEqual({ agrees: true, differencePaise: 0 });
+    // Without the forgiven figure the same books read as a discrepancy.
+    expect(reconcileSettlements({ confirmedPaise: 105900, settledPaise: 105918, unallocatedPaise: 0 }).agrees).toBe(false);
+  });
+
   it("agrees on a clinic with no settlements at all", () => {
     expect(reconcileSettlements({ confirmedPaise: 0, settledPaise: 0, unallocatedPaise: 0 }).agrees).toBe(true);
   });

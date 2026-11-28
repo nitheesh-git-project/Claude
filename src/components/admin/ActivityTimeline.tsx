@@ -51,10 +51,16 @@ export default function ActivityTimeline({
   sessionId,
   personId,
   title = "Activity log",
+  refreshKey = "",
 }: {
   sessionId?: string;
   personId?: string;
   title?: string;
+  /** Anything that changes when what the history shows should be read again.
+   *  The history loads when it opens and, without this, never again: an
+   *  admin who approved, discounted or reassigned from the same drawer saw
+   *  the line for it missing until they closed and reopened it. */
+  refreshKey?: string;
 }) {
   const [events, setEvents] = useState<ActivityEvent[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -87,7 +93,7 @@ export default function ActivityTimeline({
     return () => {
       alive = false;
     };
-  }, [sessionId, personId, attempt]);
+  }, [sessionId, personId, attempt, refreshKey]);
 
   const facets = useMemo(() => activityFacets(events ?? []), [events]);
   const filtered = useMemo(

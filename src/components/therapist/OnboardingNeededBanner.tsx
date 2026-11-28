@@ -7,6 +7,9 @@ export type OnboardingNeededPatient = {
   name: string;
   /** Their next session with this therapist, when one is booked. */
   nextSlot: string | null;
+  /** They have already had a session with this therapist (so "none booked
+   *  yet" would be untrue). */
+  hadSession?: boolean;
 };
 
 /** Patients shown by name before the rest are counted. */
@@ -58,7 +61,11 @@ export default function OnboardingNeededBanner({ patients }: { patients: Onboard
             <span className="min-w-0 text-xs">
               <span className="font-semibold text-slate-900">{p.name}</span>
               <span className="text-slate-500">
-                {p.nextSlot ? ` · next session ${formatClinicDateTime(p.nextSlot)}` : " · no session booked yet"}
+                {p.nextSlot
+                  ? ` · next session ${formatClinicDateTime(p.nextSlot)}`
+                  : p.hadSession
+                    ? " · no upcoming session"
+                    : " · no session booked yet"}
               </span>
             </span>
             {/* Not a button: the owner wants this read as "do it in the
@@ -66,7 +73,7 @@ export default function OnboardingNeededBanner({ patients }: { patients: Onboard
                 own card carries the way in when it is time. */}
             <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-900">
               <i className="fa-solid fa-calendar-check text-[10px]" aria-hidden="true" />
-              Fill in during the first session
+              {p.hadSession ? "Still to fill in - their Health Profile stays locked until you do" : "Fill in during the first session"}
             </span>
           </li>
         ))}

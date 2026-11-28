@@ -1373,4 +1373,9 @@ The six sections (the Morning Brief layout), scopes and levels, User Access, the
   count, the templates to submit and the last 100 attempts (`whatsapp_log`,
   masked number). Tests: `whatsappRules.test.ts`;
   `e2e/whatsapp.spec.ts`.
-
+- **A drawer's history reads again when the session changes.** The session
+  drawer's `ActivityTimeline` fetched once on open, so Approve, a goodwill
+  discount or a reassignment left its own line missing until the drawer was
+  reopened. It takes a `refreshKey` built from the session's own fields,
+  which every action changes through `router.refresh()`. Goodwill and Approve
+  / Decline also say what they did in a toast.

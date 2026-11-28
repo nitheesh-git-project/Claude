@@ -12,6 +12,11 @@ import {
 } from "@/lib/refundAttempt";
 import { decrementUsedCounter } from "@/lib/purchaseCounter";
 import { describeRefundPosition } from "@/lib/refundState";
+import {
+  DEFAULT_UNASSIGNED_RESCUE_HOURS,
+  normaliseRescueHours,
+  unassignedRescueState,
+} from "@/lib/sessionPatientActions";
 
 type CancelResult =
   | { error: string; status: number; payoutSettled?: boolean }
@@ -40,7 +45,10 @@ export async function cancelAppointmentAndRefund(
     cancelledBy,
     reason,
     overridePayoutSettled,
+    nowMs,
   }: {
+    /** The request's clock (debug-aware) for the no-physiotherapist rule. */
+    nowMs?: number;
     appointmentId: string;
     cancelledBy: string;
     reason?: string | null;
@@ -57,7 +65,7 @@ export async function cancelAppointmentAndRefund(
   const { data: appointment } = await admin
     .from("appointments")
     .select(
-      "id, status, slot_time, payment_status, amount_paid_paise, travel_fee_paise, razorpay_payment_id, therapist_payout_paid_at, package_purchase_id, google_event_id, visit_mode, home_visit_purchase_id, payment_method, cash_collected_at, cash_collected_amount_paise, refund_status, refund_amount_paise"
+      "id, status, slot_time, therapist_id, payment_status, amount_paid_paise, travel_fee_paise, razorpay_payment_id, therapist_payout_paid_at, package_purchase_id, google_event_id, visit_mode, home_visit_purchase_id, payment_method, cash_collected_at, cash_collected_amount_paise, refund_status, refund_amount_paise"
     )
     .eq("id", appointmentId)
     .single();
@@ -140,7 +148,23 @@ export async function cancelAppointmentAndRefund(
   // payment mode: the operational problem ("the therapist's slot is
   // essentially unfillable") is about the slot being claimed, not about
   // whether money has changed hands yet.
+  // Owner's rule: nobody was put on it and it is inside the rescue window
+  // (or its time has passed). The clinic missed its side, so the refund
+  // window does not apply -- a full refund, or the session back on the
+  // programme, whoever cancels it (sessionPatientActions.ts).
+  let rescueHours = DEFAULT_UNASSIGNED_RESCUE_HOURS;
+  if (!appointment.therapist_id) {
+    const { data: rescueRow, error: rescueError } = await admin
+      .from("site_settings")
+      .select("unassigned_rescue_hours")
+      .maybeSingle();
+    if (!rescueError) {
+      rescueHours = normaliseRescueHours((rescueRow as { unassigned_rescue_hours?: unknown } | null)?.unassigned_rescue_hours);
+    }
+  }
+  const clinicMissedIt = unassignedRescueState(appointment, nowMs ?? Date.now(), rescueHours) !== "none";
   const isLateCancellation =
+    !clinicMissedIt &&
     (isDirectPayment || isPackagePayment || isHomeVisitPurchaseBacked) &&
     hoursUntilSlot !== null &&
     hoursUntilSlot < refundWindowHours;
