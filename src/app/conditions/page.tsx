@@ -1,3 +1,4 @@
+import { PUBLIC_HIDDEN_TITLE_PATTERN } from "@/lib/publicCatalog";
 import type { Metadata } from "next";
 import { createPublicClient } from "@/lib/supabase/public";
 import SectionNav, { type SectionNavItem } from "@/components/SectionNav";
@@ -35,6 +36,9 @@ export default async function ConditionsPage() {
     .from("treatment_categories")
     .select("id, title, description, points, price_paise, duration_minutes, cta_label")
     .eq("active", true)
+    // Test fixtures ("QA ..." conditions the e2e suite and QA left on a test
+    // site) are never public marketing: real visitors saw six of them.
+    .not("title", "ilike", PUBLIC_HIDDEN_TITLE_PATTERN)
     .order("display_order", { ascending: true })
     .order("id", { ascending: true });
 
@@ -94,7 +98,7 @@ export default async function ConditionsPage() {
       <PageHero
         eyebrow="Conditions treated"
         title="Tell us what hurts"
-        subtitle="Six areas of practice. Each with a real programme behind it."
+        subtitle="Each area of practice has a real programme behind it."
         primary={{ href: "/book", label: "Book a video session", icon: "fa-calendar-check" }}
         secondary={{ href: "/faq", label: "Read common questions" }}
         photoId="hero-conditions"

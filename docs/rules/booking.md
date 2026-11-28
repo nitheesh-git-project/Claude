@@ -17,7 +17,7 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
   | Picker | Asks about |
   | --- | --- |
   | Booking wizard, programme scheduler (`PackageBulkScheduler`), admin Book a session | anyone free |
-  | Patient Change time (`RescheduleSessionButton`) | anyone free, `exclude` = the session being moved |
+  | Patient Reschedule (`RescheduleSessionButton`) | anyone free, `exclude` = the session being moved |
   | Suggest a session (`SuggestSessionControl`) | `therapistId=me` -- the therapist's own hours |
   | Admin edit booking (`EditBookingForm`), assign referral (`AssignReferralForm`) | the chosen therapist; edit also `exclude`s its session |
   | Home-visit wizard and home-visit scheduler | anyone free, `visitMode=home_visit` (travel buffer either side) |

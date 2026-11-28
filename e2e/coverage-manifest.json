@@ -686,6 +686,17 @@
       "integration": "local",
       "destructive": false
     },
+    "booking-back-button.spec.ts": {
+      "runner": "patient",
+      "levels": [
+        "browser"
+      ],
+      "projects": [
+        "desktop"
+      ],
+      "integration": "local",
+      "destructive": false
+    },
     "booking-wizard-clarity.spec.ts": {
       "runner": "patient",
       "levels": [
@@ -2139,6 +2150,25 @@
             "OH-004"
           ],
           "level": "api"
+        }
+      ],
+      "rules": [
+        "docs/rules/booking.md"
+      ]
+    },
+    {
+      "id": "patient.booking-back-button",
+      "runner": "patient",
+      "title": "The browser's Back button inside the booking wizard returns to the step before with the slot and the typed details kept",
+      "required": true,
+      "status": "covered",
+      "coverage": [
+        {
+          "spec": "booking-back-button.spec.ts",
+          "tests": [
+            "BBB-001"
+          ],
+          "level": "browser"
         }
       ],
       "rules": [

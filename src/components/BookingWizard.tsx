@@ -261,6 +261,42 @@ export default function BookingWizard({
   // is not a completed payment, and a screen that reads as one would be
   // telling somebody they did something they did not do.
   const [paidLater, setPaidLater] = useState(false);
+  // The browser's Back button walks the wizard's steps instead of leaving the
+  // page: Back from step 2 used to leave /book and lose the chosen slot and the
+  // typed details. Moving forward adds a history entry; Back (or Forward)
+  // shows that entry's step with the answers still in memory. Not while a
+  // payment is being taken, and not once the booking is done.
+  const stepSeenRef = useRef(1);
+  const popBlockedRef = useRef(false);
+  const poppedRef = useRef(false);
+  useEffect(() => {
+    if (stepSeenRef.current !== step) {
+      if (step > stepSeenRef.current && !poppedRef.current) {
+        try {
+          window.history.pushState({ bookingStep: step }, "");
+        } catch {
+          // History unavailable: Back simply leaves, as it always did.
+        }
+      }
+      stepSeenRef.current = step;
+      poppedRef.current = false;
+    }
+  }, [step]);
+  useEffect(() => {
+    popBlockedRef.current = done || loading;
+  }, [done, loading]);
+  useEffect(() => {
+    const onPop = (e: PopStateEvent) => {
+      if (popBlockedRef.current) return;
+      const target = typeof e.state?.bookingStep === "number" ? e.state.bookingStep : 1;
+      if (target === stepSeenRef.current) return;
+      poppedRef.current = true;
+      setStep(target);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
   // The clinic approves each pay-later booking before confirming it.
   const [awaitingPayLaterApproval, setAwaitingPayLaterApproval] = useState(false);
   // What the pay-later confirmation actually wrote. Kept because this is the

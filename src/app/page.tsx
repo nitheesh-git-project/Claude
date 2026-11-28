@@ -1,3 +1,4 @@
+import { PUBLIC_HIDDEN_TITLE_PATTERN } from "@/lib/publicCatalog";
 import { createPublicClient } from "@/lib/supabase/public";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
@@ -43,6 +44,7 @@ import ClosingCta from "@/components/marketing/ClosingCta";
 import { homeConnectors } from "@/lib/marketingNav";
 import TreatmentGoals from "@/components/marketing/TreatmentGoals";
 import Price from "@/components/pricing/Price";
+import { MIN_PUBLIC_RATINGS, ratingCountLabel } from "@/lib/publicRatings";
 import {
   closingSessionLine,
   durationRangeLabel,
@@ -67,6 +69,9 @@ export default async function Home() {
     .from("treatment_categories")
     .select("id, title, description, points, price_paise, duration_minutes, cta_label")
     .eq("active", true)
+    // Test fixtures ("QA ..." conditions the e2e suite and QA left on a test
+    // site) are never public marketing: real visitors saw six of them.
+    .not("title", "ilike", PUBLIC_HIDDEN_TITLE_PATTERN)
     .order("display_order", { ascending: true })
     .order("id", { ascending: true });
 
@@ -218,7 +223,8 @@ export default async function Home() {
     .from("public_rating_summary")
     .select("avg_rating, rating_count")
     .single();
-  const hasRealRatings = !!ratingSummary && ratingSummary.rating_count > 0;
+  // A single rating is not proof of anything, so the figure waits for a few.
+  const hasRealRatings = !!ratingSummary && ratingSummary.rating_count >= MIN_PUBLIC_RATINGS;
 
   // The connector grid: every other page plus booking. Held in a variable so
   // the band's own copy can count it instead of hardcoding a number.
@@ -349,7 +355,7 @@ export default async function Home() {
             ? [
                 {
                   value: `★ ${Number(ratingSummary.avg_rating).toFixed(1)}`,
-                  label: `${ratingSummary.rating_count} ratings`,
+                  label: ratingCountLabel(ratingSummary.rating_count),
                 },
               ]
             : []),
@@ -530,7 +536,7 @@ export default async function Home() {
             heading ("Mission and vision / Why we do this") sat directly under
             the band's own "Our mission" and said the same thing twice, so the
             cards carry their own Mission / Vision labels instead. */}
-        <WhyChooseUsGrid compact languages={bookingLanguages} teamInitials={teamInitials} />
+        <WhyChooseUsGrid compact languages={bookingLanguages} teamInitials={teamInitials} homeVisitBookable={homeVisitEnabled} />
         <div className="mt-14 sm:mt-16">
           <SubHeading eyebrow="The real benefits" title="What changes for you" />
           <RealBenefitsList compact />

@@ -88,7 +88,7 @@ test("NTR-001: under four hours with nobody on it offers a new time and a cancel
   await expect(c.getByTestId("rescue-pick-new-time")).toBeVisible();
   await expect(c.getByRole("button", { name: "Cancel session" })).toBeVisible();
   await expect(c.getByTestId("resume-checkout")).toHaveCount(0);
-  await expect(c.getByRole("button", { name: "Change time" })).toHaveCount(0);
+  await expect(c.getByRole("button", { name: "Reschedule", exact: true })).toHaveCount(0);
 });
 
 test("NTR-002: the cancel route allows it inside the cut-off and records why", async () => {

@@ -4,12 +4,17 @@ import { useOptimistic, useState, useTransition } from "react";
 import { useToast } from "@/lib/toast";
 import { useRouter } from "@/lib/useRouter";
 import { useConfirm } from "@/lib/useConfirm";
-import { debugNowHeaders } from "@/lib/debugNow";
+import { debugNow, debugNowHeaders } from "@/lib/debugNow";
 
 export default function MarkNoShowButton({
   appointmentId,
+  slotTime,
 }: {
   appointmentId: string;
+  /** The session's start. Before it a no-show cannot be marked (the route
+   *  refuses it, and so does this button -- it used to open its confirmation
+   *  for a session still ahead and only fail afterwards). */
+  slotTime?: string | null;
 }) {
   // The parent only renders this button while status === "confirmed", so a
   // real success unmounts it via router.refresh() before this optimistic
@@ -24,6 +29,10 @@ export default function MarkNoShowButton({
   const { confirm, dialog } = useConfirm();
 
   async function handleMarkNoShow() {
+    if (slotTime && Date.parse(slotTime) > debugNow()) {
+      setError("A no-show can only be marked once the session's time has passed.");
+      return;
+    }
     if (
       !(await confirm(
         "Mark this session as a no-show? The patient didn't attend. This won't change payout eligibility - the therapist still held the slot, same as a completed session."

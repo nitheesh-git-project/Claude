@@ -82,6 +82,25 @@ export const WHY_CHOOSE_US: WhyItem[] = [
   },
 ];
 
+/** The "Screen or doorstep" card, said honestly: while home visits cannot be
+ *  booked (switched off, or no area served yet) the card is about video only.
+ *  It used to promise "the same team at your home" under a Home page that said
+ *  "coming soon". */
+export function whyChooseUsFor(homeVisitBookable: boolean): WhyItem[] {
+  if (homeVisitBookable) return WHY_CHOOSE_US;
+  return WHY_CHOOSE_US.map((item) =>
+    item.key === "modes"
+      ? {
+          ...item,
+          title: "Screen, wherever you are",
+          line: "Video from your sofa, your office or a hotel room.",
+          detail:
+            "Every session is a live video call with your physiotherapist. Home visits will be added once we serve your area, and this page will say so when they are.",
+        }
+      : item
+  );
+}
+
 export const REAL_BENEFITS: BenefitItem[] = [
   {
     key: "no-travel",

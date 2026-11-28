@@ -251,7 +251,7 @@ export function renderTherapistSessionCard(
           {a.status === "confirmed" && (
             <FinishSessionButton
               {...finishProps(d, a)}
-              beside={<MarkNoShowButton appointmentId={a.id} />}
+              beside={<MarkNoShowButton appointmentId={a.id} slotTime={a.slot_time} />}
             />
           )}
           {/* The note lives on the card, not behind the patient's chart:
@@ -471,7 +471,7 @@ export function renderTherapistHomeVisitCard(
           <div className="flex items-center gap-2 flex-wrap">
             <FinishSessionButton
               {...finishProps(d, a)}
-              beside={<MarkNoShowButton appointmentId={a.id} />}
+              beside={<MarkNoShowButton appointmentId={a.id} slotTime={a.slot_time} />}
             />
           </div>
         )}

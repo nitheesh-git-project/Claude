@@ -162,9 +162,14 @@ export default function PedsPicture({
           </p>
         )}
         <MilestoneWindowChart key={shown} windows={windows} voice={voice} />
-        <p className="mt-2 text-[11px] text-slate-600">
-          {windows.verificationNote}
-        </p>
+        {/* A note for the clinic's own reviewers. A patient, or a visitor looking
+            at the public sample, is not shown "to be verified by a senior
+            physiotherapist" under a chart. */}
+        {clinician && (
+          <p className="mt-2 text-[11px] text-slate-600">
+            {windows.verificationNote}
+          </p>
+        )}
       </>
     );
   }

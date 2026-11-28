@@ -147,7 +147,7 @@ export default async function MissionPage() {
         eyebrow="Why choose us"
         title="Six reasons patients pick us"
       >
-        <WhyChooseUsGrid languages={bookingLanguages} teamInitials={teamInitials} />
+        <WhyChooseUsGrid languages={bookingLanguages} teamInitials={teamInitials} homeVisitBookable={homeVisitEnabled} />
       </Section>
 
       <Section

@@ -1081,3 +1081,18 @@ Eight pages from one design system, the word budgets, why every photograph carri
   hash, and the card opens for it on mount or on `hashchange`, then clears
   the hash. The splash leaves on a CSS timer, so the page can be tapped before
   hydration; a button there was a dead control.
+
+## Tester-sheet fixes (A, B, C, D, F, G, I)
+
+- Home visits that cannot be booked (`homeVisitBookable` false) are never described as
+  bookable: `whyChooseUsFor()` swaps the "Screen or doorstep" card, and the FAQ drops the
+  how-to-book / get-ready questions (`withoutUnbookableHomeVisitFaqs`). "QA ..." titled
+  conditions never appear on Home or /conditions (`publicCatalog.ts`).
+- The public rating figure waits for `MIN_PUBLIC_RATINGS` (3) and says "1 rating".
+- Sample health profiles move their dates forward in 28-day blocks
+  (`healthProfileSamples.ts`), and the clinic-review note under the paediatric chart is
+  clinician-only.
+- /team does not say "tap a profile" while there is nobody to tap.
+- A patient's session card says why Reschedule is missing instead of showing nothing; the
+  button is called **Reschedule**. The booking wizard's steps are browser history entries,
+  so Back shows step 1 with the answers kept.

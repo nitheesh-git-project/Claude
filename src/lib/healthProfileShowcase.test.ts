@@ -365,3 +365,16 @@ describe("the animated meter and the tools", () => {
     }
   });
 });
+
+describe("sample dates move forward in whole blocks", () => {
+  it("never moves backwards and keeps weekdays", async () => {
+    const { sampleShiftDays, shiftIsoDay } = await import("./healthProfileSamples");
+    expect(sampleShiftDays(Date.parse("2026-02-20T00:00:00Z"))).toBe(0);
+    expect(sampleShiftDays(Date.parse("2026-01-01T00:00:00Z"))).toBe(0);
+    const shift = sampleShiftDays(Date.parse("2026-12-01T00:00:00Z"));
+    expect(shift % 28).toBe(0);
+    expect(shift).toBeGreaterThan(0);
+    // Monday stays Monday.
+    expect(new Date(`${shiftIsoDay("2026-01-05", shift)}T00:00:00Z`).getUTCDay()).toBe(1);
+  });
+});
