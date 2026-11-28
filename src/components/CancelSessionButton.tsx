@@ -127,7 +127,7 @@ export default function CancelSessionButton({
       if (data.refundFailed) {
         show(patientRefundDelayedNotice(data.refundPaise), "info");
       } else {
-        show("Session cancelled. Any refund due is on its way.");
+        show(paid ? "Session cancelled. Any refund due is on its way." : "Session cancelled. Nothing was charged.");
       }
       router.refresh();
     });
