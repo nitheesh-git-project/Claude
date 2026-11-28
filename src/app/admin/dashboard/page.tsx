@@ -3634,9 +3634,15 @@ export default async function AdminDashboardPage({
       />
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mt-8">
-        <h2 className="font-display font-bold text-lg text-slate-800 mb-4">
+        <h2 className="font-display font-bold text-lg text-slate-800">
           Category Performance
         </h2>
+        {/* The date range above filters the tables above it; this card counts
+            every booking ever made, and said nothing about it -- it read as a
+            filter that did not work. */}
+        <p className="text-[11px] text-slate-500 mb-4" data-testid="category-performance-scope">
+          All time. This card does not follow the date range above.
+        </p>
         {!treatmentCategories || treatmentCategories.length === 0 ? (
           <p className="text-xs text-slate-500 py-4 text-center">
             No categories yet - add one in Site Content to start tracking bookings.

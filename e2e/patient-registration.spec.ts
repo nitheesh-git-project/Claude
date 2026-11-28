@@ -156,7 +156,7 @@ test.describe("Self-registration without email confirmation", () => {
     }).toPass({ timeout: 30_000 });
     // What the form tells a new patient to expect: an admin review, and
     // nothing about their inbox.
-    await expect(page.getByText(/reviewed by our team/i)).toBeVisible();
+    await expect(page.getByText(/checks every new account/i)).toBeVisible();
     await expect(page.getByText(/confirm your email|check your email/i)).toHaveCount(0);
     await ctx.close();
   });

@@ -1019,6 +1019,14 @@ export default function SessionDetailDrawer({
             {canSeeMoney && a.payment_status === "paid" && (
               <div className="pt-3 border-t border-slate-100">
                 <p className="font-bold text-slate-700 mb-1">Refund</p>
+                {a.payment_terms !== "pay_later" && !a.razorpay_payment_id ? (
+                  // Paid outside Razorpay (cash, a transfer): there is no gateway
+                  // payment to reverse and the route refuses it. The form used to
+                  // offer "Refund via Razorpay" here and fail afterwards.
+                  <p className="text-[11px] text-slate-500" data-testid="refund-offline-note">
+                    This session was paid outside Razorpay, so there is nothing to refund through it. Hand any money back in person.
+                  </p>
+                ) : (
                 <PartialRefundForm
                   appointmentId={a.id}
                   // From the same position as the cancellation line: what
@@ -1034,6 +1042,7 @@ export default function SessionDetailDrawer({
                   // this drawer does not load.
                   byHand={a.payment_terms === "pay_later"}
                 />
+                )}
               </div>
             )}
 

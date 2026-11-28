@@ -1569,7 +1569,9 @@ export default function BookingWizard({
     // the clinic confirms it, and the screen says so.
     const bookedStartIso = resumedSlotIso ?? (slotDateTime ? new Date(slotDateTime).toISOString() : null);
     const bookedMinutes = selectedCategory?.duration_minutes ?? 60;
-    const bookedWhen = bookedStartIso ? formatSessionWhen(bookedStartIso, bookedMinutes) : null;
+    // "Wed 28 Oct, 6-7 pm IST, with a physiotherapist": the zone sits right after the
+    // time. Appending it to the whole line read "...with a physiotherapist IST".
+    const bookedWhen = bookedStartIso ? `${formatSessionWhen(bookedStartIso, bookedMinutes, "")} IST, with a physiotherapist` : null;
     const bookedYours = bookedStartIso ? slotInZones(bookedStartIso, timezone).yours : null;
     return (
       <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200">
@@ -1590,8 +1592,6 @@ export default function BookingWizard({
           {bookedWhen && (
             <p data-testid="booked-when" className="mt-3 text-lg font-bold text-teal-800">
               {bookedWhen}
-              {/* Said on the clinic's clock, so name it. */}
-              {" IST"}
             </p>
           )}
           {/* The picker was on the visitor's own clock; the line above is the
