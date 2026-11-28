@@ -1086,8 +1086,9 @@ Eight pages from one design system, the word budgets, why every photograph carri
 
 - Home visits that cannot be booked (`homeVisitBookable` false) are never described as
   bookable: `whyChooseUsFor()` swaps the "Screen or doorstep" card, and the FAQ drops the
-  how-to-book / get-ready questions (`withoutUnbookableHomeVisitFaqs`). "QA ..." titled
-  conditions never appear on Home or /conditions (`publicCatalog.ts`).
+  how-to-book / get-ready questions (`withoutUnbookableHomeVisitFaqs`). "QA ..." conditions on a test
+  site are e2e fixtures (specs such as the cover-image one rely on seeing them publicly), so
+  they are removed by switching them off in Catalog, never by a title filter in code.
 - The public rating figure waits for `MIN_PUBLIC_RATINGS` (3) and says "1 rating".
 - Sample health profiles move their dates forward in 28-day blocks
   (`healthProfileSamples.ts`), and the clinic-review note under the paediatric chart is

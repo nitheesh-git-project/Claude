@@ -1,4 +1,3 @@
-import { PUBLIC_HIDDEN_TITLE_PATTERN } from "@/lib/publicCatalog";
 import { createPublicClient } from "@/lib/supabase/public";
 import { SESSION_FEE_PAISE } from "@/lib/pricing";
 import { DEFAULT_ADMIN_SETTINGS } from "@/lib/adminSettings";
@@ -69,9 +68,6 @@ export default async function Home() {
     .from("treatment_categories")
     .select("id, title, description, points, price_paise, duration_minutes, cta_label")
     .eq("active", true)
-    // Test fixtures ("QA ..." conditions the e2e suite and QA left on a test
-    // site) are never public marketing: real visitors saw six of them.
-    .not("title", "ilike", PUBLIC_HIDDEN_TITLE_PATTERN)
     .order("display_order", { ascending: true })
     .order("id", { ascending: true });
 
