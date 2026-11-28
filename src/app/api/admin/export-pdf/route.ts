@@ -77,11 +77,14 @@ export async function POST(request: NextRequest) {
   );
 
   const supabase = await createClient();
-  const { data: settings } = await supabase.from("site_settings").select("site_name").maybeSingle();
+  const { data: settings } = await supabase.from("site_settings").select("site_name, site_tagline, contact_email, contact_phone").maybeSingle();
 
   const generatedAt = new Date();
   const pdf = await buildTablePdf({
     siteName: settings?.site_name ?? "MoveRestore Physiotherapy",
+    tagline: settings?.site_tagline ?? null,
+    contactEmail: settings?.contact_email ?? null,
+    contactPhone: settings?.contact_phone ?? null,
     title,
     subtitle,
     columns,

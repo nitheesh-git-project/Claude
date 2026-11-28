@@ -1,5 +1,17 @@
-import { PDFDocument, StandardFonts, rgb, type PDFFont } from "pdf-lib";
+import { PDFDocument, type PDFFont, type PDFPage } from "pdf-lib";
 import { toWinAnsi, truncateToWidth } from "@/lib/pdfText";
+import {
+  LETTERHEAD_COLORS as C,
+  beginLetterheadPage,
+  drawTableHeaderRow,
+  finishLetterhead,
+  layoutFor,
+  letterheadContact,
+  letterheadTagline,
+  loadLetterhead,
+  watermarkWord,
+  type LetterheadSpec,
+} from "@/lib/pdfLetterhead";
 
 // The printable half of every admin data export. The same rows the admin
 // is looking at go out as CSV (for a spreadsheet) or as this (for a person
@@ -7,23 +19,18 @@ import { toWinAnsi, truncateToWidth } from "@/lib/pdfText";
 // definition at the call site, so the two formats can't drift apart.
 //
 // Landscape A4: these tables are wide, and a portrait page would truncate
-// half the columns to fit.
+// half the columns to fit. The page furniture (logo lockup, title block,
+// footer band, the word up the edge) is the shared letterhead in
+// pdfLetterhead.ts; this file only lays out the table inside it.
 
-const PAGE_WIDTH = 841.89;
-const PAGE_HEIGHT = 595.28;
-const MARGIN = 32;
-const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
+const LAYOUT = layoutFor("landscape");
+const CONTENT_WIDTH = LAYOUT.contentWidth;
 const ROW_HEIGHT = 16;
 const HEADER_HEIGHT = 20;
-const BODY_SIZE = 8;
-const HEADER_SIZE = 8;
+const BODY_SIZE = 7.8;
+const HEADER_SIZE = 6.4;
 const CELL_PADDING = 5;
-
-const INK = rgb(0.11, 0.16, 0.23);
-const MUTED = rgb(0.42, 0.48, 0.55);
-const RULE = rgb(0.87, 0.89, 0.91);
-const HEADER_FILL = rgb(0.95, 0.96, 0.97);
-const ZEBRA_FILL = rgb(0.98, 0.98, 0.99);
+const ROW_GAP = 1.5;
 
 export type TablePdfInput = {
   siteName: string;
@@ -51,6 +58,11 @@ export type TablePdfInput = {
    * between the two formats.
    */
   generatedBy?: string | null;
+  /** Settings' tagline and contact details for the letterhead; the clinic's
+   *  own are used when absent. */
+  tagline?: string | null;
+  contactEmail?: string | null;
+  contactPhone?: string | null;
   /** One line printed under the stamp saying what this document is (and is
    *  not), so a reproduction of a screen is not mistaken for the books. */
   provenance?: string | null;
@@ -62,7 +74,7 @@ export type TablePdfInput = {
 function columnWidths(input: TablePdfInput, font: PDFFont, headerFont: PDFFont): number[] {
   const sample = input.rows.slice(0, 200);
   const natural = input.columns.map((header, index) => {
-    let widest = headerFont.widthOfTextAtSize(toWinAnsi(header), HEADER_SIZE);
+    let widest = headerFont.widthOfTextAtSize(toWinAnsi(header).toUpperCase(), HEADER_SIZE) + 2;
     for (const row of sample) {
       const width = font.widthOfTextAtSize(toWinAnsi(row[index] ?? ""), BODY_SIZE);
       if (width > widest) widest = width;
@@ -92,77 +104,94 @@ export function tablePdfFilename(base: string, generatedAt: Date): string {
   return `${safe}-${day}.pdf`;
 }
 
+const NUMBER = /^-?[\d,]+(\.\d+)?$/;
+
+/** Money and counts line up on the right, text on the left. */
+function numericColumns(input: TablePdfInput): boolean[] {
+  return input.columns.map((header, index) => {
+    if (/\(INR\)/i.test(header)) return true;
+    const sample = input.rows.slice(0, 50).map((r) => (r[index] ?? "").trim()).filter(Boolean);
+    return sample.length > 0 && sample.every((cell) => NUMBER.test(cell));
+  });
+}
+
+function clinicStamp(date: Date): string {
+  return `${date.toLocaleString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "Asia/Kolkata",
+  })} IST`;
+}
+
+function exportReference(date: Date): string {
+  const day = date.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }).replace(/-/g, "");
+  const time = date
+    .toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Kolkata" })
+    .replace(":", "");
+  return `MR-EXP-${day}-${time}`;
+}
+
 export async function buildTablePdf(input: TablePdfInput): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
-  const font = await doc.embedFont(StandardFonts.Helvetica);
-  const bold = await doc.embedFont(StandardFonts.HelveticaBold);
-  const widths = columnWidths(input, font, bold);
+  const kit = await loadLetterhead(doc);
+  const widths = columnWidths(input, kit.regular, kit.bold);
+  const numeric = numericColumns(input);
 
   doc.setTitle(toWinAnsi(input.title));
   doc.setCreator(input.siteName);
   doc.setProducer(input.siteName);
 
-  const stamp = [
-    input.siteName,
-    input.generatedAt.toLocaleString("en-IN", {
-      dateStyle: "medium",
-      timeStyle: "short",
-      timeZone: "Asia/Kolkata",
-    }),
-    // Only when known, so nothing prints "Exported by null".
-    input.generatedBy ? `Exported by ${input.generatedBy}` : null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  const spec: LetterheadSpec = {
+    orientation: "landscape",
+    siteName: input.siteName,
+    tagline: letterheadTagline(input.tagline),
+    contact: letterheadContact({ contactEmail: input.contactEmail, contactPhone: input.contactPhone }),
+    // Only when known, so nothing prints "Generated by null".
+    facts: [
+      ...(input.generatedBy ? [{ label: "Generated by", value: input.generatedBy }] : []),
+      { label: "Rows", value: input.rows.length.toLocaleString("en-IN") },
+      { label: "Ref", value: exportReference(input.generatedAt) },
+    ],
+    createdLabel: "EXPORT CREATED ON :",
+    createdOn: clinicStamp(input.generatedAt),
+    reportLabel: "REPORT :",
+    title: input.title,
+    subtitle: input.subtitle,
+    watermark: watermarkWord(input.title),
+    notice: input.provenance || "Confidential - contains clinic records. Handle as private information.",
+  };
 
-  let page = doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+  let page!: PDFPage;
   let y = 0;
+  const pages: PDFPage[] = [];
+
+  const cellX = (index: number, text: string, font: PDFFont, size: number): number => {
+    let x = LAYOUT.left;
+    for (let i = 0; i < index; i++) x += widths[i];
+    if (!numeric[index]) return x + CELL_PADDING;
+    return x + widths[index] - CELL_PADDING - font.widthOfTextAtSize(text, size);
+  };
 
   const drawHeaderRow = () => {
+    // Outlined, not filled: a hairline above and below, small grey capitals.
+    drawTableHeaderRow(page, LAYOUT.left, y, CONTENT_WIDTH, HEADER_HEIGHT);
     y -= HEADER_HEIGHT;
-    page.drawRectangle({
-      x: MARGIN,
-      y,
-      width: CONTENT_WIDTH,
-      height: HEADER_HEIGHT,
-      color: HEADER_FILL,
-    });
-    let x = MARGIN;
     input.columns.forEach((header, index) => {
-      page.drawText(
-        truncateToWidth(toWinAnsi(header), bold, HEADER_SIZE, widths[index] - CELL_PADDING * 2),
-        { x: x + CELL_PADDING, y: y + 6, size: HEADER_SIZE, font: bold, color: INK }
-      );
-      x += widths[index];
+      const text = truncateToWidth(toWinAnsi(header).toUpperCase(), kit.bold, HEADER_SIZE, widths[index] - CELL_PADDING * 2);
+      page.drawText(text, { x: cellX(index, text, kit.bold, HEADER_SIZE), y: y + 7, size: HEADER_SIZE, font: kit.bold, color: C.muted });
     });
+    y -= ROW_GAP;
   };
 
   const startPage = (first: boolean) => {
-    if (!first) page = doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-    y = PAGE_HEIGHT - MARGIN;
-    if (first) {
-      page.drawText(toWinAnsi(input.title), { x: MARGIN, y: y - 14, size: 15, font: bold, color: INK });
-      y -= 20;
-      if (input.subtitle) {
-        page.drawText(
-          truncateToWidth(toWinAnsi(input.subtitle), font, 9, CONTENT_WIDTH),
-          { x: MARGIN, y: y - 11, size: 9, font, color: MUTED }
-        );
-        y -= 15;
-      }
-      page.drawText(toWinAnsi(stamp), { x: MARGIN, y: y - 10, size: 8, font, color: MUTED });
-      y -= 20;
-      if (input.provenance) {
-        page.drawText(truncateToWidth(toWinAnsi(input.provenance), font, 8, CONTENT_WIDTH), {
-          x: MARGIN,
-          y: y - 4,
-          size: 8,
-          font,
-          color: MUTED,
-        });
-        y -= 14;
-      }
-    }
+    const begun = beginLetterheadPage(doc, kit, spec, first);
+    page = begun.page;
+    y = begun.y;
+    pages.push(page);
     // The header row repeats on every page: a printed table whose columns
     // are only labelled on page 1 is unreadable from page 2 onward.
     drawHeaderRow();
@@ -170,47 +199,28 @@ export async function buildTablePdf(input: TablePdfInput): Promise<Uint8Array> {
 
   startPage(true);
 
-  input.rows.forEach((row, rowIndex) => {
-    if (y - ROW_HEIGHT < MARGIN + 14) startPage(false);
+  input.rows.forEach((row) => {
+    if (y - ROW_HEIGHT < LAYOUT.bottom) startPage(false);
     y -= ROW_HEIGHT;
-    if (rowIndex % 2 === 1) {
-      page.drawRectangle({ x: MARGIN, y, width: CONTENT_WIDTH, height: ROW_HEIGHT, color: ZEBRA_FILL });
-    }
-    let x = MARGIN;
+    page.drawRectangle({ x: LAYOUT.left, y: y + ROW_GAP / 2, width: CONTENT_WIDTH, height: ROW_HEIGHT - ROW_GAP, color: C.card });
     row.forEach((cell, index) => {
       if (index >= input.columns.length) return;
-      page.drawText(
-        truncateToWidth(toWinAnsi(cell ?? ""), font, BODY_SIZE, widths[index] - CELL_PADDING * 2),
-        { x: x + CELL_PADDING, y: y + 5, size: BODY_SIZE, font, color: INK }
-      );
-      x += widths[index];
-    });
-    page.drawLine({
-      start: { x: MARGIN, y },
-      end: { x: MARGIN + CONTENT_WIDTH, y },
-      thickness: 0.4,
-      color: RULE,
+      const text = truncateToWidth(toWinAnsi(cell ?? ""), kit.regular, BODY_SIZE, widths[index] - CELL_PADDING * 2);
+      page.drawText(text, { x: cellX(index, text, kit.regular, BODY_SIZE), y: y + 5.4, size: BODY_SIZE, font: kit.regular, color: C.ink });
     });
   });
 
   if (input.rows.length === 0) {
     y -= ROW_HEIGHT;
     page.drawText("No rows matched the filters in view.", {
-      x: MARGIN + CELL_PADDING,
+      x: LAYOUT.left + CELL_PADDING,
       y: y + 5,
       size: BODY_SIZE,
-      font,
-      color: MUTED,
+      font: kit.regular,
+      color: C.muted,
     });
   }
 
-  const pages = doc.getPages();
-  pages.forEach((p, index) => {
-    p.drawText(
-      toWinAnsi(`${input.title} - ${input.rows.length} row${input.rows.length === 1 ? "" : "s"} · page ${index + 1} of ${pages.length}`),
-      { x: MARGIN, y: MARGIN - 18, size: 7.5, font, color: MUTED }
-    );
-  });
-
+  finishLetterhead(pages, kit, spec);
   return doc.save();
 }

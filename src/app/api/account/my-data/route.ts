@@ -51,6 +51,9 @@ export async function GET(request: NextRequest) {
     reference,
     generatedAtLabel: formatClinicDateTime(now) || now.toISOString(),
     contactEmail: LEGAL_FACTS.grievanceOfficerEmail.trim() || settings.contactEmail,
+    tagline: settings.siteTagline,
+    contactPhone: settings.contactPhone,
+    clinicEmail: settings.contactEmail,
   });
   if (!doc) {
     return NextResponse.json({ error: "We couldn't prepare your data just now. Please try again." }, { status: 503 });
