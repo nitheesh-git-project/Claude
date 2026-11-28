@@ -111,7 +111,35 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (!outcome.claimed) {
+  // A session that was delivered before it was paid: the patient settles it
+  // from the card after an admin closed it. There is nothing to confirm or
+  // assign, so no claim applies -- the payment is simply recorded against the
+  // finished session (which is what makes its therapist share payable), and
+  // the rest of the route runs as for any other capture.
+  const paidAfterDelivery = !outcome.claimed && appointment.status === "completed";
+  if (paidAfterDelivery) {
+    const { error: settleError } = await admin
+      .from("appointments")
+      .update({
+        payment_status: "paid",
+        razorpay_payment_id,
+        paid_at: new Date().toISOString(),
+      })
+      .eq("id", appointmentId)
+      .eq("status", "completed")
+      // Guarded like the recovery write below: a resubmitted callback must
+      // not re-stamp the moment the money arrived.
+      .in("payment_status", ["unpaid", "failed"]);
+    if (settleError) {
+      console.error("Failed to record a payment against a completed session", appointmentId, settleError);
+      return NextResponse.json(
+        { error: "Could not record the payment. Please contact us." },
+        { status: 500 }
+      );
+    }
+  }
+
+  if (!outcome.claimed && !paidAfterDelivery) {
     // The appointment's status changed between checkout and this callback
     // (almost certainly: it was cancelled) - but Razorpay has genuinely
     // already charged the patient by this point, so the payment must not

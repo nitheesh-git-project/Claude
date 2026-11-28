@@ -391,6 +391,11 @@ export async function GET(request: NextRequest) {
 
   const pdf = await buildHealthProfilePdf({
     siteName: parseAdminSettings(settingsRow).siteName,
+    tagline: parseAdminSettings(settingsRow).siteTagline,
+    contactEmail: parseAdminSettings(settingsRow).contactEmail,
+    contactPhone: parseAdminSettings(settingsRow).contactPhone,
+    patientDob: profile?.date_of_birth ?? null,
+    patientGender: profile?.gender ?? null,
     patientName,
     patientCode: profile?.patient_code ?? null,
     patientEmail: profile?.email ?? null,

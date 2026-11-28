@@ -284,6 +284,31 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // A session that was delivered before it was paid. record_payment_capture
+  // only marks a live (requested or confirmed) booking paid, so a patient who
+  // settled a completed session and closed the tab would have the money
+  // recorded and the session still "Payment due". Same write the verify
+  // route makes, guarded the same way, so whichever arrives first does it.
+  if (result.applied && !result.targetUpdated && result.targetAppointmentId) {
+    const { data: delivered } = await admin
+      .from("appointments")
+      .select("id, status, payment_status")
+      .eq("id", result.targetAppointmentId)
+      .maybeSingle();
+    if (delivered?.status === "completed" && delivered.payment_status !== "paid") {
+      const { error: settleError } = await admin
+        .from("appointments")
+        .update({ payment_status: "paid", razorpay_payment_id: paymentId, paid_at: new Date().toISOString() })
+        .eq("id", delivered.id)
+        .eq("status", "completed")
+        .in("payment_status", ["unpaid", "failed"]);
+      if (settleError) {
+        await markProcessed(`${WEBHOOK_RETRYABLE_PREFIX}completed session payment not recorded`);
+        return NextResponse.json({ error: "Could not record payment" }, { status: 500 });
+      }
+    }
+  }
+
   // The one thing record_payment_capture deliberately does not do, because
   // it needs an outbound Google call: confirm a session that was only
   // waiting on payment, and give it its Meet link. Same rule the verify

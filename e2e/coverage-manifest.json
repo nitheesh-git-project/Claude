@@ -4723,7 +4723,8 @@
             "CHROME-002",
             "CHROME-003",
             "CHROME-004",
-            "CHROME-007"
+            "CHROME-007",
+            "CHROME-012"
           ],
           "level": "browser"
         }

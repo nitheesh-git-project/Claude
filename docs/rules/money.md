@@ -440,7 +440,8 @@ The revenue split and its two invariants, payouts, settlements, Business Health,
   raw `payment_status` ("unpaid") where the patient's card said Owed. Its
   table, its phone cards and its export read `describeSessionPayment` now,
   like the drawer and the profile lists; a delivered prepaid session still
-  unpaid reads **Payment due** on both sides.
+  unpaid reads **Payment due** on both sides (and the patient's card offers
+  Pay for it -- see `docs/rules/booking.md`).
 - **A payout row says whose payment a date is.** The therapist detail's
   payout history printed the session's patient payment as "Paid" -- "Paid
   date unknown" for a programme session, right above "Settled 25 Nov". It

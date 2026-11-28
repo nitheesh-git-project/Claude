@@ -146,7 +146,7 @@ async function categoryTitles(admin: Admin, ids: (string | null)[]): Promise<Map
   return new Map(r.rows.map((c) => [c.id, c.title]));
 }
 
-async function patientDoc(admin: Admin, userId: string, p: Profile): Promise<Omit<PersonalDataDoc, "siteName" | "reference" | "generatedAtLabel" | "contactEmail">> {
+async function patientDoc(admin: Admin, userId: string, p: Profile): Promise<Omit<PersonalDataDoc, "siteName" | "reference" | "generatedAtLabel" | "contactEmail" | "tagline" | "contactPhone" | "clinicEmail" | "personCode">> {
   const [addresses, sessions, payments, packages, homePackages, documents, health] = await Promise.all([
     read<{ label: string | null; line1: string; line2: string | null; city: string | null; pincode: string | null; is_default: boolean }>(
       admin.from("patient_addresses").select("label, line1, line2, city, pincode, is_default").eq("patient_id", userId).eq("active", true)
@@ -292,7 +292,7 @@ async function patientDoc(admin: Admin, userId: string, p: Profile): Promise<Omi
   };
 }
 
-async function therapistDoc(admin: Admin, userId: string, p: Profile): Promise<Omit<PersonalDataDoc, "siteName" | "reference" | "generatedAtLabel" | "contactEmail">> {
+async function therapistDoc(admin: Admin, userId: string, p: Profile): Promise<Omit<PersonalDataDoc, "siteName" | "reference" | "generatedAtLabel" | "contactEmail" | "tagline" | "contactPhone" | "clinicEmail" | "personCode">> {
   const [sessions, payouts, requests, template] = await Promise.all([
     read<{ slot_time: string; category_id: string | null; visit_mode: string | null; status: string; therapist_payout_amount_paise: number | null; session_code: string | null }>(
       admin.from("appointments").select("slot_time, category_id, visit_mode, status, therapist_payout_amount_paise, session_code").eq("therapist_id", userId).order("slot_time", { ascending: false }).limit(1000)
@@ -391,7 +391,7 @@ async function therapistDoc(admin: Admin, userId: string, p: Profile): Promise<O
   };
 }
 
-async function hospitalDoc(admin: Admin, userId: string, p: Profile): Promise<Omit<PersonalDataDoc, "siteName" | "reference" | "generatedAtLabel" | "contactEmail">> {
+async function hospitalDoc(admin: Admin, userId: string, p: Profile): Promise<Omit<PersonalDataDoc, "siteName" | "reference" | "generatedAtLabel" | "contactEmail" | "tagline" | "contactPhone" | "clinicEmail" | "personCode">> {
   const referrals = await read<{ created_at: string; status: string; visit_mode: string | null; treatment_needed: string | null }>(
     admin.from("patient_referrals").select("created_at, status, visit_mode, treatment_needed").eq("hospital_id", userId).order("created_at", { ascending: false }).limit(1000)
   );
@@ -448,7 +448,7 @@ export async function loadPersonalDataDoc(
   admin: Admin,
   userId: string,
   role: DataRequestRole,
-  meta: { siteName: string; reference: string; generatedAtLabel: string; contactEmail: string }
+  meta: { siteName: string; reference: string; generatedAtLabel: string; contactEmail: string; tagline?: string | null; contactPhone?: string | null; clinicEmail?: string | null }
 ): Promise<PersonalDataDoc | null> {
   const { data: profile, error } = await admin.from("profiles").select(PROFILE_SELECT).eq("id", userId).maybeSingle();
   if (error || !profile) return null;
@@ -457,5 +457,7 @@ export async function loadPersonalDataDoc(
     role === "patient" ? patientDoc(admin, userId, p) : role === "therapist" ? therapistDoc(admin, userId, p) : hospitalDoc(admin, userId, p),
     commonSections(admin, userId),
   ]);
-  return { ...meta, ...body, sections: [...body.sections, ...common] };
+  const codes = p as Profile & { patient_code?: string | null; therapist_code?: string | null; hospital_code?: string | null };
+  const personCode = (role === "patient" ? codes.patient_code : role === "therapist" ? codes.therapist_code : codes.hospital_code) ?? null;
+  return { ...meta, personCode, ...body, sections: [...body.sections, ...common] };
 }

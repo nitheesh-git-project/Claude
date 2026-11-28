@@ -18,8 +18,10 @@
 // - Once the time has passed with nobody assigned, the session is missed,
 //   not something to assign: the same two options stay with the patient,
 //   and the admin sees it as a follow-up, never as "assign a therapist".
-// - Pay is offered only for a live session whose time is still ahead and
-//   that the clinic can still run.
+// - Pay is offered for a live session whose time is still ahead and that the
+//   clinic can still run, and for a delivered (completed) online session that
+//   is still unpaid -- settled from the card, never through the booking
+//   wizard.
 // - An unpaid session paid up front cannot be joined until it is paid. Pay
 //   later, programme sessions (paid on the purchase) and home visits are
 //   not held.
@@ -114,6 +116,13 @@ export function patientPaymentView(
     return { kind: "no_action", label: "Pay at the visit", note: null, tone: "neutral" };
   }
   if (row.status === "completed") {
+    // Delivered and still unpaid -- an admin closed it, or the payment never
+    // landed. The patient can settle it online from the card: the clinic
+    // already did its part, and "we'll be in touch" left a patient who wanted
+    // to pay with nothing to press. A no-show is the clinic's call, so it
+    // stays a follow-up rather than a button; a session paid on a programme
+    // is not paid here.
+    if (!row.no_show && !paidElsewhere(row)) return { kind: "pay" };
     return {
       kind: "no_action",
       label: "Payment due",
@@ -155,10 +164,12 @@ export const JOIN_HELD_MESSAGE = "Pay for this session to unlock the video link.
 /**
  * The patient's Home shows a "Finish paying" card for each of these: an
  * online session still waiting for payment, whose time is ahead, that the
- * clinic can run. Same rule as the Pay button, so the two cannot disagree.
+ * clinic can run. Same rule as the Pay button, so the two cannot disagree --
+ * except that a completed session's Pay lives on its card only.
  */
 export function needsPaymentOnHome(row: SessionActionRow, nowMs: number, rescueHours?: number): boolean {
-  return patientPaymentView(row, nowMs, rescueHours).kind === "pay";
+  // A delivered session is paid from its card, not from "keep your time".
+  return row.status !== "completed" && patientPaymentView(row, nowMs, rescueHours).kind === "pay";
 }
 
 /**

@@ -840,6 +840,29 @@ is invisible to any tooling here.
 
 ## Things the tester found that are easy to undo
 
+- **Every PDF this app produces wears one letterhead.** The admin table exports
+  (`tablePdf.ts`, A4 landscape), the patient's health profile
+  (`healthProfilePdf.ts`) and "Your data" (`personalDataPdf.ts`), both A4
+  portrait, draw their content inside `src/lib/pdfLetterhead.ts`: the site's
+  logo lockup (mark, name, tagline) with four key facts, the "created on" pill
+  and title, the faint word up the right edge and the dark footer band with the
+  website (`www.`), email, phone, confidentiality line and page number. A
+  generator takes its margins and content box from `layoutFor()` and never
+  hard-codes a page size. Type is the application's own, embedded from static
+  cuts of the site's woff2 files (`pdfFontData.ts`: Inter body, Plus Jakarta
+  Sans headings); that is why `@pdf-lib/fontkit` is a dependency. The email and
+  phone are Settings values (`letterheadContact`), falling back to the clinic's
+  own when Settings holds the "+91 XXXXX XXXXX" placeholder. The font has no
+  rupee sign, so money still prints "INR" / "Rs.".
+- **No internet is a plain sentence, never the browser's.** Safari says "Load
+  failed", Chrome "Failed to fetch"; a sign-in box that prints that tells a
+  patient with a right password that something broke. `OfflineBanner` (root
+  layout) installs `installNetworkGuard` (`src/lib/networkStatus.ts`), which
+  rewrites a rejected request's generic network text to `OFFLINE_MESSAGE`
+  (`src/lib/networkError.ts`) so every `e.message` consumer shows ours, and
+  draws one "You're offline" banner until a request gets through. Do not
+  match a browser's wording in a component; use `friendlyErrorMessage`.
+  Guard: `CHROME-012`.
 - **Never hold a copy of a row in `useState` for a pop-up.** Keep the id and look
   the row up in the props (`ProfileSessionList`, `AdminCalendarTab`): a refresh
   replaces props, not state, so a copied row showed the old price and history.
