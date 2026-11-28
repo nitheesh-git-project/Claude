@@ -111,7 +111,7 @@ export default function RescheduleSessionButton({
             : "min-h-11 px-1 text-teal-700 hover:underline text-sm font-semibold"
         }
       >
-        {rescue ? "Pick a new time" : "Change time"}
+        {rescue ? "Pick a new time" : "Reschedule"}
       </button>
     );
   }

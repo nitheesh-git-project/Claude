@@ -1077,7 +1077,9 @@ export default function SessionDetailDrawer({
                 </button>
                 {a.payment_status === "paid" && (
                   <p className="text-[11px] text-slate-500 mt-1">
-                    Refunds the amount paid via Razorpay as part of cancelling.
+                    {a.razorpay_payment_id
+                      ? "Refunds the amount paid via Razorpay as part of cancelling."
+                      : "Paid outside Razorpay (cash, a transfer or a settlement), so nothing is refunded automatically - hand any refund back yourself."}
                   </p>
                 )}
               </div>

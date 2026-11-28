@@ -409,21 +409,35 @@ export function renderPatientSessionCard(
           {/* Moving it themselves: once, up to the clinic's cut-off, video
               sessions only (patientReschedule.ts). Judged on the page's
               request clock; the route re-checks on the debug-aware one. */}
-          {rescue === "none" && !patientRescheduleBlock({
-            status: a.status,
-            visitMode: visit?.visit_mode ?? null,
-            slotTime: a.slot_time,
-            nowMs: data.nowMs,
-            cutoffHours: adminSettings.patientRescheduleCutoffHours,
-            rescheduleCount: a.patient_reschedule_count ?? 0,
-            noShow: a.no_show,
-          }) && (
-            <RescheduleSessionButton
-              appointmentId={a.id}
-              categoryId={a.category_id}
-              leadTimeHours={adminSettings.onlineBookingLeadTimeHours}
-            />
-          )}
+          {rescue === "none" && (() => {
+            const block = patientRescheduleBlock({
+              status: a.status,
+              visitMode: visit?.visit_mode ?? null,
+              slotTime: a.slot_time,
+              nowMs: data.nowMs,
+              cutoffHours: adminSettings.patientRescheduleCutoffHours,
+              rescheduleCount: a.patient_reschedule_count ?? 0,
+              noShow: a.no_show,
+            });
+            if (!block) {
+              return (
+                <RescheduleSessionButton
+                  appointmentId={a.id}
+                  categoryId={a.category_id}
+                  leadTimeHours={adminSettings.onlineBookingLeadTimeHours}
+                />
+              );
+            }
+            // No button is not an answer. A live session ahead says why it
+            // cannot be moved here (the cut-off, once only, a home visit), so
+            // nobody hunts for a Reschedule that is not there.
+            const ahead = (a.status === "requested" || a.status === "confirmed") && !!a.slot_time && Date.parse(a.slot_time) > data.nowMs;
+            return ahead ? (
+              <p data-testid="reschedule-unavailable" className="basis-full text-xs text-slate-600">
+                Reschedule isn&apos;t available: {block}
+              </p>
+            ) : null;
+          })()}
           {rescue === "none" && (a.status === "requested" || a.status === "confirmed") && (
             <CancelSessionButton
               appointmentId={a.id}

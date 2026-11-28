@@ -94,7 +94,7 @@ export default async function ConditionsPage() {
       <PageHero
         eyebrow="Conditions treated"
         title="Tell us what hurts"
-        subtitle="Six areas of practice. Each with a real programme behind it."
+        subtitle="Each area of practice has a real programme behind it."
         primary={{ href: "/book", label: "Book a video session", icon: "fa-calendar-check" }}
         secondary={{ href: "/faq", label: "Read common questions" }}
         photoId="hero-conditions"

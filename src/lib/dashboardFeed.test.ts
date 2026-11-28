@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  buildHospitalFeed,
   buildPatientFeed,
   homeExercisesFeedItem,
   buildAdminFeed,
@@ -355,5 +356,29 @@ describe("the Home exercises row on a patient's Overview", () => {
   it("renders the date in the clinic's zone, not the runtime's", () => {
     const item = homeExercisesFeedItem({ ...plan, lastPracticedAt: "2026-10-12T20:00:00Z" });
     expect(item?.detail).toContain("13 Oct 2026");
+  });
+});
+
+describe("buildHospitalFeed (F-02)", () => {
+  const at = "2026-11-20T10:00:00Z";
+  const feed = buildHospitalFeed({
+    referrals: [
+      { id: "1", status: "pending_review", created_at: at, patient_name: "A" },
+      { id: "2", status: "invite_sent", created_at: at, patient_name: "B" },
+      { id: "3", status: "declined", created_at: at, patient_name: "C" },
+      { id: "4", status: "converted", created_at: at, patient_name: "D" },
+      { id: "5", status: "withdrawn", created_at: at, patient_name: "E" },
+    ],
+  });
+  const byId = (id: string) => feed.find((f) => f.id === `ref-${id}`)!;
+  it("only a referral still with the clinic reads as waiting on the clinic", () => {
+    expect(byId("1").title).toBe("Referral waiting on the clinic - A");
+    for (const id of ["2", "3", "4", "5"]) expect(byId(id).title).not.toContain("waiting on the clinic");
+  });
+  it("names what happened to the others", () => {
+    expect(byId("2").title).toBe("Registration link sent - B");
+    expect(byId("3").title).toBe("Referral declined - C");
+    expect(byId("3").tone).toBe("bad");
+    expect(byId("4").title).toBe("Patient registered - D");
   });
 });

@@ -346,6 +346,7 @@ export default function NeuroExamSummary({
                 <dt className="font-semibold text-slate-700">10-metre walk</dt>
                 <dd>
                   <span className="font-bold text-slate-800">{gait.tenMetreWalkSeconds} s</span>
+                  {headline.walk && <span className="text-slate-600"> ({headline.walk.speed} m/s)</span>}
                   {changeById.get("gait.tenMetreWalkSeconds") && <ChangeMark change={changeById.get("gait.tenMetreWalkSeconds")!} />}
                   <span className="block text-[11px] text-slate-500">{headline.walk && GAIT_SPEED_LABEL[headline.walk.band]}</span>
                 </dd>

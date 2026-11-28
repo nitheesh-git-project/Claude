@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { homeVisitCoverageFaq, LIVE_HOME_VISIT_FAQ_ID, quotesDriftingFigure } from "./faqLiveFacts";
+import { homeVisitCoverageFaq, LIVE_HOME_VISIT_FAQ_ID, quotesDriftingFigure, withoutUnbookableHomeVisitFaqs } from "./faqLiveFacts";
 
 describe("homeVisitCoverageFaq (F-05)", () => {
   it("names the cities the live service areas cover, once each, in order", () => {
@@ -40,5 +40,24 @@ describe("quotesDriftingFigure", () => {
     expect(quotesDriftingFigure("Sessions run over video, one-to-one.")).toBe(false);
     expect(quotesDriftingFigure("Cancel up to 24 hours before for a full refund.")).toBe(false);
     expect(quotesDriftingFigure("Call 9876543210")).toBe(false);
+  });
+});
+
+describe("withoutUnbookableHomeVisitFaqs", () => {
+  const rows = [
+    { question: "How do I book a home visit?" },
+    { question: "How do I get ready for a home visit?" },
+    { question: "What if you don't do home visits where I live?" },
+    { question: "How much does it cost?" },
+    { question: "QA: How do I check home-visit availability?" },
+  ];
+  it("hides the how-to-book questions while home visits cannot be booked, and keeps the honest one", () => {
+    expect(withoutUnbookableHomeVisitFaqs(rows, false).map((r) => r.question)).toEqual([
+      "What if you don't do home visits where I live?",
+      "How much does it cost?",
+    ]);
+  });
+  it("shows them all but test entries when home visits are bookable", () => {
+    expect(withoutUnbookableHomeVisitFaqs(rows, true)).toHaveLength(4);
   });
 });

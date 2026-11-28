@@ -71,10 +71,12 @@ export default async function TeamPage() {
   }
 
   const homeVisitEnabled = await readHomeVisitBookable();
+  // The "tap a profile" wording is only true when there are profiles to tap.
+  const hasTherapists = !!therapists && therapists.length > 0;
 
   const sectionNavItems: SectionNavItem[] = [
     { id: "the-team", label: "The Team", icon: "fa-user-doctor" },
-    { id: "choosing", label: "Choosing One", icon: "fa-hand-pointer" },
+    ...(hasTherapists ? [{ id: "choosing", label: "Choosing One", icon: "fa-hand-pointer" }] : []),
     { id: "explore", label: "Explore the Site", icon: "fa-compass" },
     { id: "get-started", label: "Book a Session", icon: "fa-calendar-check" },
   ];
@@ -93,7 +95,7 @@ export default async function TeamPage() {
         overlay={{
           icon: "fa-id-badge",
           title: "Licensed, every one",
-          body: "Credentials on every profile.",
+          body: hasTherapists ? "Credentials on every profile." : "Every physiotherapist is checked before they see a patient.",
         }}
       />
 
@@ -101,7 +103,7 @@ export default async function TeamPage() {
         id="the-team"
         eyebrow="Meet the specialists"
         title="Who you will be working with"
-        lede="Tap a profile. Request them when you book."
+        lede={hasTherapists ? "Tap a profile. Request them when you book." : "You are matched with a physiotherapist when you book."}
       >
         {!therapists || therapists.length === 0 ? (
           <p className="py-12 text-center text-sm text-slate-500">
@@ -112,6 +114,7 @@ export default async function TeamPage() {
         )}
       </Section>
 
+      {hasTherapists && (
       <Section
         id="choosing"
         tone="tint"
@@ -127,6 +130,7 @@ export default async function TeamPage() {
           ))}
         </Stagger>
       </Section>
+      )}
 
       <ExploreSection current="team" homeVisitEnabled={homeVisitEnabled} />
 

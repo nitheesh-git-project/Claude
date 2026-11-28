@@ -153,6 +153,12 @@ export default function ConditionIntakeWizard({
   // PatientSuggestionCard and SuggestSessionControl.
   const submittingRef = useRef(false);
   const queuedValuesRef = useRef<Record<string, string> | null>(null);
+  // Set when the wizard is closed after any autosave: the page behind it was
+  // rendered before those answers were saved, so reopening it showed the old
+  // answers ("typed answer was not kept") until a reload. Once the last save
+  // lands the page re-reads, so the saved answers are what it opens with.
+  const refreshAfterSaveRef = useRef(false);
+  const draftSavedRef = useRef(false);
   // Held in a ref rather than in fireAutosave's dependency array: callers
   // pass a fresh object literal each render, so depending on it would
   // rebuild the callback every render and restart the debounce every
@@ -178,7 +184,10 @@ export default function ConditionIntakeWizard({
         }),
       })
         .then((res) => {
-          if (res.ok) setDraftSavedAt(new Date());
+          if (res.ok) {
+            draftSavedRef.current = true;
+            setDraftSavedAt(new Date());
+          }
         })
         .catch(() => {})
         .finally(() => {
@@ -187,10 +196,13 @@ export default function ConditionIntakeWizard({
           if (next) {
             queuedValuesRef.current = null;
             save(next);
+          } else if (refreshAfterSaveRef.current) {
+            refreshAfterSaveRef.current = false;
+            router.refresh();
           }
         });
     },
-    [draftEndpoint, patientId]
+    [draftEndpoint, patientId, router]
   );
 
   useEffect(() => {
@@ -226,8 +238,12 @@ export default function ConditionIntakeWizard({
       autosaveTimer.current = null;
       if (!skipNextAutosave.current) fireAutosave(valuesRef.current);
     }
+    if (draftEndpoint) {
+      if (savingRef.current) refreshAfterSaveRef.current = true;
+      else if (draftSavedRef.current) router.refresh();
+    }
     onCloseRef.current();
-  }, [fireAutosave]);
+  }, [fireAutosave, draftEndpoint, router]);
 
   useEffect(() => {
     lastFocused.current = document.activeElement as HTMLElement | null;

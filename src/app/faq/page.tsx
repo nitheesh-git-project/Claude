@@ -8,7 +8,7 @@ import ExploreSection from "@/components/marketing/ExploreSection";
 import ClosingCta from "@/components/marketing/ClosingCta";
 import { readHomeVisitBookable, readOnlineBookingRules } from "@/lib/homeVisitFlag";
 import { defaultFaqs } from "@/lib/faqDefaults";
-import { homeVisitCoverageFaq } from "@/lib/faqLiveFacts";
+import { homeVisitCoverageFaq, withoutUnbookableHomeVisitFaqs } from "@/lib/faqLiveFacts";
 
 export const metadata: Metadata = {
   title: "FAQ | MoveRestore",
@@ -54,7 +54,10 @@ export default async function FaqPage() {
   // way -- an empty FAQ page helps nobody either way.
   const fallback =
     published.length === 0 ? defaultFaqs(await readOnlineBookingRules()) : [];
-  const rows = [...published, ...fallback, ...(coverageFaq ? [coverageFaq] : [])];
+  const rows = withoutUnbookableHomeVisitFaqs(
+    [...published, ...fallback, ...(coverageFaq ? [coverageFaq] : [])],
+    homeVisitEnabled
+  );
 
   const sectionNavItems: SectionNavItem[] = [
     { id: "questions", label: "Questions", icon: "fa-circle-question" },

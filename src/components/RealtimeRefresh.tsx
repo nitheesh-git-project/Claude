@@ -41,6 +41,8 @@ const DEFAULT_COOLDOWN_MS = 2000;
 
 /** How long a connection must stay down before the "paused" banner shows. */
 const DEGRADED_AFTER_MS = 12_000;
+/** While live updates are down, how often the screen checks for news. */
+const POLL_WHEN_DEGRADED_MS = 60_000;
 /** When a channel that has not come back is joined afresh. */
 const RETRY_AFTER_MS = 4_000;
 /** The last reason a channel gave for being down, for the banner's tooltip. */
@@ -118,6 +120,20 @@ export default function RealtimeRefresh({
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [degraded, drawsBanner, router]);
+
+  // While the live connection is down for good (a network that refuses the
+  // socket, a blocked websocket), the screen still must not go quietly stale.
+  // Only the banner's owner polls, once a minute while the tab is visible,
+  // with an ordinary refresh (a count on the Refresh button would claim news
+  // nobody has seen).
+  useEffect(() => {
+    if (!degraded || !drawsBanner) return;
+    const timer = setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      router.refresh();
+    }, POLL_WHEN_DEGRADED_MS);
+    return () => clearInterval(timer);
   }, [degraded, drawsBanner, router]);
 
   useEffect(() => {
@@ -294,7 +310,7 @@ export default function RealtimeRefresh({
       className="fixed bottom-[calc(1rem+var(--app-bottom-inset,0px))] left-1/2 z-50 -translate-x-1/2 flex w-max max-w-[calc(100vw-2rem)] items-center gap-2 rounded-2xl sm:rounded-full border border-amber-300 bg-amber-50 px-4 py-2 text-xs font-semibold text-amber-800 shadow-md print:hidden"
     >
       <i aria-hidden className="fa-solid fa-plug-circle-exclamation shrink-0" />
-      <span>Live updates paused - this screen may be out of date. It refreshes after your own changes and when you come back to it.</span>
+      <span>Live updates paused - this screen checks for changes once a minute, after your own changes and when you come back to it.</span>
       <button
         type="button"
         onClick={() => {

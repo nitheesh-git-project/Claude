@@ -173,7 +173,7 @@ export default async function HospitalProfilePage() {
         <div id="account-security" className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
           <h2 className="font-display font-bold text-lg text-slate-800 mb-1">Account Security</h2>
           <p className="text-xs text-slate-500 mb-4">
-            Change your password by email - this keeps your account secure.
+            Change your password with your current one, or ask for a reset link by email if you have forgotten it.
           </p>
           <AccountSecuritySection email={profile?.email ?? user.email ?? ""} />
         </div>

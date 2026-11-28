@@ -220,7 +220,7 @@ export default function ProfileSessionList({
                   Date.parse(a.slot_time) <= now && (
                   <>
                     <CompleteSessionButton appointmentId={a.id} slotTime={a.slot_time} />
-                    <MarkNoShowButton appointmentId={a.id} />
+                    <MarkNoShowButton appointmentId={a.id} slotTime={a.slot_time} />
                   </>
                 )}
                 {/* Not for a pay-later session: that is settled through the
