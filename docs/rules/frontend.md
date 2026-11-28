@@ -840,6 +840,15 @@ is invisible to any tooling here.
 
 ## Things the tester found that are easy to undo
 
+- **No internet is a plain sentence, never the browser's.** Safari says "Load
+  failed", Chrome "Failed to fetch"; a sign-in box that prints that tells a
+  patient with a right password that something broke. `OfflineBanner` (root
+  layout) installs `installNetworkGuard` (`src/lib/networkStatus.ts`), which
+  rewrites a rejected request's generic network text to `OFFLINE_MESSAGE`
+  (`src/lib/networkError.ts`) so every `e.message` consumer shows ours, and
+  draws one "You're offline" banner until a request gets through. Do not
+  match a browser's wording in a component; use `friendlyErrorMessage`.
+  Guard: `CHROME-012`.
 - **Never hold a copy of a row in `useState` for a pop-up.** Keep the id and look
   the row up in the props (`ProfileSessionList`, `AdminCalendarTab`): a refresh
   replaces props, not state, so a copied row showed the old price and history.
