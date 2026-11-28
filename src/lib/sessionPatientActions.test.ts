@@ -62,10 +62,26 @@ describe("patientPaymentView", () => {
     const v = patientPaymentView(row({ ...unpaid, therapist_id: "t", slot_time: at(NOW - H) }), NOW);
     expect(v.kind).toBe("no_action");
   });
-  it("never offers Pay on a completed or cancelled session", () => {
+  it("offers Pay on a delivered online session that is still unpaid", () => {
     const done = patientPaymentView(row({ ...unpaid, status: "completed", therapist_id: "t", slot_time: at(NOW - 2 * H) }), NOW);
-    expect(done).toMatchObject({ kind: "no_action", label: "Payment due" });
+    expect(done.kind).toBe("pay");
+  });
+  it("still offers no Pay on a completed no-show, a cash home visit or a programme session", () => {
+    const base = { ...unpaid, status: "completed", therapist_id: "t", slot_time: at(NOW - 2 * H) };
+    expect(patientPaymentView(row({ ...base, no_show: true }), NOW)).toMatchObject({ kind: "no_action", label: "Payment due" });
+    expect(patientPaymentView(row({ ...base, visit_mode: "home_visit" }), NOW)).toMatchObject({ kind: "no_action", label: "Payment due" });
+    expect(patientPaymentView(row({ ...base, package_purchase_id: "p" }), NOW)).toMatchObject({ kind: "no_action", label: "Payment due" });
+  });
+  it("never offers Pay on a cancelled session, nor once a completed one is paid", () => {
     expect(patientPaymentView(row({ ...unpaid, status: "cancelled" }), NOW)).toMatchObject({ label: "Not charged" });
+    expect(
+      patientPaymentView(row({ ...unpaid, payment_status: "paid", status: "completed", therapist_id: "t", slot_time: at(NOW - 2 * H) }), NOW).kind
+    ).toBe("paid");
+  });
+  it("keeps a delivered session off Home's \"keep your time\" card", () => {
+    const done = row({ ...unpaid, status: "completed", therapist_id: "t", slot_time: at(NOW - 2 * H) });
+    expect(patientPaymentView(done, NOW).kind).toBe("pay");
+    expect(needsPaymentOnHome(done, NOW)).toBe(false);
   });
   it("takes no payment while nobody can be confirmed in time", () => {
     expect(patientPaymentView(row({ ...unpaid, slot_time: at(NOW + H) }), NOW)).toMatchObject({ label: "No payment taken" });

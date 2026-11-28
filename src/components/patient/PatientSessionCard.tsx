@@ -223,6 +223,21 @@ export function renderPatientSessionCard(
               >
                 {paymentView.label}
               </span>
+            ) : a.payment_status === "unpaid" && a.status === "completed" ? (
+              // Delivered and unpaid: the booking wizard's Step 3 is for a
+              // session still to come (a time to hold, a lead time), so a
+              // completed one pays straight through the gateway sheet.
+              <PayNowButton
+                appointmentId={a.id}
+                name={profile?.full_name ?? ""}
+                email={profile?.email ?? ""}
+                description={a.concern ?? "Physiotherapy session"}
+                amountPaise={
+                  a.amount_paid_paise ??
+                  (a.category_id ? categoryPriceMap.get(a.category_id) : undefined) ??
+                  SESSION_FEE_PAISE
+                }
+              />
             ) : a.payment_status === "unpaid" &&
               canResumeInWizard({
                 visit_mode: data.visitDetailById.get(a.id)?.visit_mode ?? null,

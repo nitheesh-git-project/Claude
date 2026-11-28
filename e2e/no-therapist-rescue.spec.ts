@@ -114,15 +114,21 @@ test("NTR-003: a past session offers no Pay, and create-order refuses it", async
   expect((await res.json()).code).toBe("not_payable");
 });
 
-test("NTR-004: a completed unpaid session never offers Pay", async ({ page }) => {
+test("NTR-004: a completed unpaid session offers Pay on its card, straight to the gateway and never through the booking wizard", async ({ page }) => {
   const concern = `${MARKER} done`;
   await seed({ slot_time: at(Date.now() - 50 * HOUR), therapist_id: therapistId, status: "completed" }, concern);
   await open(page, "/patient/dashboard/sessions");
   await page.getByRole("button", { name: /^Past/ }).first().click();
   const c = card(page, concern);
   await expect(c).toBeVisible();
+  // The wizard's Step 3 is for a session still to come; a delivered one pays
+  // through the gateway sheet from the card.
   await expect(c.getByTestId("resume-checkout")).toHaveCount(0);
-  await expect(c.getByTestId("session-payment-note")).toHaveText("Payment due");
+  await expect(c.getByRole("button", { name: /^Pay .* Now$/ })).toBeVisible();
+  await expect(c.getByTestId("session-payment-note")).toHaveCount(0);
+  // Home's "keep your time" card is for a session still to come.
+  await open(page, "/patient/dashboard");
+  await expect(page.getByTestId("home-awaiting-payment-row").filter({ hasText: concern })).toHaveCount(0);
 });
 
 test("NTR-005: an unpaid admin-booked session cannot be joined until it is paid", async ({ page }) => {

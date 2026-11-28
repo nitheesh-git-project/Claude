@@ -139,9 +139,20 @@ Lead time, the whole-hour rule, the one month grid, the service picker, and aski
   `e2e/no-therapist-rescue.spec.ts`.
 - **Pay is offered only where paying means something, and an unpaid
   session cannot be joined.** `patientPaymentView` decides the card's money
-  pill: Pay only for a live session whose time is ahead and that the clinic
-  can still run; otherwise **Not paid** (time passed), **Payment due**
-  (completed unpaid -- the clinic follows up), **Not charged** (cancelled or
+  pill: Pay for a live session whose time is ahead and that the clinic can
+  still run, **and for a delivered (completed) online session still unpaid**
+  (owner's decision after a production report of "completed, Payment due, no
+  Pay button": an admin can close a session unpaid, and the patient must be
+  able to settle it). A completed session pays **straight through the
+  gateway sheet from its card** (`PayNowButton`), never the booking wizard,
+  and never from Home's "keep your time" card (`needsPaymentOnHome` excludes
+  it). `/api/razorpay/verify` records the payment against the finished
+  session without confirming or assigning anything, and the webhook makes the
+  same guarded write (`record_payment_capture` only marks live bookings), so
+  `completed && paid` -- the pair that makes a therapist's share payable --
+  holds either way. Still a follow-up, not a button: a completed no-show, a
+  cash home visit, a programme session. Otherwise **Not paid** (time passed),
+  **Payment due** (those follow-ups), **Not charged** (cancelled or
   no-show), **Pay at the visit** (a cash home visit) or **No payment taken**
   (no physiotherapist in time). `/api/razorpay/create-order` applies the same
   rule and refuses anything else (409 `not_payable`). `joinHeldForPayment`:
