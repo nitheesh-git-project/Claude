@@ -323,3 +323,29 @@ test("CHROME-007: Sign In, Get Started and Book fit the header on one row from 1
   await page.getByRole("button", { name: /^More/ }).click();
   await expect(page.getByRole("link", { name: "Home visit" }).first()).toBeVisible();
 });
+
+test("CHROME-012: with no internet the page says so in plain words -- a banner, and no browser 'Load failed' text", async ({ page, context }) => {
+  await page.addInitScript(() =>
+    localStorage.setItem("mr_cookie_consent", JSON.stringify({ version: "2026-11-12", analytics: false, marketing: false, at: Date.now() }))
+  );
+  await page.goto(`${BASE}/admin/login`);
+  await waitForSplashToClear(page);
+  await expect(page.getByTestId("offline-banner")).toHaveCount(0);
+
+  await context.setOffline(true);
+  const banner = page.getByTestId("offline-banner");
+  await expect(banner).toContainText("You're offline", { timeout: 10_000 });
+  await expect(banner).toContainText(/Connect to the internet/);
+
+  // A sign-in attempt while offline: the form's own message is ours, never
+  // Safari's "Load failed" / Chrome's "Failed to fetch".
+  await page.getByLabel("Email Address").fill("someone@example.com");
+  await page.getByLabel("Password", { exact: true }).fill("not-a-real-password");
+  await page.getByRole("button", { name: "Sign In" }).click();
+  await expect(page.getByText(/No internet connection/)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(/Load failed|Failed to fetch/)).toHaveCount(0);
+
+  await context.setOffline(false);
+  await expect(banner).toContainText("You're back online", { timeout: 10_000 });
+  await expect(banner).toHaveCount(0, { timeout: 10_000 });
+});

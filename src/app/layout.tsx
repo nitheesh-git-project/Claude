@@ -31,6 +31,7 @@ import LinkProgress from "@/components/system/LinkProgress";
 import NumericInputGuard from "@/components/system/NumericInputGuard";
 import Analytics from "@/components/system/Analytics";
 import ToastViewport from "@/components/system/ToastViewport";
+import OfflineBanner from "@/components/system/OfflineBanner";
 import { ToastProvider } from "@/lib/toast";
 import { PendingWorkProvider } from "@/lib/pendingWork";
 import { PricingProvider, type PricingConfig } from "@/components/pricing/PricingProvider";
@@ -270,6 +271,9 @@ export default async function RootLayout({
             <LinkProgress />
           </Suspense>
           <ToastViewport />
+          {/* No connection: one plain banner everywhere, and the guard that
+              rewrites the browser's bare "Load failed" text. */}
+          <OfflineBanner />
           {/* Google Analytics, after consent, public pages only. */}
           <Analytics />
           {/* Replaces the browser's own grey validation bubble everywhere at

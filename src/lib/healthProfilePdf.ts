@@ -1,4 +1,16 @@
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
+import { PDFDocument, type PDFPage, type RGB } from "pdf-lib";
+import {
+  LETTERHEAD_COLORS,
+  beginLetterheadPage,
+  finishLetterhead,
+  layoutFor,
+  letterheadContact,
+  letterheadTagline,
+  loadLetterhead,
+  watermarkWord,
+  type Letterhead,
+  type LetterheadSpec,
+} from "@/lib/pdfLetterhead";
 import { unitForValue } from "@/lib/unitPlural";
 import {
   PAIN_MAP_REGIONS,
@@ -29,19 +41,28 @@ import type { DiaryExport } from "@/lib/diaryExport";
 // goes through toWinAnsi() from pdfText -- a Devanagari name would
 // otherwise throw at draw time and 500 the whole export.
 
-const PAGE_WIDTH = 595.28; // A4 portrait, in points
-const PAGE_HEIGHT = 841.89;
-const MARGIN = 48;
-const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
-const INK = rgb(0.11, 0.16, 0.23);
-const MUTED = rgb(0.42, 0.48, 0.55);
-const RULE = rgb(0.85, 0.88, 0.91);
+// A4 portrait. The page furniture -- header, title block, footer band, the
+// word up the right edge -- is the shared letterhead (pdfLetterhead.ts); this
+// file lays the record out inside it.
+const LAYOUT = layoutFor("portrait");
+const MARGIN = LAYOUT.left;
+const CONTENT_WIDTH = LAYOUT.contentWidth;
+const INK = LETTERHEAD_COLORS.ink;
+const MUTED = LETTERHEAD_COLORS.muted;
+const RULE = LETTERHEAD_COLORS.rule;
 
 export type HealthProfilePdfInput = {
   siteName: string;
   patientName: string;
   patientCode: string | null;
   patientEmail: string | null;
+  /** For the header's Age / Gender and DOB. Either may be unknown. */
+  patientDob?: string | null;
+  patientGender?: string | null;
+  /** Settings' tagline and contact details, for the letterhead. */
+  tagline?: string | null;
+  contactEmail?: string | null;
+  contactPhone?: string | null;
   exportedAt: Date;
   status: string;
   /** Which question set produced these answers. A clinician receiving
@@ -175,16 +196,16 @@ class Cursor {
 
   constructor(
     private doc: PDFDocument,
-    private regular: PDFFont,
-    private bold: PDFFont
+    private kit: Letterhead,
+    private spec: LetterheadSpec
   ) {
     this.newPage();
   }
 
   private newPage() {
-    const page = this.doc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-    this.pages.push(page);
-    this.y = PAGE_HEIGHT - MARGIN;
+    const begun = beginLetterheadPage(this.doc, this.kit, this.spec, this.pages.length === 0);
+    this.pages.push(begun.page);
+    this.y = begun.y;
   }
 
   private page(): PDFPage {
@@ -201,20 +222,22 @@ class Cursor {
 
   need(height: number) {
     // Keep clear of the footer strip drawn at the end.
-    if (this.y - height < MARGIN + 24) this.newPage();
+    if (this.y - height < LAYOUT.bottom) this.newPage();
   }
 
   text(
     value: string,
-    { size = 10, bold = false, color = INK, indent = 0, gap = 3 }: {
+    { size = 10, bold = false, display = false, color = INK, indent = 0, gap = 3 }: {
       size?: number;
       bold?: boolean;
-      color?: ReturnType<typeof rgb>;
+      /** Plus Jakarta Sans, the application's heading face. */
+      display?: boolean;
+      color?: RGB;
       indent?: number;
       gap?: number;
     } = {}
   ) {
-    const font = bold ? this.bold : this.regular;
+    const font = display ? this.kit.display : bold ? this.kit.bold : this.kit.regular;
     const lineHeight = size * 1.35;
     for (const line of wrapText(toWinAnsi(value), font, size, CONTENT_WIDTH - indent)) {
       this.need(lineHeight);
@@ -230,9 +253,9 @@ class Cursor {
    */
   row(
     cells: { text: string; x: number; width: number }[],
-    { size = 9, bold = false, color = INK, gap = 4 }: { size?: number; bold?: boolean; color?: ReturnType<typeof rgb>; gap?: number } = {}
+    { size = 9, bold = false, color = INK, gap = 4 }: { size?: number; bold?: boolean; color?: RGB; gap?: number } = {}
   ) {
-    const font = bold ? this.bold : this.regular;
+    const font = bold ? this.kit.bold : this.kit.regular;
     const lineHeight = size * 1.3;
     const wrapped = cells.map((c) => wrapText(toWinAnsi(c.text), font, size, c.width));
     const lines = Math.max(1, ...wrapped.map((w) => w.length));
@@ -251,7 +274,7 @@ class Cursor {
     this.y -= 6;
     this.page().drawLine({
       start: { x: MARGIN, y: this.y },
-      end: { x: PAGE_WIDTH - MARGIN, y: this.y },
+      end: { x: LAYOUT.right, y: this.y },
       thickness: 0.75,
       color: RULE,
     });
@@ -262,7 +285,7 @@ class Cursor {
     // Never leave a heading stranded at the foot of a page.
     this.need(46);
     this.space(8);
-    this.text(value, { size: 13, bold: true, gap: 2 });
+    this.text(value, { size: 12.5, display: true, gap: 2 });
     this.rule();
   }
 }
@@ -280,11 +303,27 @@ export function healthProfilePdfFilename(patientName: string, patientCode: strin
   return `${code ? `${name}_${code}` : name}.pdf`;
 }
 
+/** "34" from a date of birth, counted in the clinic's calendar; "" when unknown. */
+function ageFromDob(dob: string | null | undefined, now: Date): string {
+  if (!dob) return "";
+  const born = new Date(dob);
+  if (Number.isNaN(born.getTime())) return "";
+  const day = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+  const [by, bm, bd] = day(born).split("-").map(Number);
+  const [ny, nm, nd] = day(now).split("-").map(Number);
+  let years = ny - by;
+  if (nm < bm || (nm === bm && nd < bd)) years -= 1;
+  return years >= 0 ? String(years) : "";
+}
+
+function genderLabel(gender: string | null | undefined): string {
+  const g = (gender ?? "").trim();
+  return g ? g.charAt(0).toUpperCase() + g.slice(1).toLowerCase() : "";
+}
+
 export async function buildHealthProfilePdf(input: HealthProfilePdfInput): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
-  const regular = await doc.embedFont(StandardFonts.Helvetica);
-  const bold = await doc.embedFont(StandardFonts.HelveticaBold);
-  const cur = new Cursor(doc, regular, bold);
+  const kit = await loadLetterhead(doc);
 
   // A name in a script the standard fonts cannot encode leaves stray
   // spaces around whatever Latin part survives, so it is tidied once here
@@ -296,16 +335,31 @@ export async function buildHealthProfilePdf(input: HealthProfilePdfInput): Promi
   doc.setCreator(input.siteName);
   doc.setProducer(input.siteName);
 
-  cur.text(input.siteName, { size: 16, bold: true, gap: 1 });
-  cur.text(`${input.specialtyLabel} health profile`, { size: 11, color: MUTED });
-  cur.rule();
+  const age = ageFromDob(input.patientDob, input.exportedAt);
+  const gender = genderLabel(input.patientGender);
+  const spec: LetterheadSpec = {
+    orientation: "portrait",
+    siteName: input.siteName,
+    tagline: letterheadTagline(input.tagline),
+    contact: letterheadContact({ contactEmail: input.contactEmail, contactPhone: input.contactPhone }),
+    // Unknown facts read "-" rather than being dropped, so the four columns
+    // keep their places from one patient to the next.
+    facts: [
+      { label: "Name", value: patientName },
+      { label: "Age / Gender", value: [age, gender].filter(Boolean).join(" / ") || "-" },
+      { label: "DOB", value: input.patientDob ? formatDate(input.patientDob) : "-" },
+      { label: "Patient ID", value: input.patientCode ?? "-" },
+    ],
+    createdLabel: "RECORD CREATED ON :",
+    createdOn: formatDate(input.exportedAt),
+    reportLabel: "DOCUMENT :",
+    title: `${input.specialtyLabel} health profile`,
+    subtitle: [patientName, input.patientEmail, `Intake status: ${input.status}`].filter(Boolean).join("  \u00B7  "),
+    watermark: watermarkWord("Health profile"),
+    notice: "Confidential medical information, shared at the patient's request. Not a diagnosis.",
+  };
+  const cur = new Cursor(doc, kit, spec);
 
-  cur.text(patientName, { size: 14, bold: true, gap: 1 });
-  const idLine = [
-    input.patientCode ? `Patient ID ${input.patientCode}` : null,
-    input.patientEmail,
-  ].filter(Boolean) as string[];
-  if (idLine.length > 0) cur.text(idLine.join("  |  "), { size: 10, color: MUTED, gap: 1 });
   if (input.respondent) {
     cur.text(
       `Answered by ${toWinAnsiTidy(input.respondent.name, "a caregiver")}${
@@ -317,10 +371,6 @@ export async function buildHealthProfilePdf(input: HealthProfilePdfInput): Promi
     );
   }
   if (input.carerLine) cur.text(toWinAnsiTidy(input.carerLine, ""), { size: 10, color: MUTED, gap: 1 });
-  cur.text(`Downloaded ${formatDate(input.exportedAt)}  |  Intake status: ${input.status}`, {
-    size: 9,
-    color: MUTED,
-  });
   if (input.layoutNote) cur.text(toWinAnsiTidy(input.layoutNote, ""), { size: 9, color: MUTED });
 
   if (input.showAnswers !== false) {
@@ -428,13 +478,15 @@ export async function buildHealthProfilePdf(input: HealthProfilePdfInput): Promi
     if (progress.measures.length === 0) {
       cur.text("No measurements recorded yet.", { size: 10, color: MUTED });
     } else {
-      const cols = [
-        { label: "Measure", x: 0, width: 150 },
-        { label: "First", x: 156, width: 100 },
-        { label: "Latest", x: 262, width: 100 },
-        { label: "Goal", x: 368, width: 60 },
-        { label: "Change", x: 434, width: CONTENT_WIDTH - 434 },
-      ];
+      // Shares of the content width, so the table follows the letterhead's
+      // margins instead of assuming a page width.
+      const share = [0.3, 0.2, 0.2, 0.12, 0.18];
+      let at = 0;
+      const cols = ["Measure", "First", "Latest", "Goal", "Change"].map((label, i) => {
+        const col = { label, x: at, width: share[i] * CONTENT_WIDTH - 6 };
+        at += share[i] * CONTENT_WIDTH;
+        return col;
+      });
       cur.need(60);
       cur.row(
         cols.map((c) => ({ text: c.label, x: c.x, width: c.width })),
@@ -604,19 +656,7 @@ export async function buildHealthProfilePdf(input: HealthProfilePdfInput): Promi
     { size: 8, color: MUTED }
   );
 
-  const pages = cur.allPages();
-  pages.forEach((page, index) => {
-    const label = toWinAnsi(
-      `${patientName}${input.patientCode ? ` (${input.patientCode})` : ""}  -  page ${index + 1} of ${pages.length}`
-    );
-    page.drawText(label, {
-      x: MARGIN,
-      y: MARGIN - 16,
-      size: 8,
-      font: regular,
-      color: MUTED,
-    });
-  });
+  finishLetterhead(cur.allPages(), kit, spec);
 
   return doc.save();
 }

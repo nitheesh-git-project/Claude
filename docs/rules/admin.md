@@ -582,7 +582,8 @@ The six sections (the Morning Brief layout), scopes and levels, User Access, the
   plus `CsvColumn[]` - never a pre-built string - so the spreadsheet and
   the printable document can't describe different tables. CSV is still
   built in the browser (no dependency, no round trip); the PDF is typeset
-  by `/api/admin/export-pdf` (`src/lib/tablePdf.ts`), which keeps pdf-lib
+  by `/api/admin/export-pdf` (`src/lib/tablePdf.ts`, on the shared letterhead -
+  see `docs/rules/frontend.md`), which keeps pdf-lib
   out of the admin dashboard's client bundle - that page already ships
   every screen at once. That route reads nothing: the caller sends the
   exact filtered rows it rendered, which is what guarantees the two
